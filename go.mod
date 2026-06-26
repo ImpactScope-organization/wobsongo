@@ -10,6 +10,8 @@ tool (
 	github.com/swaggo/swag/cmd/swag
 )
 
+require github.com/joho/godotenv v1.5.1
+
 require (
 	cel.dev/expr v0.25.1 // indirect
 	dario.cat/mergo v1.0.2 // indirect
@@ -45,7 +47,6 @@ require (
 	github.com/jackc/pgx/v5 v5.9.2 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/lmittmann/tint v1.1.3 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect

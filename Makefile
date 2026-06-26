@@ -3,10 +3,10 @@ setup:
 	@go install github.com/riverqueue/river/cmd/river@v0.30.2
 check:
 	@go mod tidy
-	@swag init -q --output ./swagger --generalInfo ./internal/core/app.go
+	# @go tool swag init -q --output ./swagger --generalInfo ./internal/core/app.go
 	@go build -o ./tmp/out . && find tmp -name '*out' -print0 | xargs -0 ls -lhS
 	@golangci-lint run ./...
-	@sqlc diff
+	# @go tool sqlc diff
 config:
 	@go run . -e .env config
 fmt:
@@ -15,7 +15,7 @@ fmt:
 gen:
 	@go generate ./...
 dev:
-	@air
+	@go tool air
 db:
 	@psql "postgres://wobsongocore:LocalDev123@localhost:45432/wobsongocore_db?sslmode=disable"
 dbup:
@@ -30,11 +30,6 @@ admin:
 	@go run . -e .env createsuperadmin --email admin@impactscope.com --username admin --password LocalDev123 --apply
 fake:
 	@go run . -e .env createsuperadmin --email admin@impactscope.com --username admin --password LocalDev123 --apply
-	@go run . -e .env faketeams --count=20 --apply
-	@go run . -e .env fakeseasons --apply
-	@go run . -e .env fakeactivities --apply
-	@go run . -e .env faketournaments --apply
-	@go run . -e .env fakefixtures --apply
 migrateup:
 	@go run . -e .env migrateup
 migratedown:

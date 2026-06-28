@@ -1,0 +1,210 @@
+// Package model contains the data structures and types used in the application.
+package model
+
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+type TruthTier int
+
+const (
+	// TruthTierAxiomatic represents axiomatic truth,
+	// indicating high factual accuracy and reliability.
+	TruthTierAxiomatic TruthTier = iota
+
+	// TruthTierTemporal represents temporal truth,
+	// some may no longer be considered true, but they are still based on observable evidence.
+	TruthTierTemporal
+
+	// TruthTierProbabilistic represents probabilistic truth,
+	// highly dependent on context and subject to change, indicating lower factual accuracy.
+	TruthTierProbabilistic
+
+	// TruthTierSubjective represents subjective truth,
+	// does not have a strong basis in fact and is highly dependent on personal opinion or perspective.
+	TruthTierSubjective
+
+	// TruthTierUnknown represents unknown truth, needing further verification or context.
+	TruthTierUnknown
+
+	// TruthTierInvalid represents invalid truth, indicating false or misleading information.
+	TruthTierInvalid
+)
+
+// LayoutType represents the structural classification assigned by Docling
+// to a specific parsed document element.
+type LayoutType string
+
+const (
+	// Structural Text Elements
+	LayoutTypeTitle         LayoutType = "title"
+	LayoutTypeSectionHeader LayoutType = "section_header"
+	LayoutTypeParagraph     LayoutType = "paragraph"
+	LayoutTypeListItem      LayoutType = "list_item"
+	LayoutTypeCode          LayoutType = "code"
+	LayoutTypeCaption       LayoutType = "caption"
+	LayoutTypeFootnote      LayoutType = "footnote"
+	LayoutTypeReference     LayoutType = "reference"
+
+	// Tabular and Visual Elements
+	LayoutTypeTable   LayoutType = "table"
+	LayoutTypePicture LayoutType = "picture"
+	LayoutTypeChart   LayoutType = "chart"
+	LayoutTypeFormula LayoutType = "formula"
+
+	// Noise and Artifacts
+	LayoutTypePageHeader    LayoutType = "page_header"
+	LayoutTypePageFooter    LayoutType = "page_footer"
+	LayoutTypeDocumentIndex LayoutType = "document_index"
+
+	// Forms and Key-Value Pairs
+	LayoutTypeKeyValueRegion     LayoutType = "key_value_region"
+	LayoutTypeCheckboxSelected   LayoutType = "checkbox_selected"
+	LayoutTypeCheckboxUnselected LayoutType = "checkbox_unselected"
+	LayoutTypeForm               LayoutType = "form"
+)
+
+// Document represents a document ingested into the knowledge base.
+type Document struct {
+	// ID is the unique identifier for the document.
+	ID uuid.UUID `json:"id" binding:"required"`
+
+	// CreatedAt is the timestamp when the document was created.
+	CreatedAt time.Time `json:"created_at" binding:"required"`
+
+	// ModifiedAt is the timestamp when the document was last modified.
+	ModifiedAt time.Time `json:"modified_at" binding:"required"`
+
+	// IngestedAt is the timestamp when the document was ingested into the system.
+	IngestedAt *time.Time `json:"ingested_at,omitempty"`
+
+	// SHA256 is the SHA256 hash of the document content.
+	SHA256 string `json:"sha256" binding:"required"`
+
+	// Title is the title of the document.
+	Title string `json:"title" binding:"required"`
+
+	// Filename is the name of the document file.
+	Filename string `json:"filename" binding:"required"`
+
+	// Filetype is the mime type of the document file (e.g., "application/pdf", "text/plain").
+	Filetype string `json:"filetype" binding:"required"`
+
+	// Filesize is the size of the document file in bytes.
+	Filesize int64 `json:"filesize" binding:"required"`
+
+	// PageCount is the number of pages in the document (if applicable).
+	PageCount int `json:"page_count" binding:"required"`
+
+	// PublisherName is the name of the publisher of the document.
+	PublisherName string `json:"publisher_name"`
+
+	// PublicationYear is the year the document was published.
+	PublicationYear int `json:"publication_year"`
+}
+
+// BoundingBox defines the coordinates of a text element on a PDF page layout.
+// Docling uses [left, top, right, bottom] relative to the page dimensions.
+type BoundingBox [4]float64
+
+// ParsedChunk represents a chunk of parsed content from a document,
+// typically paragraph-sized text with positioning information for context.
+// This struct is not stored in the database but is
+// used for processing and analysis of document content.
+type ParsedChunk struct {
+	// Text is the actual text content of the chunk.
+	Text string `json:"text" binding:"required"`
+
+	// Page is the page number in the document where this chunk was found.
+	Page int `json:"page" binding:"required"`
+
+	// Chapter is optional chapter information for the chunk, if applicable.
+	Chapter string `json:"chapter,omitempty"`
+
+	// LayoutType indicates the structural classification of the chunk.
+	LayoutType LayoutType `json:"layout_type" binding:"required"`
+
+	// BoundingBox defines the coordinates of the text chunk on the page,
+	BoundingBox BoundingBox `json:"bounding_box" binding:"required"`
+}
+
+// DocumentChunk represents a chunk of a document that is stored in the database.
+type DocumentChunk struct {
+	// ID is the unique identifier for the document chunk.
+	ID uuid.UUID `json:"id" binding:"required"`
+
+	// CreatedAt is the timestamp when the data was created.
+	CreatedAt time.Time `json:"created_at" binding:"required"`
+
+	// UpdatedAt is the timestamp when the data was last modified.
+	UpdatedAt time.Time `json:"updated_at" binding:"required"`
+
+	// DocumentID is the unique identifier of the document to which this chunk belongs.
+	DocumentID uuid.UUID `json:"document_id" binding:"required"`
+
+	// Topics is a list of topics associated with this document chunk,
+	// used for categorization and retrieval.
+	Topics []string `json:"topics" binding:"required"`
+
+	// FactualityScore is a score representing the factual accuracy of the content in this chunk,
+	// indicating how reliable the information is based on the source and context.
+	// Text with little to no factual basis will have a low score,
+	// while text with strong factual support will have a high score.
+	FactualityScore float64 `json:"factuality_score" binding:"required"`
+
+	// Embedding is a vector representation of the chunk's content,
+	// used for semantic search and similarity comparisons in the knowledge base.
+	Embedding []float32 `json:"-"`
+
+	ParsedChunk
+}
+
+// AtomicKnowledge represents a single unit of knowledge in the system,
+// parsed from a specific document chunk and associated with a truth tier.
+// One chunk may contain multiple atomic knowledge entries, each
+// representing a distinct fact or piece of information.
+type AtomicKnowledge struct {
+	// ID is the unique identifier for the atomic knowledge entry.
+	ID uuid.UUID `json:"id" binding:"required"`
+
+	// CreatedAt is the timestamp when the data was created.
+	CreatedAt time.Time `json:"created_at" binding:"required"`
+
+	// UpdatedAt is the timestamp when the data was last modified.
+	UpdatedAt time.Time `json:"updated_at" binding:"required"`
+
+	// DocumentID is the unique identifier of the document from which this knowledge was derived.
+	DocumentID uuid.UUID `json:"document_id" binding:"required"`
+
+	// DocumentChunkID is the unique identifier of the document chunk from which this knowledge was derived.
+	DocumentChunkID uuid.UUID `json:"document_chunk_id" binding:"required"`
+
+	// TruthTier represents the level of factual accuracy and reliability of the knowledge statement.
+	TruthTier TruthTier `json:"truth_tier" binding:"required"`
+
+	// Topics is a list of topics associated with this atomic knowledge entry.
+	Topics []string `json:"topics" binding:"required"`
+
+	// Subject is the subject of the knowledge statement, representing the entity or concept being described.
+	Subject string `json:"subject" binding:"required"`
+
+	// Predicate is the predicate of the knowledge statement, representing the relationship or action associated with the subject.
+	Predicate string `json:"predicate" binding:"required"`
+
+	// Object is the object of the knowledge statement, representing the entity or concept that is related to the subject through the predicate.
+	Object string `json:"object" binding:"required"`
+
+	// Note is an optional note providing additional context or information about the knowledge statement.
+	Note string `json:"note,omitempty"`
+
+	// Embedding is a vector representation of the knowledge statement.
+	Embedding []float32 `json:"-"`
+
+	// MarkedAsInvalid indicates whether the knowledge statement has been marked as invalid.
+	MarkedAsInvalid bool `json:"marked_as_invalid" binding:"required"`
+
+	// MarkedAsIrrelevant indicates whether the knowledge statement has been marked as irrelevant.
+	MarkedAsIrrelevant bool `json:"marked_as_irrelevant" binding:"required"`
+}

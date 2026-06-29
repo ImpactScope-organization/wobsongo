@@ -128,6 +128,10 @@ type ParsedChunk struct {
 
 	// BoundingBox defines the coordinates of the text chunk on the page,
 	BoundingBox BoundingBox `json:"bounding_box" binding:"required"`
+
+	// AssetURL stores the object storage link (e.g., MinIO/S3) to the extracted image file.
+	// This is only populated if LayoutType is LayoutTypePicture or LayoutTypeChart.
+	AssetURL string `json:"asset_url,omitempty"`
 }
 
 // DocumentChunk represents a chunk of a document that is stored in the database.

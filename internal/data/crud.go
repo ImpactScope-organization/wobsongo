@@ -32,7 +32,7 @@ type Crudable[T any] interface {
 }
 
 // CrudableWithTx is a generic interface for types that support CRUD operations with transaction support.
-type CrudableWithTx[T any] interface {
+type CrudableWithTx[T any, R any] interface {
 	Crudable[T]
-	TxAware[T]
+	TxAware[R]
 }

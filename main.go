@@ -1,7 +1,10 @@
+// package main is the main entry point to the application.
+// It wraps the default Cobra app.
+
 package main
 
-import "fmt"
+import "github.com/impactscope-organization/wobsongo/cmd"
 
 func main() {
-	fmt.Println("Hello, World!")
+	cmd.Execute()
 }

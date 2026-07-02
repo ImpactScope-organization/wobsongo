@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/handler"
 	"github.com/labstack/echo/v4"
 )
@@ -16,9 +17,10 @@ const (
 )
 
 type App struct {
-	config   *internal.Config
-	echoApp  *echo.Echo
-	apiGroup *echo.Group
+	config    *internal.Config
+	echoApp   *echo.Echo
+	apiGroup  *echo.Group
+	apifyRepo data.ApifyRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -46,10 +48,20 @@ func (app *App) Start() error {
 	return app.Server().ListenAndServe()
 }
 
+// AppOption defines a function type for configuring the App with optional dependencies.
+type AppOption func(*App)
+
+// WithApifyRepo sets the Apify repository for the application.
+func WithApifyRepo(repo data.ApifyRepoer) AppOption {
+	return func(a *App) {
+		a.apifyRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
-func NewApp(e *echo.Echo, config *internal.Config) *App {
+func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *App {
 	e.HideBanner = true
 
 	api := e.Group("/api")
@@ -62,6 +74,18 @@ func NewApp(e *echo.Echo, config *internal.Config) *App {
 
 	handler.UseCustomErrorHandler(app.Echo())
 	handler.UseGlobalMiddlewares(app.Echo())
+
+	// Run option functions to set optional dependencies.
+	for _, optionFunc := range optionFuncs {
+		optionFunc(app)
+	}
+
+	// Initialize repositories and handlers.
+	repos := new(handler.Repos)
+	repos.ApifyRepo = app.apifyRepo
+
+	handlers := handler.NewHandlers(repos)
+	handlers.RegisterRoutes(app.apiGroup)
 
 	return app
 }

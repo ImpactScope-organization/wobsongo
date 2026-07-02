@@ -1,4 +1,112 @@
+definitions:
+  dto.ApifyResource:
+    properties:
+      defaultDatasetId:
+        description: DefaultDatasetId is the ID of the dataset created by the Actor
+          run.
+        type: string
+      status:
+        description: Status indicates the final status of the Actor run (e.g., SUCCEEDED,
+          FAILED).
+        type: string
+    required:
+    - defaultDatasetId
+    - status
+    type: object
+  dto.ApifyWebhookPayload:
+    properties:
+      eventType:
+        description: EventType indicates the type of event that triggered the webhook.
+        type: string
+      resource:
+        allOf:
+        - $ref: '#/definitions/dto.ApifyResource'
+        description: Resource contains details of the Apify Actor run that just finished.
+    required:
+    - eventType
+    - resource
+    type: object
+  dto.ExtractionRequest:
+    properties:
+      target_url:
+        description: TargetURL is the link to the video (e.g., TikTok or Instagram
+          reels).
+        type: string
+      webhook_url:
+        description: WebhookURL is the endpoint Apify will call once the process is
+          complete.
+        type: string
+    required:
+    - target_url
+    - webhook_url
+    type: object
 info:
   contact: {}
-paths: {}
+paths:
+  /api/extract:
+    post:
+      consumes:
+      - application/json
+      description: Enqueues a job to extract media from a target URL using Apify.
+      parameters:
+      - description: Extraction Request Form
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ExtractionRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Trigger media extraction
+      tags:
+      - media
+  /api/webhooks/apify:
+    post:
+      consumes:
+      - application/json
+      description: Receives successful run notifications from Apify.
+      parameters:
+      - description: Apify Webhook Payload
+        in: body
+        name: payload
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ApifyWebhookPayload'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Apify webhook receiver
+      tags:
+      - webhooks
 swagger: "2.0"

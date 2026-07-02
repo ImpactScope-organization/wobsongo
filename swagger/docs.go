@@ -14,7 +14,166 @@ const docTemplate = `{
     },
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
-    "paths": {}
+    "paths": {
+        "/api/extract": {
+            "post": {
+                "description": "Enqueues a job to extract media from a target URL using Apify.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "media"
+                ],
+                "summary": "Trigger media extraction",
+                "parameters": [
+                    {
+                        "description": "Extraction Request Form",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ExtractionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/webhooks/apify": {
+            "post": {
+                "description": "Receives successful run notifications from Apify.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "webhooks"
+                ],
+                "summary": "Apify webhook receiver",
+                "parameters": [
+                    {
+                        "description": "Apify Webhook Payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.ApifyWebhookPayload"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "dto.ApifyResource": {
+            "type": "object",
+            "required": [
+                "defaultDatasetId",
+                "status"
+            ],
+            "properties": {
+                "defaultDatasetId": {
+                    "description": "DefaultDatasetId is the ID of the dataset created by the Actor run.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status indicates the final status of the Actor run (e.g., SUCCEEDED, FAILED).",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ApifyWebhookPayload": {
+            "type": "object",
+            "required": [
+                "eventType",
+                "resource"
+            ],
+            "properties": {
+                "eventType": {
+                    "description": "EventType indicates the type of event that triggered the webhook.",
+                    "type": "string"
+                },
+                "resource": {
+                    "description": "Resource contains details of the Apify Actor run that just finished.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ApifyResource"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.ExtractionRequest": {
+            "type": "object",
+            "required": [
+                "target_url",
+                "webhook_url"
+            ],
+            "properties": {
+                "target_url": {
+                    "description": "TargetURL is the link to the video (e.g., TikTok or Instagram reels).",
+                    "type": "string"
+                },
+                "webhook_url": {
+                    "description": "WebhookURL is the endpoint Apify will call once the process is complete.",
+                    "type": "string"
+                }
+            }
+        }
+    }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it

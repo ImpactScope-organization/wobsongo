@@ -7,12 +7,12 @@ This documentation provides a comprehensive overview of Wobsongo, an open-source
 
 ## Project Overview & Features
 
-Wobsongo is built to process, analyze, and detect misinformation using a robust document processing pipeline and modern web technologies. 
+Wobsongo is an open-source backend engine for misinformation detection, powered by a knowledge management and hybrid retrieval system. It provides infrastructure to ingest content, build a structured knowledge base, and verify claims against it.
 
-- **Backend Pipeline**: Written in Go (utilizing the Echo framework), providing a high-performance API. It integrates with River for robust job queues, handling heavy asynchronous tasks like media extraction, PDF parsing, and LLM inference.
-- **Claim Extraction**: Automatically parses messy social media text and media transcripts into verifiable atomic claims.
-- **AI Integration**: Utilizes Dockling for structured document extraction, BGE-M3 for vector embeddings, and LLMs for subject-predicate-object knowledge extraction.
-- **The "Judge" Logic**: A tuned LLM feedback loop that determines if retrieved evidence *Supports*, *Refutes*, or is *Irrelevant* to a claim, providing a confidence score.
+- **REST API**: Written in Go using the [Echo](https://echo.labstack.com/) framework, providing a high-performance, low-latency API.
+- **Async Job Queue**: Powered by [River](https://riverqueue.com/) on PostgreSQL for reliable processing of long-running background tasks.
+- **Document Storage**: PostgreSQL for structured data with S3-compatible object storage (MinIO locally) for documents and media assets.
+- **Extensible Architecture**: Clean layered design (handlers → services → repositories) with interface-based abstractions, making it straightforward to add new storage backends, job workers, or verification modules.
 
 ## SDG Alignment
 

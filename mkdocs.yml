@@ -46,6 +46,11 @@ nav:
       - Overview: index.md
       - Quick Reference: quick-reference.md
 
+  - Architecture:
+      - Overview: architecture.md
+      - Decisions (ADR):
+          - "ADR 0001: Layered Architecture": ../adr/0001-layered-architecture.md
+
   - Governance:
       - Project Charter: governance/PROJECT_CHARTER.md
       - Contributing: governance/CONTRIBUTING.md

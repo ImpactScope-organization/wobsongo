@@ -26,6 +26,9 @@ func Execute() {
 	)
 
 	rootCmd.AddCommand(serveCmd)
+	rootCmd.AddCommand(migrateUpCmd)
+	rootCmd.AddCommand(migrateDownCmd)
+	rootCmd.AddCommand(resetCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

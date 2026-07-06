@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: "wobsongocore"
       POSTGRES_DB: "wobsongocore_db"
     volumes:
-      - wobsongocorepgdata:/var/lib/postgresql/data
+      - wobsongocorepgdata:/var/lib/postgresql
     ports:
       - 45432:5432
     healthcheck:

@@ -77,20 +77,23 @@ type TransactionalEmailConfig struct {
 }
 
 type Config struct {
-	Logger             *slog.Logger    `json:"-"`                    // Never included in JSON (not serializable)
-	LogLevel           slog.Level      `json:"log_level"`            // Log level (debug, info, warn, error)
-	Env                string          `json:"env"`                  // Environment (development, staging, production)
-	JWTSecret          string          `json:"-"`                    // Never included in JSON (security)
-	JWTExpiryHours     int             `json:"jwt_expiry_hours"`     // JWT token expiry in hours
-	PostgresURI        string          `json:"-"`                    // Never included in JSON (security - contains credentials)
-	APIHost            string          `json:"api_host"`             // API host (e.g., "localhost:8000")
-	FrontendHost       string          `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
-	Port               int             `json:"port"`                 // Server port
-	CORSAllowedOrigins []string        `json:"cors_allowed_origins"` // CORS allowed origins
-	CORSAllowedMethods []string        `json:"cors_allowed_methods"` // CORS allowed methods
-	StorageProvider    StorageProvider `json:"storage_provider"`     // Storage provider (local, s3)
-	S3Config           *S3Config       `json:"s3_config"`            // S3 configuration
-	EmailConfig        *EmailConfig    `json:"email_config"`         // Email configuration
+	Logger             *slog.Logger    `json:"-"`                     // Never included in JSON (not serializable)
+	LogLevel           slog.Level      `json:"log_level"`             // Log level (debug, info, warn, error)
+	Env                string          `json:"env"`                   // Environment (development, staging, production)
+	JWTSecret          string          `json:"-"`                     // Never included in JSON (security)
+	JWTExpiryHours     int             `json:"jwt_expiry_hours"`      // JWT token expiry in hours
+	PostgresURI        string          `json:"-"`                     // Never included in JSON (security - contains credentials)
+	APIHost            string          `json:"api_host"`              // API host (e.g., "localhost:8000")
+	FrontendHost       string          `json:"frontend_host"`         // Frontend host (e.g., "localhost:3000")
+	Port               int             `json:"port"`                  // Server port
+	CORSAllowedOrigins []string        `json:"cors_allowed_origins"`  // CORS allowed origins
+	CORSAllowedMethods []string        `json:"cors_allowed_methods"`  // CORS allowed methods
+	StorageProvider    StorageProvider `json:"storage_provider"`      // Storage provider (local, s3)
+	S3Config           *S3Config       `json:"s3_config"`             // S3 configuration
+	EmailConfig        *EmailConfig    `json:"email_config"`          // Email configuration
+	ApifyToken         string          `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
+	ApifyTikTokActorID string          `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
+	ApifyIGActorID     string          `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -128,6 +131,10 @@ func (c *Config) IsOK() error {
 	}
 	if c.JWTExpiryHours <= 0 {
 		return errors.New("JWTExpiryHours is invalid")
+	}
+
+	if c.ApifyToken == "" {
+		return errors.New("APIFY_API_TOKEN is not set")
 	}
 	return nil
 }
@@ -215,6 +222,11 @@ func NewConfig(envs ...string) *Config {
 
 	sentryDSN := getEnv("SENTRY_DSN", "")
 
+	// Parse Apify configuration
+	apifyToken := getEnv("APIFY_API_TOKEN", "")
+	apifyTikTokActorID := getEnv("APIFY_TIKTOK_ACTOR_ID", "")
+	apifyIGActorID := getEnv("APIFY_IG_ACTOR_ID", "")
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -232,6 +244,9 @@ func NewConfig(envs ...string) *Config {
 		GoogleClientID:     googleClientID,
 		SentryDSN:          sentryDSN,
 		StorageProvider:    storageProvider,
+		ApifyToken:         apifyToken,
+		ApifyTikTokActorID: apifyTikTokActorID,
+		ApifyIGActorID:     apifyIGActorID,
 	}
 	return defaultConfig
 }

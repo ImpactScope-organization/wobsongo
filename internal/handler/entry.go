@@ -1,9 +1,41 @@
 package handler
 
 import (
+	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
+
+// Handlers struct holds references to all the individual handler structs.
+type Handlers struct {
+	apifyHandler *ApifyHandler
+}
+
+// RegisterRoutes registers all the API routes with their corresponding handlers.
+func (h *Handlers) RegisterRoutes(api *echo.Group) {
+	// apify Webhooks
+	api.POST("/webhooks/apify", h.apifyHandler.webhookHandler)
+	api.POST("/extract", h.apifyHandler.extractMediaHandler)
+}
+
+// Repos holds the repository interfaces required by the handlers.
+type Repos struct {
+	ApifyRepo data.ApifyRepoer
+}
+
+// NewHandlers creates a new Handlers instance with the provided repositories.
+// Dependency injection is used to provide the necessary services to the handlers.
+// You can provide mock implementations of the repositories for testing purposes.
+func NewHandlers(repos *Repos) *Handlers {
+	// Initialize Apify services and handlers
+	apifyService := service.NewApifyService(repos.ApifyRepo)
+	apifyHandler := NewApifyHandler(apifyService)
+
+	return &Handlers{
+		apifyHandler: apifyHandler,
+	}
+}
 
 // UseGlobalMiddlewares attaches default global middleware handlers to the given Echo instance.
 func UseGlobalMiddlewares(e *echo.Echo) {

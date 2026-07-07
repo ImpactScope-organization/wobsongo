@@ -6,7 +6,7 @@ type CreateDocumentDTO struct {
 	SHA256 string `json:"sha256" validate:"required"`
 
 	// FileKey is the object storage key (e.g., S3/MinIO) where the document file was uploaded.
-	FileKey string `json:"file_key" validate:"required"`
+	FileKey string `json:"file_key" validate:"required,s3key"`
 
 	// Title is the title of the document.
 	Title string `json:"title" validate:"required"`

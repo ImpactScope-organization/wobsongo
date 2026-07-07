@@ -26,10 +26,14 @@ func newDocumentTestApp(repo data.DocumentRepoer) *echo.Echo {
 	return app.Echo()
 }
 
+// validSHA256 is the SHA-256 digest of the empty string, used as a
+// well-formed 64-hex-char fixture for the s3key-validated FileKey field.
+const validSHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
 func validCreateDocumentBody() dto.CreateDocumentDTO {
 	return dto.CreateDocumentDTO{
-		SHA256:          "abc123",
-		FileKey:         "docs/fake.pdf",
+		SHA256:          validSHA256,
+		FileKey:         "documents/" + validSHA256 + ".pdf",
 		Title:           "A Fake Document",
 		Filename:        "fake.pdf",
 		Filetype:        "application/pdf",
@@ -105,6 +109,31 @@ func TestCreateDocumentHandler(t *testing.T) {
 
 		form := validCreateDocumentBody()
 		form.Title = ""
+		body, err := json.Marshal(form)
+		if err != nil {
+			t.Fatalf("failed to marshal request body: %v", err)
+		}
+
+		req := httptest.NewRequest(http.MethodPost, documentsBasePath, bytes.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf(
+				"expected status %d, got %d: %s",
+				http.StatusUnprocessableEntity,
+				rec.Code,
+				rec.Body.String(),
+			)
+		}
+	})
+
+	t.Run("ValidationFailure_InvalidFileKey", func(t *testing.T) {
+		app := newDocumentTestApp(&mockrepo.DocumentRepoerMock{})
+
+		form := validCreateDocumentBody()
+		form.FileKey = "docs/not-a-valid-key.pdf"
 		body, err := json.Marshal(form)
 		if err != nil {
 			t.Fatalf("failed to marshal request body: %v", err)

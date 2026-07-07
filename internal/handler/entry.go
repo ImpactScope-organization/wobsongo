@@ -9,19 +9,29 @@ import (
 
 // Handlers struct holds references to all the individual handler structs.
 type Handlers struct {
-	apifyHandler *ApifyHandler
+	apifyHandler    *ApifyHandler
+	documentHandler *DocumentHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
 func (h *Handlers) RegisterRoutes(api *echo.Group) {
-	// apify Webhooks
+	// apify Webhooks (legacy, unversioned)
 	api.POST("/webhooks/apify", h.apifyHandler.webhookHandler)
 	api.POST("/extract", h.apifyHandler.extractMediaHandler)
+
+	// Versioned resource routes use /api/v1/{resource_name_plural}.
+	v1 := api.Group("/v1")
+	v1.POST("/documents", h.documentHandler.createDocumentHandler)
+	v1.GET("/documents", h.documentHandler.listDocumentsHandler)
+	v1.GET("/documents/:id", h.documentHandler.getDocumentHandler)
+	v1.PUT("/documents/:id", h.documentHandler.updateDocumentHandler)
+	v1.DELETE("/documents/:id", h.documentHandler.deleteDocumentHandler)
 }
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo data.ApifyRepoer
+	ApifyRepo    data.ApifyRepoer
+	DocumentRepo data.DocumentRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -32,8 +42,13 @@ func NewHandlers(repos *Repos) *Handlers {
 	apifyService := service.NewApifyService(repos.ApifyRepo)
 	apifyHandler := NewApifyHandler(apifyService)
 
+	// Initialize Document services and handlers
+	documentService := service.NewDocumentService(repos.DocumentRepo)
+	documentHandler := NewDocumentHandler(documentService)
+
 	return &Handlers{
-		apifyHandler: apifyHandler,
+		apifyHandler:    apifyHandler,
+		documentHandler: documentHandler,
 	}
 }
 

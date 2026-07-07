@@ -80,6 +80,13 @@ type Document struct {
 	// IngestedAt is the timestamp when the document was ingested into the system.
 	IngestedAt *time.Time `json:"ingested_at,omitempty"`
 
+	// FileURL is the object storage link (e.g., MinIO/S3) to the document file,
+	// but it only stores the S3 key, not the full URL.
+	FileURL S3Key `json:"-" binding:"required"`
+
+	// FileURLPresigned is the presigned URL for accessing the document file.
+	FileURLPresigned string `json:"file_url_presigned,omitempty"`
+
 	// SHA256 is the SHA256 hash of the document content.
 	SHA256 string `json:"sha256" binding:"required"`
 

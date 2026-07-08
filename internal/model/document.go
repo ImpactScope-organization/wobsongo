@@ -155,6 +155,10 @@ type DocumentChunk struct {
 	// DocumentID is the unique identifier of the document to which this chunk belongs.
 	DocumentID uuid.UUID `json:"document_id" binding:"required"`
 
+	// SequenceNumber tracks the absolute reading order of this chunk
+	// within the parent document (0-indexed), as produced by the parser.
+	SequenceNumber int `json:"sequence_number" binding:"required"`
+
 	// Topics is a list of topics associated with this document chunk,
 	// used for categorization and retrieval.
 	Topics []string `json:"topics" binding:"required"`

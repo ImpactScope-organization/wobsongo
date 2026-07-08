@@ -37,10 +37,18 @@ func NewMediaHandler(mediaSvc *service.MediaService) *MediaHandler {
 func (h *MediaHandler) getPresignedPOSTURL(c echo.Context) error {
 	form := new(dto.GetPresignedURLDTO)
 	if err := c.Bind(form); err != nil {
-		return &model.APIError{Code: http.StatusBadRequest, Internal: err, Public: "invalid query parameters"}
+		return &model.APIError{
+			Code:     http.StatusBadRequest,
+			Internal: err,
+			Public:   msgInvalidQueryParams,
+		}
 	}
 	if err := c.Validate(form); err != nil {
-		return &model.APIError{Code: http.StatusUnprocessableEntity, Internal: err, Public: msgValidationFailed}
+		return &model.APIError{
+			Code:     http.StatusUnprocessableEntity,
+			Internal: err,
+			Public:   msgValidationFailed,
+		}
 	}
 
 	if !data.IsValidMediaUploadIntent(form.Intent) {
@@ -64,7 +72,11 @@ func (h *MediaHandler) getPresignedPOSTURL(c echo.Context) error {
 	)
 	if err != nil {
 		status, message := mapDataErrorToHTTP(err)
-		return &model.APIError{Code: status, Internal: err, Public: message + ": filename " + form.Filename}
+		return &model.APIError{
+			Code:     status,
+			Internal: err,
+			Public:   message + ": filename " + form.Filename,
+		}
 	}
 
 	return writeJSON(c, http.StatusOK, presigned)
@@ -85,16 +97,28 @@ func (h *MediaHandler) getPresignedPOSTURL(c echo.Context) error {
 func (h *MediaHandler) getPresignedGETURL(c echo.Context) error {
 	form := new(dto.GetPresignedGETURLDTO)
 	if err := c.Bind(form); err != nil {
-		return &model.APIError{Code: http.StatusBadRequest, Internal: err, Public: "invalid query parameters"}
+		return &model.APIError{
+			Code:     http.StatusBadRequest,
+			Internal: err,
+			Public:   msgInvalidQueryParams,
+		}
 	}
 	if err := c.Validate(form); err != nil {
-		return &model.APIError{Code: http.StatusUnprocessableEntity, Internal: err, Public: msgValidationFailed}
+		return &model.APIError{
+			Code:     http.StatusUnprocessableEntity,
+			Internal: err,
+			Public:   msgValidationFailed,
+		}
 	}
 
 	presignedURL, err := h.service.GetPresignedGETURL(c.Request().Context(), form.S3Key, form.TTL)
 	if err != nil {
 		status, message := mapDataErrorToHTTP(err)
-		return &model.APIError{Code: status, Internal: err, Public: message + ": s3 key " + form.S3Key}
+		return &model.APIError{
+			Code:     status,
+			Internal: err,
+			Public:   message + ": s3 key " + form.S3Key,
+		}
 	}
 
 	ttl := form.TTL

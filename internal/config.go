@@ -94,6 +94,7 @@ type Config struct {
 	ApifyToken         string          `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
 	ApifyTikTokActorID string          `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
 	ApifyIGActorID     string          `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
+	DoclingBaseURL     string          `json:"docling_base_url"`      // Base URL of the Docling Serve instance
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -227,6 +228,9 @@ func NewConfig(envs ...string) *Config {
 	apifyTikTokActorID := getEnv("APIFY_TIKTOK_ACTOR_ID", "")
 	apifyIGActorID := getEnv("APIFY_IG_ACTOR_ID", "")
 
+	// Parse Docling configuration
+	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -247,6 +251,7 @@ func NewConfig(envs ...string) *Config {
 		ApifyToken:         apifyToken,
 		ApifyTikTokActorID: apifyTikTokActorID,
 		ApifyIGActorID:     apifyIGActorID,
+		DoclingBaseURL:     doclingBaseURL,
 	}
 	return defaultConfig
 }

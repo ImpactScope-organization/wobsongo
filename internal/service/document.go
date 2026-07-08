@@ -12,6 +12,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 // DocumentService defines a set of available methods
@@ -48,7 +49,16 @@ func (s *DocumentService) Create(
 		PublicationYear: req.PublicationYear,
 	}
 
-	if err := s.repo.Create(ctx, doc); err != nil {
+	err := s.repo.WithTx(ctx, func(txRepo data.DocumentRepoer) error {
+		if err := txRepo.Create(ctx, doc); err != nil {
+			return err
+		}
+		return txRepo.Enqueue(ctx, queue.ParseDocumentDTO{
+			DocumentID: doc.ID,
+			FileKey:    string(doc.FileURL),
+		})
+	})
+	if err != nil {
 		return nil, err
 	}
 

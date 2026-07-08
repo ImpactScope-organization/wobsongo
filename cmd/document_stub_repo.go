@@ -9,12 +9,17 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
+	"github.com/jackc/pgx/v5"
+	"github.com/riverqueue/river"
 )
 
 // newStubDocumentRepo returns a temporary in-memory-backed data.DocumentRepoer,
 // built on the moq-generated mock, standing in until a real Postgres-backed
 // repo (internal/repo/document_repo.go) exists. Replace this wiring once that lands.
-func newStubDocumentRepo() data.DocumentRepoer {
+// Job enqueueing is genuinely real (backed by riverClient) even though document
+// persistence itself stays in-memory.
+func newStubDocumentRepo(riverClient *river.Client[pgx.Tx]) data.DocumentRepoer {
 	var mu sync.Mutex
 	store := make(map[uuid.UUID]*model.Document)
 
@@ -77,6 +82,11 @@ func newStubDocumentRepo() data.DocumentRepoer {
 
 	mock.WithTxFunc = func(_ context.Context, fn func(data.DocumentRepoer) error) error {
 		return fn(mock)
+	}
+
+	mock.EnqueueFunc = func(ctx context.Context, payload queue.BackgroundJob) error {
+		_, err := riverClient.Insert(ctx, payload, nil)
+		return err
 	}
 
 	return mock

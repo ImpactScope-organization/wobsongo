@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	msgInvalidDocumentID = "invalid document id"
-	msgValidationFailed  = "validation failed"
+	msgInvalidDocumentID  = "invalid document id"
+	msgValidationFailed   = "validation failed"
+	msgInvalidQueryParams = "invalid query parameters"
 )
 
 // DocumentHandler handles HTTP requests related to documents.
@@ -110,7 +111,7 @@ func (h *DocumentHandler) listDocumentsHandler(c echo.Context) error {
 		return &model.APIError{
 			Code:     http.StatusBadRequest,
 			Internal: err,
-			Public:   "invalid query parameters",
+			Public:   msgInvalidQueryParams,
 		}
 	}
 	if err := c.Validate(pagination); err != nil {

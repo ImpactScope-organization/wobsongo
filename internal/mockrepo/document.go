@@ -9,6 +9,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"sync"
 )
 
@@ -27,6 +28,9 @@ var _ data.DocumentRepoer = &DocumentRepoerMock{}
 //			},
 //			DeleteFunc: func(ctx context.Context, id uuid.UUID) error {
 //				panic("mock out the Delete method")
+//			},
+//			EnqueueFunc: func(ctx context.Context, payload queue.BackgroundJob) error {
+//				panic("mock out the Enqueue method")
 //			},
 //			GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.Document, error) {
 //				panic("mock out the GetByID method")
@@ -52,6 +56,9 @@ type DocumentRepoerMock struct {
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, id uuid.UUID) error
+
+	// EnqueueFunc mocks the Enqueue method.
+	EnqueueFunc func(ctx context.Context, payload queue.BackgroundJob) error
 
 	// GetByIDFunc mocks the GetByID method.
 	GetByIDFunc func(ctx context.Context, id uuid.UUID) (*model.Document, error)
@@ -80,6 +87,13 @@ type DocumentRepoerMock struct {
 			Ctx context.Context
 			// ID is the id argument value.
 			ID uuid.UUID
+		}
+		// Enqueue holds details about calls to the Enqueue method.
+		Enqueue []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Payload is the payload argument value.
+			Payload queue.BackgroundJob
 		}
 		// GetByID holds details about calls to the GetByID method.
 		GetByID []struct {
@@ -112,6 +126,7 @@ type DocumentRepoerMock struct {
 	}
 	lockCreate   sync.RWMutex
 	lockDelete   sync.RWMutex
+	lockEnqueue  sync.RWMutex
 	lockGetByID  sync.RWMutex
 	lockPaginate sync.RWMutex
 	lockUpdate   sync.RWMutex
@@ -187,6 +202,42 @@ func (mock *DocumentRepoerMock) DeleteCalls() []struct {
 	mock.lockDelete.RLock()
 	calls = mock.calls.Delete
 	mock.lockDelete.RUnlock()
+	return calls
+}
+
+// Enqueue calls EnqueueFunc.
+func (mock *DocumentRepoerMock) Enqueue(ctx context.Context, payload queue.BackgroundJob) error {
+	if mock.EnqueueFunc == nil {
+		panic("DocumentRepoerMock.EnqueueFunc: method is nil but DocumentRepoer.Enqueue was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		Payload queue.BackgroundJob
+	}{
+		Ctx:     ctx,
+		Payload: payload,
+	}
+	mock.lockEnqueue.Lock()
+	mock.calls.Enqueue = append(mock.calls.Enqueue, callInfo)
+	mock.lockEnqueue.Unlock()
+	return mock.EnqueueFunc(ctx, payload)
+}
+
+// EnqueueCalls gets all the calls that were made to Enqueue.
+// Check the length with:
+//
+//	len(mockedDocumentRepoer.EnqueueCalls())
+func (mock *DocumentRepoerMock) EnqueueCalls() []struct {
+	Ctx     context.Context
+	Payload queue.BackgroundJob
+} {
+	var calls []struct {
+		Ctx     context.Context
+		Payload queue.BackgroundJob
+	}
+	mock.lockEnqueue.RLock()
+	calls = mock.calls.Enqueue
+	mock.lockEnqueue.RUnlock()
 	return calls
 }
 

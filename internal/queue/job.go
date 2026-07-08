@@ -9,6 +9,9 @@ const (
 
 	// JobTypeProcessAITask represents a job type for processing AI tasks.
 	JobTypeProcessAITask BackgroundJobType = "process_ai_task"
+
+	// JobTypeParseDocument represents a job type for parsing an ingested document via Docling.
+	JobTypeParseDocument BackgroundJobType = "parse_document"
 )
 
 // BackgroundJob represents a generic background job.

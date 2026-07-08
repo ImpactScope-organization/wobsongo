@@ -10,16 +10,24 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 )
 
 func TestDocumentService_Create(t *testing.T) {
 	var created *model.Document
-	repo := &mockrepo.DocumentRepoerMock{
-		CreateFunc: func(_ context.Context, entity *model.Document) error {
-			created = entity
-			return nil
-		},
+	var enqueued queue.BackgroundJob
+	repo := &mockrepo.DocumentRepoerMock{}
+	repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
+		return fn(repo)
+	}
+	repo.CreateFunc = func(_ context.Context, entity *model.Document) error {
+		created = entity
+		return nil
+	}
+	repo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = payload
+		return nil
 	}
 	svc := service.NewDocumentService(repo)
 
@@ -48,12 +56,25 @@ func TestDocumentService_Create(t *testing.T) {
 	if created != doc {
 		t.Error("expected the same document passed to repo.Create to be returned")
 	}
+
+	parseJob, ok := enqueued.(queue.ParseDocumentDTO)
+	if !ok {
+		t.Fatalf("expected a queue.ParseDocumentDTO to be enqueued, got %T", enqueued)
+	}
+	if parseJob.DocumentID != doc.ID {
+		t.Errorf("expected enqueued job DocumentID %s, got %s", doc.ID, parseJob.DocumentID)
+	}
+	if parseJob.FileKey != req.FileKey {
+		t.Errorf("expected enqueued job FileKey %s, got %s", req.FileKey, parseJob.FileKey)
+	}
 }
 
 func TestDocumentService_Create_PropagatesRepoError(t *testing.T) {
-	repo := &mockrepo.DocumentRepoerMock{
-		CreateFunc: func(_ context.Context, _ *model.Document) error { return data.ErrInternal },
+	repo := &mockrepo.DocumentRepoerMock{}
+	repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
+		return fn(repo)
 	}
+	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrInternal }
 	svc := service.NewDocumentService(repo)
 
 	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{})

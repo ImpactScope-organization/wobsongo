@@ -95,7 +95,7 @@ var serveCmd = &cobra.Command{
 		}()
 
 		// Build and start HTTP API server.
-		app := buildApp(config, riverClient, mediaProvider)
+		app := buildApp(config, pool, riverClient, mediaProvider)
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
 		if err := app.Start(); err != nil {

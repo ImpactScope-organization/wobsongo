@@ -1,0 +1,17 @@
+name: "wobsongocore-test"
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_PASSWORD: "LocalDev123"
+      POSTGRES_USER: "wobsongocoretest"
+      POSTGRES_DB: "wobsongocore_db"
+    ports:
+      - 45433:5432
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "wobsongocoretest", "-d", "wobsongocore_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    tmpfs:
+      - /var/lib/postgresql

@@ -35,7 +35,7 @@ func TestDocumentService_Create(t *testing.T) {
 		PublicationYear: 2020,
 	}
 
-	doc, err := svc.Create(context.Background(), req)
+	doc, err := svc.Create(t.Context(), req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestDocumentService_Create_PropagatesRepoError(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	_, err := svc.Create(context.Background(), &dto.CreateDocumentDTO{})
+	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{})
 	if !errors.Is(err, data.ErrInternal) {
 		t.Errorf("expected data.ErrInternal, got %v", err)
 	}
@@ -75,7 +75,7 @@ func TestDocumentService_GetByID(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	got, err := svc.GetByID(context.Background(), id)
+	got, err := svc.GetByID(t.Context(), id)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestDocumentService_GetByID_PropagatesNotFound(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	_, err := svc.GetByID(context.Background(), uuid.New())
+	_, err := svc.GetByID(t.Context(), uuid.New())
 	if !errors.Is(err, data.ErrNotFound) {
 		t.Errorf("expected data.ErrNotFound, got %v", err)
 	}
@@ -110,7 +110,7 @@ func TestDocumentService_List(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	got, err := svc.List(context.Background(), &dto.PaginationDTO{})
+	got, err := svc.List(t.Context(), &dto.PaginationDTO{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestDocumentService_Update(t *testing.T) {
 		PublisherName:   "New Press",
 		PublicationYear: 2021,
 	}
-	doc, err := svc.Update(context.Background(), id, req)
+	doc, err := svc.Update(t.Context(), id, req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestDocumentService_Update_NotFoundNeverCallsUpdate(t *testing.T) {
 	svc := service.NewDocumentService(repo)
 
 	_, err := svc.Update(
-		context.Background(),
+		t.Context(),
 		uuid.New(),
 		&dto.UpdateDocumentDTO{Title: "New Title"},
 	)
@@ -186,7 +186,7 @@ func TestDocumentService_Delete(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	if err := svc.Delete(context.Background(), id); err != nil {
+	if err := svc.Delete(t.Context(), id); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -197,7 +197,7 @@ func TestDocumentService_Delete_PropagatesRepoError(t *testing.T) {
 	}
 	svc := service.NewDocumentService(repo)
 
-	err := svc.Delete(context.Background(), uuid.New())
+	err := svc.Delete(t.Context(), uuid.New())
 	if !errors.Is(err, data.ErrForbidden) {
 		t.Errorf("expected data.ErrForbidden, got %v", err)
 	}

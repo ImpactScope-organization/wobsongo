@@ -15,10 +15,12 @@ func buildApp(
 	riverClient *river.Client[pgx.Tx],
 ) *core.App {
 	apifyRepo := repo.NewApifyRepo(riverClient)
+	documentRepo := newStubDocumentRepo()
 
 	return core.NewApp(
 		echo.New(),
 		config,
 		core.WithApifyRepo(apifyRepo),
+		core.WithDocumentRepo(documentRepo),
 	)
 }

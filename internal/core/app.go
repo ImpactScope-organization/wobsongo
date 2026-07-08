@@ -8,6 +8,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/handler"
+	"github.com/impactscope-organization/wobsongo/internal/validation"
 	"github.com/labstack/echo/v4"
 )
 
@@ -17,10 +18,11 @@ const (
 )
 
 type App struct {
-	config    *internal.Config
-	echoApp   *echo.Echo
-	apiGroup  *echo.Group
-	apifyRepo data.ApifyRepoer
+	config       *internal.Config
+	echoApp      *echo.Echo
+	apiGroup     *echo.Group
+	apifyRepo    data.ApifyRepoer
+	documentRepo data.DocumentRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -58,6 +60,13 @@ func WithApifyRepo(repo data.ApifyRepoer) AppOption {
 	}
 }
 
+// WithDocumentRepo sets the document repository for the application.
+func WithDocumentRepo(repo data.DocumentRepoer) AppOption {
+	return func(a *App) {
+		a.documentRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -75,6 +84,10 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	handler.UseCustomErrorHandler(app.Echo())
 	handler.UseGlobalMiddlewares(app.Echo())
 
+	if err := validation.Register(app.Echo()); err != nil {
+		panic(fmt.Errorf("failed to register DTO validator: %w", err))
+	}
+
 	// Run option functions to set optional dependencies.
 	for _, optionFunc := range optionFuncs {
 		optionFunc(app)
@@ -83,6 +96,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	// Initialize repositories and handlers.
 	repos := new(handler.Repos)
 	repos.ApifyRepo = app.apifyRepo
+	repos.DocumentRepo = app.documentRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

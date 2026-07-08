@@ -29,6 +29,9 @@ func Register(e *echo.Echo) error {
 	if err := v.RegisterValidation("s3key", validateS3Key); err != nil {
 		return err
 	}
+	if err := v.RegisterValidation("mimetype", validateMimeType); err != nil {
+		return err
+	}
 	e.Validator = &DTOValidator{validator: v}
 	return nil
 }

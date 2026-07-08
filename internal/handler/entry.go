@@ -11,6 +11,7 @@ import (
 type Handlers struct {
 	apifyHandler    *ApifyHandler
 	documentHandler *DocumentHandler
+	mediaHandler    *MediaHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -26,12 +27,16 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	v1.GET("/documents/:id", h.documentHandler.getDocumentHandler)
 	v1.PUT("/documents/:id", h.documentHandler.updateDocumentHandler)
 	v1.DELETE("/documents/:id", h.documentHandler.deleteDocumentHandler)
+
+	v1.GET("/media/upload", h.mediaHandler.getPresignedPOSTURL)
+	v1.GET("/media/presigned-url", h.mediaHandler.getPresignedGETURL)
 }
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo    data.ApifyRepoer
-	DocumentRepo data.DocumentRepoer
+	ApifyRepo     data.ApifyRepoer
+	DocumentRepo  data.DocumentRepoer
+	MediaProvider data.MediaUploadProvider
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -46,9 +51,14 @@ func NewHandlers(repos *Repos) *Handlers {
 	documentService := service.NewDocumentService(repos.DocumentRepo)
 	documentHandler := NewDocumentHandler(documentService)
 
+	// Initialize Media services and handlers
+	mediaService := service.NewMediaService(repos.MediaProvider)
+	mediaHandler := NewMediaHandler(mediaService)
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
+		mediaHandler:    mediaHandler,
 	}
 }
 

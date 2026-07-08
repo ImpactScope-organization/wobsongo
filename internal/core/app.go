@@ -18,11 +18,12 @@ const (
 )
 
 type App struct {
-	config       *internal.Config
-	echoApp      *echo.Echo
-	apiGroup     *echo.Group
-	apifyRepo    data.ApifyRepoer
-	documentRepo data.DocumentRepoer
+	config        *internal.Config
+	echoApp       *echo.Echo
+	apiGroup      *echo.Group
+	apifyRepo     data.ApifyRepoer
+	documentRepo  data.DocumentRepoer
+	mediaProvider data.MediaUploadProvider
 }
 
 // Echo returns the Echo instance of the application.
@@ -67,6 +68,13 @@ func WithDocumentRepo(repo data.DocumentRepoer) AppOption {
 	}
 }
 
+// WithMediaProvider sets the media upload provider for the application.
+func WithMediaProvider(provider data.MediaUploadProvider) AppOption {
+	return func(a *App) {
+		a.mediaProvider = provider
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -97,6 +105,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos := new(handler.Repos)
 	repos.ApifyRepo = app.apifyRepo
 	repos.DocumentRepo = app.documentRepo
+	repos.MediaProvider = app.mediaProvider
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

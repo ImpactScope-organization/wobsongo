@@ -72,10 +72,16 @@ var serveCmd = &cobra.Command{
 		}()
 
 		// Build and start HTTP API server.
-		app := buildApp(
+		app, err := buildApp(
+			cmd.Context(),
 			config,
 			riverClient,
 		)
+		if err != nil {
+			cmd.PrintErrf("Failed to build app: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
 		if err := app.Start(); err != nil {

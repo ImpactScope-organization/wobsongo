@@ -9,7 +9,8 @@
     "python@3.14.4",
     "uv@0.11.19",
     "postgresql_18@18.4",
-    "lazysql@0.5.4"
+    "lazysql@0.5.4",
+    "go-migrate@4.18.1"
   ],
   "shell": {
     "init_hook": ["echo '🚀 Initializing environment...'"],

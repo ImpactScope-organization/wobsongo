@@ -223,3 +223,71 @@ func TestDocumentService_Delete_PropagatesRepoError(t *testing.T) {
 		t.Errorf("expected data.ErrForbidden, got %v", err)
 	}
 }
+
+func TestDocumentService_UpdateAfterParse(t *testing.T) {
+	id := uuid.New()
+	existing := &model.Document{ID: id, Title: "Existing", PageCount: 0}
+	var updated *model.Document
+	repo := &mockrepo.DocumentRepoerMock{
+		GetByIDFunc: func(_ context.Context, _ uuid.UUID) (*model.Document, error) { return existing, nil },
+		UpdateFunc: func(_ context.Context, entity *model.Document) error {
+			updated = entity
+			return nil
+		},
+	}
+	svc := service.NewDocumentService(repo)
+
+	if err := svc.UpdateAfterParse(t.Context(), id, 42, "Docling's Title"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.PageCount != 42 {
+		t.Errorf("expected page count 42, got %d", updated.PageCount)
+	}
+	if updated.Title != "Existing" {
+		t.Errorf("expected existing title to be preserved, got %q", updated.Title)
+	}
+	if updated != existing {
+		t.Error("expected repo.Update to be called with the mutated existing document")
+	}
+}
+
+func TestDocumentService_UpdateAfterParse_BackfillsBlankTitle(t *testing.T) {
+	id := uuid.New()
+	existing := &model.Document{ID: id, Title: "", PageCount: 0}
+	var updated *model.Document
+	repo := &mockrepo.DocumentRepoerMock{
+		GetByIDFunc: func(_ context.Context, _ uuid.UUID) (*model.Document, error) { return existing, nil },
+		UpdateFunc: func(_ context.Context, entity *model.Document) error {
+			updated = entity
+			return nil
+		},
+	}
+	svc := service.NewDocumentService(repo)
+
+	if err := svc.UpdateAfterParse(t.Context(), id, 7, "Docling's Title"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if updated.Title != "Docling's Title" {
+		t.Errorf("expected blank title to be backfilled from Docling, got %q", updated.Title)
+	}
+}
+
+func TestDocumentService_UpdateAfterParse_NotFoundNeverCallsUpdate(t *testing.T) {
+	updateCalled := false
+	repo := &mockrepo.DocumentRepoerMock{
+		GetByIDFunc: func(_ context.Context, _ uuid.UUID) (*model.Document, error) { return nil, data.ErrNotFound },
+		UpdateFunc: func(_ context.Context, _ *model.Document) error {
+			updateCalled = true
+			return nil
+		},
+	}
+	svc := service.NewDocumentService(repo)
+
+	err := svc.UpdateAfterParse(t.Context(), uuid.New(), 10, "Some Title")
+	if !errors.Is(err, data.ErrNotFound) {
+		t.Errorf("expected data.ErrNotFound, got %v", err)
+	}
+	if updateCalled {
+		t.Error("expected repo.Update not to be called when GetByID fails")
+	}
+}

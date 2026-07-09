@@ -29,6 +29,7 @@ func Execute() {
 	rootCmd.AddCommand(migrateUpCmd)
 	rootCmd.AddCommand(migrateDownCmd)
 	rootCmd.AddCommand(resetCmd)
+	rootCmd.AddCommand(documentCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

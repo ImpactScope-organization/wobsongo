@@ -1,0 +1,24 @@
+-- name: GetDocumentChunkByID :one
+SELECT * FROM document_chunks WHERE id = $1;
+
+-- name: ListDocumentChunksByDocumentID :many
+SELECT * FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC;
+
+-- name: CreateDocumentChunksBatch :copyfrom
+INSERT INTO document_chunks (
+    id, created_at, updated_at, document_id, sequence_number, topics, factuality_score,
+    text, page, chapter, layout_type, bounding_box, asset_url
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+);
+
+-- name: UpdateDocumentChunk :one
+UPDATE document_chunks SET
+    updated_at = $2,
+    topics = $3,
+    factuality_score = $4,
+    text = $5,
+    chapter = $6,
+    asset_url = $7
+WHERE id = $1
+RETURNING *;

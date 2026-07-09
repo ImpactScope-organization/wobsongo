@@ -5,6 +5,7 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
@@ -57,6 +58,20 @@ var serveCmd = &cobra.Command{
 		mediaService := service.NewMediaService(mediaProvider)
 		doclingClient := external.NewDoclingClient(config.DoclingBaseURL)
 
+		// riverClient is nil here: ChunkRepo.Enqueue is unused until Job 2
+		// exists to enqueue (see the worker's TODO) — WithTx/CreateBatch only
+		// need pool, which is already available. Wire the real riverClient in
+		// once that lands.
+		chunkRepo := repo.NewDocumentChunkRepo(db.New(pool), pool, nil)
+
+		// Same nil-riverClient reasoning as chunkRepo above: this document
+		// repo instance is only used by the worker to backfill PageCount
+		// after parsing (GetByID+Update) — it never calls Enqueue. The
+		// HTTP-facing document repo (with a real riverClient) is built
+		// separately, inside buildApp.
+		workerDocumentRepo := repo.NewDocumentRepo(db.New(pool), pool, nil)
+		documentService := service.NewDocumentService(workerDocumentRepo)
+
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -65,7 +80,12 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, mediaWorker)
 
 		// register ParseDocumentWorker with River
-		parseDocumentWorker := worker.NewParseDocumentWorker(doclingClient, mediaService)
+		parseDocumentWorker := worker.NewParseDocumentWorker(
+			doclingClient,
+			mediaService,
+			chunkRepo,
+			documentService,
+		)
 		river.AddWorker(workers, parseDocumentWorker)
 
 		// Initialize River client with the database pool and registered workers.

@@ -27,6 +27,22 @@ type Document struct {
 	PublicationYear int32
 }
 
+type DocumentChunk struct {
+	ID              uuid.UUID
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	DocumentID      uuid.UUID
+	SequenceNumber  int32
+	Topics          []string
+	FactualityScore float64
+	Text            string
+	Page            int32
+	Chapter         string
+	LayoutType      string
+	BoundingBox     []float64
+	AssetUrl        string
+}
+
 type User struct {
 	ID        int32
 	Email     string

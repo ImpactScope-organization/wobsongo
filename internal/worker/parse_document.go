@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
@@ -35,16 +36,25 @@ type ParseDocumentWorker struct {
 	Processor data.DocumentProcessor
 	// MediaService presigns the document's file key into a URL Docling can fetch.
 	MediaService *service.MediaService
+	// ChunkRepo stores the chunks that survive filtering.
+	ChunkRepo data.DocumentChunkRepoer
+	// DocumentService backfills the document's page count once Docling has
+	// actually parsed it (the document is created with page_count=0 up front).
+	DocumentService *service.DocumentService
 }
 
 // NewParseDocumentWorker is a constructor for ParseDocumentWorker.
 func NewParseDocumentWorker(
 	processor data.DocumentProcessor,
 	mediaService *service.MediaService,
+	chunkRepo data.DocumentChunkRepoer,
+	documentService *service.DocumentService,
 ) *ParseDocumentWorker {
 	return &ParseDocumentWorker{
-		Processor:    processor,
-		MediaService: mediaService,
+		Processor:       processor,
+		MediaService:    mediaService,
+		ChunkRepo:       chunkRepo,
+		DocumentService: documentService,
 	}
 }
 
@@ -70,16 +80,59 @@ func (w *ParseDocumentWorker) Work(
 		return fmt.Errorf("failed to process document %s via docling: %w", job.Args.DocumentID, err)
 	}
 
+	if err := w.DocumentService.UpdateAfterParse(
+		ctx,
+		job.Args.DocumentID,
+		result.PageCount,
+		result.Title,
+	); err != nil {
+		return fmt.Errorf(
+			"failed to update document %s after parsing: %w",
+			job.Args.DocumentID,
+			err,
+		)
+	}
+
 	kept, dropped := filterNoiseChunks(result.Chunks)
 	log.Printf(
 		"[ParseDocumentWorker] document=%s title=%q page_count=%d chunks_kept=%d chunks_dropped=%d",
 		job.Args.DocumentID, result.Title, result.PageCount, len(kept), dropped,
 	)
 
-	// TODO(document-ingestion pipeline, future sub-task): persist `kept` as
-	// model.DocumentChunk rows (SequenceNumber = index in `kept`) once a real
-	// DocumentChunkRepoer exists, then enqueue Job 2 (knowledge extraction)
-	// inside the same transaction.
+	var stored int
+	err = w.ChunkRepo.WithTx(ctx, func(tx data.DocumentChunkRepoer) error {
+		now := time.Now()
+		toStore := make([]model.DocumentChunk, 0, len(kept))
+		for i, c := range kept {
+			chunk := model.DocumentChunk{
+				ID:             uuid.New(),
+				CreatedAt:      now,
+				UpdatedAt:      now,
+				DocumentID:     job.Args.DocumentID,
+				SequenceNumber: i,
+				ParsedChunk:    c,
+			}
+			ok, err := tx.ShouldBeStored(ctx, chunk)
+			if err != nil {
+				return fmt.Errorf("failed to evaluate chunk %d for storage: %w", i, err)
+			}
+			if ok {
+				toStore = append(toStore, chunk)
+			}
+		}
+		stored = len(toStore)
+		return tx.CreateBatch(ctx, toStore)
+		// TODO(future sub-task): enqueue Job 2 (knowledge extraction) here once
+		// its queue DTO exists, so it commits atomically with these chunks.
+	})
+	if err != nil {
+		return fmt.Errorf("failed to store chunks for document %s: %w", job.Args.DocumentID, err)
+	}
+
+	log.Printf(
+		"[ParseDocumentWorker] document=%s stored=%d/%d chunks",
+		job.Args.DocumentID, stored, len(kept),
+	)
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"time"
 
@@ -103,6 +104,64 @@ func (c *DoclingClient) ProcessFromURL(
 	ctx context.Context,
 	documentURL string,
 ) (*data.ProcessedDocument, error) {
+	respBytes, err := c.convertFromURL(ctx, documentURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var parsed doclingServeResponse
+	if err := json.Unmarshal(respBytes, &parsed); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal docling response: %w", err)
+	}
+
+	return mapDoclingDocument(&parsed.Document.JSONContent), nil
+}
+
+// ConvertFromURLRaw fetches the document at documentURL via Docling Serve,
+// same as ProcessFromURL, but returns the raw, unparsed response body
+// instead of mapping it — for tooling that wants Docling's native output
+// directly (e.g. capturing test fixtures).
+func (c *DoclingClient) ConvertFromURLRaw(ctx context.Context, documentURL string) ([]byte, error) {
+	return c.convertFromURL(ctx, documentURL)
+}
+
+// ConvertFileRaw uploads r's content directly to Docling Serve's
+// /v1/convert/file endpoint and returns the raw, unparsed response body.
+// Unlike ConvertFromURLRaw, this doesn't require the document to already be
+// reachable via a URL — needed when the caller can't hand Docling Serve a
+// fetchable URL (e.g. a local dev S3/MinIO that a cloud-hosted Docling
+// instance can't reach).
+func (c *DoclingClient) ConvertFileRaw(
+	ctx context.Context,
+	filename string,
+	r io.Reader,
+) ([]byte, error) {
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	if err := writer.WriteField("to_formats", "json"); err != nil {
+		return nil, fmt.Errorf("failed to write to_formats field: %w", err)
+	}
+	if err := writer.WriteField("image_export_mode", "embedded"); err != nil {
+		return nil, fmt.Errorf("failed to write image_export_mode field: %w", err)
+	}
+	part, err := writer.CreateFormFile("files", filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, r); err != nil {
+		return nil, fmt.Errorf("failed to copy file content: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	return c.doRequest(ctx, "/v1/convert/file", writer.FormDataContentType(), body)
+}
+
+// convertFromURL performs the actual Docling Serve /v1/convert/source call
+// and returns the raw response body.
+func (c *DoclingClient) convertFromURL(ctx context.Context, documentURL string) ([]byte, error) {
 	payload := doclingConvertRequest{
 		Sources: []doclingSource{
 			{Kind: "http", URL: documentURL},
@@ -118,16 +177,21 @@ func (c *DoclingClient) ProcessFromURL(
 		return nil, fmt.Errorf("failed to marshal docling request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(
-		ctx,
-		http.MethodPost,
-		c.baseURL+"/v1/convert/source",
-		bytes.NewReader(body),
-	)
+	return c.doRequest(ctx, "/v1/convert/source", "application/json", bytes.NewReader(body))
+}
+
+// doRequest POSTs body to path on Docling Serve and returns the raw
+// response body, shared by every convert variant (URL-based, file-upload).
+func (c *DoclingClient) doRequest(
+	ctx context.Context,
+	path, contentType string,
+	body io.Reader,
+) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create docling request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -149,12 +213,7 @@ func (c *DoclingClient) ProcessFromURL(
 		)
 	}
 
-	var parsed doclingServeResponse
-	if err := json.Unmarshal(respBytes, &parsed); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal docling response: %w", err)
-	}
-
-	return mapDoclingDocument(&parsed.Document.JSONContent), nil
+	return respBytes, nil
 }
 
 // mapDoclingDocument maps a doclingDocument into data.ProcessedDocument.

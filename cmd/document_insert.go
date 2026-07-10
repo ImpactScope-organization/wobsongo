@@ -184,7 +184,11 @@ func buildCreateDocumentDTO(
 	mediaService *service.MediaService,
 	apply bool,
 ) (*dto.CreateDocumentDTO, func(), error) {
-	f, originalFilename, cleanup, err := openDocumentSource(ctx)
+	f, originalFilename, cleanup, err := openDocumentSource(
+		ctx,
+		documentInsertFile,
+		documentInsertURL,
+	)
 	if err != nil {
 		return nil, cleanup, err
 	}
@@ -233,31 +237,36 @@ func buildCreateDocumentDTO(
 }
 
 // openDocumentSource returns a seekable handle to the source file (opened
-// directly for --file; downloaded to a temp file for --url, since HTTP
+// directly for filePath; downloaded to a temp file for sourceURL, since HTTP
 // response bodies aren't seekable), its original filename, and a cleanup
-// func that closes (and, for downloads, removes) it.
-func openDocumentSource(ctx context.Context) (*os.File, string, func(), error) {
-	if documentInsertFile != "" {
-		f, err := os.Open(documentInsertFile)
+// func that closes (and, for downloads, removes) it. Exactly one of
+// filePath/sourceURL is expected to be set. Shared by every CLI command
+// that accepts a --file/--url document source (document insert, docling dump).
+func openDocumentSource(
+	ctx context.Context,
+	filePath, sourceURL string,
+) (*os.File, string, func(), error) {
+	if filePath != "" {
+		f, err := os.Open(filePath)
 		if err != nil {
-			return nil, "", nil, fmt.Errorf("failed to open %s: %w", documentInsertFile, err)
+			return nil, "", nil, fmt.Errorf("failed to open %s: %w", filePath, err)
 		}
-		return f, filepath.Base(documentInsertFile), func() { _ = f.Close() }, nil
+		return f, filepath.Base(filePath), func() { _ = f.Close() }, nil
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, documentInsertURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sourceURL, nil)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("failed to build download request: %w", err)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("failed to download %s: %w", documentInsertURL, err)
+		return nil, "", nil, fmt.Errorf("failed to download %s: %w", sourceURL, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, "", nil, fmt.Errorf(
 			"failed to download %s: status %d",
-			documentInsertURL,
+			sourceURL,
 			resp.StatusCode,
 		)
 	}
@@ -273,14 +282,14 @@ func openDocumentSource(ctx context.Context) (*os.File, string, func(), error) {
 
 	if _, err := io.Copy(tmp, resp.Body); err != nil {
 		cleanup()
-		return nil, "", nil, fmt.Errorf("failed to download %s: %w", documentInsertURL, err)
+		return nil, "", nil, fmt.Errorf("failed to download %s: %w", sourceURL, err)
 	}
 	if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 		cleanup()
 		return nil, "", nil, fmt.Errorf("failed to rewind downloaded file: %w", err)
 	}
 
-	parsed, err := url.Parse(documentInsertURL)
+	parsed, err := url.Parse(sourceURL)
 	if err != nil {
 		cleanup()
 		return nil, "", nil, fmt.Errorf("failed to parse URL: %w", err)

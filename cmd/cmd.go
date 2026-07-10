@@ -30,6 +30,7 @@ func Execute() {
 	rootCmd.AddCommand(migrateDownCmd)
 	rootCmd.AddCommand(resetCmd)
 	rootCmd.AddCommand(documentCmd)
+	rootCmd.AddCommand(doclingCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

@@ -12,6 +12,15 @@ const (
 
 	// JobTypeParseDocument represents a job type for parsing an ingested document via Docling.
 	JobTypeParseDocument BackgroundJobType = "parse_document"
+
+	// JobTypeProcessParsedDocument represents a job type for turning a
+	// document's raw Docling output (stored in S3 by ParseDocumentWorker)
+	// into stored chunks.
+	JobTypeProcessParsedDocument BackgroundJobType = "process_parsed_document"
+
+	// JobTypeCaptionImageChunks represents a job type for generating and
+	// storing captions for image/chart chunks extracted during processing.
+	JobTypeCaptionImageChunks BackgroundJobType = "caption_image_chunks"
 )
 
 // BackgroundJob represents a generic background job.

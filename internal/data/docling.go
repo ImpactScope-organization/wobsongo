@@ -19,9 +19,13 @@ type ProcessedDocument struct {
 	Chunks []model.ParsedChunk
 }
 
-// DocumentProcessor defines the contract for extracting structured content from a document.
+// DocumentProcessor defines the contract for fetching a document's raw,
+// unparsed processor output. Deliberately returns raw bytes, not structured
+// chunks — the fetch (a slow, expensive external call) and the response
+// interpretation are separate, independently retryable steps; see
+// external.ParseRaw for the latter.
 type DocumentProcessor interface {
-	// ProcessFromURL fetches the document at documentURL, parses its layout,
-	// and returns all extracted chunks and document-level metadata, unfiltered.
-	ProcessFromURL(ctx context.Context, documentURL string) (*ProcessedDocument, error)
+	// FetchRawFromURL fetches the document at documentURL and returns the
+	// processor's raw, unparsed response body.
+	FetchRawFromURL(ctx context.Context, documentURL string) ([]byte, error)
 }

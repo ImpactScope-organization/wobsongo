@@ -3,11 +3,15 @@ package external
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -91,38 +95,34 @@ type doclingProv struct {
 	BBox   []float64 `json:"bbox"` // [left, top, right, bottom]
 }
 
-// doclingImage holds the base64 representation of an extracted image.
-// Its URI is only read to confirm presence — not decoded or uploaded here.
+// doclingImage holds the base64 representation of an extracted image, as a
+// "data:<mime-type>;base64,<payload>" URI. Decoded by decodeDataURI in
+// mapDoclingDocument.
 type doclingImage struct {
 	URI string `json:"uri"`
 }
 
-// ProcessFromURL fetches the document at documentURL via Docling Serve's
-// synchronous /v1/convert/source endpoint and maps the result into
-// data.ProcessedDocument. Filtering by layout type is left to the caller.
-func (c *DoclingClient) ProcessFromURL(
-	ctx context.Context,
-	documentURL string,
-) (*data.ProcessedDocument, error) {
-	respBytes, err := c.convertFromURL(ctx, documentURL)
-	if err != nil {
-		return nil, err
-	}
+// FetchRawFromURL fetches the document at documentURL via Docling Serve's
+// synchronous /v1/convert/source endpoint and returns the raw, unparsed
+// response body — implements data.DocumentProcessor. The HTTP fetch and the
+// response interpretation (ParseRaw) are deliberately separate, independently
+// retryable steps: a raw response can be large (embedded images push some
+// past 100MB) and expensive to re-fetch, so callers persist it once (e.g. to
+// S3) and parse it out of band.
+func (c *DoclingClient) FetchRawFromURL(ctx context.Context, documentURL string) ([]byte, error) {
+	return c.convertFromURL(ctx, documentURL)
+}
 
+// ParseRaw unmarshals Docling Serve's raw JSON response (as returned by
+// FetchRawFromURL or ConvertFileRaw) into data.ProcessedDocument. Filtering
+// by layout type is left to the caller.
+func ParseRaw(raw []byte) (*data.ProcessedDocument, error) {
 	var parsed doclingServeResponse
-	if err := json.Unmarshal(respBytes, &parsed); err != nil {
+	if err := json.Unmarshal(raw, &parsed); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal docling response: %w", err)
 	}
 
 	return mapDoclingDocument(&parsed.Document.JSONContent), nil
-}
-
-// ConvertFromURLRaw fetches the document at documentURL via Docling Serve,
-// same as ProcessFromURL, but returns the raw, unparsed response body
-// instead of mapping it — for tooling that wants Docling's native output
-// directly (e.g. capturing test fixtures).
-func (c *DoclingClient) ConvertFromURLRaw(ctx context.Context, documentURL string) ([]byte, error) {
-	return c.convertFromURL(ctx, documentURL)
 }
 
 // ConvertFileRaw uploads r's content directly to Docling Serve's
@@ -251,14 +251,24 @@ func mapDoclingDocument(doc *doclingDocument) *data.ProcessedDocument {
 	for _, p := range doc.Pictures {
 		page, bbox := firstProv(p.Prov)
 		maxPage = max(maxPage, page)
-		// Image.URI (base64) is intentionally not decoded/uploaded here — see
-		// external/docling.go's doclingImage doc comment and the ingestion
-		// plan's "explicitly out of scope" section for why.
-		chunks = append(chunks, model.ParsedChunk{
+		chunk := model.ParsedChunk{
 			Page:        page,
 			LayoutType:  model.LayoutType(p.Label),
 			BoundingBox: bbox,
-		})
+		}
+		if p.Image != nil {
+			contentType, decoded, err := decodeDataURI(p.Image.URI)
+			if err != nil {
+				// A malformed/undecodable image shouldn't sink the whole
+				// document parse — keep the chunk (page/bbox/layout-type
+				// still useful) just without image data to upload later.
+				log.Printf("[docling] failed to decode embedded image: %v", err)
+			} else {
+				chunk.RawImageData = decoded
+				chunk.RawImageContentType = contentType
+			}
+		}
+		chunks = append(chunks, chunk)
 	}
 
 	return &data.ProcessedDocument{
@@ -277,4 +287,26 @@ func firstProv(prov []doclingProv) (int, model.BoundingBox) {
 	var bbox model.BoundingBox
 	copy(bbox[:], prov[0].BBox)
 	return prov[0].PageNo, bbox
+}
+
+// decodeDataURI splits a "data:<mime-type>;base64,<payload>" URI (Docling's
+// embedded-image format) into its declared content type and decoded bytes.
+func decodeDataURI(uri string) (contentType string, decoded []byte, err error) {
+	rest, ok := strings.CutPrefix(uri, "data:")
+	if !ok {
+		return "", nil, errors.New("missing \"data:\" prefix")
+	}
+	meta, payload, ok := strings.Cut(rest, ",")
+	if !ok {
+		return "", nil, errors.New("missing comma separator")
+	}
+	mimeType, ok := strings.CutSuffix(meta, ";base64")
+	if !ok {
+		return "", nil, fmt.Errorf("unsupported data URI encoding %q (only base64 supported)", meta)
+	}
+	decoded, err = base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to base64-decode image data: %w", err)
+	}
+	return mimeType, decoded, nil
 }

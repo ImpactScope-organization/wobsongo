@@ -84,7 +84,7 @@ func runDoclingDump(cmd *cobra.Command, _ []string) {
 	if doclingDumpFile != "" {
 		raw, err = doclingClient.ConvertFileRaw(ctx, originalFilename, f)
 	} else {
-		raw, err = doclingClient.ConvertFromURLRaw(ctx, doclingDumpURL)
+		raw, err = doclingClient.FetchRawFromURL(ctx, doclingDumpURL)
 	}
 	if err != nil {
 		cmd.PrintErrf("Docling request failed: %s\n", err.Error())

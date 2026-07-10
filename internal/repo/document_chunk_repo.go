@@ -18,7 +18,7 @@ import (
 type DocumentChunkRepo struct {
 	q           *db.Queries
 	pool        *pgxpool.Pool
-	riverClient *river.Client[pgx.Tx]
+	riverClient func() *river.Client[pgx.Tx]
 	tx          pgx.Tx // set only on the tx-scoped instance WithTx constructs; nil otherwise
 }
 
@@ -27,13 +27,24 @@ var _ data.DocumentChunkRepoer = (*DocumentChunkRepo)(nil)
 
 // NewDocumentChunkRepo creates a new Postgres-backed document chunk repository.
 // q is accepted externally (not built internally from pool) so callers
-// (including tests) can supply a tx-scoped *db.Queries. riverClient may be
-// nil if Enqueue is never called (see cmd/server.go for why that's currently
-// the case).
+// (including tests) can supply a tx-scoped *db.Queries.
+//
+// riverClient is a lazy getter, not the client itself: this repo is
+// constructed and handed to a worker (ProcessParsedDocumentWorker) before
+// river.NewClient exists — River requires all workers registered via
+// river.AddWorker before that call. The closure is only invoked when
+// Enqueue actually runs, which is always well after river.NewClient (and
+// riverClient.Start) has completed. Pass a closure over a variable that's
+// assigned once the real client is built, e.g.:
+//
+//	var riverClient *river.Client[pgx.Tx]
+//	chunkRepo := repo.NewDocumentChunkRepo(q, pool, func() *river.Client[pgx.Tx] { return riverClient })
+//	// ... register workers using chunkRepo ...
+//	riverClient, err = river.NewClient(...)
 func NewDocumentChunkRepo(
 	q *db.Queries,
 	pool *pgxpool.Pool,
-	riverClient *river.Client[pgx.Tx],
+	riverClient func() *river.Client[pgx.Tx],
 ) data.DocumentChunkRepoer {
 	return &DocumentChunkRepo{q: q, pool: pool, riverClient: riverClient}
 }
@@ -141,10 +152,10 @@ func (r *DocumentChunkRepo) WithTx(
 // from within WithTx so the job insert is atomic with any CRUD writes.
 func (r *DocumentChunkRepo) Enqueue(ctx context.Context, payload queue.BackgroundJob) error {
 	if r.tx != nil {
-		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, nil)
+		_, err := r.riverClient().InsertTx(ctx, r.tx, payload, nil)
 		return err
 	}
-	_, err := r.riverClient.Insert(ctx, payload, nil)
+	_, err := r.riverClient().Insert(ctx, payload, nil)
 	return err
 }
 

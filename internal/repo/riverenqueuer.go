@@ -12,17 +12,27 @@ import (
 
 // RiverJobEnqueuer is a standalone queue.JobEnqueuer that inserts River jobs
 // using a regular (non-transactional) database connection from the pool.
-// It is used to enqueue jobs from services that do not hold an open transaction.
+// It is used to enqueue jobs from services (or workers) that do not hold an
+// open transaction.
 type RiverJobEnqueuer struct {
 	pool        *pgxpool.Pool
-	riverClient *river.Client[pgx.Tx]
+	riverClient func() *river.Client[pgx.Tx]
 }
 
 // Ensure RiverJobEnqueuer implements queue.JobEnqueuer.
 var _ queue.JobEnqueuer = (*RiverJobEnqueuer)(nil)
 
 // NewRiverJobEnqueuer creates a new RiverJobEnqueuer.
-func NewRiverJobEnqueuer(pool *pgxpool.Pool, riverClient *river.Client[pgx.Tx]) *RiverJobEnqueuer {
+//
+// riverClient is a lazy getter, not the client itself — see the identical
+// reasoning on NewDocumentChunkRepo's riverClient parameter: this lets a
+// worker be constructed and registered via river.AddWorker before
+// river.NewClient exists, since Enqueue is only ever called well after that
+// client (and riverClient.Start) is up and running.
+func NewRiverJobEnqueuer(
+	pool *pgxpool.Pool,
+	riverClient func() *river.Client[pgx.Tx],
+) *RiverJobEnqueuer {
 	return &RiverJobEnqueuer{
 		pool:        pool,
 		riverClient: riverClient,
@@ -37,7 +47,7 @@ func (e *RiverJobEnqueuer) Enqueue(ctx context.Context, payload queue.Background
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	if _, err := e.riverClient.InsertTx(ctx, tx, payload, nil); err != nil {
+	if _, err := e.riverClient().InsertTx(ctx, tx, payload, nil); err != nil {
 		return fmt.Errorf("RiverJobEnqueuer.Enqueue: insert job: %w", err)
 	}
 

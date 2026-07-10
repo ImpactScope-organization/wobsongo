@@ -14,6 +14,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/testhelpers"
+	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
@@ -211,7 +212,11 @@ func TestDocumentChunkRepo_WithTx_Enqueue(t *testing.T) {
 		t.Fatalf("failed to construct river client: %v", err)
 	}
 
-	chunkRepo := repo.NewDocumentChunkRepo(q, pool, riverClient)
+	chunkRepo := repo.NewDocumentChunkRepo(
+		q,
+		pool,
+		func() *river.Client[pgx.Tx] { return riverClient },
+	)
 
 	t.Run("Success_CommitsChunkAndEnqueuesJob", func(t *testing.T) {
 		chunk := newTestDocumentChunk(doc.ID, 0)

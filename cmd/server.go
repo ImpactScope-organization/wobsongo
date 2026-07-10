@@ -9,6 +9,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -58,14 +59,19 @@ var serveCmd = &cobra.Command{
 		mediaService := service.NewMediaService(mediaProvider)
 		doclingClient := external.NewDoclingClient(config.DoclingBaseURL)
 
-		// riverClient is nil here: ChunkRepo.Enqueue is unused until Job 2
-		// exists to enqueue (see the worker's TODO) — WithTx/CreateBatch only
-		// need pool, which is already available. Wire the real riverClient in
-		// once that lands.
-		chunkRepo := repo.NewDocumentChunkRepo(db.New(pool), pool, nil)
+		// riverClient is assigned below, after workers (which need to be
+		// registered via river.AddWorker before river.NewClient produces the
+		// client) are constructed. ChunkRepo/RiverJobEnqueuer only resolve it
+		// lazily, at Enqueue-call time — always well after riverClient.Start()
+		// — so this ordering is safe. See their constructors' doc comments.
+		var riverClient *river.Client[pgx.Tx]
+		riverClientFn := func() *river.Client[pgx.Tx] { return riverClient }
 
-		// Same nil-riverClient reasoning as chunkRepo above: this document
-		// repo instance is only used by the worker to backfill PageCount
+		chunkRepo := repo.NewDocumentChunkRepo(db.New(pool), pool, riverClientFn)
+		jobEnqueuer := repo.NewRiverJobEnqueuer(pool, riverClientFn)
+
+		// Same reasoning as chunkRepo's nil case used to be: this document
+		// repo instance is only used by the worker to backfill PageCount/Title
 		// after parsing (GetByID+Update) — it never calls Enqueue. The
 		// HTTP-facing document repo (with a real riverClient) is built
 		// separately, inside buildApp.
@@ -83,13 +89,31 @@ var serveCmd = &cobra.Command{
 		parseDocumentWorker := worker.NewParseDocumentWorker(
 			doclingClient,
 			mediaService,
-			chunkRepo,
-			documentService,
+			mediaProvider,
+			jobEnqueuer,
 		)
 		river.AddWorker(workers, parseDocumentWorker)
 
+		// register ProcessParsedDocumentWorker with River
+		processParsedDocumentWorker := worker.NewProcessParsedDocumentWorker(
+			mediaProvider,
+			documentService,
+			chunkRepo,
+		)
+		river.AddWorker(workers, processParsedDocumentWorker)
+
+		// register CaptionImageChunksWorker with River. No real
+		// data.ImageCaptioner exists yet — external.NoOpImageCaptioner always
+		// errors clearly until one is wired in.
+		captionImageChunksWorker := worker.NewCaptionImageChunksWorker(
+			mediaProvider,
+			chunkRepo,
+			external.NoOpImageCaptioner{},
+		)
+		river.AddWorker(workers, captionImageChunksWorker)
+
 		// Initialize River client with the database pool and registered workers.
-		riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
+		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{
 			Queues: map[string]river.QueueConfig{
 				river.QueueDefault: {MaxWorkers: 10},
 			},

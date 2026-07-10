@@ -1,14 +1,12 @@
 package worker
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"log"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
-	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/riverqueue/river"
@@ -19,16 +17,19 @@ import (
 // worker goroutine for that long is cheap in Go.
 const parseDocumentTimeout = 5 * time.Minute
 
-// noiseLayoutTypes are Docling layout types dropped before persistence — never
-// embedded, never shown to an LLM. Per the ingestion pipeline design: filter
-// at ingestion time, not query time.
-var noiseLayoutTypes = map[model.LayoutType]bool{
-	model.LayoutTypePageHeader:    true,
-	model.LayoutTypePageFooter:    true,
-	model.LayoutTypeDocumentIndex: true,
-}
+// rawOutputContentType is the content type stored alongside a document's
+// raw Docling response in S3.
+const rawOutputContentType = "application/json"
 
-// ParseDocumentWorker is a River worker that parses an ingested document via Docling.
+// ParseDocumentWorker is a River worker that fetches a document's raw
+// Docling Serve output and hands it off for processing. Deliberately does
+// nothing else: Docling responses can run to hundreds of megabytes
+// (embedded images), and re-fetching from an external, rate-limited service
+// on every retry is wasteful. This job's only responsibilities are to fetch
+// once, persist the raw response durably (S3, not just this job's RAM), and
+// enqueue ProcessParsedDocumentWorker — which does the actual chunk
+// filtering/storage/image-extraction, and can be retried independently
+// without ever calling Docling again.
 type ParseDocumentWorker struct {
 	// Embedding River's default worker behavior for the specific DTO.
 	river.WorkerDefaults[queue.ParseDocumentDTO]
@@ -36,25 +37,25 @@ type ParseDocumentWorker struct {
 	Processor data.DocumentProcessor
 	// MediaService presigns the document's file key into a URL Docling can fetch.
 	MediaService *service.MediaService
-	// ChunkRepo stores the chunks that survive filtering.
-	ChunkRepo data.DocumentChunkRepoer
-	// DocumentService backfills the document's page count once Docling has
-	// actually parsed it (the document is created with page_count=0 up front).
-	DocumentService *service.DocumentService
+	// RawStore persists Docling's raw response so ProcessParsedDocumentWorker
+	// can read it back without re-calling Docling.
+	RawStore data.RawObjectStore
+	// Enqueuer schedules ProcessParsedDocumentWorker's job.
+	Enqueuer queue.JobEnqueuer
 }
 
 // NewParseDocumentWorker is a constructor for ParseDocumentWorker.
 func NewParseDocumentWorker(
 	processor data.DocumentProcessor,
 	mediaService *service.MediaService,
-	chunkRepo data.DocumentChunkRepoer,
-	documentService *service.DocumentService,
+	rawStore data.RawObjectStore,
+	enqueuer queue.JobEnqueuer,
 ) *ParseDocumentWorker {
 	return &ParseDocumentWorker{
-		Processor:       processor,
-		MediaService:    mediaService,
-		ChunkRepo:       chunkRepo,
-		DocumentService: documentService,
+		Processor:    processor,
+		MediaService: mediaService,
+		RawStore:     rawStore,
+		Enqueuer:     enqueuer,
 	}
 }
 
@@ -75,77 +76,44 @@ func (w *ParseDocumentWorker) Work(
 		return fmt.Errorf("failed to presign document %s for docling: %w", job.Args.DocumentID, err)
 	}
 
-	result, err := w.Processor.ProcessFromURL(ctx, documentURL)
+	raw, err := w.Processor.FetchRawFromURL(ctx, documentURL)
 	if err != nil {
-		return fmt.Errorf("failed to process document %s via docling: %w", job.Args.DocumentID, err)
+		return fmt.Errorf("failed to fetch document %s via docling: %w", job.Args.DocumentID, err)
 	}
 
-	if err := w.DocumentService.UpdateAfterParse(
+	rawKey := rawOutputKey(job.Args.DocumentID.String())
+	if err := w.RawStore.PutObject(
 		ctx,
-		job.Args.DocumentID,
-		result.PageCount,
-		result.Title,
+		rawKey,
+		bytes.NewReader(raw),
+		int64(len(raw)),
+		rawOutputContentType,
 	); err != nil {
 		return fmt.Errorf(
-			"failed to update document %s after parsing: %w",
+			"failed to store raw docling output for document %s: %w",
 			job.Args.DocumentID,
 			err,
 		)
 	}
 
-	kept, dropped := filterNoiseChunks(result.Chunks)
-	log.Printf(
-		"[ParseDocumentWorker] document=%s title=%q page_count=%d chunks_kept=%d chunks_dropped=%d",
-		job.Args.DocumentID, result.Title, result.PageCount, len(kept), dropped,
-	)
-
-	var stored int
-	err = w.ChunkRepo.WithTx(ctx, func(tx data.DocumentChunkRepoer) error {
-		now := time.Now()
-		toStore := make([]model.DocumentChunk, 0, len(kept))
-		for i, c := range kept {
-			chunk := model.DocumentChunk{
-				ID:             uuid.New(),
-				CreatedAt:      now,
-				UpdatedAt:      now,
-				DocumentID:     job.Args.DocumentID,
-				SequenceNumber: i,
-				ParsedChunk:    c,
-			}
-			ok, err := tx.ShouldBeStored(ctx, chunk)
-			if err != nil {
-				return fmt.Errorf("failed to evaluate chunk %d for storage: %w", i, err)
-			}
-			if ok {
-				toStore = append(toStore, chunk)
-			}
-		}
-		stored = len(toStore)
-		return tx.CreateBatch(ctx, toStore)
-		// TODO(future sub-task): enqueue Job 2 (knowledge extraction) here once
-		// its queue DTO exists, so it commits atomically with these chunks.
-	})
-	if err != nil {
-		return fmt.Errorf("failed to store chunks for document %s: %w", job.Args.DocumentID, err)
+	if err := w.Enqueuer.Enqueue(ctx, queue.ProcessParsedDocumentDTO{
+		DocumentID:   job.Args.DocumentID,
+		RawOutputKey: rawKey,
+	}); err != nil {
+		return fmt.Errorf(
+			"failed to enqueue processing job for document %s: %w",
+			job.Args.DocumentID,
+			err,
+		)
 	}
 
-	log.Printf(
-		"[ParseDocumentWorker] document=%s stored=%d/%d chunks",
-		job.Args.DocumentID, stored, len(kept),
-	)
 	return nil
 }
 
-// filterNoiseChunks drops chunks whose layout type is considered noise
-// (page headers/footers, table of contents), returning the kept chunks and
-// a count of how many were dropped.
-func filterNoiseChunks(chunks []model.ParsedChunk) (kept []model.ParsedChunk, dropped int) {
-	for _, c := range chunks {
-		if noiseLayoutTypes[c.LayoutType] {
-			dropped++
-			continue
-		}
-		kept = append(kept, c)
-	}
-	return kept, dropped
+// rawOutputKey returns the S3 key a document's raw Docling response is
+// stored under. Deliberately not run through data.ObjectPrefixForIntent —
+// this key is never presigned-GET'd by a client, only read back by
+// ProcessParsedDocumentWorker via data.RawObjectStore.
+func rawOutputKey(documentID string) string {
+	return fmt.Sprintf("parsed_output/%s.json", documentID)
 }

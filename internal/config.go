@@ -45,6 +45,16 @@ type S3Config struct {
 	UseSSL     bool   `json:"use_ssl"`
 }
 
+// VLMConfig holds the configuration for the image-captioning VLM endpoint —
+// a generic OpenAI-compatible vision chat-completions API (works against
+// self-hosted vLLM/Ollama or any hosted open-weight-model provider using
+// that shape).
+type VLMConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+}
+
 // EmailConfig groups transactional email configurations.
 type EmailConfig struct {
 	// Transactional holds configuration for user-triggered emails.
@@ -95,6 +105,7 @@ type Config struct {
 	ApifyTikTokActorID string          `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
 	ApifyIGActorID     string          `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
 	DoclingBaseURL     string          `json:"docling_base_url"`      // Base URL of the Docling Serve instance
+	VLMConfig          *VLMConfig      `json:"vlm_config"`            // VLM configuration for image captioning
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -112,6 +123,17 @@ func IsS3OK(c *S3Config) error {
 	if c.Endpoint == "" || c.AccessKey == "" || c.SecretKey == "" ||
 		c.BucketName == "" {
 		return errors.New("S3Config is incomplete")
+	}
+	return nil
+}
+
+// IsVLMOK checks if the VLM configuration is valid.
+func IsVLMOK(c *VLMConfig) error {
+	if c == nil {
+		return errors.New("VLMConfig is not set")
+	}
+	if c.BaseURL == "" || c.Model == "" {
+		return errors.New("VLMConfig is incomplete")
 	}
 	return nil
 }
@@ -231,6 +253,10 @@ func NewConfig(envs ...string) *Config {
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
+	// Load VLM configuration (image captioning) — no provider gate, unlike
+	// S3: it's always relevant once the ingestion pipeline is active.
+	vlmConfig := loadVLMConfigOrDefault(logger, envs...)
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -252,6 +278,7 @@ func NewConfig(envs ...string) *Config {
 		ApifyTikTokActorID: apifyTikTokActorID,
 		ApifyIGActorID:     apifyIGActorID,
 		DoclingBaseURL:     doclingBaseURL,
+		VLMConfig:          vlmConfig,
 	}
 	return defaultConfig
 }
@@ -295,6 +322,34 @@ func NewS3Config(envs ...string) (*S3Config, error) {
 		SecretKey:  secretKey,
 		BucketName: bucketName,
 		UseSSL:     useSSLStr == envTrue,
+	}, nil
+}
+
+// NewVLMConfig creates a new VLMConfig from environment variables.
+func NewVLMConfig(envs ...string) (*VLMConfig, error) {
+	// Note: .env file should already be loaded by NewConfig() before calling this.
+	// This function only loads .env when called independently (e.g., in tests).
+	if len(envs) > 0 && envs[0] != "" {
+		source := envs[0]
+		if err := godotenv.Load(source); err != nil {
+			fmt.Printf("Warning: Failed to load .env file: %s\n", err.Error())
+		} else {
+			fmt.Printf("(NewVLMConfig) Loaded environment from: %s\n", source)
+		}
+	}
+
+	baseURL := getEnv("VLM_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("VLM_BASE_URL is not set")
+	}
+	model := getEnv("VLM_MODEL", "")
+	if model == "" {
+		return nil, errors.New("VLM_MODEL is not set")
+	}
+	return &VLMConfig{
+		BaseURL: baseURL,
+		Model:   model,
+		APIKey:  getEnv("VLM_API_KEY", ""),
 	}, nil
 }
 

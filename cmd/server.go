@@ -59,6 +59,17 @@ var serveCmd = &cobra.Command{
 		mediaService := service.NewMediaService(mediaProvider)
 		doclingClient := external.NewDoclingClient(config.DoclingBaseURL)
 
+		if err := internal.IsVLMOK(config.VLMConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		vlmClient := external.NewVLMClient(
+			config.VLMConfig.BaseURL,
+			config.VLMConfig.Model,
+			config.VLMConfig.APIKey,
+		)
+
 		// riverClient is assigned below, after workers (which need to be
 		// registered via river.AddWorker before river.NewClient produces the
 		// client) are constructed. ChunkRepo/RiverJobEnqueuer only resolve it
@@ -102,13 +113,12 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, processParsedDocumentWorker)
 
-		// register CaptionImageChunksWorker with River. No real
-		// data.ImageCaptioner exists yet — external.NoOpImageCaptioner always
-		// errors clearly until one is wired in.
+		// register CaptionImageChunksWorker with River
 		captionImageChunksWorker := worker.NewCaptionImageChunksWorker(
 			mediaProvider,
 			chunkRepo,
-			external.NoOpImageCaptioner{},
+			documentService,
+			vlmClient,
 		)
 		river.AddWorker(workers, captionImageChunksWorker)
 

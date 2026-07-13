@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
+	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/riverqueue/river"
 )
 
@@ -20,8 +23,31 @@ type stubCaptioner struct {
 	err     error
 }
 
-func (s *stubCaptioner) Caption(_ context.Context, _ []byte, _ string) (string, error) {
+func (s *stubCaptioner) Caption(_ context.Context, _ *data.CaptionRequest) (string, error) {
 	return s.caption, s.err
+}
+
+// capturingCaptioner records the CaptionRequest it was called with.
+type capturingCaptioner struct {
+	result string
+	err    error
+	got    *data.CaptionRequest
+}
+
+func (c *capturingCaptioner) Caption(_ context.Context, req *data.CaptionRequest) (string, error) {
+	*c.got = *req
+	return c.result, c.err
+}
+
+// newDocumentServiceWithTitle returns a *service.DocumentService whose
+// GetByID always succeeds with the given title — for asserting that
+// CaptionImageChunksWorker propagates DocumentTitle into CaptionRequest.
+func newDocumentServiceWithTitle(title string) *service.DocumentService {
+	repo := &mockrepo.DocumentRepoerMock{}
+	repo.GetByIDFunc = func(_ context.Context, id uuid.UUID) (*model.Document, error) {
+		return &model.Document{ID: id, Title: title}, nil
+	}
+	return service.NewDocumentService(repo)
 }
 
 func newCaptionJob(
@@ -35,16 +61,14 @@ func newCaptionJob(
 
 func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 	chunkID := uuid.New()
-	chunk := &model.DocumentChunk{
-		ID: chunkID,
-		ParsedChunk: model.ParsedChunk{
-			AssetURL: "document_images/abc.png",
-		},
+	chunk := model.DocumentChunk{
+		ID:          chunkID,
+		ParsedChunk: model.ParsedChunk{AssetURL: "document_images/abc.png", Page: 5},
 	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
-	chunkRepo.GetByIDFunc = func(_ context.Context, id uuid.UUID) (*model.DocumentChunk, error) {
-		return chunk, nil
+	chunkRepo.ListByDocumentIDFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return []model.DocumentChunk{chunk}, nil
 	}
 	var updatedText string
 	chunkRepo.UpdateFunc = func(_ context.Context, c *model.DocumentChunk) error {
@@ -52,7 +76,6 @@ func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 		return nil
 	}
 
-	var gotContentType string
 	rawStore := &stubRawStore{
 		getObjectFunc: func(_ context.Context, key string) (io.ReadCloser, error) {
 			if key != chunk.AssetURL {
@@ -61,10 +84,13 @@ func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 			return io.NopCloser(io.LimitReader(nil, 0)), nil
 		},
 	}
+
+	var gotReq data.CaptionRequest
 	w := &CaptionImageChunksWorker{
-		RawStore:  rawStore,
-		ChunkRepo: chunkRepo,
-		Captioner: &captureContentTypeCaptioner{result: "a detailed caption", got: &gotContentType},
+		RawStore:        rawStore,
+		ChunkRepo:       chunkRepo,
+		DocumentService: newDocumentServiceWithTitle("My Document"),
+		Captioner:       &capturingCaptioner{result: "a detailed caption", got: &gotReq},
 	}
 
 	job := newCaptionJob(uuid.New(), chunkID)
@@ -74,30 +100,23 @@ func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 	if updatedText != "a detailed caption" {
 		t.Errorf("expected chunk Text to be set to the caption, got %q", updatedText)
 	}
-	if gotContentType != "image/png" {
-		t.Errorf("expected content type image/png inferred from .png key, got %q", gotContentType)
+	if gotReq.ContentType != "image/png" {
+		t.Errorf(
+			"expected content type image/png inferred from .png key, got %q",
+			gotReq.ContentType,
+		)
 	}
-}
-
-// captureContentTypeCaptioner records the contentType it was called with.
-type captureContentTypeCaptioner struct {
-	result string
-	err    error
-	got    *string
-}
-
-func (c *captureContentTypeCaptioner) Caption(
-	_ context.Context,
-	_ []byte,
-	contentType string,
-) (string, error) {
-	*c.got = contentType
-	return c.result, c.err
+	if gotReq.DocumentTitle != "My Document" {
+		t.Errorf("expected document title %q, got %q", "My Document", gotReq.DocumentTitle)
+	}
+	if gotReq.Page != 5 {
+		t.Errorf("expected page 5, got %d", gotReq.Page)
+	}
 }
 
 func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) {
 	chunkID := uuid.New()
-	chunk := &model.DocumentChunk{
+	chunk := model.DocumentChunk{
 		ID: chunkID,
 		ParsedChunk: model.ParsedChunk{
 			AssetURL: "document_images/abc.png",
@@ -106,8 +125,8 @@ func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) 
 	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
-	chunkRepo.GetByIDFunc = func(_ context.Context, id uuid.UUID) (*model.DocumentChunk, error) {
-		return chunk, nil
+	chunkRepo.ListByDocumentIDFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return []model.DocumentChunk{chunk}, nil
 	}
 	chunkRepo.UpdateFunc = func(context.Context, *model.DocumentChunk) error {
 		t.Error("Update should not be called for an already-captioned chunk")
@@ -124,7 +143,12 @@ func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) 
 		err: errors.New("Caption should not be called for an already-captioned chunk"),
 	}
 
-	w := &CaptionImageChunksWorker{RawStore: rawStore, ChunkRepo: chunkRepo, Captioner: captioner}
+	w := &CaptionImageChunksWorker{
+		RawStore:        rawStore,
+		ChunkRepo:       chunkRepo,
+		DocumentService: newDocumentServiceWithTitle("Doc"),
+		Captioner:       captioner,
+	}
 	if err := w.Work(t.Context(), newCaptionJob(uuid.New(), chunkID)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,14 +156,14 @@ func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) 
 
 func TestCaptionImageChunksWorker_Work_CaptionerError(t *testing.T) {
 	chunkID := uuid.New()
-	chunk := &model.DocumentChunk{
+	chunk := model.DocumentChunk{
 		ID:          chunkID,
 		ParsedChunk: model.ParsedChunk{AssetURL: "document_images/abc.png"},
 	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
-	chunkRepo.GetByIDFunc = func(_ context.Context, id uuid.UUID) (*model.DocumentChunk, error) {
-		return chunk, nil
+	chunkRepo.ListByDocumentIDFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return []model.DocumentChunk{chunk}, nil
 	}
 	chunkRepo.UpdateFunc = func(context.Context, *model.DocumentChunk) error {
 		t.Error("Update should not be called when Caption fails")
@@ -153,8 +177,106 @@ func TestCaptionImageChunksWorker_Work_CaptionerError(t *testing.T) {
 	}
 	captioner := &stubCaptioner{err: errors.New("not yet implemented")}
 
-	w := &CaptionImageChunksWorker{RawStore: rawStore, ChunkRepo: chunkRepo, Captioner: captioner}
+	w := &CaptionImageChunksWorker{
+		RawStore:        rawStore,
+		ChunkRepo:       chunkRepo,
+		DocumentService: newDocumentServiceWithTitle("Doc"),
+		Captioner:       captioner,
+	}
 	if err := w.Work(t.Context(), newCaptionJob(uuid.New(), chunkID)); err == nil {
 		t.Fatal("expected an error when the captioner fails")
+	}
+}
+
+func TestCaptionImageChunksWorker_Work_ChunkNotFound(t *testing.T) {
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListByDocumentIDFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return nil, nil
+	}
+
+	w := &CaptionImageChunksWorker{
+		RawStore:        &stubRawStore{},
+		ChunkRepo:       chunkRepo,
+		DocumentService: newDocumentServiceWithTitle("Doc"),
+		Captioner:       &stubCaptioner{},
+	}
+	if err := w.Work(t.Context(), newCaptionJob(uuid.New(), uuid.New())); err == nil {
+		t.Fatal("expected an error when the target chunk isn't in the document's chunk list")
+	}
+}
+
+func TestGatherSurroundingText_IncludesSamePageParagraph(t *testing.T) {
+	target := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Page: 5}}
+	sibling := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page: 5, LayoutType: model.LayoutTypeParagraph, Text: "nearby paragraph",
+		},
+	}
+
+	got := gatherSurroundingText([]model.DocumentChunk{target, sibling}, &target)
+	if got != "nearby paragraph" {
+		t.Errorf("expected %q, got %q", "nearby paragraph", got)
+	}
+}
+
+func TestGatherSurroundingText_ExcludesOutOfWindowPage(t *testing.T) {
+	target := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Page: 5}}
+	farAway := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page: 10, LayoutType: model.LayoutTypeParagraph, Text: "far away text",
+		},
+	}
+
+	got := gatherSurroundingText([]model.DocumentChunk{target, farAway}, &target)
+	if got != "" {
+		t.Errorf("expected empty context, got %q", got)
+	}
+}
+
+func TestGatherSurroundingText_ExcludesNonContextualLayoutTypes(t *testing.T) {
+	target := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Page: 5}}
+	table := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page: 5, LayoutType: model.LayoutTypeTable, Text: "table content",
+		},
+	}
+	footer := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page: 5, LayoutType: model.LayoutTypePageFooter, Text: "page 5 of 10",
+		},
+	}
+
+	got := gatherSurroundingText([]model.DocumentChunk{target, table, footer}, &target)
+	if got != "" {
+		t.Errorf("expected empty context (table/footer excluded), got %q", got)
+	}
+}
+
+func TestGatherSurroundingText_PrioritizesCaptionOverBudget(t *testing.T) {
+	target := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Page: 5}}
+	longParagraph := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page:       5,
+			LayoutType: model.LayoutTypeParagraph,
+			Text:       strings.Repeat("x", surroundingTextBudget),
+		},
+	}
+	caption := model.DocumentChunk{
+		ID: uuid.New(),
+		ParsedChunk: model.ParsedChunk{
+			Page: 5, LayoutType: model.LayoutTypeCaption, Text: "Figure 3: important caption",
+		},
+	}
+
+	// The caption appears after the budget-filling paragraph in slice order,
+	// but must still survive since captions are gathered in a first pass.
+	got := gatherSurroundingText([]model.DocumentChunk{target, longParagraph, caption}, &target)
+	if !strings.Contains(got, "Figure 3: important caption") {
+		t.Errorf("expected the caption text to survive budget truncation, got %q", got)
 	}
 }

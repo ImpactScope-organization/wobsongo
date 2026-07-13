@@ -67,7 +67,7 @@ func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: "JSON format not valid"})
 	}
 
-	datasetID, err := h.service.ProcessWebhook(payload)
+	datasetID, err := h.service.ProcessWebhook(c.Request().Context(), payload)
 	if err != nil {
 		return c.JSON(
 			http.StatusInternalServerError,

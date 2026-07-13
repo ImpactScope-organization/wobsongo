@@ -1,0 +1,26 @@
+version: "2"
+servers:
+  - engine: postgresql
+    # uri: ${APP_DB_URI}
+sql:
+  - engine: "postgresql"
+    schema: "./sql/migrations"
+    queries: "./sql/queries"
+    # database:
+    #   managed: true
+    rules:
+      - sqlc/db-prepare
+    gen:
+      go:
+        package: "db"
+        sql_package: "pgx/v5"
+        out: "/internal/db"
+        overrides:
+          - db_type: "timestamptz"
+            go_type:
+              import: "time"
+              type: "Time"
+          - db_type: "uuid"
+            go_type:
+              import: "github.com/google/uuid"
+              type: "UUID"

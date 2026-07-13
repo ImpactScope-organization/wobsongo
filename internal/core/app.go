@@ -21,6 +21,7 @@ type App struct {
 	echoApp   *echo.Echo
 	apiGroup  *echo.Group
 	apifyRepo data.ApifyRepoer
+	videoRepo data.VideoRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -58,6 +59,13 @@ func WithApifyRepo(repo data.ApifyRepoer) AppOption {
 	}
 }
 
+// WithVideoRepo sets the Video repository for the application.
+func WithVideoRepo(repo data.VideoRepoer) AppOption {
+	return func(a *App) {
+		a.videoRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -83,6 +91,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	// Initialize repositories and handlers.
 	repos := new(handler.Repos)
 	repos.ApifyRepo = app.apifyRepo
+	repos.VideoRepo = app.videoRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

@@ -75,6 +75,7 @@ var serveCmd = &cobra.Command{
 		app := buildApp(
 			config,
 			riverClient,
+			pool,
 		)
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)

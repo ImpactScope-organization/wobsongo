@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
@@ -22,6 +24,7 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
 	ApifyRepo data.ApifyRepoer
+	VideoRepo data.VideoRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -29,7 +32,8 @@ type Repos struct {
 // You can provide mock implementations of the repositories for testing purposes.
 func NewHandlers(repos *Repos) *Handlers {
 	// Initialize Apify services and handlers
-	apifyService := service.NewApifyService(repos.ApifyRepo)
+	videoService := service.NewVideoService(repos.VideoRepo)
+	apifyService := service.NewApifyService(repos.ApifyRepo, videoService, http.DefaultClient)
 	apifyHandler := NewApifyHandler(apifyService)
 
 	return &Handlers{

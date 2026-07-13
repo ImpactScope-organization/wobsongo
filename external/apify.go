@@ -37,14 +37,18 @@ func NewDispatcher(apiToken, tiktokActorID, igActorID string) *Dispatcher {
 	}
 }
 
-// apifyRunInput is the internal strict DTO for the JSON payload sent to Apify.
-type apifyRunInput struct {
-	StartURLs []apifyURL `json:"startUrls"`
+// tiktokApifyInput defines the strict payload for clockworks/tiktok-scraper.
+type tiktokApifyInput struct {
+	PostURLs                      []string `json:"postURLs"`
+	ShouldDownloadVideos          bool     `json:"shouldDownloadVideos"`
+	ShouldDownloadCovers          bool     `json:"shouldDownloadCovers"`
+	ShouldDownloadSubtitles       bool     `json:"shouldDownloadSubtitles"`
+	ShouldDownloadSlideshowImages bool     `json:"shouldDownloadSlideshowImages"`
 }
 
-type apifyURL struct {
-	URL    string `json:"url"`
-	Method string `json:"method"`
+// igApifyInput defines the strict payload for the legacy Instagram scraper.
+type igApifyInput struct {
+	Link string `json:"link"`
 }
 
 // apifyWebhook is the internal strict DTO for the Apify webhook configuration.
@@ -56,30 +60,43 @@ type apifyWebhook struct {
 // TriggerAudioExtraction executes an HTTP call to the Apify API.
 func (d *Dispatcher) TriggerAudioExtraction(ctx context.Context, req dto.ExtractionRequest) error {
 	var actorID string
+	var payloadBytes []byte
+	var err error
 
 	// Routing based on the platform URL provided in the request.
 	switch {
 	case strings.Contains(req.TargetURL, "tiktok.com"):
 		actorID = d.tiktokActorID
+
+		// Setup input specifically for TikTok Scraper
+		input := tiktokApifyInput{
+			PostURLs:                      []string{req.TargetURL},
+			ShouldDownloadVideos:          true,
+			ShouldDownloadCovers:          false,
+			ShouldDownloadSubtitles:       false,
+			ShouldDownloadSlideshowImages: false,
+		}
+
+		payloadBytes, err = json.Marshal(input)
+		if err != nil {
+			return fmt.Errorf("failed to marshal tiktok apify payload: %w", err)
+		}
+
 	case strings.Contains(req.TargetURL, "instagram.com"):
 		actorID = d.igActorID
+
+		// Setup input specifically for Instagram Scraper
+		input := igApifyInput{
+			Link: req.TargetURL,
+		}
+
+		payloadBytes, err = json.Marshal(input)
+		if err != nil {
+			return fmt.Errorf("failed to marshal ig apify payload: %w", err)
+		}
+
 	default:
 		return errors.New("unsupported platform: only TikTok and Instagram are supported")
-	}
-
-	// prepare the payload for Apify API
-	input := apifyRunInput{
-		StartURLs: []apifyURL{
-			{
-				URL:    req.TargetURL,
-				Method: "GET",
-			},
-		},
-	}
-
-	payloadBytes, err := json.Marshal(input)
-	if err != nil {
-		return fmt.Errorf("failed to marshal apify payload: %w", err)
 	}
 
 	// 1. Prepare the webhook configuration for Apify API

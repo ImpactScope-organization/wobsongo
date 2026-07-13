@@ -4,7 +4,8 @@ tmp_dir = "tmp"
 [build]
 # pre_cmd = ["pnpm run dev"]
 cmd = "swag init -q --output ./swagger --generalInfo ./internal/core/app.go && CGO_ENABLED=0 go build -o ./tmp/wscore -p $(nproc) ."
-bin = "tmp/wscore -e .env serve"
+bin = "./tmp/wscore"
+full_bin = "./tmp/wscore -e .env serve"
 include_ext = ["go", "templ", "html", "json", "js", "ts", "css", "scss"]
 exclude_dir = [
   "dist",

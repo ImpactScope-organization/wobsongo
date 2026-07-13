@@ -9,6 +9,9 @@ const (
 
 	// JobTypeProcessAITask represents a job type for processing AI tasks.
 	JobTypeProcessAITask BackgroundJobType = "process_ai_task"
+
+	// JobTypeTranscribeVideo represents a job type specifically for sending audio to Modal.
+	JobTypeTranscribeVideo BackgroundJobType = "transcribe_video"
 )
 
 // BackgroundJob represents a generic background job.

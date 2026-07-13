@@ -48,6 +48,16 @@ func (r *DocumentRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Docume
 	return toModelDocument(&doc), nil
 }
 
+// GetBySHA256 retrieves a document by its content hash. Returns
+// data.ErrNotFound if no document has that hash.
+func (r *DocumentRepo) GetBySHA256(ctx context.Context, sha256 string) (*model.Document, error) {
+	doc, err := r.q.GetDocumentBySHA256(ctx, sha256)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return toModelDocument(&doc), nil
+}
+
 // Create inserts a new document.
 func (r *DocumentRepo) Create(ctx context.Context, entity *model.Document) error {
 	created, err := r.q.CreateDocument(ctx, db.CreateDocumentParams{

@@ -220,7 +220,7 @@ func TestProcessParsedDocumentWorker_Work_UploadsImageAndEnqueuesCaption(t *test
 	}
 }
 
-func TestProcessParsedDocumentWorker_Work_NoImagesNeverEnqueuesCaption(t *testing.T) {
+func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Plain Doc",
 		`{"text":"body","label":"paragraph","prov":[{"page_no":1,"bbox":[0,0,1,1]}]}`,
@@ -232,18 +232,29 @@ func TestProcessParsedDocumentWorker_Work_NoImagesNeverEnqueuesCaption(t *testin
 		},
 	}
 
+	var enqueued queue.BackgroundJob
 	chunkRepo := newPassThroughChunkRepo()
-	chunkRepo.EnqueueFunc = func(context.Context, queue.BackgroundJob) error {
-		t.Error("Enqueue should not be called when no chunks have an image")
+	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = payload
 		return nil
 	}
 
+	job := newProcessParsedDocumentJob("parsed_output/doc.json")
 	w := NewProcessParsedDocumentWorker(rawStore, newPassThroughDocumentService(), chunkRepo)
-	if err := w.Work(
-		t.Context(),
-		newProcessParsedDocumentJob("parsed_output/doc.json"),
-	); err != nil {
+	if err := w.Work(t.Context(), job); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+
+	embedJob, ok := enqueued.(queue.EmbedChunksDTO)
+	if !ok {
+		t.Fatalf("expected a queue.EmbedChunksDTO to be enqueued, got %T", enqueued)
+	}
+	if embedJob.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected enqueued embed job DocumentID %s, got %s",
+			job.Args.DocumentID,
+			embedJob.DocumentID,
+		)
 	}
 }
 
@@ -452,6 +463,9 @@ func TestProcessParsedDocumentWorker_Work_ShouldBeStoredFiltersChunks(t *testing
 		stored = chunks
 		return nil
 	}
+	chunkRepo.EnqueueFunc = func(context.Context, queue.BackgroundJob) error {
+		return nil
+	}
 
 	w := NewProcessParsedDocumentWorker(rawStore, newPassThroughDocumentService(), chunkRepo)
 	if err := w.Work(
@@ -536,6 +550,9 @@ func TestProcessParsedDocumentWorker_Work_NoChunksSurviveFilter(t *testing.T) {
 	chunkRepo.CreateBatchFunc = func(_ context.Context, chunks []model.DocumentChunk) error {
 		createBatchCalled = true
 		receivedLen = len(chunks)
+		return nil
+	}
+	chunkRepo.EnqueueFunc = func(context.Context, queue.BackgroundJob) error {
 		return nil
 	}
 

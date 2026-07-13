@@ -1,7 +1,10 @@
 name: "wobsongocore"
 services:
   postgres:
-    image: postgres:18-alpine
+    # pgvector/pgvector ships the same postgres:18 base plus the pgvector
+    # extension pre-installed (document_chunks.embedding needs `CREATE
+    # EXTENSION vector`, which plain postgres:18-alpine can't provide).
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_PASSWORD: "LocalDev123"
       POSTGRES_USER: "wobsongocore"

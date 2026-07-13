@@ -6,6 +6,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -28,11 +29,19 @@ func NewDocumentService(repo data.DocumentRepoer) *DocumentService {
 	}
 }
 
-// Create ingests a new document.
+// Create ingests a new document. If a document with the same SHA256 already
+// exists, Create is idempotent: it returns the existing document rather than
+// inserting a duplicate or re-enqueueing a parse job.
 func (s *DocumentService) Create(
 	ctx context.Context,
 	req *dto.CreateDocumentDTO,
 ) (*model.Document, error) {
+	if existing, err := s.repo.GetBySHA256(ctx, req.SHA256); err == nil {
+		return existing, nil
+	} else if !errors.Is(err, data.ErrNotFound) {
+		return nil, err
+	}
+
 	now := time.Now()
 	doc := &model.Document{
 		ID:              uuid.New(),
@@ -59,10 +68,25 @@ func (s *DocumentService) Create(
 		})
 	})
 	if err != nil {
+		// A concurrent Create for the same SHA256 may have won the race
+		// against the unique index between our pre-check and this insert;
+		// treat that the same as the pre-check finding it, rather than
+		// surfacing a conflict for what is, from the caller's perspective,
+		// an idempotent no-op.
+		if errors.Is(err, data.ErrConflict) {
+			if existing, getErr := s.repo.GetBySHA256(ctx, req.SHA256); getErr == nil {
+				return existing, nil
+			}
+		}
 		return nil, err
 	}
 
 	return doc, nil
+}
+
+// GetBySHA256 retrieves a document by its content hash.
+func (s *DocumentService) GetBySHA256(ctx context.Context, sha256 string) (*model.Document, error) {
+	return s.repo.GetBySHA256(ctx, sha256)
 }
 
 // GetByID retrieves a document by its ID.

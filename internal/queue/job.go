@@ -21,6 +21,10 @@ const (
 	// JobTypeCaptionImageChunks represents a job type for generating and
 	// storing captions for image/chart chunks extracted during processing.
 	JobTypeCaptionImageChunks BackgroundJobType = "caption_image_chunks"
+
+	// JobTypeEmbedChunks represents a job type for computing and storing
+	// embeddings for a document's text-bearing, not-yet-embedded chunks.
+	JobTypeEmbedChunks BackgroundJobType = "embed_chunks"
 )
 
 // BackgroundJob represents a generic background job.

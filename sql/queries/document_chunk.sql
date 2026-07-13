@@ -4,6 +4,11 @@ SELECT * FROM document_chunks WHERE id = $1;
 -- name: ListDocumentChunksByDocumentID :many
 SELECT * FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC;
 
+-- name: ListChunksNeedingEmbedding :many
+SELECT * FROM document_chunks
+WHERE document_id = $1 AND text != '' AND embedding IS NULL
+ORDER BY sequence_number ASC;
+
 -- name: CreateDocumentChunksBatch :copyfrom
 INSERT INTO document_chunks (
     id, created_at, updated_at, document_id, sequence_number, topics, factuality_score,
@@ -19,6 +24,7 @@ UPDATE document_chunks SET
     factuality_score = $4,
     text = $5,
     chapter = $6,
-    asset_url = $7
+    asset_url = $7,
+    embedding = $8
 WHERE id = $1
 RETURNING *;

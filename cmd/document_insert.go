@@ -57,7 +57,9 @@ var documentInsertCmd = &cobra.Command{
 		"is omitted, it is also backfilled from Docling's title once parsed.\n\n" +
 		"Without --apply, this is a dry run: the file is read, hashed, and\n" +
 		"validated (including a live conflict check against S3), but nothing\n" +
-		"is uploaded and no document is inserted.",
+		"is uploaded and no document is inserted. If a document with the same\n" +
+		"SHA256 already exists, insertion is skipped (no upload, no duplicate\n" +
+		"row) and the existing document is reported instead.",
 	Run: runDocumentInsert,
 }
 
@@ -135,13 +137,21 @@ func runDocumentInsert(cmd *cobra.Command, _ []string) {
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 	documentService := service.NewDocumentService(documentRepo)
 
-	req, cleanup, err := buildCreateDocumentDTO(ctx, mediaService, documentInsertApply)
+	req, existing, cleanup, err := buildCreateDocumentDTO(ctx, documentService, mediaService, documentInsertApply)
 	if cleanup != nil {
 		defer cleanup()
 	}
 	if err != nil {
 		cmd.PrintErrf("Failed to prepare document: %s\n", err.Error())
 		os.Exit(1)
+		return
+	}
+
+	if existing != nil {
+		cmd.Printf(
+			"Document already exists as %s (title=%q, sha256=%s) — skipping upload and insert.\n",
+			existing.ID, existing.Title, existing.SHA256,
+		)
 		return
 	}
 
@@ -173,34 +183,45 @@ func runDocumentInsert(cmd *cobra.Command, _ []string) {
 }
 
 // buildCreateDocumentDTO reads the source file (local path or URL) and
-// assembles the DTO for DocumentService.Create. It always presigns the
-// upload (which also runs S3's live conflict check for the computed key),
-// but only uploads the file when apply is true — callers wanting a dry run
-// pass apply=false and get validation without any S3 write. The returned
-// cleanup func (never nil once a source was opened) should always be
-// deferred, even on error.
+// assembles the DTO for DocumentService.Create. Before doing any S3 work it
+// checks whether a document with the same SHA256 already exists; if so, it
+// returns that document (with a nil DTO) so the caller can skip the upload
+// and insert entirely. Otherwise it always presigns the upload (which also
+// runs S3's live conflict check for the computed key), but only uploads the
+// file when apply is true — callers wanting a dry run pass apply=false and
+// get validation without any S3 write. The returned cleanup func (never nil
+// once a source was opened) should always be deferred, even on error.
 func buildCreateDocumentDTO(
 	ctx context.Context,
+	documentService *service.DocumentService,
 	mediaService *service.MediaService,
 	apply bool,
-) (*dto.CreateDocumentDTO, func(), error) {
+) (*dto.CreateDocumentDTO, *model.Document, func(), error) {
 	f, originalFilename, cleanup, err := openDocumentSource(
 		ctx,
 		documentInsertFile,
 		documentInsertURL,
 	)
 	if err != nil {
-		return nil, cleanup, err
+		return nil, nil, cleanup, err
 	}
 
 	sha256Hex, contentType, size, err := hashAndSniff(f)
 	if err != nil {
-		return nil, cleanup, err
+		return nil, nil, cleanup, err
+	}
+
+	existing, err := documentService.GetBySHA256(ctx, sha256Hex)
+	if err == nil {
+		return nil, existing, cleanup, nil
+	}
+	if !errors.Is(err, data.ErrNotFound) {
+		return nil, nil, cleanup, fmt.Errorf("failed to check for existing document: %w", err)
 	}
 
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(originalFilename), "."))
 	if !allowedDocumentExtensions[ext] {
-		return nil, cleanup, fmt.Errorf(
+		return nil, nil, cleanup, fmt.Errorf(
 			"unsupported file extension %q (allowed: jpg, jpeg, png, webp, avif, pdf, docx, doc, rtf, html, md)",
 			ext,
 		)
@@ -214,12 +235,12 @@ func buildCreateDocumentDTO(
 		contentType,
 	)
 	if err != nil {
-		return nil, cleanup, fmt.Errorf("failed to get presigned upload URL: %w", err)
+		return nil, nil, cleanup, fmt.Errorf("failed to get presigned upload URL: %w", err)
 	}
 
 	if apply {
 		if err := uploadViaPresignedPost(ctx, policy, storageFilename, f); err != nil {
-			return nil, cleanup, fmt.Errorf("failed to upload file: %w", err)
+			return nil, nil, cleanup, fmt.Errorf("failed to upload file: %w", err)
 		}
 	}
 
@@ -233,7 +254,7 @@ func buildCreateDocumentDTO(
 		PageCount:       0, // backfilled by ParseDocumentWorker once Docling parses it
 		PublisherName:   documentInsertPublisher,
 		PublicationYear: documentInsertYear,
-	}, cleanup, nil
+	}, nil, cleanup, nil
 }
 
 // openDocumentSource returns a seekable handle to the source file (opened

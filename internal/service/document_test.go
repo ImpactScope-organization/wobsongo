@@ -21,6 +21,9 @@ func TestDocumentService_Create(t *testing.T) {
 	repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
 		return fn(repo)
 	}
+	repo.GetBySHA256Func = func(_ context.Context, _ string) (*model.Document, error) {
+		return nil, data.ErrNotFound
+	}
 	repo.CreateFunc = func(_ context.Context, entity *model.Document) error {
 		created = entity
 		return nil
@@ -74,12 +77,73 @@ func TestDocumentService_Create_PropagatesRepoError(t *testing.T) {
 	repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
 		return fn(repo)
 	}
+	repo.GetBySHA256Func = func(_ context.Context, _ string) (*model.Document, error) {
+		return nil, data.ErrNotFound
+	}
 	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrInternal }
 	svc := service.NewDocumentService(repo)
 
 	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{})
 	if !errors.Is(err, data.ErrInternal) {
 		t.Errorf("expected data.ErrInternal, got %v", err)
+	}
+}
+
+func TestDocumentService_Create_DuplicateSHA256_ReturnsExistingNoOp(t *testing.T) {
+	existing := &model.Document{ID: uuid.New(), SHA256: "abc123", Title: "Already Ingested"}
+	repo := &mockrepo.DocumentRepoerMock{
+		GetBySHA256Func: func(_ context.Context, sha256 string) (*model.Document, error) {
+			if sha256 != existing.SHA256 {
+				t.Errorf("expected GetBySHA256 called with %s, got %s", existing.SHA256, sha256)
+			}
+			return existing, nil
+		},
+		CreateFunc: func(_ context.Context, _ *model.Document) error {
+			t.Error("expected Create not to be called for a duplicate SHA256")
+			return nil
+		},
+		EnqueueFunc: func(_ context.Context, _ queue.BackgroundJob) error {
+			t.Error("expected Enqueue not to be called for a duplicate SHA256")
+			return nil
+		},
+	}
+	svc := service.NewDocumentService(repo)
+
+	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{SHA256: existing.SHA256})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if doc != existing {
+		t.Errorf("expected the existing document to be returned, got %+v", doc)
+	}
+}
+
+func TestDocumentService_Create_ConcurrentDuplicate_ReturnsExistingNoOp(t *testing.T) {
+	existing := &model.Document{ID: uuid.New(), SHA256: "abc123", Title: "Won The Race"}
+	getCalls := 0
+	repo := &mockrepo.DocumentRepoerMock{}
+	repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
+		return fn(repo)
+	}
+	repo.GetBySHA256Func = func(_ context.Context, _ string) (*model.Document, error) {
+		getCalls++
+		if getCalls == 1 {
+			return nil, data.ErrNotFound
+		}
+		return existing, nil
+	}
+	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrConflict }
+	svc := service.NewDocumentService(repo)
+
+	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{SHA256: existing.SHA256})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if doc != existing {
+		t.Errorf("expected the existing document to be returned, got %+v", doc)
+	}
+	if getCalls != 2 {
+		t.Errorf("expected GetBySHA256 to be called twice (pre-check + post-conflict), got %d", getCalls)
 	}
 }
 

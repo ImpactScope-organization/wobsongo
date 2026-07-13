@@ -149,6 +149,14 @@ func (w *CaptionImageChunksWorker) Work(
 			return fmt.Errorf("failed to save caption for chunk %s: %w", chunkID, err)
 		}
 	}
+
+	// Every image chunk for this document now has final text (captioned here
+	// or already captioned by a prior partial attempt) — safe to embed.
+	if err := w.ChunkRepo.Enqueue(ctx, queue.EmbedChunksDTO{
+		DocumentID: job.Args.DocumentID,
+	}); err != nil {
+		return fmt.Errorf("failed to enqueue chunk embedding: %w", err)
+	}
 	return nil
 }
 

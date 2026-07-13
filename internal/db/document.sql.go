@@ -118,6 +118,31 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id uuid.UUID) (Document, 
 	return i, err
 }
 
+const getDocumentBySHA256 = `-- name: GetDocumentBySHA256 :one
+SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year FROM documents WHERE sha256 = $1
+`
+
+func (q *Queries) GetDocumentBySHA256(ctx context.Context, sha256 string) (Document, error) {
+	row := q.db.QueryRow(ctx, getDocumentBySHA256, sha256)
+	var i Document
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.ModifiedAt,
+		&i.IngestedAt,
+		&i.FileKey,
+		&i.Sha256,
+		&i.Title,
+		&i.Filename,
+		&i.Filetype,
+		&i.Filesize,
+		&i.PageCount,
+		&i.PublisherName,
+		&i.PublicationYear,
+	)
+	return i, err
+}
+
 const paginateDocuments = `-- name: PaginateDocuments :many
 SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year FROM documents ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `

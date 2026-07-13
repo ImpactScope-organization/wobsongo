@@ -48,6 +48,9 @@ func validCreateDocumentBody() dto.CreateDocumentDTO {
 func TestCreateDocumentHandler(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		repo := &mockrepo.DocumentRepoerMock{}
+		repo.GetBySHA256Func = func(_ context.Context, _ string) (*model.Document, error) {
+			return nil, data.ErrNotFound
+		}
 		repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
 			return fn(repo)
 		}
@@ -160,6 +163,9 @@ func TestCreateDocumentHandler(t *testing.T) {
 
 	t.Run("RepoInternalError", func(t *testing.T) {
 		repo := &mockrepo.DocumentRepoerMock{}
+		repo.GetBySHA256Func = func(_ context.Context, _ string) (*model.Document, error) {
+			return nil, data.ErrNotFound
+		}
 		repo.WithTxFunc = func(ctx context.Context, fn func(data.DocumentRepoer) error) error {
 			return fn(repo)
 		}

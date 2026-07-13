@@ -19,6 +19,12 @@ type DocumentChunkRepoer interface {
 	// ListByDocumentID retrieves all chunks for a document, ordered by SequenceNumber.
 	ListByDocumentID(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
 
+	// ListChunksNeedingEmbedding retrieves chunks for a document that have
+	// text but no embedding yet, ordered by SequenceNumber. Used by
+	// EmbedChunksWorker; the filter also makes retries idempotent — a chunk
+	// already embedded is never returned again.
+	ListChunksNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+
 	// CreateBatch inserts multiple fully-formed chunks in a single operation.
 	CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error
 

@@ -26,6 +26,7 @@ type AtomicKnowledge struct {
 	Note               string
 	MarkedAsInvalid    bool
 	MarkedAsIrrelevant bool
+	Embedding          *pgvector_go.Vector
 }
 
 type Document struct {

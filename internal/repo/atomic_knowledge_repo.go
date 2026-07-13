@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -56,6 +57,40 @@ func (r *AtomicKnowledgeRepo) MarkChunkKnowledgeExtracted(ctx context.Context, c
 	return nil
 }
 
+// ListNeedingEmbedding retrieves facts for a document that don't have an
+// embedding yet, ordered by CreatedAt.
+func (r *AtomicKnowledgeRepo) ListNeedingEmbedding(
+	ctx context.Context,
+	documentID uuid.UUID,
+) ([]model.AtomicKnowledge, error) {
+	rows, err := r.q.ListKnowledgeNeedingEmbedding(ctx, documentID)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+
+	facts := make([]model.AtomicKnowledge, 0, len(rows))
+	for i := range rows {
+		facts = append(facts, *toModelAtomicKnowledge(&rows[i]))
+	}
+	return facts, nil
+}
+
+// UpdateEmbedding persists the embedding vector for a single fact.
+func (r *AtomicKnowledgeRepo) UpdateEmbedding(
+	ctx context.Context,
+	id uuid.UUID,
+	embedding []float32,
+) error {
+	if err := r.q.UpdateAtomicKnowledgeEmbedding(ctx, db.UpdateAtomicKnowledgeEmbeddingParams{
+		ID:        id,
+		Embedding: toPgvector(embedding),
+		UpdatedAt: time.Now(),
+	}); err != nil {
+		return mapPostgresError(err)
+	}
+	return nil
+}
+
 // WithTx executes fn within a Postgres transaction, giving it a
 // transaction-scoped repo so CreateBatch and MarkChunkKnowledgeExtracted
 // commit atomically.
@@ -75,6 +110,26 @@ func (r *AtomicKnowledgeRepo) WithTx(ctx context.Context, fn func(data.AtomicKno
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// toModelAtomicKnowledge maps a sqlc-generated db.AtomicKnowledge row to model.AtomicKnowledge.
+func toModelAtomicKnowledge(k *db.AtomicKnowledge) *model.AtomicKnowledge {
+	return &model.AtomicKnowledge{
+		ID:                 k.ID,
+		CreatedAt:          k.CreatedAt,
+		UpdatedAt:          k.UpdatedAt,
+		DocumentID:         k.DocumentID,
+		DocumentChunkID:    k.DocumentChunkID,
+		TruthTier:          model.TruthTier(k.TruthTier),
+		Topics:             k.Topics,
+		Subject:            k.Subject,
+		Predicate:          k.Predicate,
+		Object:             k.Object,
+		Note:               k.Note,
+		Embedding:          fromPgvector(k.Embedding),
+		MarkedAsInvalid:    k.MarkedAsInvalid,
+		MarkedAsIrrelevant: k.MarkedAsIrrelevant,
+	}
 }
 
 // toCreateAtomicKnowledgeBatchParams maps a model.AtomicKnowledge to sqlc's batch-insert params.

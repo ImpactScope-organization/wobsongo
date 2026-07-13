@@ -29,6 +29,10 @@ const (
 	// JobTypeExtractKnowledge represents a job type for extracting atomic
 	// knowledge facts from a document's text-bearing, not-yet-extracted chunks.
 	JobTypeExtractKnowledge BackgroundJobType = "extract_knowledge"
+
+	// JobTypeEmbedKnowledge represents a job type for computing and storing
+	// embeddings for a document's not-yet-embedded atomic knowledge facts.
+	JobTypeEmbedKnowledge BackgroundJobType = "embed_knowledge"
 )
 
 // BackgroundJob represents a generic background job.

@@ -118,5 +118,13 @@ func (w *ExtractKnowledgeWorker) Work(
 			)
 		}
 	}
+
+	// Every text-bearing chunk in this document has now had extraction run
+	// (successfully, even if some yielded zero facts) — safe to embed.
+	if err := w.ChunkRepo.Enqueue(ctx, queue.EmbedKnowledgeDTO{
+		DocumentID: job.Args.DocumentID,
+	}); err != nil {
+		return fmt.Errorf("failed to enqueue knowledge embedding: %w", err)
+	}
 	return nil
 }

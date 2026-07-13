@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -20,7 +21,7 @@ func SetupTestDB(t *testing.T) (*pgxpool.Pool, *db.Queries) {
 		t.Fatal("APP_DB_URI must be set to run repo integration tests")
 	}
 
-	pool, err := pgxpool.New(t.Context(), uri)
+	pool, err := repo.NewPgxPool(t.Context(), uri)
 	if err != nil {
 		t.Fatalf("failed to connect to test database: %v", err)
 	}

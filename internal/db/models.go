@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
 type Document struct {
@@ -41,6 +42,7 @@ type DocumentChunk struct {
 	LayoutType      string
 	BoundingBox     []float64
 	AssetUrl        string
+	Embedding       *pgvector_go.Vector
 }
 
 type User struct {

@@ -35,6 +35,9 @@ var _ data.DocumentRepoer = &DocumentRepoerMock{}
 //			GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.Document, error) {
 //				panic("mock out the GetByID method")
 //			},
+//			GetBySHA256Func: func(ctx context.Context, sha256 string) (*model.Document, error) {
+//				panic("mock out the GetBySHA256 method")
+//			},
 //			PaginateFunc: func(ctx context.Context, q data.SupportsPagination) (*dto.PaginationResults[model.Document], error) {
 //				panic("mock out the Paginate method")
 //			},
@@ -62,6 +65,9 @@ type DocumentRepoerMock struct {
 
 	// GetByIDFunc mocks the GetByID method.
 	GetByIDFunc func(ctx context.Context, id uuid.UUID) (*model.Document, error)
+
+	// GetBySHA256Func mocks the GetBySHA256 method.
+	GetBySHA256Func func(ctx context.Context, sha256 string) (*model.Document, error)
 
 	// PaginateFunc mocks the Paginate method.
 	PaginateFunc func(ctx context.Context, q data.SupportsPagination) (*dto.PaginationResults[model.Document], error)
@@ -102,6 +108,13 @@ type DocumentRepoerMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// GetBySHA256 holds details about calls to the GetBySHA256 method.
+		GetBySHA256 []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Sha256 is the sha256 argument value.
+			Sha256 string
+		}
 		// Paginate holds details about calls to the Paginate method.
 		Paginate []struct {
 			// Ctx is the ctx argument value.
@@ -124,13 +137,14 @@ type DocumentRepoerMock struct {
 			Fn func(data.DocumentRepoer) error
 		}
 	}
-	lockCreate   sync.RWMutex
-	lockDelete   sync.RWMutex
-	lockEnqueue  sync.RWMutex
-	lockGetByID  sync.RWMutex
-	lockPaginate sync.RWMutex
-	lockUpdate   sync.RWMutex
-	lockWithTx   sync.RWMutex
+	lockCreate      sync.RWMutex
+	lockDelete      sync.RWMutex
+	lockEnqueue     sync.RWMutex
+	lockGetByID     sync.RWMutex
+	lockGetBySHA256 sync.RWMutex
+	lockPaginate    sync.RWMutex
+	lockUpdate      sync.RWMutex
+	lockWithTx      sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -274,6 +288,42 @@ func (mock *DocumentRepoerMock) GetByIDCalls() []struct {
 	mock.lockGetByID.RLock()
 	calls = mock.calls.GetByID
 	mock.lockGetByID.RUnlock()
+	return calls
+}
+
+// GetBySHA256 calls GetBySHA256Func.
+func (mock *DocumentRepoerMock) GetBySHA256(ctx context.Context, sha256 string) (*model.Document, error) {
+	if mock.GetBySHA256Func == nil {
+		panic("DocumentRepoerMock.GetBySHA256Func: method is nil but DocumentRepoer.GetBySHA256 was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Sha256 string
+	}{
+		Ctx:    ctx,
+		Sha256: sha256,
+	}
+	mock.lockGetBySHA256.Lock()
+	mock.calls.GetBySHA256 = append(mock.calls.GetBySHA256, callInfo)
+	mock.lockGetBySHA256.Unlock()
+	return mock.GetBySHA256Func(ctx, sha256)
+}
+
+// GetBySHA256Calls gets all the calls that were made to GetBySHA256.
+// Check the length with:
+//
+//	len(mockedDocumentRepoer.GetBySHA256Calls())
+func (mock *DocumentRepoerMock) GetBySHA256Calls() []struct {
+	Ctx    context.Context
+	Sha256 string
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Sha256 string
+	}
+	mock.lockGetBySHA256.RLock()
+	calls = mock.calls.GetBySHA256
+	mock.lockGetBySHA256.RUnlock()
 	return calls
 }
 

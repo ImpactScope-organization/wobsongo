@@ -75,6 +75,11 @@ func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 		updatedText = c.Text
 		return nil
 	}
+	var enqueued queue.BackgroundJob
+	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = payload
+		return nil
+	}
 
 	rawStore := &stubRawStore{
 		getObjectFunc: func(_ context.Context, key string) (io.ReadCloser, error) {
@@ -112,6 +117,17 @@ func TestCaptionImageChunksWorker_Work_Success(t *testing.T) {
 	if gotReq.Page != 5 {
 		t.Errorf("expected page 5, got %d", gotReq.Page)
 	}
+	embedJob, ok := enqueued.(queue.EmbedChunksDTO)
+	if !ok {
+		t.Fatalf("expected a queue.EmbedChunksDTO to be enqueued, got %T", enqueued)
+	}
+	if embedJob.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected enqueued embed job DocumentID %s, got %s",
+			job.Args.DocumentID,
+			embedJob.DocumentID,
+		)
+	}
 }
 
 func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) {
@@ -130,6 +146,9 @@ func TestCaptionImageChunksWorker_Work_SkipsAlreadyCaptionedChunk(t *testing.T) 
 	}
 	chunkRepo.UpdateFunc = func(context.Context, *model.DocumentChunk) error {
 		t.Error("Update should not be called for an already-captioned chunk")
+		return nil
+	}
+	chunkRepo.EnqueueFunc = func(_ context.Context, _ queue.BackgroundJob) error {
 		return nil
 	}
 

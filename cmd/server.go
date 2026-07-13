@@ -10,7 +10,6 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/spf13/cobra"
@@ -27,8 +26,10 @@ var serveCmd = &cobra.Command{
 			return
 		}
 
-		// Initialize database connection pool.
-		pool, err := pgxpool.New(cmd.Context(), config.PostgresURI)
+		// Initialize database connection pool. Uses repo.NewPgxPool (not
+		// pgxpool.New) so pgvector types are registered on every connection —
+		// required for document_chunks.embedding to (de)serialize correctly.
+		pool, err := repo.NewPgxPool(cmd.Context(), config.PostgresURI)
 		if err != nil {
 			cmd.PrintErrf("Failed to connect to database: %s\n", err.Error())
 			os.Exit(1)
@@ -68,6 +69,17 @@ var serveCmd = &cobra.Command{
 			config.VLMConfig.BaseURL,
 			config.VLMConfig.Model,
 			config.VLMConfig.APIKey,
+		)
+
+		if err := internal.IsEmbeddingOK(config.EmbeddingConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		embeddingClient := external.NewEmbeddingClient(
+			config.EmbeddingConfig.BaseURL,
+			config.EmbeddingConfig.Model,
+			config.EmbeddingConfig.APIKey,
 		)
 
 		// riverClient is assigned below, after workers (which need to be
@@ -121,6 +133,10 @@ var serveCmd = &cobra.Command{
 			vlmClient,
 		)
 		river.AddWorker(workers, captionImageChunksWorker)
+
+		// register EmbedChunksWorker with River
+		embedChunksWorker := worker.NewEmbedChunksWorker(chunkRepo, embeddingClient)
+		river.AddWorker(workers, embedChunksWorker)
 
 		// Initialize River client with the database pool and registered workers.
 		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{

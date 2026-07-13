@@ -90,6 +90,37 @@ func TestDocumentRepo_CRUD(t *testing.T) {
 		})
 	})
 
+	t.Run("GetBySHA256_Success", func(t *testing.T) {
+		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
+			documentRepo := repo.NewDocumentRepo(q, pool, nil)
+
+			sha := uuid.NewString()
+			doc := newTestDocument(sha)
+			if err := documentRepo.Create(ctx, doc); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got, err := documentRepo.GetBySHA256(ctx, sha)
+			if err != nil {
+				t.Fatalf("unexpected error fetching by sha256: %v", err)
+			}
+			if got.ID != doc.ID || got.SHA256 != doc.SHA256 {
+				t.Errorf("fetched document does not match created one: %+v vs %+v", got, doc)
+			}
+		})
+	})
+
+	t.Run("GetBySHA256_NotFound", func(t *testing.T) {
+		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
+			documentRepo := repo.NewDocumentRepo(q, pool, nil)
+
+			_, err := documentRepo.GetBySHA256(ctx, uuid.NewString())
+			if !errors.Is(err, data.ErrNotFound) {
+				t.Errorf("expected data.ErrNotFound, got %v", err)
+			}
+		})
+	})
+
 	t.Run("GetByID_NotFound", func(t *testing.T) {
 		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
 			documentRepo := repo.NewDocumentRepo(q, pool, nil)

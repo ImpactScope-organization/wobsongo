@@ -177,6 +177,19 @@ func loadVLMConfigOrDefault(logger *slog.Logger, envs ...string) *VLMConfig {
 	return vlmConfig
 }
 
+// loadEmbeddingConfigOrDefault loads Embedding configuration, or an empty
+// EmbeddingConfig if unset/invalid. Deliberately empty (not a fake populated
+// default) — internal.IsEmbeddingOK is a hard startup requirement in
+// cmd/server.go, and a fake non-empty default would defeat that check.
+func loadEmbeddingConfigOrDefault(logger *slog.Logger, envs ...string) *EmbeddingConfig {
+	embeddingConfig, err := NewEmbeddingConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load Embedding configuration", "error", err)
+		return &EmbeddingConfig{}
+	}
+	return embeddingConfig
+}
+
 // loadEmailConfigOrDefault loads email configuration or returns default for testing.
 func loadEmailConfigOrDefault(logger *slog.Logger, envs ...string) *EmailConfig {
 	emailConfig, err := NewEmailConfig(envs...)

@@ -37,3 +37,14 @@ type CaptionImageChunksDTO struct {
 func (CaptionImageChunksDTO) Kind() string {
 	return string(JobTypeCaptionImageChunks)
 }
+
+// EmbedChunksDTO is the river job kind for computing and storing embeddings
+// for all of a document's chunks that have text but no embedding yet.
+type EmbedChunksDTO struct {
+	DocumentID uuid.UUID `json:"document_id"`
+}
+
+// Kind implements queue.BackgroundJob and river.JobArgs.
+func (EmbedChunksDTO) Kind() string {
+	return string(JobTypeEmbedChunks)
+}

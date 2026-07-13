@@ -19,6 +19,17 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
+// testEmbedding builds a document_chunks.embedding-dimension (1536) vector
+// whose values are derived from seed, so distinct test vectors are easy to
+// tell apart in failure output without hardcoding 1536 literals per test.
+func testEmbedding(seed float32) []float32 {
+	vec := make([]float32, 1536)
+	for i := range vec {
+		vec[i] = seed
+	}
+	return vec
+}
+
 func newTestDocumentChunk(documentID uuid.UUID, seq int) model.DocumentChunk {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return model.DocumentChunk{
@@ -156,6 +167,91 @@ func TestDocumentChunkRepo_CRUD(t *testing.T) {
 			err := chunkRepo.Update(ctx, &chunk)
 			if !errors.Is(err, data.ErrNotFound) {
 				t.Errorf("expected data.ErrNotFound, got %v", err)
+			}
+		})
+	})
+
+	t.Run("Update_PersistsAndRoundTripsEmbedding", func(t *testing.T) {
+		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
+			documentRepo := repo.NewDocumentRepo(q, pool, nil)
+			doc := newTestDocument(uuid.NewString())
+			if err := documentRepo.Create(ctx, doc); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+			chunk := newTestDocumentChunk(doc.ID, 0)
+			if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{chunk}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got, err := chunkRepo.GetByID(ctx, chunk.ID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.Embedding != nil {
+				t.Errorf("expected a freshly created chunk to have a nil embedding, got %v", got.Embedding)
+			}
+
+			want := testEmbedding(0.1)
+			got.Embedding = want
+			if err := chunkRepo.Update(ctx, got); err != nil {
+				t.Fatalf("unexpected error updating embedding: %v", err)
+			}
+
+			roundTripped, err := chunkRepo.GetByID(ctx, chunk.ID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(roundTripped.Embedding) != len(want) {
+				t.Fatalf("expected embedding %v, got %v", want, roundTripped.Embedding)
+			}
+			for i := range want {
+				if roundTripped.Embedding[i] != want[i] {
+					t.Errorf("expected embedding %v, got %v", want, roundTripped.Embedding)
+					break
+				}
+			}
+		})
+	})
+
+	t.Run("ListChunksNeedingEmbedding_FiltersToUnembeddedTextChunks", func(t *testing.T) {
+		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
+			documentRepo := repo.NewDocumentRepo(q, pool, nil)
+			doc := newTestDocument(uuid.NewString())
+			if err := documentRepo.Create(ctx, doc); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+
+			needsEmbedding := newTestDocumentChunk(doc.ID, 0)
+			alreadyEmbedded := newTestDocumentChunk(doc.ID, 1)
+			blankText := newTestDocumentChunk(doc.ID, 2)
+			blankText.Text = ""
+			if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{
+				needsEmbedding, alreadyEmbedded, blankText,
+			}); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			alreadyEmbedded.Embedding = testEmbedding(0.4)
+			if err := chunkRepo.Update(ctx, &alreadyEmbedded); err != nil {
+				t.Fatalf("unexpected error embedding chunk: %v", err)
+			}
+
+			got, err := chunkRepo.ListChunksNeedingEmbedding(ctx, doc.ID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(got) != 1 {
+				t.Fatalf("expected exactly 1 chunk needing embedding, got %d: %+v", len(got), got)
+			}
+			if got[0].ID != needsEmbedding.ID {
+				t.Errorf(
+					"expected the unembedded text chunk %s, got %s",
+					needsEmbedding.ID, got[0].ID,
+				)
 			}
 		})
 	})

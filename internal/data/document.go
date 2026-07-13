@@ -1,6 +1,8 @@
 package data
 
 import (
+	"context"
+
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
@@ -9,4 +11,8 @@ import (
 type DocumentRepoer interface {
 	CrudableWithTx[model.Document, DocumentRepoer]
 	queue.JobEnqueuer
+
+	// GetBySHA256 retrieves a document by its content hash. Returns
+	// ErrNotFound if no document has that hash.
+	GetBySHA256(ctx context.Context, sha256 string) (*model.Document, error)
 }

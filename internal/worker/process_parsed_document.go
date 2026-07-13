@@ -191,6 +191,16 @@ func (w *ProcessParsedDocumentWorker) Work(
 			}); err != nil {
 				return fmt.Errorf("failed to enqueue image captioning: %w", err)
 			}
+		} else {
+			// No images to caption, so every stored chunk's text is already
+			// final — embed now rather than waiting on a captioning job that
+			// will never run. If there were images, CaptionImageChunksWorker
+			// enqueues EmbedChunksDTO itself once captioning finishes.
+			if err := tx.Enqueue(ctx, queue.EmbedChunksDTO{
+				DocumentID: job.Args.DocumentID,
+			}); err != nil {
+				return fmt.Errorf("failed to enqueue chunk embedding: %w", err)
+			}
 		}
 		return nil
 	})

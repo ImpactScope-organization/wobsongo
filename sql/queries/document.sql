@@ -1,6 +1,9 @@
 -- name: GetDocumentByID :one
 SELECT * FROM documents WHERE id = $1;
 
+-- name: GetDocumentBySHA256 :one
+SELECT * FROM documents WHERE sha256 = $1;
+
 -- name: CreateDocument :one
 INSERT INTO documents (
     id, created_at, modified_at, ingested_at, file_key, sha256,

@@ -34,6 +34,9 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			ListByDocumentIDFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
 //				panic("mock out the ListByDocumentID method")
 //			},
+//			ListChunksNeedingEmbeddingFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+//				panic("mock out the ListChunksNeedingEmbedding method")
+//			},
 //			ShouldBeStoredFunc: func(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
 //				panic("mock out the ShouldBeStored method")
 //			},
@@ -61,6 +64,9 @@ type DocumentChunkRepoerMock struct {
 
 	// ListByDocumentIDFunc mocks the ListByDocumentID method.
 	ListByDocumentIDFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+
+	// ListChunksNeedingEmbeddingFunc mocks the ListChunksNeedingEmbedding method.
+	ListChunksNeedingEmbeddingFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
 
 	// ShouldBeStoredFunc mocks the ShouldBeStored method.
 	ShouldBeStoredFunc func(ctx context.Context, chunk model.DocumentChunk) (bool, error)
@@ -101,6 +107,13 @@ type DocumentChunkRepoerMock struct {
 			// DocumentID is the documentID argument value.
 			DocumentID uuid.UUID
 		}
+		// ListChunksNeedingEmbedding holds details about calls to the ListChunksNeedingEmbedding method.
+		ListChunksNeedingEmbedding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// DocumentID is the documentID argument value.
+			DocumentID uuid.UUID
+		}
 		// ShouldBeStored holds details about calls to the ShouldBeStored method.
 		ShouldBeStored []struct {
 			// Ctx is the ctx argument value.
@@ -123,13 +136,14 @@ type DocumentChunkRepoerMock struct {
 			Fn func(data.DocumentChunkRepoer) error
 		}
 	}
-	lockCreateBatch      sync.RWMutex
-	lockEnqueue          sync.RWMutex
-	lockGetByID          sync.RWMutex
-	lockListByDocumentID sync.RWMutex
-	lockShouldBeStored   sync.RWMutex
-	lockUpdate           sync.RWMutex
-	lockWithTx           sync.RWMutex
+	lockCreateBatch                sync.RWMutex
+	lockEnqueue                    sync.RWMutex
+	lockGetByID                    sync.RWMutex
+	lockListByDocumentID           sync.RWMutex
+	lockListChunksNeedingEmbedding sync.RWMutex
+	lockShouldBeStored             sync.RWMutex
+	lockUpdate                     sync.RWMutex
+	lockWithTx                     sync.RWMutex
 }
 
 // CreateBatch calls CreateBatchFunc.
@@ -273,6 +287,42 @@ func (mock *DocumentChunkRepoerMock) ListByDocumentIDCalls() []struct {
 	mock.lockListByDocumentID.RLock()
 	calls = mock.calls.ListByDocumentID
 	mock.lockListByDocumentID.RUnlock()
+	return calls
+}
+
+// ListChunksNeedingEmbedding calls ListChunksNeedingEmbeddingFunc.
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+	if mock.ListChunksNeedingEmbeddingFunc == nil {
+		panic("DocumentChunkRepoerMock.ListChunksNeedingEmbeddingFunc: method is nil but DocumentChunkRepoer.ListChunksNeedingEmbedding was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}{
+		Ctx:        ctx,
+		DocumentID: documentID,
+	}
+	mock.lockListChunksNeedingEmbedding.Lock()
+	mock.calls.ListChunksNeedingEmbedding = append(mock.calls.ListChunksNeedingEmbedding, callInfo)
+	mock.lockListChunksNeedingEmbedding.Unlock()
+	return mock.ListChunksNeedingEmbeddingFunc(ctx, documentID)
+}
+
+// ListChunksNeedingEmbeddingCalls gets all the calls that were made to ListChunksNeedingEmbedding.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.ListChunksNeedingEmbeddingCalls())
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingEmbeddingCalls() []struct {
+	Ctx        context.Context
+	DocumentID uuid.UUID
+} {
+	var calls []struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}
+	mock.lockListChunksNeedingEmbedding.RLock()
+	calls = mock.calls.ListChunksNeedingEmbedding
+	mock.lockListChunksNeedingEmbedding.RUnlock()
 	return calls
 }
 

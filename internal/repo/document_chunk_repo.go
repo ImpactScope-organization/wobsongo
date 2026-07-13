@@ -11,6 +11,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
 	"github.com/riverqueue/river"
 )
 
@@ -78,6 +79,24 @@ func (r *DocumentChunkRepo) ListByDocumentID(
 	return chunks, nil
 }
 
+// ListChunksNeedingEmbedding retrieves chunks for a document that have text
+// but no embedding yet, ordered by SequenceNumber.
+func (r *DocumentChunkRepo) ListChunksNeedingEmbedding(
+	ctx context.Context,
+	documentID uuid.UUID,
+) ([]model.DocumentChunk, error) {
+	rows, err := r.q.ListChunksNeedingEmbedding(ctx, documentID)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+
+	chunks := make([]model.DocumentChunk, 0, len(rows))
+	for i := range rows {
+		chunks = append(chunks, *toModelDocumentChunk(&rows[i]))
+	}
+	return chunks, nil
+}
+
 // CreateBatch inserts multiple fully-formed chunks in a single COPY operation.
 func (r *DocumentChunkRepo) CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error {
 	if len(chunks) == 0 {
@@ -105,6 +124,7 @@ func (r *DocumentChunkRepo) Update(ctx context.Context, chunk *model.DocumentChu
 		Text:            chunk.Text,
 		Chapter:         chunk.Chapter,
 		AssetUrl:        chunk.AssetURL,
+		Embedding:       toPgvector(chunk.Embedding),
 	})
 	if err != nil {
 		return mapPostgresError(err)
@@ -169,6 +189,7 @@ func toModelDocumentChunk(d *db.DocumentChunk) *model.DocumentChunk {
 		SequenceNumber:  int(d.SequenceNumber),
 		Topics:          d.Topics,
 		FactualityScore: d.FactualityScore,
+		Embedding:       fromPgvector(d.Embedding),
 		ParsedChunk: model.ParsedChunk{
 			Text:        d.Text,
 			Page:        int(d.Page),
@@ -177,6 +198,29 @@ func toModelDocumentChunk(d *db.DocumentChunk) *model.DocumentChunk {
 			AssetURL:    d.AssetUrl,
 		},
 	}
+}
+
+// toPgvector converts a nullable []float32 embedding into a *pgvector.Vector
+// query param. A nil/empty vec becomes a nil pointer (SQL NULL) rather than
+// an empty pgvector.Vector — Postgres rejects a zero-dimension vector value
+// outright ("vector must have at least 1 dimension"), so "not yet embedded"
+// must be represented as NULL, never as a zero-length vector.
+func toPgvector(vec []float32) *pgvector.Vector {
+	if len(vec) == 0 {
+		return nil
+	}
+	v := pgvector.NewVector(vec)
+	return &v
+}
+
+// fromPgvector converts a scanned *pgvector.Vector column back into a
+// nullable []float32. A nil pointer (SQL NULL, i.e. not yet embedded) maps
+// to a nil slice.
+func fromPgvector(v *pgvector.Vector) []float32 {
+	if v == nil {
+		return nil
+	}
+	return v.Slice()
 }
 
 // toCreateDocumentChunksBatchParams maps a model.DocumentChunk to sqlc's batch-insert params.

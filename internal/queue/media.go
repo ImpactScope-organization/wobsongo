@@ -1,7 +1,10 @@
 package queue
 
+<<<<<<< HEAD
 import "github.com/google/uuid"
 
+=======
+>>>>>>> main
 // ExtractMediaDTO is the river job kind for extracting media from a given source.
 type ExtractMediaDTO struct {
 	TargetURL  string `json:"target_url"`

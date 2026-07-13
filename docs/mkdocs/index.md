@@ -1,13 +1,31 @@
 # Welcome to Wobsongo
 
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![DPG Candidate](https://img.shields.io/badge/DPG-Candidate-green)](https://digitalpublicgoods.net/)
+
 This documentation provides a comprehensive overview of Wobsongo, an open-source misinformation detection tool. It covers the core architecture, the document processing pipeline, and local development practices.
 
-## Project Overview
+## Project Overview & Features
 
-Wobsongo is built to process, analyze, and detect misinformation using a robust document processing pipeline and modern web technologies. 
+Wobsongo is an open-source backend engine for misinformation detection, powered by a knowledge management and hybrid retrieval system. It provides infrastructure to ingest content, build a structured knowledge base, and verify claims against it.
 
-- **Backend Pipeline**: Written in Go (utilizing the Echo framework), providing a high-performance API. It integrates with River for robust job queues, handling heavy tasks like PDF parsing and LLM inference.
-- **AI Integration**: Utilizes Dockling for structured document extraction, BGE-M3 for vector embeddings, and LLMs for subject-predicate-object knowledge extraction.
+- **REST API**: Written in Go using the [Echo](https://echo.labstack.com/) framework, providing a high-performance, low-latency API.
+- **Async Job Queue**: Powered by [River](https://riverqueue.com/) on PostgreSQL for reliable processing of long-running background tasks.
+- **Document Storage**: PostgreSQL for structured data with S3-compatible object storage (MinIO locally) for documents and media assets.
+- **Extensible Architecture**: Clean layered design (handlers → services → repositories) with interface-based abstractions, making it straightforward to add new storage backends, job workers, or verification modules.
+
+## SDG Alignment
+
+This project contributes to:
+
+- **SDG 3 (Good Health & Well-being)**: By providing infrastructure to combat health misinformation.
+- **SDG 16 (Peace, Justice, Strong Institutions)**: By enabling transparent fact-checking of public information.
+
+## License
+
+Distributed under the Apache 2.0 License. See `LICENSE` for more information.
+
+---
 
 ## Important Links
 

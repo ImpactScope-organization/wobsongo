@@ -1,5 +1,6 @@
 site_name: Wobsongo Documentation
-# site_url: https://docs.planetleague.co.uk
+site_description: Automated Claim Verification Framework for DPGs
+site_url: https://github.com/ImpactScope-organization/wobsongo
 docs_dir: docs/mkdocs
 watch:
   - docs/mkdocs
@@ -7,6 +8,8 @@ watch:
 # Enable the Material theme
 theme:
   name: material
+  logo: assets/logo.png
+  favicon: assets/favicon.png
   palette:
     # Light mode
     - scheme: default
@@ -42,3 +45,13 @@ nav:
   - Home:
       - Overview: index.md
       - Quick Reference: quick-reference.md
+
+  - Architecture:
+      - Overview: architecture.md
+      - Decisions (ADR):
+          - "ADR 0001: Layered Architecture": ../adr/0001-layered-architecture.md
+
+  - Governance:
+      - Project Charter: governance/PROJECT_CHARTER.md
+      - Contributing: governance/CONTRIBUTING.md
+      - Code of Conduct: governance/CODE_OF_CONDUCT.md

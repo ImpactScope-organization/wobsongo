@@ -45,6 +45,11 @@ dbtestup:
 		-c "CREATE USER wobsongocore_user WITH PASSWORD 'LocalDev123';"
 	@psql "postgres://wobsongocoretest:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30" \
 		-c "ALTER DATABASE wobsongocore_db OWNER TO wobsongocore_user;"
+	# CREATE EXTENSION needs superuser (pgvector isn't marked "trusted"), and
+	# wobsongocore_user isn't one — pre-create it as the bootstrap superuser
+	# so the migration's own CREATE EXTENSION IF NOT EXISTS is a no-op.
+	@psql "postgres://wobsongocoretest:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30" \
+		-c "CREATE EXTENSION IF NOT EXISTS vector;"
 	@go run . -e test.env reset && go run . -e test.env migrateup
 dbtestdown:
 	@docker compose -f test-compose.yaml down --remove-orphans --volumes

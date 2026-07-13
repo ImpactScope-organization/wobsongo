@@ -2,6 +2,8 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +34,39 @@ const (
 	// TruthTierInvalid represents invalid truth, indicating false or misleading information.
 	TruthTierInvalid
 )
+
+// truthTierNames is the canonical string form of each TruthTier, used both
+// for String() and ParseTruthTier — the wire format an LLM extraction
+// response communicates tiers in, independent of how they're persisted.
+var truthTierNames = map[TruthTier]string{
+	TruthTierAxiomatic:     "axiomatic",
+	TruthTierTemporal:      "temporal",
+	TruthTierProbabilistic: "probabilistic",
+	TruthTierSubjective:    "subjective",
+	TruthTierUnknown:       "unknown",
+	TruthTierInvalid:       "invalid",
+}
+
+// String returns t's canonical lowercase name, or "unknown" for an
+// out-of-range value.
+func (t TruthTier) String() string {
+	if name, ok := truthTierNames[t]; ok {
+		return name
+	}
+	return "unknown"
+}
+
+// ParseTruthTier parses s (case-insensitive) into a TruthTier, matching the
+// names String() produces. Returns an error for anything else.
+func ParseTruthTier(s string) (TruthTier, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	for tier, name := range truthTierNames {
+		if name == s {
+			return tier, nil
+		}
+	}
+	return TruthTierUnknown, fmt.Errorf("unrecognized truth tier %q", s)
+}
 
 // LayoutType represents the structural classification assigned by Docling
 // to a specific parsed document element.
@@ -79,6 +114,13 @@ type Document struct {
 
 	// IngestedAt is the timestamp when the document was ingested into the system.
 	IngestedAt *time.Time `json:"ingested_at,omitempty"`
+
+	// FileURL is the object storage link (e.g., MinIO/S3) to the document file,
+	// but it only stores the S3 key, not the full URL.
+	FileURL S3Key `json:"-" binding:"required"`
+
+	// FileURLPresigned is the presigned URL for accessing the document file.
+	FileURLPresigned string `json:"file_url_presigned,omitempty"`
 
 	// SHA256 is the SHA256 hash of the document content.
 	SHA256 string `json:"sha256" binding:"required"`
@@ -132,6 +174,17 @@ type ParsedChunk struct {
 	// AssetURL stores the object storage link (e.g., MinIO/S3) to the extracted image file.
 	// This is only populated if LayoutType is LayoutTypePicture or LayoutTypeChart.
 	AssetURL string `json:"asset_url,omitempty"`
+
+	// RawImageData holds the decoded image bytes for LayoutTypePicture/
+	// LayoutTypeChart chunks immediately after parsing, before they've been
+	// uploaded to object storage and AssetURL populated. Never persisted —
+	// purely an in-memory handoff between Docling-response mapping and the
+	// image-upload step; cleared before the chunk is written to the DB.
+	RawImageData []byte `json:"-"`
+
+	// RawImageContentType is the MIME type (e.g. "image/png") declared by
+	// Docling's data: URI for RawImageData. Same lifecycle as RawImageData.
+	RawImageContentType string `json:"-"`
 }
 
 // DocumentChunk represents a chunk of a document that is stored in the database.
@@ -148,6 +201,10 @@ type DocumentChunk struct {
 	// DocumentID is the unique identifier of the document to which this chunk belongs.
 	DocumentID uuid.UUID `json:"document_id" binding:"required"`
 
+	// SequenceNumber tracks the absolute reading order of this chunk
+	// within the parent document (0-indexed), as produced by the parser.
+	SequenceNumber int `json:"sequence_number" binding:"required"`
+
 	// Topics is a list of topics associated with this document chunk,
 	// used for categorization and retrieval.
 	Topics []string `json:"topics" binding:"required"`
@@ -161,6 +218,12 @@ type DocumentChunk struct {
 	// Embedding is a vector representation of the chunk's content,
 	// used for semantic search and similarity comparisons in the knowledge base.
 	Embedding []float32 `json:"-"`
+
+	// KnowledgeExtractedAt is when atomic-knowledge extraction last ran for
+	// this chunk, or nil if it hasn't run yet. Set even when extraction
+	// found zero facts, so "not yet processed" stays distinguishable from
+	// "processed, found nothing."
+	KnowledgeExtractedAt *time.Time `json:"-"`
 
 	ParsedChunk
 }

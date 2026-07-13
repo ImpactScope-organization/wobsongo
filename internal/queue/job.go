@@ -9,6 +9,26 @@ const (
 
 	// JobTypeTranscribeVideo represents a job type specifically for sending audio to Modal.
 	JobTypeTranscribeVideo BackgroundJobType = "transcribe_video"
+
+	// JobTypeParseDocument represents a job type for parsing an ingested document via Docling.
+	JobTypeParseDocument BackgroundJobType = "parse_document"
+
+	// JobTypeProcessParsedDocument represents a job type for turning a
+	// document's raw Docling output (stored in S3 by ParseDocumentWorker)
+	// into stored chunks.
+	JobTypeProcessParsedDocument BackgroundJobType = "process_parsed_document"
+
+	// JobTypeCaptionImageChunks represents a job type for generating and
+	// storing captions for image/chart chunks extracted during processing.
+	JobTypeCaptionImageChunks BackgroundJobType = "caption_image_chunks"
+
+	// JobTypeEmbedChunks represents a job type for computing and storing
+	// embeddings for a document's text-bearing, not-yet-embedded chunks.
+	JobTypeEmbedChunks BackgroundJobType = "embed_chunks"
+
+	// JobTypeExtractKnowledge represents a job type for extracting atomic
+	// knowledge facts from a document's text-bearing, not-yet-extracted chunks.
+	JobTypeExtractKnowledge BackgroundJobType = "extract_knowledge"
 )
 
 // BackgroundJob represents a generic background job.

@@ -164,6 +164,45 @@ func loadS3ConfigOrDefault(logger *slog.Logger, envs ...string) *S3Config {
 	return s3Config
 }
 
+// loadVLMConfigOrDefault loads VLM configuration, or an empty VLMConfig if
+// unset/invalid. Deliberately empty (not a fake populated default like
+// loadS3ConfigOrDefault) — internal.IsVLMOK is a hard startup requirement in
+// cmd/server.go, and a fake non-empty default would defeat that check.
+func loadVLMConfigOrDefault(logger *slog.Logger, envs ...string) *VLMConfig {
+	vlmConfig, err := NewVLMConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load VLM configuration", "error", err)
+		return &VLMConfig{}
+	}
+	return vlmConfig
+}
+
+// loadEmbeddingConfigOrDefault loads Embedding configuration, or an empty
+// EmbeddingConfig if unset/invalid. Deliberately empty (not a fake populated
+// default) — internal.IsEmbeddingOK is a hard startup requirement in
+// cmd/server.go, and a fake non-empty default would defeat that check.
+func loadEmbeddingConfigOrDefault(logger *slog.Logger, envs ...string) *EmbeddingConfig {
+	embeddingConfig, err := NewEmbeddingConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load Embedding configuration", "error", err)
+		return &EmbeddingConfig{}
+	}
+	return embeddingConfig
+}
+
+// loadExtractionConfigOrDefault loads Extraction configuration, or an empty
+// ExtractionConfig if unset/invalid. Deliberately empty (not a fake populated
+// default) — internal.IsExtractionOK is a hard startup requirement in
+// cmd/server.go, and a fake non-empty default would defeat that check.
+func loadExtractionConfigOrDefault(logger *slog.Logger, envs ...string) *ExtractionConfig {
+	extractionConfig, err := NewExtractionConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load Extraction configuration", "error", err)
+		return &ExtractionConfig{}
+	}
+	return extractionConfig
+}
+
 // loadEmailConfigOrDefault loads email configuration or returns default for testing.
 func loadEmailConfigOrDefault(logger *slog.Logger, envs ...string) *EmailConfig {
 	emailConfig, err := NewEmailConfig(envs...)

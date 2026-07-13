@@ -37,6 +37,9 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			ListChunksNeedingEmbeddingFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
 //				panic("mock out the ListChunksNeedingEmbedding method")
 //			},
+//			ListChunksNeedingKnowledgeExtractionFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+//				panic("mock out the ListChunksNeedingKnowledgeExtraction method")
+//			},
 //			ShouldBeStoredFunc: func(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
 //				panic("mock out the ShouldBeStored method")
 //			},
@@ -67,6 +70,9 @@ type DocumentChunkRepoerMock struct {
 
 	// ListChunksNeedingEmbeddingFunc mocks the ListChunksNeedingEmbedding method.
 	ListChunksNeedingEmbeddingFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+
+	// ListChunksNeedingKnowledgeExtractionFunc mocks the ListChunksNeedingKnowledgeExtraction method.
+	ListChunksNeedingKnowledgeExtractionFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
 
 	// ShouldBeStoredFunc mocks the ShouldBeStored method.
 	ShouldBeStoredFunc func(ctx context.Context, chunk model.DocumentChunk) (bool, error)
@@ -114,6 +120,13 @@ type DocumentChunkRepoerMock struct {
 			// DocumentID is the documentID argument value.
 			DocumentID uuid.UUID
 		}
+		// ListChunksNeedingKnowledgeExtraction holds details about calls to the ListChunksNeedingKnowledgeExtraction method.
+		ListChunksNeedingKnowledgeExtraction []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// DocumentID is the documentID argument value.
+			DocumentID uuid.UUID
+		}
 		// ShouldBeStored holds details about calls to the ShouldBeStored method.
 		ShouldBeStored []struct {
 			// Ctx is the ctx argument value.
@@ -136,14 +149,15 @@ type DocumentChunkRepoerMock struct {
 			Fn func(data.DocumentChunkRepoer) error
 		}
 	}
-	lockCreateBatch                sync.RWMutex
-	lockEnqueue                    sync.RWMutex
-	lockGetByID                    sync.RWMutex
-	lockListByDocumentID           sync.RWMutex
-	lockListChunksNeedingEmbedding sync.RWMutex
-	lockShouldBeStored             sync.RWMutex
-	lockUpdate                     sync.RWMutex
-	lockWithTx                     sync.RWMutex
+	lockCreateBatch                          sync.RWMutex
+	lockEnqueue                              sync.RWMutex
+	lockGetByID                              sync.RWMutex
+	lockListByDocumentID                     sync.RWMutex
+	lockListChunksNeedingEmbedding           sync.RWMutex
+	lockListChunksNeedingKnowledgeExtraction sync.RWMutex
+	lockShouldBeStored                       sync.RWMutex
+	lockUpdate                               sync.RWMutex
+	lockWithTx                               sync.RWMutex
 }
 
 // CreateBatch calls CreateBatchFunc.
@@ -323,6 +337,42 @@ func (mock *DocumentChunkRepoerMock) ListChunksNeedingEmbeddingCalls() []struct 
 	mock.lockListChunksNeedingEmbedding.RLock()
 	calls = mock.calls.ListChunksNeedingEmbedding
 	mock.lockListChunksNeedingEmbedding.RUnlock()
+	return calls
+}
+
+// ListChunksNeedingKnowledgeExtraction calls ListChunksNeedingKnowledgeExtractionFunc.
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingKnowledgeExtraction(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+	if mock.ListChunksNeedingKnowledgeExtractionFunc == nil {
+		panic("DocumentChunkRepoerMock.ListChunksNeedingKnowledgeExtractionFunc: method is nil but DocumentChunkRepoer.ListChunksNeedingKnowledgeExtraction was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}{
+		Ctx:        ctx,
+		DocumentID: documentID,
+	}
+	mock.lockListChunksNeedingKnowledgeExtraction.Lock()
+	mock.calls.ListChunksNeedingKnowledgeExtraction = append(mock.calls.ListChunksNeedingKnowledgeExtraction, callInfo)
+	mock.lockListChunksNeedingKnowledgeExtraction.Unlock()
+	return mock.ListChunksNeedingKnowledgeExtractionFunc(ctx, documentID)
+}
+
+// ListChunksNeedingKnowledgeExtractionCalls gets all the calls that were made to ListChunksNeedingKnowledgeExtraction.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.ListChunksNeedingKnowledgeExtractionCalls())
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingKnowledgeExtractionCalls() []struct {
+	Ctx        context.Context
+	DocumentID uuid.UUID
+} {
+	var calls []struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}
+	mock.lockListChunksNeedingKnowledgeExtraction.RLock()
+	calls = mock.calls.ListChunksNeedingKnowledgeExtraction
+	mock.lockListChunksNeedingKnowledgeExtraction.RUnlock()
 	return calls
 }
 

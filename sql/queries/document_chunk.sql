@@ -9,6 +9,14 @@ SELECT * FROM document_chunks
 WHERE document_id = $1 AND text != '' AND embedding IS NULL
 ORDER BY sequence_number ASC;
 
+-- name: ListChunksNeedingKnowledgeExtraction :many
+SELECT * FROM document_chunks
+WHERE document_id = $1 AND text != '' AND knowledge_extracted_at IS NULL
+ORDER BY sequence_number ASC;
+
+-- name: MarkChunkKnowledgeExtracted :exec
+UPDATE document_chunks SET knowledge_extracted_at = now() WHERE id = $1;
+
 -- name: CreateDocumentChunksBatch :copyfrom
 INSERT INTO document_chunks (
     id, created_at, updated_at, document_id, sequence_number, topics, factuality_score,

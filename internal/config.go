@@ -64,6 +64,17 @@ type EmbeddingConfig struct {
 	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
 }
 
+// ExtractionConfig holds the configuration for the atomic-knowledge
+// extraction endpoint — a generic OpenAI-compatible text chat-completions
+// API (works against self-hosted vLLM/Ollama or any hosted provider using
+// that shape). Decoupled from VLMConfig: captioning needs vision, extraction
+// is text-only reasoning, and each may warrant a different model.
+type ExtractionConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+}
+
 // EmailConfig groups transactional email configurations.
 type EmailConfig struct {
 	// Transactional holds configuration for user-triggered emails.
@@ -96,26 +107,27 @@ type TransactionalEmailConfig struct {
 }
 
 type Config struct {
-	Logger             *slog.Logger     `json:"-"`                     // Never included in JSON (not serializable)
-	LogLevel           slog.Level       `json:"log_level"`             // Log level (debug, info, warn, error)
-	Env                string           `json:"env"`                   // Environment (development, staging, production)
-	JWTSecret          string           `json:"-"`                     // Never included in JSON (security)
-	JWTExpiryHours     int              `json:"jwt_expiry_hours"`      // JWT token expiry in hours
-	PostgresURI        string           `json:"-"`                     // Never included in JSON (security - contains credentials)
-	APIHost            string           `json:"api_host"`              // API host (e.g., "localhost:8000")
-	FrontendHost       string           `json:"frontend_host"`         // Frontend host (e.g., "localhost:3000")
-	Port               int              `json:"port"`                  // Server port
-	CORSAllowedOrigins []string         `json:"cors_allowed_origins"`  // CORS allowed origins
-	CORSAllowedMethods []string         `json:"cors_allowed_methods"`  // CORS allowed methods
-	StorageProvider    StorageProvider  `json:"storage_provider"`      // Storage provider (local, s3)
-	S3Config           *S3Config        `json:"s3_config"`             // S3 configuration
-	EmailConfig        *EmailConfig     `json:"email_config"`          // Email configuration
-	ApifyToken         string           `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
-	ApifyTikTokActorID string           `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
-	ApifyIGActorID     string           `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
-	DoclingBaseURL     string           `json:"docling_base_url"`      // Base URL of the Docling Serve instance
-	VLMConfig          *VLMConfig       `json:"vlm_config"`            // VLM configuration for image captioning
-	EmbeddingConfig    *EmbeddingConfig `json:"embedding_config"`      // Embedding configuration for chunk embeddings
+	Logger             *slog.Logger      `json:"-"`                     // Never included in JSON (not serializable)
+	LogLevel           slog.Level        `json:"log_level"`             // Log level (debug, info, warn, error)
+	Env                string            `json:"env"`                   // Environment (development, staging, production)
+	JWTSecret          string            `json:"-"`                     // Never included in JSON (security)
+	JWTExpiryHours     int               `json:"jwt_expiry_hours"`      // JWT token expiry in hours
+	PostgresURI        string            `json:"-"`                     // Never included in JSON (security - contains credentials)
+	APIHost            string            `json:"api_host"`              // API host (e.g., "localhost:8000")
+	FrontendHost       string            `json:"frontend_host"`         // Frontend host (e.g., "localhost:3000")
+	Port               int               `json:"port"`                  // Server port
+	CORSAllowedOrigins []string          `json:"cors_allowed_origins"`  // CORS allowed origins
+	CORSAllowedMethods []string          `json:"cors_allowed_methods"`  // CORS allowed methods
+	StorageProvider    StorageProvider   `json:"storage_provider"`      // Storage provider (local, s3)
+	S3Config           *S3Config         `json:"s3_config"`             // S3 configuration
+	EmailConfig        *EmailConfig      `json:"email_config"`          // Email configuration
+	ApifyToken         string            `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
+	ApifyTikTokActorID string            `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
+	ApifyIGActorID     string            `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
+	DoclingBaseURL     string            `json:"docling_base_url"`      // Base URL of the Docling Serve instance
+	VLMConfig          *VLMConfig        `json:"vlm_config"`            // VLM configuration for image captioning
+	EmbeddingConfig    *EmbeddingConfig  `json:"embedding_config"`      // Embedding configuration for chunk embeddings
+	ExtractionConfig   *ExtractionConfig `json:"extraction_config"`     // Extraction configuration for atomic knowledge
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -155,6 +167,17 @@ func IsEmbeddingOK(c *EmbeddingConfig) error {
 	}
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("EmbeddingConfig is incomplete")
+	}
+	return nil
+}
+
+// IsExtractionOK checks if the Extraction configuration is valid.
+func IsExtractionOK(c *ExtractionConfig) error {
+	if c == nil {
+		return errors.New("ExtractionConfig is not set")
+	}
+	if c.BaseURL == "" || c.Model == "" {
+		return errors.New("ExtractionConfig is incomplete")
 	}
 	return nil
 }
@@ -281,6 +304,9 @@ func NewConfig(envs ...string) *Config {
 	// Load Embedding configuration (chunk embeddings) — same reasoning as VLM.
 	embeddingConfig := loadEmbeddingConfigOrDefault(logger, envs...)
 
+	// Load Extraction configuration (atomic knowledge) — same reasoning as VLM.
+	extractionConfig := loadExtractionConfigOrDefault(logger, envs...)
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -304,6 +330,7 @@ func NewConfig(envs ...string) *Config {
 		DoclingBaseURL:     doclingBaseURL,
 		VLMConfig:          vlmConfig,
 		EmbeddingConfig:    embeddingConfig,
+		ExtractionConfig:   extractionConfig,
 	}
 	return defaultConfig
 }
@@ -403,6 +430,34 @@ func NewEmbeddingConfig(envs ...string) (*EmbeddingConfig, error) {
 		BaseURL: baseURL,
 		Model:   model,
 		APIKey:  getEnv("EMBEDDING_API_KEY", ""),
+	}, nil
+}
+
+// NewExtractionConfig creates a new ExtractionConfig from environment variables.
+func NewExtractionConfig(envs ...string) (*ExtractionConfig, error) {
+	// Note: .env file should already be loaded by NewConfig() before calling this.
+	// This function only loads .env when called independently (e.g., in tests).
+	if len(envs) > 0 && envs[0] != "" {
+		source := envs[0]
+		if err := godotenv.Load(source); err != nil {
+			fmt.Printf("Warning: Failed to load .env file: %s\n", err.Error())
+		} else {
+			fmt.Printf("(NewExtractionConfig) Loaded environment from: %s\n", source)
+		}
+	}
+
+	baseURL := getEnv("EXTRACTION_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("EXTRACTION_BASE_URL is not set")
+	}
+	model := getEnv("EXTRACTION_MODEL", "")
+	if model == "" {
+		return nil, errors.New("EXTRACTION_MODEL is not set")
+	}
+	return &ExtractionConfig{
+		BaseURL: baseURL,
+		Model:   model,
+		APIKey:  getEnv("EXTRACTION_API_KEY", ""),
 	}, nil
 }
 

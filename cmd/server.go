@@ -82,6 +82,17 @@ var serveCmd = &cobra.Command{
 			config.EmbeddingConfig.APIKey,
 		)
 
+		if err := internal.IsExtractionOK(config.ExtractionConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		extractionClient := external.NewExtractionClient(
+			config.ExtractionConfig.BaseURL,
+			config.ExtractionConfig.Model,
+			config.ExtractionConfig.APIKey,
+		)
+
 		// riverClient is assigned below, after workers (which need to be
 		// registered via river.AddWorker before river.NewClient produces the
 		// client) are constructed. ChunkRepo/RiverJobEnqueuer only resolve it
@@ -100,6 +111,8 @@ var serveCmd = &cobra.Command{
 		// separately, inside buildApp.
 		workerDocumentRepo := repo.NewDocumentRepo(db.New(pool), pool, nil)
 		documentService := service.NewDocumentService(workerDocumentRepo)
+
+		atomicKnowledgeRepo := repo.NewAtomicKnowledgeRepo(db.New(pool), pool)
 
 		// register workers with River
 		workers := river.NewWorkers()
@@ -137,6 +150,15 @@ var serveCmd = &cobra.Command{
 		// register EmbedChunksWorker with River
 		embedChunksWorker := worker.NewEmbedChunksWorker(chunkRepo, embeddingClient)
 		river.AddWorker(workers, embedChunksWorker)
+
+		// register ExtractKnowledgeWorker with River
+		extractKnowledgeWorker := worker.NewExtractKnowledgeWorker(
+			chunkRepo,
+			atomicKnowledgeRepo,
+			documentService,
+			extractionClient,
+		)
+		river.AddWorker(workers, extractKnowledgeWorker)
 
 		// Initialize River client with the database pool and registered workers.
 		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{

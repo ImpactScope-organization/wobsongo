@@ -30,7 +30,7 @@ type CreateDocumentChunksBatchParams struct {
 }
 
 const getDocumentChunkByID = `-- name: GetDocumentChunkByID :one
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding FROM document_chunks WHERE id = $1
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks WHERE id = $1
 `
 
 func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (DocumentChunk, error) {
@@ -51,12 +51,13 @@ func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (Docum
 		&i.BoundingBox,
 		&i.AssetUrl,
 		&i.Embedding,
+		&i.KnowledgeExtractedAt,
 	)
 	return i, err
 }
 
 const listChunksNeedingEmbedding = `-- name: ListChunksNeedingEmbedding :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks
 WHERE document_id = $1 AND text != '' AND embedding IS NULL
 ORDER BY sequence_number ASC
 `
@@ -85,6 +86,49 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 			&i.BoundingBox,
 			&i.AssetUrl,
 			&i.Embedding,
+			&i.KnowledgeExtractedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChunksNeedingKnowledgeExtraction = `-- name: ListChunksNeedingKnowledgeExtraction :many
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks
+WHERE document_id = $1 AND text != '' AND knowledge_extracted_at IS NULL
+ORDER BY sequence_number ASC
+`
+
+func (q *Queries) ListChunksNeedingKnowledgeExtraction(ctx context.Context, documentID uuid.UUID) ([]DocumentChunk, error) {
+	rows, err := q.db.Query(ctx, listChunksNeedingKnowledgeExtraction, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DocumentChunk
+	for rows.Next() {
+		var i DocumentChunk
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DocumentID,
+			&i.SequenceNumber,
+			&i.Topics,
+			&i.FactualityScore,
+			&i.Text,
+			&i.Page,
+			&i.Chapter,
+			&i.LayoutType,
+			&i.BoundingBox,
+			&i.AssetUrl,
+			&i.Embedding,
+			&i.KnowledgeExtractedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -97,7 +141,7 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 }
 
 const listDocumentChunksByDocumentID = `-- name: ListDocumentChunksByDocumentID :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
 `
 
 func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID uuid.UUID) ([]DocumentChunk, error) {
@@ -124,6 +168,7 @@ func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID
 			&i.BoundingBox,
 			&i.AssetUrl,
 			&i.Embedding,
+			&i.KnowledgeExtractedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -133,6 +178,15 @@ func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID
 		return nil, err
 	}
 	return items, nil
+}
+
+const markChunkKnowledgeExtracted = `-- name: MarkChunkKnowledgeExtracted :exec
+UPDATE document_chunks SET knowledge_extracted_at = now() WHERE id = $1
+`
+
+func (q *Queries) MarkChunkKnowledgeExtracted(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markChunkKnowledgeExtracted, id)
+	return err
 }
 
 const updateDocumentChunk = `-- name: UpdateDocumentChunk :one
@@ -145,7 +199,7 @@ UPDATE document_chunks SET
     asset_url = $7,
     embedding = $8
 WHERE id = $1
-RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding
+RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at
 `
 
 type UpdateDocumentChunkParams struct {
@@ -186,6 +240,7 @@ func (q *Queries) UpdateDocumentChunk(ctx context.Context, arg UpdateDocumentChu
 		&i.BoundingBox,
 		&i.AssetUrl,
 		&i.Embedding,
+		&i.KnowledgeExtractedAt,
 	)
 	return i, err
 }

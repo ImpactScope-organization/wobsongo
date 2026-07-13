@@ -20,5 +20,13 @@ type AtomicKnowledgeRepoer interface {
 	// given chunk, even if it produced zero facts.
 	MarkChunkKnowledgeExtracted(ctx context.Context, chunkID uuid.UUID) error
 
+	// ListNeedingEmbedding retrieves facts for a document that don't have an
+	// embedding yet. Used by EmbedKnowledgeWorker; the filter also makes
+	// retries idempotent — a fact already embedded is never returned again.
+	ListNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error)
+
+	// UpdateEmbedding persists the embedding vector for a single fact.
+	UpdateEmbedding(ctx context.Context, id uuid.UUID, embedding []float32) error
+
 	TxAware[AtomicKnowledgeRepoer]
 }

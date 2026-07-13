@@ -160,6 +160,10 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, extractKnowledgeWorker)
 
+		// register EmbedKnowledgeWorker with River
+		embedKnowledgeWorker := worker.NewEmbedKnowledgeWorker(atomicKnowledgeRepo, embeddingClient)
+		river.AddWorker(workers, embedKnowledgeWorker)
+
 		// Initialize River client with the database pool and registered workers.
 		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{
 			Queues: map[string]river.QueueConfig{

@@ -27,3 +27,8 @@ sql:
               import: "github.com/pgvector/pgvector-go"
               type: "Vector"
               pointer: true
+          - column: "atomic_knowledge.embedding"
+            go_type:
+              import: "github.com/pgvector/pgvector-go"
+              type: "Vector"
+              pointer: true

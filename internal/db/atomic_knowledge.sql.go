@@ -6,9 +6,11 @@
 package db
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
+	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
 type CreateAtomicKnowledgeBatchParams struct {
@@ -25,4 +27,60 @@ type CreateAtomicKnowledgeBatchParams struct {
 	Note               string
 	MarkedAsInvalid    bool
 	MarkedAsIrrelevant bool
+}
+
+const listKnowledgeNeedingEmbedding = `-- name: ListKnowledgeNeedingEmbedding :many
+SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding FROM atomic_knowledge
+WHERE document_id = $1 AND embedding IS NULL
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListKnowledgeNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]AtomicKnowledge, error) {
+	rows, err := q.db.Query(ctx, listKnowledgeNeedingEmbedding, documentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []AtomicKnowledge
+	for rows.Next() {
+		var i AtomicKnowledge
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DocumentID,
+			&i.DocumentChunkID,
+			&i.TruthTier,
+			&i.Topics,
+			&i.Subject,
+			&i.Predicate,
+			&i.Object,
+			&i.Note,
+			&i.MarkedAsInvalid,
+			&i.MarkedAsIrrelevant,
+			&i.Embedding,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateAtomicKnowledgeEmbedding = `-- name: UpdateAtomicKnowledgeEmbedding :exec
+UPDATE atomic_knowledge SET embedding = $2, updated_at = $3 WHERE id = $1
+`
+
+type UpdateAtomicKnowledgeEmbeddingParams struct {
+	ID        uuid.UUID
+	Embedding *pgvector_go.Vector
+	UpdatedAt time.Time
+}
+
+func (q *Queries) UpdateAtomicKnowledgeEmbedding(ctx context.Context, arg UpdateAtomicKnowledgeEmbeddingParams) error {
+	_, err := q.db.Exec(ctx, updateAtomicKnowledgeEmbedding, arg.ID, arg.Embedding, arg.UpdatedAt)
+	return err
 }

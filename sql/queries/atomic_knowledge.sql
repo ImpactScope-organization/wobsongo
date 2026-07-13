@@ -5,3 +5,11 @@ INSERT INTO atomic_knowledge (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 );
+
+-- name: ListKnowledgeNeedingEmbedding :many
+SELECT * FROM atomic_knowledge
+WHERE document_id = $1 AND embedding IS NULL
+ORDER BY created_at ASC;
+
+-- name: UpdateAtomicKnowledgeEmbedding :exec
+UPDATE atomic_knowledge SET embedding = $2, updated_at = $3 WHERE id = $1;

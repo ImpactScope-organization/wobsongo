@@ -24,8 +24,14 @@ var _ data.AtomicKnowledgeRepoer = &AtomicKnowledgeRepoerMock{}
 //			CreateBatchFunc: func(ctx context.Context, knowledge []model.AtomicKnowledge) error {
 //				panic("mock out the CreateBatch method")
 //			},
+//			ListNeedingEmbeddingFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error) {
+//				panic("mock out the ListNeedingEmbedding method")
+//			},
 //			MarkChunkKnowledgeExtractedFunc: func(ctx context.Context, chunkID uuid.UUID) error {
 //				panic("mock out the MarkChunkKnowledgeExtracted method")
+//			},
+//			UpdateEmbeddingFunc: func(ctx context.Context, id uuid.UUID, embedding []float32) error {
+//				panic("mock out the UpdateEmbedding method")
 //			},
 //			WithTxFunc: func(ctx context.Context, fn func(data.AtomicKnowledgeRepoer) error) error {
 //				panic("mock out the WithTx method")
@@ -40,8 +46,14 @@ type AtomicKnowledgeRepoerMock struct {
 	// CreateBatchFunc mocks the CreateBatch method.
 	CreateBatchFunc func(ctx context.Context, knowledge []model.AtomicKnowledge) error
 
+	// ListNeedingEmbeddingFunc mocks the ListNeedingEmbedding method.
+	ListNeedingEmbeddingFunc func(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error)
+
 	// MarkChunkKnowledgeExtractedFunc mocks the MarkChunkKnowledgeExtracted method.
 	MarkChunkKnowledgeExtractedFunc func(ctx context.Context, chunkID uuid.UUID) error
+
+	// UpdateEmbeddingFunc mocks the UpdateEmbedding method.
+	UpdateEmbeddingFunc func(ctx context.Context, id uuid.UUID, embedding []float32) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(ctx context.Context, fn func(data.AtomicKnowledgeRepoer) error) error
@@ -55,12 +67,28 @@ type AtomicKnowledgeRepoerMock struct {
 			// Knowledge is the knowledge argument value.
 			Knowledge []model.AtomicKnowledge
 		}
+		// ListNeedingEmbedding holds details about calls to the ListNeedingEmbedding method.
+		ListNeedingEmbedding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// DocumentID is the documentID argument value.
+			DocumentID uuid.UUID
+		}
 		// MarkChunkKnowledgeExtracted holds details about calls to the MarkChunkKnowledgeExtracted method.
 		MarkChunkKnowledgeExtracted []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// ChunkID is the chunkID argument value.
 			ChunkID uuid.UUID
+		}
+		// UpdateEmbedding holds details about calls to the UpdateEmbedding method.
+		UpdateEmbedding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Embedding is the embedding argument value.
+			Embedding []float32
 		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
@@ -71,7 +99,9 @@ type AtomicKnowledgeRepoerMock struct {
 		}
 	}
 	lockCreateBatch                 sync.RWMutex
+	lockListNeedingEmbedding        sync.RWMutex
 	lockMarkChunkKnowledgeExtracted sync.RWMutex
+	lockUpdateEmbedding             sync.RWMutex
 	lockWithTx                      sync.RWMutex
 }
 
@@ -111,6 +141,42 @@ func (mock *AtomicKnowledgeRepoerMock) CreateBatchCalls() []struct {
 	return calls
 }
 
+// ListNeedingEmbedding calls ListNeedingEmbeddingFunc.
+func (mock *AtomicKnowledgeRepoerMock) ListNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error) {
+	if mock.ListNeedingEmbeddingFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.ListNeedingEmbeddingFunc: method is nil but AtomicKnowledgeRepoer.ListNeedingEmbedding was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}{
+		Ctx:        ctx,
+		DocumentID: documentID,
+	}
+	mock.lockListNeedingEmbedding.Lock()
+	mock.calls.ListNeedingEmbedding = append(mock.calls.ListNeedingEmbedding, callInfo)
+	mock.lockListNeedingEmbedding.Unlock()
+	return mock.ListNeedingEmbeddingFunc(ctx, documentID)
+}
+
+// ListNeedingEmbeddingCalls gets all the calls that were made to ListNeedingEmbedding.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.ListNeedingEmbeddingCalls())
+func (mock *AtomicKnowledgeRepoerMock) ListNeedingEmbeddingCalls() []struct {
+	Ctx        context.Context
+	DocumentID uuid.UUID
+} {
+	var calls []struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}
+	mock.lockListNeedingEmbedding.RLock()
+	calls = mock.calls.ListNeedingEmbedding
+	mock.lockListNeedingEmbedding.RUnlock()
+	return calls
+}
+
 // MarkChunkKnowledgeExtracted calls MarkChunkKnowledgeExtractedFunc.
 func (mock *AtomicKnowledgeRepoerMock) MarkChunkKnowledgeExtracted(ctx context.Context, chunkID uuid.UUID) error {
 	if mock.MarkChunkKnowledgeExtractedFunc == nil {
@@ -144,6 +210,46 @@ func (mock *AtomicKnowledgeRepoerMock) MarkChunkKnowledgeExtractedCalls() []stru
 	mock.lockMarkChunkKnowledgeExtracted.RLock()
 	calls = mock.calls.MarkChunkKnowledgeExtracted
 	mock.lockMarkChunkKnowledgeExtracted.RUnlock()
+	return calls
+}
+
+// UpdateEmbedding calls UpdateEmbeddingFunc.
+func (mock *AtomicKnowledgeRepoerMock) UpdateEmbedding(ctx context.Context, id uuid.UUID, embedding []float32) error {
+	if mock.UpdateEmbeddingFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.UpdateEmbeddingFunc: method is nil but AtomicKnowledgeRepoer.UpdateEmbedding was just called")
+	}
+	callInfo := struct {
+		Ctx       context.Context
+		ID        uuid.UUID
+		Embedding []float32
+	}{
+		Ctx:       ctx,
+		ID:        id,
+		Embedding: embedding,
+	}
+	mock.lockUpdateEmbedding.Lock()
+	mock.calls.UpdateEmbedding = append(mock.calls.UpdateEmbedding, callInfo)
+	mock.lockUpdateEmbedding.Unlock()
+	return mock.UpdateEmbeddingFunc(ctx, id, embedding)
+}
+
+// UpdateEmbeddingCalls gets all the calls that were made to UpdateEmbedding.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.UpdateEmbeddingCalls())
+func (mock *AtomicKnowledgeRepoerMock) UpdateEmbeddingCalls() []struct {
+	Ctx       context.Context
+	ID        uuid.UUID
+	Embedding []float32
+} {
+	var calls []struct {
+		Ctx       context.Context
+		ID        uuid.UUID
+		Embedding []float32
+	}
+	mock.lockUpdateEmbedding.RLock()
+	calls = mock.calls.UpdateEmbedding
+	mock.lockUpdateEmbedding.RUnlock()
 	return calls
 }
 

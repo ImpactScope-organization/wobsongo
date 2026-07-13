@@ -60,3 +60,14 @@ type ExtractKnowledgeDTO struct {
 func (ExtractKnowledgeDTO) Kind() string {
 	return string(JobTypeExtractKnowledge)
 }
+
+// EmbedKnowledgeDTO is the river job kind for computing and storing
+// embeddings for all of a document's not-yet-embedded atomic knowledge facts.
+type EmbedKnowledgeDTO struct {
+	DocumentID uuid.UUID `json:"document_id"`
+}
+
+// Kind implements queue.BackgroundJob and river.JobArgs.
+func (EmbedKnowledgeDTO) Kind() string {
+	return string(JobTypeEmbedKnowledge)
+}

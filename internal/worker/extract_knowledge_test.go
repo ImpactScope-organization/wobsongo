@@ -67,6 +67,11 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
 		return []model.DocumentChunk{chunk1, chunk2}, nil
 	}
+	var enqueued queue.BackgroundJob
+	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = payload
+		return nil
+	}
 
 	documentService := newDocumentServiceWithTitle("Company History")
 
@@ -94,7 +99,8 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 	}
 
 	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, documentService, extractor)
-	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err != nil {
+	job := newExtractJob(uuid.New())
+	if err := w.Work(t.Context(), job); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -110,12 +116,27 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 	if markedChunkIDs[0] != chunk1.ID || markedChunkIDs[1] != chunk2.ID {
 		t.Errorf("expected chunks marked in order [chunk1 chunk2], got %v", markedChunkIDs)
 	}
+
+	embedJob, ok := enqueued.(queue.EmbedKnowledgeDTO)
+	if !ok {
+		t.Fatalf("expected a queue.EmbedKnowledgeDTO to be enqueued, got %T", enqueued)
+	}
+	if embedJob.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected enqueued embed job DocumentID %s, got %s",
+			job.Args.DocumentID,
+			embedJob.DocumentID,
+		)
+	}
 }
 
 func TestExtractKnowledgeWorker_Work_NoChunksNeedingExtraction_NoOp(t *testing.T) {
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
 		return nil, nil
+	}
+	chunkRepo.EnqueueFunc = func(_ context.Context, _ queue.BackgroundJob) error {
+		return nil
 	}
 
 	knowledgeRepo := newAtomicKnowledgeRepoWithTx()

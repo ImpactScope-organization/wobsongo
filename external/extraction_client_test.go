@@ -96,7 +96,8 @@ func TestExtractionClient_Extract_Success(t *testing.T) {
 		t.Fatalf("expected message to be an object, got %T", messages[0])
 	}
 	content, _ := message["content"].(string)
-	if !strings.Contains(content, "Company History") || !strings.Contains(content, "Alice founded Acme") {
+	if !strings.Contains(content, "Company History") ||
+		!strings.Contains(content, "Alice founded Acme") {
 		t.Errorf("expected prompt to include document title and chunk text, got: %s", content)
 	}
 }

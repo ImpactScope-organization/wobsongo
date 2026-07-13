@@ -261,7 +261,10 @@ func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t 
 	}
 	extractJob, ok := enqueued[1].(queue.ExtractKnowledgeDTO)
 	if !ok {
-		t.Fatalf("expected second enqueued job to be queue.ExtractKnowledgeDTO, got %T", enqueued[1])
+		t.Fatalf(
+			"expected second enqueued job to be queue.ExtractKnowledgeDTO, got %T",
+			enqueued[1],
+		)
 	}
 	if extractJob.DocumentID != job.Args.DocumentID {
 		t.Errorf(

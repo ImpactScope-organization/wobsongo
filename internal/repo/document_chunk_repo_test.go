@@ -190,7 +190,10 @@ func TestDocumentChunkRepo_CRUD(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got.Embedding != nil {
-				t.Errorf("expected a freshly created chunk to have a nil embedding, got %v", got.Embedding)
+				t.Errorf(
+					"expected a freshly created chunk to have a nil embedding, got %v",
+					got.Embedding,
+				)
 			}
 
 			want := testEmbedding(0.1)
@@ -256,49 +259,55 @@ func TestDocumentChunkRepo_CRUD(t *testing.T) {
 		})
 	})
 
-	t.Run("ListChunksNeedingKnowledgeExtraction_FiltersToUnextractedTextChunks", func(t *testing.T) {
-		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
-			documentRepo := repo.NewDocumentRepo(q, pool, nil)
-			doc := newTestDocument(uuid.NewString())
-			if err := documentRepo.Create(ctx, doc); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+	t.Run(
+		"ListChunksNeedingKnowledgeExtraction_FiltersToUnextractedTextChunks",
+		func(t *testing.T) {
+			testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
+				documentRepo := repo.NewDocumentRepo(q, pool, nil)
+				doc := newTestDocument(uuid.NewString())
+				if err := documentRepo.Create(ctx, doc); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
-			chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
-			knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
+				chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+				knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
 
-			needsExtraction := newTestDocumentChunk(doc.ID, 0)
-			alreadyExtracted := newTestDocumentChunk(doc.ID, 1)
-			blankText := newTestDocumentChunk(doc.ID, 2)
-			blankText.Text = ""
-			if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{
-				needsExtraction, alreadyExtracted, blankText,
-			}); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+				needsExtraction := newTestDocumentChunk(doc.ID, 0)
+				alreadyExtracted := newTestDocumentChunk(doc.ID, 1)
+				blankText := newTestDocumentChunk(doc.ID, 2)
+				blankText.Text = ""
+				if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{
+					needsExtraction, alreadyExtracted, blankText,
+				}); err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
-			if err := knowledgeRepo.MarkChunkKnowledgeExtracted(ctx, alreadyExtracted.ID); err != nil {
-				t.Fatalf("unexpected error marking chunk extracted: %v", err)
-			}
+				if err := knowledgeRepo.MarkChunkKnowledgeExtracted(
+					ctx,
+					alreadyExtracted.ID,
+				); err != nil {
+					t.Fatalf("unexpected error marking chunk extracted: %v", err)
+				}
 
-			got, err := chunkRepo.ListChunksNeedingKnowledgeExtraction(ctx, doc.ID)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			if len(got) != 1 {
-				t.Fatalf(
-					"expected exactly 1 chunk needing knowledge extraction, got %d: %+v",
-					len(got), got,
-				)
-			}
-			if got[0].ID != needsExtraction.ID {
-				t.Errorf(
-					"expected the unextracted text chunk %s, got %s",
-					needsExtraction.ID, got[0].ID,
-				)
-			}
-		})
-	})
+				got, err := chunkRepo.ListChunksNeedingKnowledgeExtraction(ctx, doc.ID)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if len(got) != 1 {
+					t.Fatalf(
+						"expected exactly 1 chunk needing knowledge extraction, got %d: %+v",
+						len(got), got,
+					)
+				}
+				if got[0].ID != needsExtraction.ID {
+					t.Errorf(
+						"expected the unextracted text chunk %s, got %s",
+						needsExtraction.ID, got[0].ID,
+					)
+				}
+			})
+		},
+	)
 
 	t.Run("ShouldBeStored_PassThrough", func(t *testing.T) {
 		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {

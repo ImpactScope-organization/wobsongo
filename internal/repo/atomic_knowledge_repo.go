@@ -28,7 +28,10 @@ func NewAtomicKnowledgeRepo(q *db.Queries, pool *pgxpool.Pool) data.AtomicKnowle
 }
 
 // CreateBatch inserts multiple fully-formed knowledge facts in a single COPY operation.
-func (r *AtomicKnowledgeRepo) CreateBatch(ctx context.Context, knowledge []model.AtomicKnowledge) error {
+func (r *AtomicKnowledgeRepo) CreateBatch(
+	ctx context.Context,
+	knowledge []model.AtomicKnowledge,
+) error {
 	if len(knowledge) == 0 {
 		return nil
 	}
@@ -49,7 +52,10 @@ func (r *AtomicKnowledgeRepo) CreateBatch(ctx context.Context, knowledge []model
 // data.AtomicKnowledgeRepoer's doc comment for why this repo owns it rather
 // than depending on DocumentChunkRepoer: sqlc generates every query onto the
 // same shared *db.Queries regardless of which .sql file defines it.
-func (r *AtomicKnowledgeRepo) MarkChunkKnowledgeExtracted(ctx context.Context, chunkID uuid.UUID) error {
+func (r *AtomicKnowledgeRepo) MarkChunkKnowledgeExtracted(
+	ctx context.Context,
+	chunkID uuid.UUID,
+) error {
 	if err := r.q.MarkChunkKnowledgeExtracted(ctx, chunkID); err != nil {
 		return mapPostgresError(err)
 	}
@@ -59,7 +65,10 @@ func (r *AtomicKnowledgeRepo) MarkChunkKnowledgeExtracted(ctx context.Context, c
 // WithTx executes fn within a Postgres transaction, giving it a
 // transaction-scoped repo so CreateBatch and MarkChunkKnowledgeExtracted
 // commit atomically.
-func (r *AtomicKnowledgeRepo) WithTx(ctx context.Context, fn func(data.AtomicKnowledgeRepoer) error) error {
+func (r *AtomicKnowledgeRepo) WithTx(
+	ctx context.Context,
+	fn func(data.AtomicKnowledgeRepoer) error,
+) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("atomic knowledge repo: begin tx: %w", err)
@@ -78,7 +87,9 @@ func (r *AtomicKnowledgeRepo) WithTx(ctx context.Context, fn func(data.AtomicKno
 }
 
 // toCreateAtomicKnowledgeBatchParams maps a model.AtomicKnowledge to sqlc's batch-insert params.
-func toCreateAtomicKnowledgeBatchParams(k *model.AtomicKnowledge) db.CreateAtomicKnowledgeBatchParams {
+func toCreateAtomicKnowledgeBatchParams(
+	k *model.AtomicKnowledge,
+) db.CreateAtomicKnowledgeBatchParams {
 	return db.CreateAtomicKnowledgeBatchParams{
 		ID:                 k.ID,
 		CreatedAt:          k.CreatedAt,

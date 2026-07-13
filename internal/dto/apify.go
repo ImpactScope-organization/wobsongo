@@ -39,6 +39,7 @@ type ApifyTikTokItem struct {
 	// VideoMeta contains metadata about the video itself.
 	VideoMeta VideoMeta `json:"videoMeta" validate:"required"`
 
+	// Hashtags contains the list of hashtags extracted from the video.
 	Hashtags []ApifyHashtag `json:"hashtags"`
 }
 

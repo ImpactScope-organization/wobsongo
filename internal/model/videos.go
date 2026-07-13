@@ -44,6 +44,8 @@ type Video struct {
 	// VideoType indicates the type of video (e.g., TikTok, Instagram).
 	VideoType string `db:"video_type" json:"video_type"`
 
+	Hashtags []string `json:"hashtags"`
+
 	// CreatedAt is the timestamp when the record was created in the database.
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 

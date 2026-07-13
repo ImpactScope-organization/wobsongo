@@ -36,7 +36,7 @@ func parseLogLevel(l int) slog.Level {
 // GetBaseURL returns the base URL for this S3 configuration.
 // Returns the URL pattern used for constructing full S3 object URLs.
 func (s *S3Config) GetBaseURL() string {
-	protocol := "https"
+	protocol := schemeHTTPS
 	if !s.UseSSL {
 		protocol = "http"
 	}

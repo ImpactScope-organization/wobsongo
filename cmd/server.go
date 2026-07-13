@@ -5,6 +5,8 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
@@ -32,6 +34,9 @@ var serveCmd = &cobra.Command{
 		}
 		defer pool.Close()
 
+		queries := db.New(pool)
+		workerVideoRepo := repo.NewVideoRepo(queries, pool, nil)
+
 		apifyDispatcher := external.NewDispatcher(
 			config.ApifyToken,
 			config.ApifyTikTokActorID,
@@ -44,6 +49,12 @@ var serveCmd = &cobra.Command{
 		// register ExtractMediaWorker with River
 		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher)
 		river.AddWorker(workers, mediaWorker)
+
+		transcriptionWorker := worker.NewTranscriptionWorker(
+			workerVideoRepo,
+			config.ModalASREndpoint,
+		)
+		river.AddWorker(workers, transcriptionWorker)
 
 		// Initialize River client with the database pool and registered workers.
 		riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{

@@ -3,6 +3,7 @@ package handler
 import (
 	"net/http"
 
+	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
@@ -31,9 +32,15 @@ type Repos struct {
 // Dependency injection is used to provide the necessary services to the handlers.
 // You can provide mock implementations of the repositories for testing purposes.
 func NewHandlers(repos *Repos) *Handlers {
+	config := internal.NewConfig()
 	// Initialize Apify services and handlers
 	videoService := service.NewVideoService(repos.VideoRepo)
-	apifyService := service.NewApifyService(repos.ApifyRepo, videoService, http.DefaultClient)
+	apifyService := service.NewApifyService(
+		repos.ApifyRepo,
+		videoService,
+		http.DefaultClient,
+		config.ApifyToken,
+	)
 	apifyHandler := NewApifyHandler(apifyService)
 
 	return &Handlers{

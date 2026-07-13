@@ -8,11 +8,15 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
+)
+
+const (
+	apifyEventRunSucceeded = "ACTOR.RUN.SUCCEEDED"
+	apifyStatusSucceeded   = "SUCCEEDED"
 )
 
 type HTTPClient interface {
@@ -23,6 +27,7 @@ type ApifyService struct {
 	apifyRepo    data.ApifyRepoer
 	videoService *VideoService
 	httpClient   HTTPClient
+	apifyToken   string
 }
 
 // NewApifyService creates a new ApifyService.
@@ -30,11 +35,13 @@ func NewApifyService(
 	apifyRepo data.ApifyRepoer,
 	videoService *VideoService,
 	httpClient HTTPClient,
+	apifyToken string,
 ) *ApifyService {
 	return &ApifyService{
 		apifyRepo:    apifyRepo,
 		videoService: videoService,
 		httpClient:   httpClient,
+		apifyToken:   apifyToken,
 	}
 }
 
@@ -53,7 +60,8 @@ func (s *ApifyService) ProcessWebhook(
 	ctx context.Context,
 	payload *dto.ApifyWebhookPayload,
 ) (string, error) {
-	if payload.EventType != "ACTOR.RUN.SUCCEEDED" || payload.Resource.Status != "SUCCEEDED" {
+	if payload.EventType != apifyEventRunSucceeded ||
+		payload.Resource.Status != apifyStatusSucceeded {
 		log.Printf(
 			"[ApifyWebhook] ignored event=%s status=%s",
 			payload.EventType,
@@ -83,9 +91,8 @@ func (s *ApifyService) FetchDataset(
 	ctx context.Context,
 	datasetID string,
 ) ([]dto.ApifyTikTokItem, error) {
-	token := os.Getenv("APIFY_API_TOKEN")
-	if token == "" {
-		return nil, errors.New("APIFY_API_TOKEN is not set")
+	if s.apifyToken == "" {
+		return nil, errors.New("apify service: apifyToken is not configured")
 	}
 
 	safeDatasetID := url.PathEscape(datasetID)
@@ -95,13 +102,15 @@ func (s *ApifyService) FetchDataset(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create http request: %w", err)
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Authorization", "Bearer "+s.apifyToken)
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch dataset: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("apify API returned status: %d", resp.StatusCode)

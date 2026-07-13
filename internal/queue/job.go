@@ -7,9 +7,6 @@ const (
 	// JobTypeExtractMedia represents a job type for extracting media from a given source.
 	JobTypeExtractMedia BackgroundJobType = "extract_media"
 
-	// JobTypeProcessAITask represents a job type for processing AI tasks.
-	JobTypeProcessAITask BackgroundJobType = "process_ai_task"
-
 	// JobTypeTranscribeVideo represents a job type specifically for sending audio to Modal.
 	JobTypeTranscribeVideo BackgroundJobType = "transcribe_video"
 )

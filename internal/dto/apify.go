@@ -4,6 +4,12 @@ import (
 	"time"
 )
 
+type ApifyHashtag struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Title string `json:"title"`
+}
+
 // ApifyTikTokItem represents the structure of a TikTok metadata item as returned by the Apify API.
 type ApifyTikTokItem struct {
 	// Text is the caption of the TikTok video.
@@ -32,6 +38,8 @@ type ApifyTikTokItem struct {
 
 	// VideoMeta contains metadata about the video itself.
 	VideoMeta VideoMeta `json:"videoMeta" validate:"required"`
+
+	Hashtags []ApifyHashtag `json:"hashtags"`
 }
 
 // AuthorMeta represents metadata about the author of a TikTok video.

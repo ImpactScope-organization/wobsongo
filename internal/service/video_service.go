@@ -9,6 +9,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 type VideoService struct {
@@ -33,6 +34,13 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 	for i := range items {
 		item := &items[i]
 
+		extractedHashtags := []string{}
+		for _, ht := range item.Hashtags {
+			if ht.Name != "" {
+				extractedHashtags = append(extractedHashtags, ht.Name)
+			}
+		}
+
 		videoData := &model.Video{
 			VideoURL:         item.SubmittedVideoURL,
 			AuthorUsername:   item.AuthorMeta.Name,
@@ -44,16 +52,37 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 			LocationCreated:  item.LocationCreated,
 			VideoCreatedAt:   item.CreateTimeISO,
 			VideoType:        "tiktok",
+			Hashtags:         extractedHashtags,
 		}
 
-		if err := s.videoRepo.CreateVideos(ctx, videoData); err != nil {
-			log.Printf("Failed to save video %s: %v", item.SubmittedVideoURL, err)
+		// Wrap the database insert and River queue operations in a single transaction.
+		err := s.videoRepo.WithTx(ctx, func(txRepo data.VideoRepoer) error {
+			// Save the video metadata to the videos table.
+			if err := txRepo.CreateVideos(ctx, videoData); err != nil {
+				return fmt.Errorf("failed to save video: %w", err)
+			}
+
+			// Enqueue a transcription job if a media download URL is available.
+			if len(item.MediaUrls) > 0 {
+				payload := queue.TranscriptionJobDTO{
+					VideoID:     videoData.ID,
+					DownloadURL: item.MediaUrls[0],
+				}
+				if err := txRepo.EnqueueTranscriptionJob(ctx, payload); err != nil {
+					return fmt.Errorf("failed to enqueue transcription job: %w", err)
+				}
+			}
+
+			return nil
+		})
+		if err != nil {
+			log.Printf("Transaction failed for video %s: %v", item.SubmittedVideoURL, err)
 			errs = append(errs, fmt.Errorf("video %s: %w", item.SubmittedVideoURL, err))
 			continue
 		}
 
 		log.Printf(
-			"Successfully saved metadata to DB. UUID: %s | URL: %s",
+			"Successfully saved metadata and enqueued job to DB. UUID: %s | URL: %s",
 			videoData.ID,
 			videoData.VideoURL,
 		)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -18,7 +19,8 @@ const (
 	ProductionEnv  = "production"
 
 	// envTrue is the canonical string value for boolean "true" env vars.
-	envTrue = "true"
+	envTrue     = "true"
+	schemeHTTPS = "https"
 )
 
 // StorageProvider defines the supported storage backends.
@@ -94,6 +96,7 @@ type Config struct {
 	ApifyToken         string          `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
 	ApifyTikTokActorID string          `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
 	ApifyIGActorID     string          `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
+	ModalASREndpoint   string          `json:"MODAL_ASR_ENDPOINT"`    // Modal ASR API endpoint for audio transcription
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -135,6 +138,29 @@ func (c *Config) IsOK() error {
 
 	if c.ApifyToken == "" {
 		return errors.New("APIFY_API_TOKEN is not set")
+	}
+	if err := validateModalASREndpoint(c.ModalASREndpoint); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateModalASREndpoint(rawURL string) error {
+	if rawURL == "" {
+		return errors.New("MODAL_ASR_ENDPOINT is not set")
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("MODAL_ASR_ENDPOINT is not a valid URL: %w", err)
+	}
+	if u.Scheme != "https" {
+		return errors.New("MODAL_ASR_ENDPOINT must use https")
+	}
+	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
+		return fmt.Errorf(
+			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
+			u.Hostname(),
+		)
 	}
 	return nil
 }
@@ -226,6 +252,7 @@ func NewConfig(envs ...string) *Config {
 	apifyToken := getEnv("APIFY_API_TOKEN", "")
 	apifyTikTokActorID := getEnv("APIFY_TIKTOK_ACTOR_ID", "")
 	apifyIGActorID := getEnv("APIFY_IG_ACTOR_ID", "")
+	modalASREndpoint := getEnv("MODAL_ASR_ENDPOINT", "")
 
 	defaultConfig = &Config{
 		Logger:             logger,
@@ -247,6 +274,7 @@ func NewConfig(envs ...string) *Config {
 		ApifyToken:         apifyToken,
 		ApifyTikTokActorID: apifyTikTokActorID,
 		ApifyIGActorID:     apifyIGActorID,
+		ModalASREndpoint:   modalASREndpoint,
 	}
 	return defaultConfig
 }

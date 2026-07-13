@@ -12,6 +12,7 @@ CREATE TABLE videos (
     location_created VARCHAR(10),
     video_created_at TIMESTAMPTZ,
     transcription_text TEXT,
+    hashtags TEXT[],
     video_type VARCHAR(20) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

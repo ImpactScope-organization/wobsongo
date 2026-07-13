@@ -190,6 +190,19 @@ func loadEmbeddingConfigOrDefault(logger *slog.Logger, envs ...string) *Embeddin
 	return embeddingConfig
 }
 
+// loadExtractionConfigOrDefault loads Extraction configuration, or an empty
+// ExtractionConfig if unset/invalid. Deliberately empty (not a fake populated
+// default) — internal.IsExtractionOK is a hard startup requirement in
+// cmd/server.go, and a fake non-empty default would defeat that check.
+func loadExtractionConfigOrDefault(logger *slog.Logger, envs ...string) *ExtractionConfig {
+	extractionConfig, err := NewExtractionConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load Extraction configuration", "error", err)
+		return &ExtractionConfig{}
+	}
+	return extractionConfig
+}
+
 // loadEmailConfigOrDefault loads email configuration or returns default for testing.
 func loadEmailConfigOrDefault(logger *slog.Logger, envs ...string) *EmailConfig {
 	emailConfig, err := NewEmailConfig(envs...)

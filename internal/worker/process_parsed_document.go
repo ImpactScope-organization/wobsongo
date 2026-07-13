@@ -175,9 +175,6 @@ func (w *ProcessParsedDocumentWorker) Work(
 			if chunk.AssetURL != "" {
 				imageChunkIDs = append(imageChunkIDs, chunk.ID)
 			}
-			// TODO(future sub-task): enqueue Job 2 (knowledge extraction) here
-			// once its queue DTO exists, so it commits atomically with these
-			// chunks.
 		}
 		stored = len(toStore)
 		if err := tx.CreateBatch(ctx, toStore); err != nil {
@@ -193,13 +190,19 @@ func (w *ProcessParsedDocumentWorker) Work(
 			}
 		} else {
 			// No images to caption, so every stored chunk's text is already
-			// final — embed now rather than waiting on a captioning job that
-			// will never run. If there were images, CaptionImageChunksWorker
-			// enqueues EmbedChunksDTO itself once captioning finishes.
+			// final — embed and extract knowledge now rather than waiting on
+			// a captioning job that will never run. If there were images,
+			// CaptionImageChunksWorker enqueues both jobs itself once
+			// captioning finishes.
 			if err := tx.Enqueue(ctx, queue.EmbedChunksDTO{
 				DocumentID: job.Args.DocumentID,
 			}); err != nil {
 				return fmt.Errorf("failed to enqueue chunk embedding: %w", err)
+			}
+			if err := tx.Enqueue(ctx, queue.ExtractKnowledgeDTO{
+				DocumentID: job.Args.DocumentID,
+			}); err != nil {
+				return fmt.Errorf("failed to enqueue knowledge extraction: %w", err)
 			}
 		}
 		return nil

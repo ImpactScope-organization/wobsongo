@@ -9,6 +9,50 @@ import (
 	"context"
 )
 
+// iteratorForCreateAtomicKnowledgeBatch implements pgx.CopyFromSource.
+type iteratorForCreateAtomicKnowledgeBatch struct {
+	rows                 []CreateAtomicKnowledgeBatchParams
+	skippedFirstNextCall bool
+}
+
+func (r *iteratorForCreateAtomicKnowledgeBatch) Next() bool {
+	if len(r.rows) == 0 {
+		return false
+	}
+	if !r.skippedFirstNextCall {
+		r.skippedFirstNextCall = true
+		return true
+	}
+	r.rows = r.rows[1:]
+	return len(r.rows) > 0
+}
+
+func (r iteratorForCreateAtomicKnowledgeBatch) Values() ([]interface{}, error) {
+	return []interface{}{
+		r.rows[0].ID,
+		r.rows[0].CreatedAt,
+		r.rows[0].UpdatedAt,
+		r.rows[0].DocumentID,
+		r.rows[0].DocumentChunkID,
+		r.rows[0].TruthTier,
+		r.rows[0].Topics,
+		r.rows[0].Subject,
+		r.rows[0].Predicate,
+		r.rows[0].Object,
+		r.rows[0].Note,
+		r.rows[0].MarkedAsInvalid,
+		r.rows[0].MarkedAsIrrelevant,
+	}, nil
+}
+
+func (r iteratorForCreateAtomicKnowledgeBatch) Err() error {
+	return nil
+}
+
+func (q *Queries) CreateAtomicKnowledgeBatch(ctx context.Context, arg []CreateAtomicKnowledgeBatchParams) (int64, error) {
+	return q.db.CopyFrom(ctx, []string{"atomic_knowledge"}, []string{"id", "created_at", "updated_at", "document_id", "document_chunk_id", "truth_tier", "topics", "subject", "predicate", "object", "note", "marked_as_invalid", "marked_as_irrelevant"}, &iteratorForCreateAtomicKnowledgeBatch{rows: arg})
+}
+
 // iteratorForCreateDocumentChunksBatch implements pgx.CopyFromSource.
 type iteratorForCreateDocumentChunksBatch struct {
 	rows                 []CreateDocumentChunksBatchParams

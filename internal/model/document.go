@@ -2,6 +2,8 @@
 package model
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +34,39 @@ const (
 	// TruthTierInvalid represents invalid truth, indicating false or misleading information.
 	TruthTierInvalid
 )
+
+// truthTierNames is the canonical string form of each TruthTier, used both
+// for String() and ParseTruthTier — the wire format an LLM extraction
+// response communicates tiers in, independent of how they're persisted.
+var truthTierNames = map[TruthTier]string{
+	TruthTierAxiomatic:     "axiomatic",
+	TruthTierTemporal:      "temporal",
+	TruthTierProbabilistic: "probabilistic",
+	TruthTierSubjective:    "subjective",
+	TruthTierUnknown:       "unknown",
+	TruthTierInvalid:       "invalid",
+}
+
+// String returns t's canonical lowercase name, or "unknown" for an
+// out-of-range value.
+func (t TruthTier) String() string {
+	if name, ok := truthTierNames[t]; ok {
+		return name
+	}
+	return "unknown"
+}
+
+// ParseTruthTier parses s (case-insensitive) into a TruthTier, matching the
+// names String() produces. Returns an error for anything else.
+func ParseTruthTier(s string) (TruthTier, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	for tier, name := range truthTierNames {
+		if name == s {
+			return tier, nil
+		}
+	}
+	return TruthTierUnknown, fmt.Errorf("unrecognized truth tier %q", s)
+}
 
 // LayoutType represents the structural classification assigned by Docling
 // to a specific parsed document element.
@@ -183,6 +218,12 @@ type DocumentChunk struct {
 	// Embedding is a vector representation of the chunk's content,
 	// used for semantic search and similarity comparisons in the knowledge base.
 	Embedding []float32 `json:"-"`
+
+	// KnowledgeExtractedAt is when atomic-knowledge extraction last ran for
+	// this chunk, or nil if it hasn't run yet. Set even when extraction
+	// found zero facts, so "not yet processed" stays distinguishable from
+	// "processed, found nothing."
+	KnowledgeExtractedAt *time.Time `json:"-"`
 
 	ParsedChunk
 }

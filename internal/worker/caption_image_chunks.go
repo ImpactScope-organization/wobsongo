@@ -151,11 +151,17 @@ func (w *CaptionImageChunksWorker) Work(
 	}
 
 	// Every image chunk for this document now has final text (captioned here
-	// or already captioned by a prior partial attempt) — safe to embed.
+	// or already captioned by a prior partial attempt) — safe to embed and
+	// extract knowledge.
 	if err := w.ChunkRepo.Enqueue(ctx, queue.EmbedChunksDTO{
 		DocumentID: job.Args.DocumentID,
 	}); err != nil {
 		return fmt.Errorf("failed to enqueue chunk embedding: %w", err)
+	}
+	if err := w.ChunkRepo.Enqueue(ctx, queue.ExtractKnowledgeDTO{
+		DocumentID: job.Args.DocumentID,
+	}); err != nil {
+		return fmt.Errorf("failed to enqueue knowledge extraction: %w", err)
 	}
 	return nil
 }

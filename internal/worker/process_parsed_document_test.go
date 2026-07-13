@@ -232,10 +232,10 @@ func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t 
 		},
 	}
 
-	var enqueued queue.BackgroundJob
+	var enqueued []queue.BackgroundJob
 	chunkRepo := newPassThroughChunkRepo()
 	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
-		enqueued = payload
+		enqueued = append(enqueued, payload)
 		return nil
 	}
 
@@ -245,15 +245,29 @@ func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t 
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	embedJob, ok := enqueued.(queue.EmbedChunksDTO)
+	if len(enqueued) != 2 {
+		t.Fatalf("expected 2 jobs enqueued (embed + extract), got %d: %+v", len(enqueued), enqueued)
+	}
+	embedJob, ok := enqueued[0].(queue.EmbedChunksDTO)
 	if !ok {
-		t.Fatalf("expected a queue.EmbedChunksDTO to be enqueued, got %T", enqueued)
+		t.Fatalf("expected first enqueued job to be queue.EmbedChunksDTO, got %T", enqueued[0])
 	}
 	if embedJob.DocumentID != job.Args.DocumentID {
 		t.Errorf(
 			"expected enqueued embed job DocumentID %s, got %s",
 			job.Args.DocumentID,
 			embedJob.DocumentID,
+		)
+	}
+	extractJob, ok := enqueued[1].(queue.ExtractKnowledgeDTO)
+	if !ok {
+		t.Fatalf("expected second enqueued job to be queue.ExtractKnowledgeDTO, got %T", enqueued[1])
+	}
+	if extractJob.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected enqueued extract job DocumentID %s, got %s",
+			job.Args.DocumentID,
+			extractJob.DocumentID,
 		)
 	}
 }

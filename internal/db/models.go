@@ -12,6 +12,22 @@ import (
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
+type AtomicKnowledge struct {
+	ID                 uuid.UUID
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+	DocumentID         uuid.UUID
+	DocumentChunkID    uuid.UUID
+	TruthTier          int32
+	Topics             []string
+	Subject            string
+	Predicate          string
+	Object             string
+	Note               string
+	MarkedAsInvalid    bool
+	MarkedAsIrrelevant bool
+}
+
 type Document struct {
 	ID              uuid.UUID
 	CreatedAt       time.Time
@@ -29,20 +45,21 @@ type Document struct {
 }
 
 type DocumentChunk struct {
-	ID              uuid.UUID
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
-	DocumentID      uuid.UUID
-	SequenceNumber  int32
-	Topics          []string
-	FactualityScore float64
-	Text            string
-	Page            int32
-	Chapter         string
-	LayoutType      string
-	BoundingBox     []float64
-	AssetUrl        string
-	Embedding       *pgvector_go.Vector
+	ID                   uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	DocumentID           uuid.UUID
+	SequenceNumber       int32
+	Topics               []string
+	FactualityScore      float64
+	Text                 string
+	Page                 int32
+	Chapter              string
+	LayoutType           string
+	BoundingBox          []float64
+	AssetUrl             string
+	Embedding            *pgvector_go.Vector
+	KnowledgeExtractedAt pgtype.Timestamptz
 }
 
 type User struct {

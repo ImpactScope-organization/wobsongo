@@ -97,6 +97,25 @@ func (r *DocumentChunkRepo) ListChunksNeedingEmbedding(
 	return chunks, nil
 }
 
+// ListChunksNeedingKnowledgeExtraction retrieves chunks for a document that
+// have text but haven't had atomic-knowledge extraction run yet, ordered by
+// SequenceNumber.
+func (r *DocumentChunkRepo) ListChunksNeedingKnowledgeExtraction(
+	ctx context.Context,
+	documentID uuid.UUID,
+) ([]model.DocumentChunk, error) {
+	rows, err := r.q.ListChunksNeedingKnowledgeExtraction(ctx, documentID)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+
+	chunks := make([]model.DocumentChunk, 0, len(rows))
+	for i := range rows {
+		chunks = append(chunks, *toModelDocumentChunk(&rows[i]))
+	}
+	return chunks, nil
+}
+
 // CreateBatch inserts multiple fully-formed chunks in a single COPY operation.
 func (r *DocumentChunkRepo) CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error {
 	if len(chunks) == 0 {
@@ -182,14 +201,15 @@ func (r *DocumentChunkRepo) Enqueue(ctx context.Context, payload queue.Backgroun
 // toModelDocumentChunk maps a sqlc-generated db.DocumentChunk row to model.DocumentChunk.
 func toModelDocumentChunk(d *db.DocumentChunk) *model.DocumentChunk {
 	return &model.DocumentChunk{
-		ID:              d.ID,
-		CreatedAt:       d.CreatedAt,
-		UpdatedAt:       d.UpdatedAt,
-		DocumentID:      d.DocumentID,
-		SequenceNumber:  int(d.SequenceNumber),
-		Topics:          d.Topics,
-		FactualityScore: d.FactualityScore,
-		Embedding:       fromPgvector(d.Embedding),
+		ID:                   d.ID,
+		CreatedAt:            d.CreatedAt,
+		UpdatedAt:            d.UpdatedAt,
+		DocumentID:           d.DocumentID,
+		SequenceNumber:       int(d.SequenceNumber),
+		Topics:               d.Topics,
+		FactualityScore:      d.FactualityScore,
+		Embedding:            fromPgvector(d.Embedding),
+		KnowledgeExtractedAt: fromPgTimestamptz(d.KnowledgeExtractedAt),
 		ParsedChunk: model.ParsedChunk{
 			Text:        d.Text,
 			Page:        int(d.Page),

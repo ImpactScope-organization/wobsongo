@@ -25,6 +25,10 @@ const (
 	// JobTypeEmbedChunks represents a job type for computing and storing
 	// embeddings for a document's text-bearing, not-yet-embedded chunks.
 	JobTypeEmbedChunks BackgroundJobType = "embed_chunks"
+
+	// JobTypeExtractKnowledge represents a job type for extracting atomic
+	// knowledge facts from a document's text-bearing, not-yet-extracted chunks.
+	JobTypeExtractKnowledge BackgroundJobType = "extract_knowledge"
 )
 
 // BackgroundJob represents a generic background job.

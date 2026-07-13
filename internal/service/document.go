@@ -105,3 +105,30 @@ func (s *DocumentService) Update(
 func (s *DocumentService) Delete(ctx context.Context, id uuid.UUID) error {
 	return s.repo.Delete(ctx, id)
 }
+
+// UpdateAfterParse backfills fields the ingestion pipeline only learns once
+// Docling has actually parsed the document. PageCount is always overwritten
+// (the document is created with page_count=0 up front; Docling is the sole
+// source of truth for it). Title is only backfilled when the document
+// doesn't already have one — Docling's title is a best-effort guess and
+// must never clobber a title the caller explicitly supplied. Distinct from
+// Update: this is the pipeline recording what it learned, not a user
+// editing descriptive metadata.
+func (s *DocumentService) UpdateAfterParse(
+	ctx context.Context,
+	id uuid.UUID,
+	pageCount int,
+	doclingTitle string,
+) error {
+	doc, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	doc.PageCount = pageCount
+	if doc.Title == "" {
+		doc.Title = doclingTitle
+	}
+	doc.ModifiedAt = time.Now()
+
+	return s.repo.Update(ctx, doc)
+}

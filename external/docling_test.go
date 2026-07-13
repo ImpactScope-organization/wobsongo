@@ -25,13 +25,13 @@ const cannedDoclingResponse = `{
 				{"label": "table", "prov": [{"page_no": 3, "bbox": [0, 0, 5, 5]}]}
 			],
 			"pictures": [
-				{"label": "picture", "prov": [{"page_no": 4, "bbox": [0, 0, 2, 2]}], "image": {"uri": "data:image/png;base64,abc"}}
+				{"label": "picture", "prov": [{"page_no": 4, "bbox": [0, 0, 2, 2]}], "image": {"uri": "data:image/png;base64,aGk="}}
 			]
 		}
 	}
 }`
 
-func TestDoclingClient_ProcessFromURL_Success(t *testing.T) {
+func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/convert/source" {
 			t.Errorf("expected path /v1/convert/source, got %s", r.URL.Path)
@@ -44,16 +44,24 @@ func TestDoclingClient_ProcessFromURL_Success(t *testing.T) {
 
 	client := external.NewDoclingClient(server.URL)
 
-	result, err := client.ProcessFromURL(context.Background(), "https://example.com/doc.pdf")
+	raw, err := client.FetchRawFromURL(context.Background(), "https://example.com/doc.pdf")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(raw), "sample.pdf") {
+		t.Fatalf("expected raw response to contain the canned body, got: %s", raw)
+	}
+
+	result, err := external.ParseRaw(raw)
+	if err != nil {
+		t.Fatalf("unexpected error parsing raw response: %v", err)
 	}
 
 	if result.Title != "sample.pdf" {
 		t.Errorf("expected title %q, got %q", "sample.pdf", result.Title)
 	}
 
-	// Filtering is NOT this client's job — noise-type items (page_footer) must
+	// Filtering is NOT this package's job — noise-type items (page_footer) must
 	// still be present, unfiltered.
 	if len(result.Chunks) != 5 {
 		t.Fatalf(
@@ -62,15 +70,16 @@ func TestDoclingClient_ProcessFromURL_Success(t *testing.T) {
 		)
 	}
 
-	var sawPageFooter, sawTable, sawPicture bool
-	for _, c := range result.Chunks {
+	var sawPageFooter, sawTable bool
+	var picture *model.ParsedChunk
+	for i, c := range result.Chunks {
 		switch c.LayoutType {
 		case model.LayoutTypePageFooter:
 			sawPageFooter = true
 		case model.LayoutTypeTable:
 			sawTable = true
 		case model.LayoutTypePicture:
-			sawPicture = true
+			picture = &result.Chunks[i]
 		}
 	}
 	if !sawPageFooter {
@@ -79,8 +88,14 @@ func TestDoclingClient_ProcessFromURL_Success(t *testing.T) {
 	if !sawTable {
 		t.Error("expected the table chunk to be present")
 	}
-	if !sawPicture {
-		t.Error("expected the picture chunk to be present")
+	if picture == nil {
+		t.Fatal("expected the picture chunk to be present")
+	}
+	if string(picture.RawImageData) != "hi" {
+		t.Errorf("expected decoded image bytes %q, got %q", "hi", picture.RawImageData)
+	}
+	if picture.RawImageContentType != "image/png" {
+		t.Errorf("expected content type %q, got %q", "image/png", picture.RawImageContentType)
 	}
 
 	first := result.Chunks[0]
@@ -90,7 +105,35 @@ func TestDoclingClient_ProcessFromURL_Success(t *testing.T) {
 	}
 }
 
-func TestDoclingClient_ProcessFromURL_NonOKStatus(t *testing.T) {
+func TestParseRaw_MalformedImageDoesNotFailParse(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "sample.pdf",
+				"pictures": [
+					{"label": "picture", "prov": [{"page_no": 1, "bbox": [0, 0, 1, 1]}], "image": {"uri": "not-a-data-uri"}}
+				]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Chunks) != 1 {
+		t.Fatalf("expected the picture chunk to still be kept, got %d chunks", len(result.Chunks))
+	}
+	if result.Chunks[0].RawImageData != nil {
+		t.Errorf(
+			"expected no decoded image data for a malformed URI, got %q",
+			result.Chunks[0].RawImageData,
+		)
+	}
+}
+
+func TestDoclingClient_FetchRawFromURL_NonOKStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte("docling exploded"))
@@ -99,7 +142,7 @@ func TestDoclingClient_ProcessFromURL_NonOKStatus(t *testing.T) {
 
 	client := external.NewDoclingClient(server.URL)
 
-	_, err := client.ProcessFromURL(context.Background(), "https://example.com/doc.pdf")
+	_, err := client.FetchRawFromURL(context.Background(), "https://example.com/doc.pdf")
 	if err == nil {
 		t.Fatal("expected an error for a non-200 response")
 	}

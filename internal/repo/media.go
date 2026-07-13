@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/url"
 	"strings"
@@ -33,6 +34,9 @@ var _ data.MediaUploadProvider = (*S3Provider)(nil)
 
 // Ensure S3Provider implements MediaStorageAdmin interface
 var _ data.MediaStorageAdmin = (*S3Provider)(nil)
+
+// Ensure S3Provider implements RawObjectStore interface
+var _ data.RawObjectStore = (*S3Provider)(nil)
 
 // NewS3Provider creates a new S3Provider instance.
 // It ensures the bucket exists, creating it if necessary.
@@ -297,4 +301,33 @@ func (s *S3Provider) DeleteObject(ctx context.Context, key string) error {
 		return fmt.Errorf("deleting object %q: %w", key, err)
 	}
 	return nil
+}
+
+// PutObject writes size bytes from r directly to key — server-side, no
+// presigned POST, no content-length cap. Used for content only the server
+// itself ever writes (raw parsed-document JSON, extracted images).
+func (s *S3Provider) PutObject(
+	ctx context.Context,
+	key string,
+	r io.Reader,
+	size int64,
+	contentType string,
+) error {
+	_, err := s.client.PutObject(ctx, s.bucketName, key, r, size, minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return fmt.Errorf("putting object %q: %w", key, err)
+	}
+	return nil
+}
+
+// GetObject returns a reader for the object at key — server-side, no
+// presigned GET. Callers must close the returned reader.
+func (s *S3Provider) GetObject(ctx context.Context, key string) (io.ReadCloser, error) {
+	obj, err := s.client.GetObject(ctx, s.bucketName, key, minio.GetObjectOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("getting object %q: %w", key, err)
+	}
+	return obj, nil
 }

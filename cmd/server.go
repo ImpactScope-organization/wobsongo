@@ -5,9 +5,11 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -57,6 +59,36 @@ var serveCmd = &cobra.Command{
 		mediaService := service.NewMediaService(mediaProvider)
 		doclingClient := external.NewDoclingClient(config.DoclingBaseURL)
 
+		if err := internal.IsVLMOK(config.VLMConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		vlmClient := external.NewVLMClient(
+			config.VLMConfig.BaseURL,
+			config.VLMConfig.Model,
+			config.VLMConfig.APIKey,
+		)
+
+		// riverClient is assigned below, after workers (which need to be
+		// registered via river.AddWorker before river.NewClient produces the
+		// client) are constructed. ChunkRepo/RiverJobEnqueuer only resolve it
+		// lazily, at Enqueue-call time — always well after riverClient.Start()
+		// — so this ordering is safe. See their constructors' doc comments.
+		var riverClient *river.Client[pgx.Tx]
+		riverClientFn := func() *river.Client[pgx.Tx] { return riverClient }
+
+		chunkRepo := repo.NewDocumentChunkRepo(db.New(pool), pool, riverClientFn)
+		jobEnqueuer := repo.NewRiverJobEnqueuer(pool, riverClientFn)
+
+		// Same reasoning as chunkRepo's nil case used to be: this document
+		// repo instance is only used by the worker to backfill PageCount/Title
+		// after parsing (GetByID+Update) — it never calls Enqueue. The
+		// HTTP-facing document repo (with a real riverClient) is built
+		// separately, inside buildApp.
+		workerDocumentRepo := repo.NewDocumentRepo(db.New(pool), pool, nil)
+		documentService := service.NewDocumentService(workerDocumentRepo)
+
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -65,11 +97,33 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, mediaWorker)
 
 		// register ParseDocumentWorker with River
-		parseDocumentWorker := worker.NewParseDocumentWorker(doclingClient, mediaService)
+		parseDocumentWorker := worker.NewParseDocumentWorker(
+			doclingClient,
+			mediaService,
+			mediaProvider,
+			jobEnqueuer,
+		)
 		river.AddWorker(workers, parseDocumentWorker)
 
+		// register ProcessParsedDocumentWorker with River
+		processParsedDocumentWorker := worker.NewProcessParsedDocumentWorker(
+			mediaProvider,
+			documentService,
+			chunkRepo,
+		)
+		river.AddWorker(workers, processParsedDocumentWorker)
+
+		// register CaptionImageChunksWorker with River
+		captionImageChunksWorker := worker.NewCaptionImageChunksWorker(
+			mediaProvider,
+			chunkRepo,
+			documentService,
+			vlmClient,
+		)
+		river.AddWorker(workers, captionImageChunksWorker)
+
 		// Initialize River client with the database pool and registered workers.
-		riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
+		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{
 			Queues: map[string]river.QueueConfig{
 				river.QueueDefault: {MaxWorkers: 10},
 			},

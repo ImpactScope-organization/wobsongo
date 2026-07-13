@@ -139,6 +139,17 @@ type ParsedChunk struct {
 	// AssetURL stores the object storage link (e.g., MinIO/S3) to the extracted image file.
 	// This is only populated if LayoutType is LayoutTypePicture or LayoutTypeChart.
 	AssetURL string `json:"asset_url,omitempty"`
+
+	// RawImageData holds the decoded image bytes for LayoutTypePicture/
+	// LayoutTypeChart chunks immediately after parsing, before they've been
+	// uploaded to object storage and AssetURL populated. Never persisted —
+	// purely an in-memory handoff between Docling-response mapping and the
+	// image-upload step; cleared before the chunk is written to the DB.
+	RawImageData []byte `json:"-"`
+
+	// RawImageContentType is the MIME type (e.g. "image/png") declared by
+	// Docling's data: URI for RawImageData. Same lifecycle as RawImageData.
+	RawImageContentType string `json:"-"`
 }
 
 // DocumentChunk represents a chunk of a document that is stored in the database.

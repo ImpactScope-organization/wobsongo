@@ -4,6 +4,7 @@ package data
 
 import (
 	"context"
+	"io"
 	"net/url"
 	"slices"
 	"time"
@@ -14,12 +15,19 @@ type MediaUploadIntent string
 
 const (
 	DocumentUploadIntent MediaUploadIntent = "document"
+
+	// DocumentImageUploadIntent is used for images extracted from a parsed
+	// document (e.g. Docling-embedded pictures/charts), stored under
+	// document_images/ so they stay presigned-GET-able like any other
+	// intent, even though the write itself goes through RawObjectStore.
+	DocumentImageUploadIntent MediaUploadIntent = "document_image"
 )
 
 // ValidMediaUploadIntents returns a slice of all valid media upload intents.
 func ValidMediaUploadIntents() []MediaUploadIntent {
 	return []MediaUploadIntent{
 		DocumentUploadIntent,
+		DocumentImageUploadIntent,
 	}
 }
 
@@ -47,6 +55,19 @@ type MediaStorageAdmin interface {
 
 	// DeleteObject removes the object with the given key.
 	DeleteObject(ctx context.Context, key string) error
+}
+
+// RawObjectStore is internal, server-side S3 read/write — no presigned URL,
+// no client-facing key validation. validation.ValidateS3PrefixAndFile exists
+// to gate untrusted client input (a browser/CLI calling GetPresignedPOSTURL);
+// keys used here are always server-generated and never handed to a client,
+// so that validation doesn't apply.
+type RawObjectStore interface {
+	// PutObject writes size bytes from r to key, overwriting any existing object.
+	PutObject(ctx context.Context, key string, r io.Reader, size int64, contentType string) error
+
+	// GetObject returns a reader for the object at key. Callers must close it.
+	GetObject(ctx context.Context, key string) (io.ReadCloser, error)
 }
 
 // MediaUploadProvider defines the interface for media upload providers.

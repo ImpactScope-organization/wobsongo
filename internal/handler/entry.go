@@ -37,8 +37,8 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo data.ApifyRepoer
-	VideoRepo data.VideoRepoer
+	ApifyRepo     data.ApifyRepoer
+	VideoRepo     data.VideoRepoer
 	DocumentRepo  data.DocumentRepoer
 	MediaProvider data.MediaUploadProvider
 }

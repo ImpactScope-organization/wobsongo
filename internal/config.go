@@ -126,7 +126,7 @@ type Config struct {
 	ApifyToken         string            `json:"APIFY_API_TOKEN"`       // Apify API token for triggering actors
 	ApifyTikTokActorID string            `json:"APIFY_TIKTOK_ACTOR_ID"` // Apify Actor ID for TikTok media extraction
 	ApifyIGActorID     string            `json:"APIFY_IG_ACTOR_ID"`     // Apify Actor ID for Instagram media extraction
-	ModalASREndpoint   string          `json:"MODAL_ASR_ENDPOINT"`    // Modal ASR API endpoint for audio transcription
+	ModalASREndpoint   string            `json:"MODAL_ASR_ENDPOINT"`    // Modal ASR API endpoint for audio transcription
 	DoclingBaseURL     string            `json:"docling_base_url"`      // Base URL of the Docling Serve instance
 	VLMConfig          *VLMConfig        `json:"vlm_config"`            // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig  `json:"embedding_config"`      // Embedding configuration for chunk embeddings

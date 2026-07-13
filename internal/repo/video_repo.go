@@ -102,7 +102,7 @@ func (r *videoRepo) CreateVideos(ctx context.Context, v *model.Video) error {
 	// Call the sqlc-generated method to insert the video record
 	row, err := r.q.CreateVideos(ctx, params)
 	if err != nil {
-		return fmt.Errorf("failed to upsert video via sqlc: %w", MapPostgresError(err))
+		return fmt.Errorf("failed to upsert video via sqlc: %w", mapPostgresError(err))
 	}
 
 	// Update the original Video struct with the returned values from the database
@@ -148,7 +148,7 @@ func (r *videoRepo) UpdateVideoTranscription(
 		ID:                id,
 	})
 	if err != nil {
-		return MapPostgresError(err)
+		return mapPostgresError(err)
 	}
 
 	return nil

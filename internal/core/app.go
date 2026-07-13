@@ -22,7 +22,7 @@ type App struct {
 	echoApp       *echo.Echo
 	apiGroup      *echo.Group
 	apifyRepo     data.ApifyRepoer
-	videoRepo data.VideoRepoer
+	videoRepo     data.VideoRepoer
 	documentRepo  data.DocumentRepoer
 	mediaProvider data.MediaUploadProvider
 }

@@ -20,7 +20,11 @@ func TestModalBGEClient_Embed_Success(t *testing.T) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"model":"BAAI/bge-m3","embeddings":[[0.1,0.2],[0.3,0.4]],"modal_execution_time":0.5}`))
+		_, _ = w.Write(
+			[]byte(
+				`{"model":"BAAI/bge-m3","embeddings":[[0.1,0.2],[0.3,0.4]],"modal_execution_time":0.5}`,
+			),
+		)
 	}))
 	defer server.Close()
 

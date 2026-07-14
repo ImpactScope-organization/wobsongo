@@ -72,7 +72,10 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 		t.Errorf("expected include_images=true in the request, got: %v", options["include_images"])
 	}
 	if includePageImages, ok := options["include_page_images"].(bool); !ok || includePageImages {
-		t.Errorf("expected include_page_images=false in the request, got: %v", options["include_page_images"])
+		t.Errorf(
+			"expected include_page_images=false in the request, got: %v",
+			options["include_page_images"],
+		)
 	}
 	// Regression check: TableFormer's "accurate" mode is markedly slower than
 	// "fast" and buys nothing today — doclingTableItem doesn't map table

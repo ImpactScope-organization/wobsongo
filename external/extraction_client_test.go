@@ -197,7 +197,9 @@ func TestExtractionClient_Extract_TruncatedByMaxTokens_ReturnsClearError(t *test
 		body, err := json.Marshal(map[string]any{
 			"choices": []map[string]any{
 				{
-					"message":       map[string]any{"content": `[{"subject": "Alice", "predicate":`},
+					"message": map[string]any{
+						"content": `[{"subject": "Alice", "predicate":`,
+					},
 					"finish_reason": "length",
 				},
 			},

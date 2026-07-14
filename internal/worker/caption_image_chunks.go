@@ -106,7 +106,9 @@ func NewCaptionImageChunksWorker(
 // image chunks this execution will actually attempt (bounded by
 // captionBatchSize, never the full job.Args.ChunkIDs list — see that
 // constant's comment for why).
-func (w *CaptionImageChunksWorker) Timeout(job *river.Job[queue.CaptionImageChunksDTO]) time.Duration {
+func (w *CaptionImageChunksWorker) Timeout(
+	job *river.Job[queue.CaptionImageChunksDTO],
+) time.Duration {
 	n := min(len(job.Args.ChunkIDs), captionBatchSize)
 	return captionImageChunksFixedOverhead + time.Duration(n)*captionPerChunkBudget
 }

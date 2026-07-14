@@ -61,7 +61,12 @@ func (c *ModalBGEClient) Embed(ctx context.Context, texts []string) ([][]float32
 		return nil, fmt.Errorf("failed to marshal embeddings request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL, bytes.NewReader(body))
+	httpReq, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL,
+		bytes.NewReader(body),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embeddings request: %w", err)
 	}

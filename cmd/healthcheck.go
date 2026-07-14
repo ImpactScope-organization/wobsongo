@@ -79,7 +79,10 @@ func runHealthcheck(cmd *cobra.Command, _ []string) {
 
 	cmd.Println("=== Configuration ===")
 	coreErr := config.IsOK()
-	check("Core config (APP_DB_URI, APP_JWT_SECRET, APP_JWT_EXPIRY_HOURS, EmailConfig, Port)", coreErr)
+	check(
+		"Core config (APP_DB_URI, APP_JWT_SECRET, APP_JWT_EXPIRY_HOURS, EmailConfig, Port)",
+		coreErr,
+	)
 
 	s3Err := internal.IsS3OK(config.S3Config)
 	check("S3 config", s3Err)
@@ -259,7 +262,10 @@ func checkExtraction(ctx context.Context, cfg *internal.ExtractionConfig) error 
 	defer cancel()
 
 	client := external.NewExtractionClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
-	if _, err := client.Extract(ctx, &data.ExtractionRequest{Text: "The sky is blue."}); err != nil {
+	if _, err := client.Extract(
+		ctx,
+		&data.ExtractionRequest{Text: "The sky is blue."},
+	); err != nil {
 		return err
 	}
 	return nil

@@ -292,20 +292,35 @@ func TestCaptionImageChunksWorker_Work_MoreThanBatchSize_EnqueuesContinuation(t 
 	}
 
 	if updatedCount != captionBatchSize {
-		t.Fatalf("expected exactly %d chunks captioned (batch cap), got %d", captionBatchSize, updatedCount)
+		t.Fatalf(
+			"expected exactly %d chunks captioned (batch cap), got %d",
+			captionBatchSize,
+			updatedCount,
+		)
 	}
 	if len(enqueued) != 1 {
-		t.Fatalf("expected exactly 1 job enqueued (continuation only), got %d: %+v", len(enqueued), enqueued)
+		t.Fatalf(
+			"expected exactly 1 job enqueued (continuation only), got %d: %+v",
+			len(enqueued),
+			enqueued,
+		)
 	}
 	continuation, ok := enqueued[0].(queue.CaptionImageChunksDTO)
 	if !ok {
 		t.Fatalf("expected a queue.CaptionImageChunksDTO continuation, got %T", enqueued[0])
 	}
 	if continuation.DocumentID != job.Args.DocumentID {
-		t.Errorf("expected continuation DocumentID %s, got %s", job.Args.DocumentID, continuation.DocumentID)
+		t.Errorf(
+			"expected continuation DocumentID %s, got %s",
+			job.Args.DocumentID,
+			continuation.DocumentID,
+		)
 	}
 	if len(continuation.ChunkIDs) != 2 {
-		t.Fatalf("expected 2 still-pending chunk IDs in the continuation, got %d", len(continuation.ChunkIDs))
+		t.Fatalf(
+			"expected 2 still-pending chunk IDs in the continuation, got %d",
+			len(continuation.ChunkIDs),
+		)
 	}
 }
 

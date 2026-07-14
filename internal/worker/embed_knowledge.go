@@ -47,7 +47,10 @@ func (w *EmbedKnowledgeWorker) Timeout(*river.Job[queue.EmbedKnowledgeDTO]) time
 }
 
 // Work is the main method that gets called when a job is dequeued.
-func (w *EmbedKnowledgeWorker) Work(ctx context.Context, job *river.Job[queue.EmbedKnowledgeDTO]) error {
+func (w *EmbedKnowledgeWorker) Work(
+	ctx context.Context,
+	job *river.Job[queue.EmbedKnowledgeDTO],
+) error {
 	facts, err := w.KnowledgeRepo.ListNeedingEmbedding(ctx, job.Args.DocumentID)
 	if err != nil {
 		return fmt.Errorf(

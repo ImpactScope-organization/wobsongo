@@ -97,7 +97,7 @@ func newProcessParsedDocumentJob(rawOutputKey string) *river.Job[queue.ProcessPa
 func TestProcessParsedDocumentWorker_Work_Success(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Test Doc",
-		`{"text":"body","label":"paragraph","prov":[{"page_no":3,"bbox":[0,0,1,1]}]}`,
+		`{"text":"body","label":"paragraph","prov":[{"page_no":3,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -138,7 +138,7 @@ func TestProcessParsedDocumentWorker_Work_UploadsImageAndEnqueuesCaption(t *test
 	raw := rawDoclingJSON(
 		"Doc With Image",
 		"",
-		`{"label":"picture","prov":[{"page_no":1,"bbox":[0,0,1,1]}],"image":{"uri":"data:image/png;base64,aGk="}}`,
+		`{"label":"picture","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}],"image":{"uri":"data:image/png;base64,aGk="}}`,
 	)
 	rawStore := &stubRawStore{
 		getObjectFunc: func(context.Context, string) (io.ReadCloser, error) {
@@ -223,7 +223,7 @@ func TestProcessParsedDocumentWorker_Work_UploadsImageAndEnqueuesCaption(t *test
 func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Plain Doc",
-		`{"text":"body","label":"paragraph","prov":[{"page_no":1,"bbox":[0,0,1,1]}]}`,
+		`{"text":"body","label":"paragraph","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -279,7 +279,7 @@ func TestProcessParsedDocumentWorker_Work_ImageUploadError_NoCreateBatch(t *test
 	raw := rawDoclingJSON(
 		"Doc With Image",
 		"",
-		`{"label":"picture","prov":[{"page_no":1,"bbox":[0,0,1,1]}],"image":{"uri":"data:image/png;base64,aGk="}}`,
+		`{"label":"picture","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}],"image":{"uri":"data:image/png;base64,aGk="}}`,
 	)
 	rawStore := &stubRawStore{
 		getObjectFunc: func(context.Context, string) (io.ReadCloser, error) {
@@ -349,7 +349,7 @@ func TestProcessParsedDocumentWorker_Work_ParseRawError(t *testing.T) {
 func TestProcessParsedDocumentWorker_Work_UpdatesPageCountAndBackfillsBlankTitle(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Docling's Title",
-		`{"text":"body","label":"paragraph","prov":[{"page_no":7,"bbox":[0,0,1,1]}]}`,
+		`{"text":"body","label":"paragraph","prov":[{"page_no":7,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -393,7 +393,7 @@ func TestProcessParsedDocumentWorker_Work_UpdatesPageCountAndBackfillsBlankTitle
 func TestProcessParsedDocumentWorker_Work_PreservesExistingTitle(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Docling's Title",
-		`{"text":"body","label":"paragraph","prov":[{"page_no":7,"bbox":[0,0,1,1]}]}`,
+		`{"text":"body","label":"paragraph","prov":[{"page_no":7,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -457,9 +457,9 @@ func TestProcessParsedDocumentWorker_Work_UpdateAfterParseError(t *testing.T) {
 func TestProcessParsedDocumentWorker_Work_ShouldBeStoredFiltersChunks(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Doc",
-		`{"text":"keep me","label":"paragraph","prov":[{"page_no":1,"bbox":[0,0,1,1]}]},`+
-			`{"text":"drop me","label":"paragraph","prov":[{"page_no":1,"bbox":[0,0,1,1]}]},`+
-			`{"text":"keep me too","label":"title","prov":[{"page_no":1,"bbox":[0,0,1,1]}]}`,
+		`{"text":"keep me","label":"paragraph","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]},`+
+			`{"text":"drop me","label":"paragraph","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]},`+
+			`{"text":"keep me too","label":"title","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -514,7 +514,7 @@ func TestProcessParsedDocumentWorker_Work_ShouldBeStoredFiltersChunks(t *testing
 func TestProcessParsedDocumentWorker_Work_CreateBatchError(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Doc",
-		`{"text":"body","label":"paragraph","prov":[{"page_no":1,"bbox":[0,0,1,1]}]}`,
+		`{"text":"body","label":"paragraph","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{
@@ -546,8 +546,8 @@ func TestProcessParsedDocumentWorker_Work_CreateBatchError(t *testing.T) {
 func TestProcessParsedDocumentWorker_Work_NoChunksSurviveFilter(t *testing.T) {
 	raw := rawDoclingJSON(
 		"Doc",
-		`{"text":"header","label":"page_header","prov":[{"page_no":1,"bbox":[0,0,1,1]}]},`+
-			`{"text":"footer","label":"page_footer","prov":[{"page_no":1,"bbox":[0,0,1,1]}]}`,
+		`{"text":"header","label":"page_header","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]},`+
+			`{"text":"footer","label":"page_footer","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
 		"",
 	)
 	rawStore := &stubRawStore{

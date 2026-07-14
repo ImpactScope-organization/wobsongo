@@ -11,12 +11,53 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/riverqueue/river"
+	"golang.org/x/sync/errgroup"
 )
 
-// extractKnowledgeTimeout bounds how long the worker waits across all of a
-// document's chunks. Generous relative to a single extraction call since a
-// document can carry many chunks, each requiring its own LLM call.
-const extractKnowledgeTimeout = 15 * time.Minute
+// extractKnowledgeDefaultConcurrency is used when Concurrency is unset (<=0)
+// — e.g. a caller constructing the worker directly (tests) without
+// specifying it. internal.ExtractionConfig applies this same default when
+// EXTRACTION_CONCURRENCY isn't set, so the two stay in sync.
+const extractKnowledgeDefaultConcurrency = 5
+
+// extractKnowledgeFallbackTimeout is used only if the live pending-chunk
+// count can't be determined (the sizing query in Timeout() itself fails) —
+// generous enough to get through a handful of chunks safely rather than
+// erroring out immediately.
+const extractKnowledgeFallbackTimeout = 15 * time.Minute
+
+// extractKnowledgeFixedOverhead covers the job's work outside the per-chunk
+// loop: fetching the document and its chunk list up front, plus the final
+// enqueue call.
+const extractKnowledgeFixedOverhead = 1 * time.Minute
+
+// extractKnowledgePerChunkBudget bounds how long a single round of
+// concurrent chunks (see ExtractKnowledgeWorker.Concurrency) gets within the
+// job's overall timeout — margin over ExtractionClient's own per-call HTTP timeout
+// (5 minutes, external/extraction_client.go's extractionHTTPTimeout) to also
+// cover that chunk's DB write.
+const extractKnowledgePerChunkBudget = 6 * time.Minute
+
+// extractKnowledgeBatchSize caps how many chunks a single job execution
+// extracts before re-enqueueing a continuation job for the rest (see
+// Work()). This is deliberate, not just a nice-to-have: River's JobRescuer
+// considers any job "stuck" and force-retries it after a flat, client-wide
+// duration (1 hour by default) that knows nothing about a worker's own
+// Timeout() override — confirmed against a real job whose error history
+// showed "Stuck job rescued by JobRescuer" partway through a large document,
+// well before it had actually failed. Scaling Timeout() to cover an entire
+// large backlog in one execution (the previous approach) only pushes the
+// mismatch further: it would require inflating RescueStuckJobsAfter to many
+// hours or days client-wide, which defeats its purpose of catching genuinely
+// crashed processes quickly. Capping the batch keeps a single execution's
+// Timeout() — and therefore the client-wide RescueStuckJobsAfter needed to
+// stay safely above it — small and constant regardless of total document
+// size; a huge document just takes more job hops, which is fine since
+// progress commits per-chunk already. At the default concurrency (5) this
+// caps Timeout() around 31 minutes (extractKnowledgeFixedOverhead +
+// ceil(25/5)*extractKnowledgePerChunkBudget), comfortably under River's
+// 1-hour default RescueStuckJobsAfter.
+const extractKnowledgeBatchSize = 25
 
 // ExtractKnowledgeWorker is a River worker that extracts atomic knowledge
 // facts (subject-predicate-object, with a truth-tier classification) from a
@@ -34,26 +75,54 @@ type ExtractKnowledgeWorker struct {
 	DocumentService *service.DocumentService
 	// Extractor extracts facts from a chunk's text.
 	Extractor data.KnowledgeExtractor
+	// Concurrency bounds how many chunks are extracted at once. <=0 falls
+	// back to extractKnowledgeDefaultConcurrency — see concurrency().
+	Concurrency int
 }
 
 // NewExtractKnowledgeWorker is a constructor for ExtractKnowledgeWorker.
+// concurrency <=0 falls back to extractKnowledgeDefaultConcurrency.
 func NewExtractKnowledgeWorker(
 	chunkRepo data.DocumentChunkRepoer,
 	knowledgeRepo data.AtomicKnowledgeRepoer,
 	documentService *service.DocumentService,
 	extractor data.KnowledgeExtractor,
+	concurrency int,
 ) *ExtractKnowledgeWorker {
 	return &ExtractKnowledgeWorker{
 		ChunkRepo:       chunkRepo,
 		KnowledgeRepo:   knowledgeRepo,
 		DocumentService: documentService,
 		Extractor:       extractor,
+		Concurrency:     concurrency,
 	}
 }
 
-// Timeout overrides River's default job timeout.
-func (w *ExtractKnowledgeWorker) Timeout(*river.Job[queue.ExtractKnowledgeDTO]) time.Duration {
-	return extractKnowledgeTimeout
+// concurrency resolves the effective concurrency limit, applying
+// extractKnowledgeDefaultConcurrency if Concurrency is unset or invalid.
+func (w *ExtractKnowledgeWorker) concurrency() int {
+	if w.Concurrency <= 0 {
+		return extractKnowledgeDefaultConcurrency
+	}
+	return w.Concurrency
+}
+
+// Timeout overrides River's default job timeout, scaled to the number of
+// chunks this execution will actually attempt (bounded by
+// extractKnowledgeBatchSize, never the full remaining backlog — see that
+// constant's comment for why). River evaluates this fresh on every attempt
+// (right before setting that attempt's deadline).
+func (w *ExtractKnowledgeWorker) Timeout(job *river.Job[queue.ExtractKnowledgeDTO]) time.Duration {
+	chunks, err := w.ChunkRepo.ListChunksNeedingKnowledgeExtraction(
+		context.Background(),
+		job.Args.DocumentID,
+	)
+	if err != nil {
+		return extractKnowledgeFallbackTimeout
+	}
+	batchLen := min(len(chunks), extractKnowledgeBatchSize)
+	rounds := (batchLen + w.concurrency() - 1) / w.concurrency()
+	return extractKnowledgeFixedOverhead + time.Duration(rounds)*extractKnowledgePerChunkBudget
 }
 
 // Work is the main method that gets called when a job is dequeued.
@@ -75,48 +144,43 @@ func (w *ExtractKnowledgeWorker) Work(
 		)
 	}
 
-	for i := range chunks {
-		chunk := &chunks[i]
+	// Cap this execution to extractKnowledgeBatchSize chunks — see that
+	// constant's comment. Whatever's left gets a continuation job below,
+	// rather than trying to finish an arbitrarily large backlog in one go.
+	moreRemaining := len(chunks) > extractKnowledgeBatchSize
+	batch := chunks
+	if moreRemaining {
+		batch = chunks[:extractKnowledgeBatchSize]
+	}
 
-		extracted, err := w.Extractor.Extract(ctx, &data.ExtractionRequest{
-			Text:          chunk.Text,
-			DocumentTitle: doc.Title,
+	// Bounded concurrency, not errgroup.WithContext: a plain group means one
+	// chunk's failure doesn't cancel its concurrently in-flight siblings —
+	// each chunk commits independently (see extractChunk), so there's no
+	// reason to throw away a sibling's still-succeeding LLM call just
+	// because another chunk errored. g.Wait() below still surfaces the
+	// first error so Work() fails and River retries the (now smaller)
+	// remaining set.
+	var g errgroup.Group
+	g.SetLimit(w.concurrency())
+	for i := range batch {
+		chunk := &batch[i]
+		g.Go(func() error {
+			return w.extractChunk(ctx, job.Args.DocumentID, doc.Title, chunk)
 		})
-		if err != nil {
-			return fmt.Errorf("failed to extract knowledge for chunk %s: %w", chunk.ID, err)
-		}
+	}
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
-		now := time.Now()
-		facts := make([]model.AtomicKnowledge, len(extracted))
-		for j := range extracted {
-			facts[j] = model.AtomicKnowledge{
-				ID:              uuid.New(),
-				CreatedAt:       now,
-				UpdatedAt:       now,
-				DocumentID:      job.Args.DocumentID,
-				DocumentChunkID: chunk.ID,
-				TruthTier:       extracted[j].TruthTier,
-				Topics:          extracted[j].Topics,
-				Subject:         extracted[j].Subject,
-				Predicate:       extracted[j].Predicate,
-				Object:          extracted[j].Object,
-				Note:            extracted[j].Note,
-			}
+	if moreRemaining {
+		// More chunks remain beyond this batch — re-enqueue for the rest
+		// rather than assuming this document is fully processed.
+		if err := w.ChunkRepo.Enqueue(ctx, queue.ExtractKnowledgeDTO{
+			DocumentID: job.Args.DocumentID,
+		}); err != nil {
+			return fmt.Errorf("failed to enqueue extraction continuation: %w", err)
 		}
-
-		err = w.KnowledgeRepo.WithTx(ctx, func(tx data.AtomicKnowledgeRepoer) error {
-			if err := tx.CreateBatch(ctx, facts); err != nil {
-				return fmt.Errorf("failed to store extracted facts: %w", err)
-			}
-			return tx.MarkChunkKnowledgeExtracted(ctx, chunk.ID)
-		})
-		if err != nil {
-			return fmt.Errorf(
-				"failed to commit extraction results for chunk %s: %w",
-				chunk.ID,
-				err,
-			)
-		}
+		return nil
 	}
 
 	// Every text-bearing chunk in this document has now had extraction run
@@ -125,6 +189,65 @@ func (w *ExtractKnowledgeWorker) Work(
 		DocumentID: job.Args.DocumentID,
 	}); err != nil {
 		return fmt.Errorf("failed to enqueue knowledge embedding: %w", err)
+	}
+	return nil
+}
+
+// extractChunk extracts and stores facts for a single chunk, then marks it
+// extracted. Safe to call concurrently across chunks: each call opens its
+// own transaction (data.AtomicKnowledgeRepoer.WithTx acquires a fresh
+// connection per call) and touches only its own chunk.
+func (w *ExtractKnowledgeWorker) extractChunk(
+	ctx context.Context,
+	documentID uuid.UUID,
+	documentTitle string,
+	chunk *model.DocumentChunk,
+) error {
+	extracted, err := w.Extractor.Extract(ctx, &data.ExtractionRequest{
+		Text:          chunk.Text,
+		DocumentTitle: documentTitle,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to extract knowledge for chunk %s: %w", chunk.ID, err)
+	}
+
+	now := time.Now()
+	facts := make([]model.AtomicKnowledge, len(extracted))
+	for j := range extracted {
+		topics := extracted[j].Topics
+		if topics == nil {
+			// Must be non-nil: this batch insert goes through Postgres's
+			// COPY protocol (sqlc :copyfrom), which sends every column's
+			// literal value — a nil slice encodes as SQL NULL over COPY
+			// and violates topics' NOT NULL constraint, since COPY never
+			// falls back to a column's DEFAULT the way a plain INSERT
+			// would. extracted[j].Topics comes from LLM JSON output,
+			// which can omit or null the field.
+			topics = []string{}
+		}
+		facts[j] = model.AtomicKnowledge{
+			ID:              uuid.New(),
+			CreatedAt:       now,
+			UpdatedAt:       now,
+			DocumentID:      documentID,
+			DocumentChunkID: chunk.ID,
+			TruthTier:       extracted[j].TruthTier,
+			Topics:          topics,
+			Subject:         extracted[j].Subject,
+			Predicate:       extracted[j].Predicate,
+			Object:          extracted[j].Object,
+			Note:            extracted[j].Note,
+		}
+	}
+
+	err = w.KnowledgeRepo.WithTx(ctx, func(tx data.AtomicKnowledgeRepoer) error {
+		if err := tx.CreateBatch(ctx, facts); err != nil {
+			return fmt.Errorf("failed to store extracted facts: %w", err)
+		}
+		return tx.MarkChunkKnowledgeExtracted(ctx, chunk.ID)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to commit extraction results for chunk %s: %w", chunk.ID, err)
 	}
 	return nil
 }

@@ -187,6 +187,45 @@ func TestExtractionClient_Extract_ErrorStatus(t *testing.T) {
 	}
 }
 
+func TestExtractionClient_Extract_TruncatedByMaxTokens_ReturnsClearError(t *testing.T) {
+	// Regression check: a real chunk (a long personnel/affiliation roster)
+	// produced enough facts to get cut off mid-fact at the previous
+	// 1500-token budget, surfacing as a cryptic "unexpected end of JSON
+	// input" every retry. finish_reason=length must now be caught explicitly
+	// instead of falling through to a JSON-unmarshal error.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := json.Marshal(map[string]any{
+			"choices": []map[string]any{
+				{
+					"message": map[string]any{
+						"content": `[{"subject": "Alice", "predicate":`,
+					},
+					"finish_reason": "length",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("failed to marshal fake truncated response: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	client := external.NewExtractionClient(server.URL, "some-model", "")
+	_, err := client.Extract(t.Context(), &data.ExtractionRequest{Text: "text"})
+	if err == nil {
+		t.Fatal("expected an error for a truncated response")
+	}
+	if !strings.Contains(err.Error(), "truncated") {
+		t.Errorf("expected error to mention truncation, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "unexpected end of JSON input") {
+		t.Errorf("expected a clear truncation error, not a raw JSON-unmarshal error: %v", err)
+	}
+}
+
 func TestExtractionClient_Extract_MalformedJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

@@ -13,9 +13,13 @@ import (
 )
 
 // parseDocumentTimeout bounds how long the worker waits for Docling to parse
-// a document. Docling can take minutes on large PDFs; blocking a River
-// worker goroutine for that long is cheap in Go.
-const parseDocumentTimeout = 5 * time.Minute
+// a document. Docling can take minutes on large PDFs — cold-starting a
+// serverless Docling instance alone can take several minutes before
+// conversion even begins — so this must stay comfortably above
+// external.DoclingClient's own HTTP timeout (currently 9 minutes), leaving
+// margin for this job's own S3 store + enqueue steps afterward. Blocking a
+// River worker goroutine for that long is cheap in Go.
+const parseDocumentTimeout = 11 * time.Minute
 
 // rawOutputContentType is the content type stored alongside a document's
 // raw Docling response in S3.

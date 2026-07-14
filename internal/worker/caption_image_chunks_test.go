@@ -241,6 +241,89 @@ func TestCaptionImageChunksWorker_Work_ChunkNotFound(t *testing.T) {
 	}
 }
 
+// TestCaptionImageChunksWorker_Work_MoreThanBatchSize_EnqueuesContinuation is
+// a regression check: a single job execution must not try to caption an
+// arbitrarily large image list in one go (see captionBatchSize's comment) —
+// only captionBatchSize chunks are captioned, and a continuation
+// CaptionImageChunksDTO carrying just the still-pending chunk IDs is
+// enqueued for the rest instead of EmbedChunksDTO/ExtractKnowledgeDTO.
+func TestCaptionImageChunksWorker_Work_MoreThanBatchSize_EnqueuesContinuation(t *testing.T) {
+	chunkIDs := make([]uuid.UUID, captionBatchSize+2)
+	chunks := make([]model.DocumentChunk, len(chunkIDs))
+	for i := range chunkIDs {
+		chunkIDs[i] = uuid.New()
+		chunks[i] = model.DocumentChunk{
+			ID:          chunkIDs[i],
+			ParsedChunk: model.ParsedChunk{AssetURL: "document_images/abc.png"},
+		}
+	}
+
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListByDocumentIDFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return chunks, nil
+	}
+	var updatedCount int
+	chunkRepo.UpdateFunc = func(_ context.Context, _ *model.DocumentChunk) error {
+		updatedCount++
+		return nil
+	}
+	var enqueued []queue.BackgroundJob
+	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = append(enqueued, payload)
+		return nil
+	}
+
+	rawStore := &stubRawStore{
+		getObjectFunc: func(context.Context, string) (io.ReadCloser, error) {
+			return io.NopCloser(io.LimitReader(nil, 0)), nil
+		},
+	}
+
+	w := &CaptionImageChunksWorker{
+		RawStore:        rawStore,
+		ChunkRepo:       chunkRepo,
+		DocumentService: newDocumentServiceWithTitle("Doc"),
+		Captioner:       &stubCaptioner{caption: "a caption"},
+	}
+
+	job := newCaptionJob(uuid.New(), chunkIDs...)
+	if err := w.Work(t.Context(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if updatedCount != captionBatchSize {
+		t.Fatalf(
+			"expected exactly %d chunks captioned (batch cap), got %d",
+			captionBatchSize,
+			updatedCount,
+		)
+	}
+	if len(enqueued) != 1 {
+		t.Fatalf(
+			"expected exactly 1 job enqueued (continuation only), got %d: %+v",
+			len(enqueued),
+			enqueued,
+		)
+	}
+	continuation, ok := enqueued[0].(queue.CaptionImageChunksDTO)
+	if !ok {
+		t.Fatalf("expected a queue.CaptionImageChunksDTO continuation, got %T", enqueued[0])
+	}
+	if continuation.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected continuation DocumentID %s, got %s",
+			job.Args.DocumentID,
+			continuation.DocumentID,
+		)
+	}
+	if len(continuation.ChunkIDs) != 2 {
+		t.Fatalf(
+			"expected 2 still-pending chunk IDs in the continuation, got %d",
+			len(continuation.ChunkIDs),
+		)
+	}
+}
+
 func TestGatherSurroundingText_IncludesSamePageParagraph(t *testing.T) {
 	target := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Page: 5}}
 	sibling := model.DocumentChunk{

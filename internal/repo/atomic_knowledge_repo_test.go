@@ -174,11 +174,18 @@ func TestAtomicKnowledgeRepo_ListNeedingEmbedding_FiltersToUnembedded(t *testing
 		knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
 		needsEmbedding := newTestAtomicKnowledge(doc.ID, chunk.ID)
 		alreadyEmbedded := newTestAtomicKnowledge(doc.ID, chunk.ID)
-		if err := knowledgeRepo.CreateBatch(ctx, []model.AtomicKnowledge{needsEmbedding, alreadyEmbedded}); err != nil {
+		if err := knowledgeRepo.CreateBatch(
+			ctx,
+			[]model.AtomicKnowledge{needsEmbedding, alreadyEmbedded},
+		); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if err := knowledgeRepo.UpdateEmbedding(ctx, alreadyEmbedded.ID, testEmbedding(0.2)); err != nil {
+		if err := knowledgeRepo.UpdateEmbedding(
+			ctx,
+			alreadyEmbedded.ID,
+			testEmbedding(0.2),
+		); err != nil {
 			t.Fatalf("unexpected error embedding fact: %v", err)
 		}
 

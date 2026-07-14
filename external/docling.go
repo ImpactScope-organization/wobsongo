@@ -27,12 +27,21 @@ type DoclingClient struct {
 // Ensure DoclingClient implements data.DocumentProcessor.
 var _ data.DocumentProcessor = (*DoclingClient)(nil)
 
+// doclingHTTPTimeout bounds the HTTP call to Docling Serve. Kept below the
+// hosting deployment's own server-side ceiling (e.g. a serverless function
+// timeout) so a slow-but-still-succeeding conversion doesn't outrace it in
+// the other direction — this client giving up before the server does would
+// just mean paying for the conversion without getting the result. Must stay
+// less than parseDocumentTimeout (internal/worker/parse_document.go), which
+// wraps this call plus S3 storage and enqueueing afterward.
+const doclingHTTPTimeout = 9 * time.Minute
+
 // NewDoclingClient creates a new DoclingClient targeting the given Docling Serve base URL.
 func NewDoclingClient(baseURL string) *DoclingClient {
 	return &DoclingClient{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: 6 * time.Minute,
+			Timeout: doclingHTTPTimeout,
 		},
 	}
 }
@@ -51,6 +60,34 @@ type doclingSource struct {
 type doclingOptions struct {
 	ToFormats       []string `json:"to_formats"`
 	ImageExportMode string   `json:"image_export_mode"`
+
+	// IncludeImages controls per-picture crop embedding — required for image
+	// captioning to receive real image data. Sent explicitly even though it
+	// matches the documented default, since getting this wrong silently
+	// breaks captioning (every picture back with a null "image" field) rather
+	// than erroring: this deployment ran an older docling-serve version
+	// (v1.18.0) where include_images/include_page_images weren't independent
+	// controls at all — image generation was gated entirely by
+	// image_export_mode, so "embedded" could only ever produce full-page
+	// renders, never picture crops. Fixed upstream in docling-jobkit's
+	// include_page_images introduction (docling-serve v1.22.1+); confirmed
+	// working correctly after this deployment was upgraded to v1.26.0.
+	IncludeImages bool `json:"include_images"`
+
+	// IncludePageImages must be false — full-page renders are never read
+	// (doclingDocument has no Pages field) and are the overwhelming majority
+	// of response size otherwise. Only meaningful as an independent control
+	// from IncludeImages on docling-serve v1.22.1+; see IncludeImages's
+	// comment for why this deployment needed upgrading before that was true.
+	IncludePageImages bool `json:"include_page_images"`
+
+	// TableMode trades TableFormer's extra accuracy for speed. "accurate"
+	// (Docling's default) is markedly slower than "fast" — worth paying for
+	// only once something actually consumes the extra precision. Right now
+	// nothing does: doclingTableItem deliberately doesn't map table
+	// cell/grid data at all yet (see its doc comment), so "accurate" mode's
+	// benefit is entirely wasted today.
+	TableMode string `json:"table_mode"`
 }
 
 // doclingServeResponse represents the root JSON object returned by Docling Serve.
@@ -91,8 +128,20 @@ type doclingPictureItem struct {
 // doclingProv contains the physical location of an element on the PDF.
 // An element can span multiple pages, but only the first entry is used here.
 type doclingProv struct {
-	PageNo int       `json:"page_no"`
-	BBox   []float64 `json:"bbox"` // [left, top, right, bottom]
+	PageNo int         `json:"page_no"`
+	BBox   doclingBBox `json:"bbox"`
+}
+
+// doclingBBox is docling-core's real BoundingBox JSON shape: an object with
+// named l/t/r/b fields (plus coord_origin, unused here) — not a bare
+// 4-element array. Confirmed against docling-core's own schema
+// (docs/DoclingDocument.json) after a real document surfaced an unmarshal
+// error against the previous (wrong) []float64 assumption.
+type doclingBBox struct {
+	Left   float64 `json:"l"`
+	Top    float64 `json:"t"`
+	Right  float64 `json:"r"`
+	Bottom float64 `json:"b"`
 }
 
 // doclingImage holds the base64 representation of an extracted image, as a
@@ -145,6 +194,15 @@ func (c *DoclingClient) ConvertFileRaw(
 	if err := writer.WriteField("image_export_mode", "embedded"); err != nil {
 		return nil, fmt.Errorf("failed to write image_export_mode field: %w", err)
 	}
+	if err := writer.WriteField("include_images", "true"); err != nil {
+		return nil, fmt.Errorf("failed to write include_images field: %w", err)
+	}
+	if err := writer.WriteField("include_page_images", "false"); err != nil {
+		return nil, fmt.Errorf("failed to write include_page_images field: %w", err)
+	}
+	if err := writer.WriteField("table_mode", "fast"); err != nil {
+		return nil, fmt.Errorf("failed to write table_mode field: %w", err)
+	}
 	part, err := writer.CreateFormFile("files", filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create form file: %w", err)
@@ -167,8 +225,11 @@ func (c *DoclingClient) convertFromURL(ctx context.Context, documentURL string) 
 			{Kind: "http", URL: documentURL},
 		},
 		Options: doclingOptions{
-			ToFormats:       []string{"json"},
-			ImageExportMode: "embedded",
+			ToFormats:         []string{"json"},
+			ImageExportMode:   "embedded",
+			IncludeImages:     true,
+			IncludePageImages: false,
+			TableMode:         "fast",
 		},
 	}
 
@@ -284,9 +345,8 @@ func firstProv(prov []doclingProv) (int, model.BoundingBox) {
 	if len(prov) == 0 {
 		return 0, model.BoundingBox{}
 	}
-	var bbox model.BoundingBox
-	copy(bbox[:], prov[0].BBox)
-	return prov[0].PageNo, bbox
+	b := prov[0].BBox
+	return prov[0].PageNo, model.BoundingBox{b.Left, b.Top, b.Right, b.Bottom}
 }
 
 // decodeDataURI splits a "data:<mime-type>;base64,<payload>" URI (Docling's

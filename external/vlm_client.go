@@ -32,6 +32,14 @@ type VLMClient struct {
 // Ensure VLMClient implements data.ImageCaptioner.
 var _ data.ImageCaptioner = (*VLMClient)(nil)
 
+// vlmHTTPTimeout bounds a single captioning call. Matches
+// extractionHTTPTimeout's reasoning (external/extraction_client.go): a
+// cloud-hosted model can genuinely take longer than 2 minutes under variable
+// load, and captioning hit the same "context deadline exceeded" symptom
+// against this same provider — must stay comfortably below
+// captionPerChunkBudget (internal/worker/caption_image_chunks.go).
+const vlmHTTPTimeout = 5 * time.Minute
+
 // NewVLMClient creates a new VLMClient targeting the given base URL/model.
 // apiKey may be empty — self-hosted servers often need no auth.
 func NewVLMClient(baseURL, model, apiKey string) *VLMClient {
@@ -40,7 +48,7 @@ func NewVLMClient(baseURL, model, apiKey string) *VLMClient {
 		model:   model,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: 2 * time.Minute,
+			Timeout: vlmHTTPTimeout,
 		},
 	}
 }
@@ -75,6 +83,10 @@ type chatCompletionResponse struct {
 		Message struct {
 			Content string `json:"content"`
 		} `json:"message"`
+		// FinishReason is "length" when the model was cut off by max_tokens
+		// rather than finishing naturally — checked by ExtractionClient to
+		// distinguish a too-small token budget from genuinely malformed JSON.
+		FinishReason string `json:"finish_reason"`
 	} `json:"choices"`
 }
 

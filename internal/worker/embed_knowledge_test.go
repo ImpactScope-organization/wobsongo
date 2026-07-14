@@ -19,8 +19,19 @@ func newEmbedKnowledgeJob(documentID uuid.UUID) *river.Job[queue.EmbedKnowledgeD
 }
 
 func TestEmbedKnowledgeWorker_Work_Success(t *testing.T) {
-	fact1 := model.AtomicKnowledge{ID: uuid.New(), Subject: "Alice", Predicate: "founded", Object: "Acme"}
-	fact2 := model.AtomicKnowledge{ID: uuid.New(), Subject: "Bob", Predicate: "leads", Object: "Sales", Note: "as of 2020"}
+	fact1 := model.AtomicKnowledge{
+		ID:        uuid.New(),
+		Subject:   "Alice",
+		Predicate: "founded",
+		Object:    "Acme",
+	}
+	fact2 := model.AtomicKnowledge{
+		ID:        uuid.New(),
+		Subject:   "Bob",
+		Predicate: "leads",
+		Object:    "Sales",
+		Note:      "as of 2020",
+	}
 
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
 	knowledgeRepo.ListNeedingEmbeddingFunc = func(_ context.Context, _ uuid.UUID) ([]model.AtomicKnowledge, error) {
@@ -130,7 +141,11 @@ func TestEmbedKnowledgeWorker_Work_BatchesAcrossEmbedBatchSize(t *testing.T) {
 		t.Errorf("expected first batch of %d, got %d", embedBatchSize, len(embedder.calls[0]))
 	}
 	if len(embedder.calls[1]) != total-embedBatchSize {
-		t.Errorf("expected second batch of %d, got %d", total-embedBatchSize, len(embedder.calls[1]))
+		t.Errorf(
+			"expected second batch of %d, got %d",
+			total-embedBatchSize,
+			len(embedder.calls[1]),
+		)
 	}
 	if updateCalls != total {
 		t.Errorf("expected %d UpdateEmbedding calls, got %d", total, updateCalls)
@@ -140,7 +155,9 @@ func TestEmbedKnowledgeWorker_Work_BatchesAcrossEmbedBatchSize(t *testing.T) {
 func TestEmbedKnowledgeWorker_Work_EmbedderError(t *testing.T) {
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
 	knowledgeRepo.ListNeedingEmbeddingFunc = func(_ context.Context, _ uuid.UUID) ([]model.AtomicKnowledge, error) {
-		return []model.AtomicKnowledge{{ID: uuid.New(), Subject: "s", Predicate: "p", Object: "o"}}, nil
+		return []model.AtomicKnowledge{
+			{ID: uuid.New(), Subject: "s", Predicate: "p", Object: "o"},
+		}, nil
 	}
 	knowledgeRepo.UpdateEmbeddingFunc = func(context.Context, uuid.UUID, []float32) error {
 		t.Error("UpdateEmbedding should not be called when Embed fails")
@@ -157,7 +174,9 @@ func TestEmbedKnowledgeWorker_Work_EmbedderError(t *testing.T) {
 func TestEmbedKnowledgeWorker_Work_UpdateEmbeddingError(t *testing.T) {
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
 	knowledgeRepo.ListNeedingEmbeddingFunc = func(_ context.Context, _ uuid.UUID) ([]model.AtomicKnowledge, error) {
-		return []model.AtomicKnowledge{{ID: uuid.New(), Subject: "s", Predicate: "p", Object: "o"}}, nil
+		return []model.AtomicKnowledge{
+			{ID: uuid.New(), Subject: "s", Predicate: "p", Object: "o"},
+		}, nil
 	}
 	knowledgeRepo.UpdateEmbeddingFunc = func(context.Context, uuid.UUID, []float32) error {
 		return errors.New("db down")

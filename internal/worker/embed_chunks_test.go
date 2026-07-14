@@ -62,10 +62,12 @@ func TestEmbedChunksWorker_Work_Success(t *testing.T) {
 	if len(updated) != 2 {
 		t.Fatalf("expected 2 chunks updated, got %d", len(updated))
 	}
-	if updated[0].ID != chunk1.ID || len(updated[0].Embedding) != 2 || updated[0].Embedding[0] != 0.1 {
+	if updated[0].ID != chunk1.ID || len(updated[0].Embedding) != 2 ||
+		updated[0].Embedding[0] != 0.1 {
 		t.Errorf("expected chunk1 embedded with [0.1 0.2], got %+v", updated[0])
 	}
-	if updated[1].ID != chunk2.ID || len(updated[1].Embedding) != 2 || updated[1].Embedding[0] != 0.3 {
+	if updated[1].ID != chunk2.ID || len(updated[1].Embedding) != 2 ||
+		updated[1].Embedding[0] != 0.3 {
 		t.Errorf("expected chunk2 embedded with [0.3 0.4], got %+v", updated[1])
 	}
 	if len(embedder.calls) != 1 || len(embedder.calls[0]) != 2 {
@@ -99,7 +101,10 @@ func TestEmbedChunksWorker_Work_BatchesAcrossEmbedBatchSize(t *testing.T) {
 	const total = embedBatchSize + 5
 	chunks := make([]model.DocumentChunk, total)
 	for i := range chunks {
-		chunks[i] = model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}}
+		chunks[i] = model.DocumentChunk{
+			ID:          uuid.New(),
+			ParsedChunk: model.ParsedChunk{Text: "text"},
+		}
 	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
@@ -134,7 +139,11 @@ func TestEmbedChunksWorker_Work_BatchesAcrossEmbedBatchSize(t *testing.T) {
 		t.Errorf("expected first batch of %d, got %d", embedBatchSize, len(embedder.calls[0]))
 	}
 	if len(embedder.calls[1]) != total-embedBatchSize {
-		t.Errorf("expected second batch of %d, got %d", total-embedBatchSize, len(embedder.calls[1]))
+		t.Errorf(
+			"expected second batch of %d, got %d",
+			total-embedBatchSize,
+			len(embedder.calls[1]),
+		)
 	}
 	if updateCalls != total {
 		t.Errorf("expected %d Update calls, got %d", total, updateCalls)
@@ -144,7 +153,9 @@ func TestEmbedChunksWorker_Work_BatchesAcrossEmbedBatchSize(t *testing.T) {
 func TestEmbedChunksWorker_Work_EmbedderError(t *testing.T) {
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.ListChunksNeedingEmbeddingFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
-		return []model.DocumentChunk{{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}}}, nil
+		return []model.DocumentChunk{
+			{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}},
+		}, nil
 	}
 	chunkRepo.UpdateFunc = func(context.Context, *model.DocumentChunk) error {
 		t.Error("Update should not be called when Embed fails")
@@ -181,7 +192,9 @@ func TestEmbedChunksWorker_Work_MismatchedVectorCount(t *testing.T) {
 func TestEmbedChunksWorker_Work_UpdateError(t *testing.T) {
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.ListChunksNeedingEmbeddingFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
-		return []model.DocumentChunk{{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}}}, nil
+		return []model.DocumentChunk{
+			{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}},
+		}, nil
 	}
 	chunkRepo.UpdateFunc = func(context.Context, *model.DocumentChunk) error {
 		return errors.New("db down")

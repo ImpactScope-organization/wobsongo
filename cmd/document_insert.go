@@ -137,7 +137,12 @@ func runDocumentInsert(cmd *cobra.Command, _ []string) {
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 	documentService := service.NewDocumentService(documentRepo)
 
-	req, existing, cleanup, err := buildCreateDocumentDTO(ctx, documentService, mediaService, documentInsertApply)
+	req, existing, cleanup, err := buildCreateDocumentDTO(
+		ctx,
+		documentService,
+		mediaService,
+		documentInsertApply,
+	)
 	if cleanup != nil {
 		defer cleanup()
 	}

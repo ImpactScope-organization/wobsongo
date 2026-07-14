@@ -143,7 +143,10 @@ func TestDocumentService_Create_ConcurrentDuplicate_ReturnsExistingNoOp(t *testi
 		t.Errorf("expected the existing document to be returned, got %+v", doc)
 	}
 	if getCalls != 2 {
-		t.Errorf("expected GetBySHA256 to be called twice (pre-check + post-conflict), got %d", getCalls)
+		t.Errorf(
+			"expected GetBySHA256 to be called twice (pre-check + post-conflict), got %d",
+			getCalls,
+		)
 	}
 }
 

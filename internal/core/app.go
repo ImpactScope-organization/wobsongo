@@ -22,6 +22,7 @@ type App struct {
 	echoApp       *echo.Echo
 	apiGroup      *echo.Group
 	apifyRepo     data.ApifyRepoer
+	videoRepo     data.VideoRepoer
 	documentRepo  data.DocumentRepoer
 	mediaProvider data.MediaUploadProvider
 }
@@ -58,6 +59,13 @@ type AppOption func(*App)
 func WithApifyRepo(repo data.ApifyRepoer) AppOption {
 	return func(a *App) {
 		a.apifyRepo = repo
+	}
+}
+
+// WithVideoRepo sets the Video repository for the application.
+func WithVideoRepo(repo data.VideoRepoer) AppOption {
+	return func(a *App) {
+		a.videoRepo = repo
 	}
 }
 
@@ -104,6 +112,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	// Initialize repositories and handlers.
 	repos := new(handler.Repos)
 	repos.ApifyRepo = app.apifyRepo
+	repos.VideoRepo = app.videoRepo
 	repos.DocumentRepo = app.documentRepo
 	repos.MediaProvider = app.mediaProvider
 

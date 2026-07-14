@@ -60,8 +60,14 @@ func newAtomicKnowledgeRepoWithTx() *mockrepo.AtomicKnowledgeRepoerMock {
 }
 
 func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
-	chunk1 := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "Acme was founded by Alice."}}
-	chunk2 := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "The sky is blue."}}
+	chunk1 := model.DocumentChunk{
+		ID:          uuid.New(),
+		ParsedChunk: model.ParsedChunk{Text: "Acme was founded by Alice."},
+	}
+	chunk2 := model.DocumentChunk{
+		ID:          uuid.New(),
+		ParsedChunk: model.ParsedChunk{Text: "The sky is blue."},
+	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
@@ -91,7 +97,12 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 		extract: func(req *data.ExtractionRequest) ([]data.ExtractedFact, error) {
 			if req.Text == chunk1.Text {
 				return []data.ExtractedFact{
-					{Subject: "Alice", Predicate: "founded", Object: "Acme", TruthTier: model.TruthTierAxiomatic},
+					{
+						Subject:   "Alice",
+						Predicate: "founded",
+						Object:    "Acme",
+						TruthTier: model.TruthTierAxiomatic,
+					},
 				}, nil
 			}
 			return nil, nil // chunk2 yields zero facts
@@ -152,7 +163,12 @@ func TestExtractKnowledgeWorker_Work_NoChunksNeedingExtraction_NoOp(t *testing.T
 		},
 	}
 
-	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, newDocumentServiceWithTitle("Doc"), extractor)
+	w := NewExtractKnowledgeWorker(
+		chunkRepo,
+		knowledgeRepo,
+		newDocumentServiceWithTitle("Doc"),
+		extractor,
+	)
 	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -173,7 +189,12 @@ func TestExtractKnowledgeWorker_Work_ExtractorError_ChunkNotMarked(t *testing.T)
 
 	extractor := &stubExtractor{err: errors.New("llm endpoint down")}
 
-	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, newDocumentServiceWithTitle("Doc"), extractor)
+	w := NewExtractKnowledgeWorker(
+		chunkRepo,
+		knowledgeRepo,
+		newDocumentServiceWithTitle("Doc"),
+		extractor,
+	)
 	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err == nil {
 		t.Fatal("expected an error when the extractor fails")
 	}
@@ -199,7 +220,12 @@ func TestExtractKnowledgeWorker_Work_CreateBatchError(t *testing.T) {
 		facts: []data.ExtractedFact{{Subject: "a", Predicate: "b", Object: "c"}},
 	}
 
-	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, newDocumentServiceWithTitle("Doc"), extractor)
+	w := NewExtractKnowledgeWorker(
+		chunkRepo,
+		knowledgeRepo,
+		newDocumentServiceWithTitle("Doc"),
+		extractor,
+	)
 	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err == nil {
 		t.Fatal("expected an error when CreateBatch fails")
 	}
@@ -208,7 +234,9 @@ func TestExtractKnowledgeWorker_Work_CreateBatchError(t *testing.T) {
 func TestExtractKnowledgeWorker_Work_DocumentServiceError(t *testing.T) {
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(context.Context, uuid.UUID) ([]model.DocumentChunk, error) {
-		t.Error("ListChunksNeedingKnowledgeExtraction should not be called when fetching the document fails")
+		t.Error(
+			"ListChunksNeedingKnowledgeExtraction should not be called when fetching the document fails",
+		)
 		return nil, nil
 	}
 

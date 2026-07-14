@@ -23,13 +23,19 @@ type DocumentChunkRepoer interface {
 	// text but no embedding yet, ordered by SequenceNumber. Used by
 	// EmbedChunksWorker; the filter also makes retries idempotent — a chunk
 	// already embedded is never returned again.
-	ListChunksNeedingEmbedding(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+	ListChunksNeedingEmbedding(
+		ctx context.Context,
+		documentID uuid.UUID,
+	) ([]model.DocumentChunk, error)
 
 	// ListChunksNeedingKnowledgeExtraction retrieves chunks for a document
 	// that have text but haven't had atomic-knowledge extraction run yet,
 	// ordered by SequenceNumber. Used by ExtractKnowledgeWorker; the filter
 	// also makes retries idempotent.
-	ListChunksNeedingKnowledgeExtraction(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+	ListChunksNeedingKnowledgeExtraction(
+		ctx context.Context,
+		documentID uuid.UUID,
+	) ([]model.DocumentChunk, error)
 
 	// CreateBatch inserts multiple fully-formed chunks in a single operation.
 	CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error

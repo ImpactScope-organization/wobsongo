@@ -145,7 +145,10 @@ func (c *ExtractionClient) Extract(
 		if err != nil {
 			log.Printf(
 				"[ExtractionClient] skipping fact with unrecognized truth_tier %q: subject=%q predicate=%q object=%q",
-				raw.TruthTier, raw.Subject, raw.Predicate, raw.Object,
+				raw.TruthTier,
+				raw.Subject,
+				raw.Predicate,
+				raw.Object,
 			)
 			continue
 		}

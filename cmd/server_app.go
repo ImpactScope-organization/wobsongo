@@ -21,13 +21,21 @@ func buildApp(
 	riverClient *river.Client[pgx.Tx],
 	mediaProvider data.MediaUploadProvider,
 ) *core.App {
+	queries := db.New(pool)
+
 	apifyRepo := repo.NewApifyRepo(riverClient)
+	videoRepo := repo.NewVideoRepo(
+		queries,
+		pool,
+		riverClient,
+	)
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 
 	return core.NewApp(
 		echo.New(),
 		config,
 		core.WithApifyRepo(apifyRepo),
+		core.WithVideoRepo(videoRepo),
 		core.WithDocumentRepo(documentRepo),
 		core.WithMediaProvider(mediaProvider),
 	)

@@ -19,11 +19,11 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
-// testEmbedding builds a document_chunks.embedding-dimension (1536) vector
+// testEmbedding builds a document_chunks.embedding-dimension (1024) vector
 // whose values are derived from seed, so distinct test vectors are easy to
-// tell apart in failure output without hardcoding 1536 literals per test.
+// tell apart in failure output without hardcoding 1024 literals per test.
 func testEmbedding(seed float32) []float32 {
-	vec := make([]float32, 1536)
+	vec := make([]float32, 1024)
 	for i := range vec {
 		vec[i] = seed
 	}

@@ -64,7 +64,21 @@ type EmbeddingConfig struct {
 	BaseURL string `json:"base_url"`
 	Model   string `json:"model"`
 	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+
+	// Provider selects which wire shape to speak. "openai" (default) is the
+	// generic OpenAI-compatible /v1/embeddings shape (external.EmbeddingClient).
+	// "modal-bge" is a custom shape used by some bespoke Modal deployments
+	// (see external.ModalBGEClient) — a single POST to BaseURL itself with
+	// {"texts": [...]}, not /v1/embeddings with {"model", "input"}.
+	Provider string `json:"provider"`
 }
+
+// EmbeddingProviderOpenAI and EmbeddingProviderModalBGE are the recognized
+// values for EmbeddingConfig.Provider.
+const (
+	EmbeddingProviderOpenAI   = "openai"
+	EmbeddingProviderModalBGE = "modal-bge"
+)
 
 // ExtractionConfig holds the configuration for the atomic-knowledge
 // extraction endpoint — a generic OpenAI-compatible text chat-completions
@@ -75,6 +89,12 @@ type ExtractionConfig struct {
 	BaseURL string `json:"base_url"`
 	Model   string `json:"model"`
 	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+	// Concurrency bounds how many chunks ExtractKnowledgeWorker extracts at
+	// once. There's no documented rate limit to size this against precisely
+	// for a given provider — defaults to a conservative 5 and is tunable via
+	// EXTRACTION_CONCURRENCY without a code change/redeploy, since the right
+	// number depends on the specific endpoint's actual tolerance.
+	Concurrency int `json:"concurrency"`
 }
 
 // EmailConfig groups transactional email configurations.
@@ -186,6 +206,12 @@ func IsEmbeddingOK(c *EmbeddingConfig) error {
 	}
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("EmbeddingConfig is incomplete")
+	}
+	if c.Provider != EmbeddingProviderOpenAI && c.Provider != EmbeddingProviderModalBGE {
+		return fmt.Errorf(
+			"EmbeddingConfig has unrecognized provider %q (expected %q or %q)",
+			c.Provider, EmbeddingProviderOpenAI, EmbeddingProviderModalBGE,
+		)
 	}
 	return nil
 }
@@ -477,10 +503,12 @@ func NewEmbeddingConfig(envs ...string) (*EmbeddingConfig, error) {
 	if model == "" {
 		return nil, errors.New("EMBEDDING_MODEL is not set")
 	}
+	provider := getEnv("EMBEDDING_PROVIDER", EmbeddingProviderOpenAI)
 	return &EmbeddingConfig{
-		BaseURL: baseURL,
-		Model:   model,
-		APIKey:  getEnv("EMBEDDING_API_KEY", ""),
+		BaseURL:  baseURL,
+		Model:    model,
+		APIKey:   getEnv("EMBEDDING_API_KEY", ""),
+		Provider: provider,
 	}, nil
 }
 
@@ -505,12 +533,21 @@ func NewExtractionConfig(envs ...string) (*ExtractionConfig, error) {
 	if model == "" {
 		return nil, errors.New("EXTRACTION_MODEL is not set")
 	}
+	concurrency, err := strconv.Atoi(getEnv("EXTRACTION_CONCURRENCY", ""))
+	if err != nil || concurrency <= 0 {
+		concurrency = defaultExtractionConcurrency
+	}
 	return &ExtractionConfig{
-		BaseURL: baseURL,
-		Model:   model,
-		APIKey:  getEnv("EXTRACTION_API_KEY", ""),
+		BaseURL:     baseURL,
+		Model:       model,
+		APIKey:      getEnv("EXTRACTION_API_KEY", ""),
+		Concurrency: concurrency,
 	}, nil
 }
+
+// defaultExtractionConcurrency is used when EXTRACTION_CONCURRENCY is unset
+// or invalid (non-numeric, zero, or negative).
+const defaultExtractionConcurrency = 5
 
 // NewEmailConfig creates a new EmailConfig from environment variables.
 func NewEmailConfig(envs ...string) (*EmailConfig, error) {

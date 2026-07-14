@@ -5,6 +5,7 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -76,11 +77,7 @@ var serveCmd = &cobra.Command{
 			os.Exit(1)
 			return
 		}
-		embeddingClient := external.NewEmbeddingClient(
-			config.EmbeddingConfig.BaseURL,
-			config.EmbeddingConfig.Model,
-			config.EmbeddingConfig.APIKey,
-		)
+		embeddingClient := newEmbeddingClient(config.EmbeddingConfig)
 
 		if err := internal.IsExtractionOK(config.ExtractionConfig); err != nil {
 			cmd.PrintErrf("Config error: %s\n", err.Error())
@@ -165,6 +162,7 @@ var serveCmd = &cobra.Command{
 			atomicKnowledgeRepo,
 			documentService,
 			extractionClient,
+			config.ExtractionConfig.Concurrency,
 		)
 		river.AddWorker(workers, extractKnowledgeWorker)
 
@@ -208,4 +206,15 @@ var serveCmd = &cobra.Command{
 			return
 		}
 	},
+}
+
+// newEmbeddingClient constructs the data.Embedder implementation matching
+// cfg.Provider — shared between cmd/server.go and cmd/healthcheck.go so both
+// exercise the exact same wire shape. Assumes internal.IsEmbeddingOK(cfg)
+// has already been checked (Provider is guaranteed recognized by that gate).
+func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
+	if cfg.Provider == internal.EmbeddingProviderModalBGE {
+		return external.NewModalBGEClient(cfg.BaseURL, cfg.APIKey)
+	}
+	return external.NewEmbeddingClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
 }

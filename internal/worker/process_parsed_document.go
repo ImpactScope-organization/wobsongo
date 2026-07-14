@@ -162,7 +162,14 @@ func (w *ProcessParsedDocumentWorker) Work(
 				UpdatedAt:      now,
 				DocumentID:     job.Args.DocumentID,
 				SequenceNumber: i,
-				ParsedChunk:    *c,
+				// Topics must be a non-nil empty slice, not the zero value: the
+				// batch insert below goes through Postgres's COPY protocol
+				// (sqlc :copyfrom), which sends every column's literal value —
+				// a nil slice encodes as SQL NULL over COPY and violates
+				// topics' NOT NULL constraint, since COPY never falls back to
+				// a column's DEFAULT the way a plain INSERT would.
+				Topics:      []string{},
+				ParsedChunk: *c,
 			}
 			ok, err := tx.ShouldBeStored(ctx, chunk)
 			if err != nil {

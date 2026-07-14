@@ -16,9 +16,11 @@ import (
 )
 
 // extractionMaxTokens bounds the LLM's response length for one chunk's
-// extracted facts. Generous relative to captionMaxTokens since a chunk can
-// yield several facts, each with its own subject/predicate/object/topics.
-const extractionMaxTokens = 1500
+// extracted facts. A chunk can yield dozens of facts (e.g. a personnel/
+// affiliation roster), each needing ~40-80 tokens of JSON — confirmed against
+// a real response that got cut off mid-fact at the previous 1500-token
+// budget, producing invalid truncated JSON on every retry.
+const extractionMaxTokens = 4000
 
 // ExtractionClient implements data.KnowledgeExtractor against a generic
 // OpenAI-compatible text chat-completions API — works unmodified against
@@ -33,6 +35,13 @@ type ExtractionClient struct {
 // Ensure ExtractionClient implements data.KnowledgeExtractor.
 var _ data.KnowledgeExtractor = (*ExtractionClient)(nil)
 
+// extractionHTTPTimeout bounds a single extraction call. Confirmed against a
+// real "Client.Timeout exceeded while awaiting headers" failure that the
+// previous 2-minute budget wasn't enough for a cloud-hosted LLM generating up
+// to extractionMaxTokens under variable load — must stay comfortably below
+// extractKnowledgePerChunkBudget (internal/worker/extract_knowledge.go).
+const extractionHTTPTimeout = 5 * time.Minute
+
 // NewExtractionClient creates a new ExtractionClient targeting the given
 // base URL/model. apiKey may be empty — self-hosted servers often need no auth.
 func NewExtractionClient(baseURL, model, apiKey string) *ExtractionClient {
@@ -41,7 +50,7 @@ func NewExtractionClient(baseURL, model, apiKey string) *ExtractionClient {
 		model:   model,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: 2 * time.Minute,
+			Timeout: extractionHTTPTimeout,
 		},
 	}
 }
@@ -127,6 +136,13 @@ func (c *ExtractionClient) Extract(
 	}
 	if len(parsed.Choices) == 0 {
 		return nil, fmt.Errorf("extraction response contained no choices: %s", respBytes)
+	}
+	if parsed.Choices[0].FinishReason == "length" {
+		return nil, fmt.Errorf(
+			"extraction response was truncated by max_tokens=%d before finishing — "+
+				"this chunk yields more facts than the budget allows",
+			extractionMaxTokens,
+		)
 	}
 
 	content := stripJSONCodeFence(parsed.Choices[0].Message.Content)

@@ -3,7 +3,9 @@ package worker
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -81,14 +83,21 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 
 	documentService := newDocumentServiceWithTitle("Company History")
 
+	// Chunks now extract concurrently (up to the worker's Concurrency), so
+	// these mock callbacks can be invoked from multiple goroutines at once.
+	var mu sync.Mutex
 	knowledgeRepo := newAtomicKnowledgeRepoWithTx()
 	var created []model.AtomicKnowledge
 	knowledgeRepo.CreateBatchFunc = func(_ context.Context, facts []model.AtomicKnowledge) error {
+		mu.Lock()
+		defer mu.Unlock()
 		created = append(created, facts...)
 		return nil
 	}
 	var markedChunkIDs []uuid.UUID
 	knowledgeRepo.MarkChunkKnowledgeExtractedFunc = func(_ context.Context, chunkID uuid.UUID) error {
+		mu.Lock()
+		defer mu.Unlock()
 		markedChunkIDs = append(markedChunkIDs, chunkID)
 		return nil
 	}
@@ -109,7 +118,7 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 		},
 	}
 
-	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, documentService, extractor)
+	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, documentService, extractor, 0)
 	job := newExtractJob(uuid.New())
 	if err := w.Work(t.Context(), job); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -124,8 +133,10 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 	if len(markedChunkIDs) != 2 {
 		t.Fatalf("expected both chunks marked extracted, got %d", len(markedChunkIDs))
 	}
-	if markedChunkIDs[0] != chunk1.ID || markedChunkIDs[1] != chunk2.ID {
-		t.Errorf("expected chunks marked in order [chunk1 chunk2], got %v", markedChunkIDs)
+	// Order isn't guaranteed: chunks extract concurrently.
+	markedSet := map[uuid.UUID]bool{markedChunkIDs[0]: true, markedChunkIDs[1]: true}
+	if !markedSet[chunk1.ID] || !markedSet[chunk2.ID] {
+		t.Errorf("expected both chunk1 and chunk2 marked extracted, got %v", markedChunkIDs)
 	}
 
 	embedJob, ok := enqueued.(queue.EmbedKnowledgeDTO)
@@ -137,6 +148,69 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 			"expected enqueued embed job DocumentID %s, got %s",
 			job.Args.DocumentID,
 			embedJob.DocumentID,
+		)
+	}
+}
+
+// TestExtractKnowledgeWorker_Work_MoreThanBatchSize_EnqueuesContinuation is a
+// regression check: a single job execution must not try to extract an
+// arbitrarily large backlog in one go (see extractKnowledgeBatchSize's
+// comment) — only extractKnowledgeBatchSize chunks are processed, and a
+// continuation ExtractKnowledgeDTO is enqueued for the rest instead of
+// EmbedKnowledgeDTO.
+func TestExtractKnowledgeWorker_Work_MoreThanBatchSize_EnqueuesContinuation(t *testing.T) {
+	chunks := make([]model.DocumentChunk, extractKnowledgeBatchSize+3)
+	for i := range chunks {
+		chunks[i] = model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}}
+	}
+
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return chunks, nil
+	}
+	var enqueued queue.BackgroundJob
+	chunkRepo.EnqueueFunc = func(_ context.Context, payload queue.BackgroundJob) error {
+		enqueued = payload
+		return nil
+	}
+
+	var mu sync.Mutex
+	var markedChunkIDs []uuid.UUID
+	knowledgeRepo := newAtomicKnowledgeRepoWithTx()
+	knowledgeRepo.CreateBatchFunc = func(context.Context, []model.AtomicKnowledge) error {
+		return nil
+	}
+	knowledgeRepo.MarkChunkKnowledgeExtractedFunc = func(_ context.Context, chunkID uuid.UUID) error {
+		mu.Lock()
+		defer mu.Unlock()
+		markedChunkIDs = append(markedChunkIDs, chunkID)
+		return nil
+	}
+
+	extractor := &stubExtractor{facts: nil}
+
+	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, newDocumentServiceWithTitle("Doc"), extractor, 0)
+	job := newExtractJob(uuid.New())
+	if err := w.Work(t.Context(), job); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(markedChunkIDs) != extractKnowledgeBatchSize {
+		t.Fatalf(
+			"expected exactly %d chunks marked extracted (batch cap), got %d",
+			extractKnowledgeBatchSize, len(markedChunkIDs),
+		)
+	}
+
+	continuation, ok := enqueued.(queue.ExtractKnowledgeDTO)
+	if !ok {
+		t.Fatalf("expected a queue.ExtractKnowledgeDTO continuation to be enqueued, got %T", enqueued)
+	}
+	if continuation.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected continuation DocumentID %s, got %s",
+			job.Args.DocumentID,
+			continuation.DocumentID,
 		)
 	}
 }
@@ -244,8 +318,70 @@ func TestExtractKnowledgeWorker_Work_DocumentServiceError(t *testing.T) {
 	extractor := &stubExtractor{}
 
 	documentService := newDocumentServiceWithGetByIDError(errors.New("db down"))
-	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, documentService, extractor)
+	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, documentService, extractor, 0)
 	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err == nil {
 		t.Fatal("expected an error when fetching the document fails")
+	}
+}
+
+// TestExtractKnowledgeWorker_Timeout_ScalesWithPendingChunkCount is a
+// regression check: a real job kept dying with "context deadline exceeded"
+// partway through a large document under the previous flat 15-minute
+// timeout — a document with enough text-bearing chunks always eventually
+// exceeds any fixed budget. Timeout() must scale with the live pending-chunk
+// count instead, divided into concurrent rounds (extractKnowledgeConcurrency
+// chunks extract at once, not strictly one at a time).
+func TestExtractKnowledgeWorker_Timeout_ScalesWithPendingChunkCount(t *testing.T) {
+	// Deliberately not a multiple of the concurrency limit, so the
+	// ceiling-division rounding is actually exercised.
+	const concurrency = 4
+	chunks := make([]model.DocumentChunk, concurrency*2+2)
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return chunks, nil
+	}
+
+	w := NewExtractKnowledgeWorker(
+		chunkRepo, newAtomicKnowledgeRepoWithTx(), newDocumentServiceWithTitle("Doc"), &stubExtractor{}, concurrency,
+	)
+	got := w.Timeout(newExtractJob(uuid.New()))
+	wantRounds := 3 // ceil((2*concurrency + 2) / concurrency)
+	want := extractKnowledgeFixedOverhead + time.Duration(wantRounds)*extractKnowledgePerChunkBudget
+	if got != want {
+		t.Errorf("expected timeout %v for %d pending chunks, got %v", want, len(chunks), got)
+	}
+}
+
+// TestExtractKnowledgeWorker_Concurrency_FallsBackToDefault confirms an
+// unset/invalid Concurrency (<=0) resolves to extractKnowledgeDefaultConcurrency.
+func TestExtractKnowledgeWorker_Concurrency_FallsBackToDefault(t *testing.T) {
+	chunks := make([]model.DocumentChunk, extractKnowledgeDefaultConcurrency*2+2)
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return chunks, nil
+	}
+
+	w := NewExtractKnowledgeWorker(chunkRepo, newAtomicKnowledgeRepoWithTx(), newDocumentServiceWithTitle("Doc"), &stubExtractor{}, 0)
+	got := w.Timeout(newExtractJob(uuid.New()))
+	wantRounds := 3 // ceil((2*default + 2) / default)
+	want := extractKnowledgeFixedOverhead + time.Duration(wantRounds)*extractKnowledgePerChunkBudget
+	if got != want {
+		t.Errorf("expected timeout %v assuming default concurrency %d, got %v", want, extractKnowledgeDefaultConcurrency, got)
+	}
+}
+
+// TestExtractKnowledgeWorker_Timeout_FallsBackOnQueryError confirms a failure
+// in the sizing query itself degrades to a safe, generous fallback rather
+// than an unusably small or zero timeout.
+func TestExtractKnowledgeWorker_Timeout_FallsBackOnQueryError(t *testing.T) {
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return nil, errors.New("db down")
+	}
+
+	w := NewExtractKnowledgeWorker(chunkRepo, newAtomicKnowledgeRepoWithTx(), newDocumentServiceWithTitle("Doc"), &stubExtractor{}, 0)
+	got := w.Timeout(newExtractJob(uuid.New()))
+	if got != extractKnowledgeFallbackTimeout {
+		t.Errorf("expected fallback timeout %v, got %v", extractKnowledgeFallbackTimeout, got)
 	}
 }

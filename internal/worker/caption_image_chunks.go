@@ -16,10 +16,27 @@ import (
 	"github.com/riverqueue/river"
 )
 
-// captionImageChunksTimeout bounds how long the worker waits across all of
-// a job's images. Generous relative to a single VLM call since a document
-// can carry many images and calls run sequentially.
-const captionImageChunksTimeout = 10 * time.Minute
+// captionPerChunkBudget bounds how long a single chunk gets within the job's
+// overall timeout — margin over VLMClient's own per-call HTTP timeout (5
+// minutes, external/vlm_client.go's vlmHTTPTimeout) to also cover that
+// chunk's S3 fetch and DB update. Chunks are captioned sequentially (no
+// concurrency here — VLM calls aren't parallelized the way extraction's are).
+const captionPerChunkBudget = 6 * time.Minute
+
+// captionImageChunksFixedOverhead covers the job's work outside the per-chunk
+// loop: fetching the document and its chunk list up front, plus the two
+// enqueue calls at the end.
+const captionImageChunksFixedOverhead = 1 * time.Minute
+
+// captionBatchSize caps how many chunks a single job execution captions
+// before re-enqueueing a continuation job (with only the still-pending
+// chunk IDs) for the rest — see extractKnowledgeBatchSize in
+// extract_knowledge.go for the full reasoning (River's JobRescuer
+// force-retries any job after a flat, client-wide duration, 1 hour by
+// default, regardless of a worker's own Timeout()). At this batch size,
+// Timeout() caps around 37 minutes (captionImageChunksFixedOverhead +
+// captionBatchSize*captionPerChunkBudget), comfortably under that default.
+const captionBatchSize = 6
 
 // extensionContentTypes recovers an image's content type from its stored S3
 // key's extension — the reverse of imageContentTypeExtensions
@@ -85,9 +102,13 @@ func NewCaptionImageChunksWorker(
 	}
 }
 
-// Timeout overrides River's default job timeout.
-func (w *CaptionImageChunksWorker) Timeout(*river.Job[queue.CaptionImageChunksDTO]) time.Duration {
-	return captionImageChunksTimeout
+// Timeout overrides River's default job timeout, scaled to the number of
+// image chunks this execution will actually attempt (bounded by
+// captionBatchSize, never the full job.Args.ChunkIDs list — see that
+// constant's comment for why).
+func (w *CaptionImageChunksWorker) Timeout(job *river.Job[queue.CaptionImageChunksDTO]) time.Duration {
+	n := min(len(job.Args.ChunkIDs), captionBatchSize)
+	return captionImageChunksFixedOverhead + time.Duration(n)*captionPerChunkBudget
 }
 
 // Work is the main method that gets called when a job is dequeued.
@@ -109,18 +130,30 @@ func (w *CaptionImageChunksWorker) Work(
 		)
 	}
 
+	// Resolve still-pending (not yet captioned) chunk IDs, preserving order —
+	// a prior attempt or batch may have already captioned some of
+	// job.Args.ChunkIDs.
+	pending := make([]uuid.UUID, 0, len(job.Args.ChunkIDs))
 	for _, chunkID := range job.Args.ChunkIDs {
 		idx := indexOfChunk(chunks, chunkID)
 		if idx < 0 {
 			return fmt.Errorf("chunk %s not found for document %s", chunkID, job.Args.DocumentID)
 		}
-		chunk := &chunks[idx]
-
-		if chunk.Text != "" {
-			// Already captioned — a prior attempt at this job got this far
-			// before failing on a later chunk; don't re-pay for the VLM call.
-			continue
+		if chunks[idx].Text == "" {
+			pending = append(pending, chunkID)
 		}
+	}
+
+	// Cap this execution to captionBatchSize chunks — see that constant's
+	// comment. Whatever's left gets a continuation job below.
+	moreRemaining := len(pending) > captionBatchSize
+	batch := pending
+	if moreRemaining {
+		batch = pending[:captionBatchSize]
+	}
+
+	for _, chunkID := range batch {
+		chunk := &chunks[indexOfChunk(chunks, chunkID)]
 
 		rc, err := w.RawStore.GetObject(ctx, chunk.AssetURL)
 		if err != nil {
@@ -148,6 +181,18 @@ func (w *CaptionImageChunksWorker) Work(
 		if err := w.ChunkRepo.Update(ctx, chunk); err != nil {
 			return fmt.Errorf("failed to save caption for chunk %s: %w", chunkID, err)
 		}
+	}
+
+	if moreRemaining {
+		// More chunks remain beyond this batch — re-enqueue with just the
+		// still-pending IDs rather than assuming this document is done.
+		if err := w.ChunkRepo.Enqueue(ctx, queue.CaptionImageChunksDTO{
+			DocumentID: job.Args.DocumentID,
+			ChunkIDs:   pending[captionBatchSize:],
+		}); err != nil {
+			return fmt.Errorf("failed to enqueue captioning continuation: %w", err)
+		}
+		return nil
 	}
 
 	// Every image chunk for this document now has final text (captioned here

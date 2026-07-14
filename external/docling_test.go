@@ -2,6 +2,7 @@ package external_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,24 +18,28 @@ const cannedDoclingResponse = `{
 		"json_content": {
 			"name": "sample.pdf",
 			"texts": [
-				{"text": "Sample Guideline", "label": "title", "prov": [{"page_no": 1, "bbox": [0, 0, 10, 10]}]},
-				{"text": "Page 1 of 5", "label": "page_footer", "prov": [{"page_no": 1, "bbox": [0, 0, 1, 1]}]},
-				{"text": "Some body text.", "label": "paragraph", "prov": [{"page_no": 2, "bbox": [1, 2, 3, 4]}]}
+				{"text": "Sample Guideline", "label": "title", "prov": [{"page_no": 1, "bbox": {"l": 0, "t": 0, "r": 10, "b": 10}}]},
+				{"text": "Page 1 of 5", "label": "page_footer", "prov": [{"page_no": 1, "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}}]},
+				{"text": "Some body text.", "label": "paragraph", "prov": [{"page_no": 2, "bbox": {"l": 1, "t": 2, "r": 3, "b": 4}}]}
 			],
 			"tables": [
-				{"label": "table", "prov": [{"page_no": 3, "bbox": [0, 0, 5, 5]}]}
+				{"label": "table", "prov": [{"page_no": 3, "bbox": {"l": 0, "t": 0, "r": 5, "b": 5}}]}
 			],
 			"pictures": [
-				{"label": "picture", "prov": [{"page_no": 4, "bbox": [0, 0, 2, 2]}], "image": {"uri": "data:image/png;base64,aGk="}}
+				{"label": "picture", "prov": [{"page_no": 4, "bbox": {"l": 0, "t": 0, "r": 2, "b": 2}}], "image": {"uri": "data:image/png;base64,aGk="}}
 			]
 		}
 	}
 }`
 
 func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
+	var gotBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/convert/source" {
 			t.Errorf("expected path /v1/convert/source, got %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -50,6 +55,30 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), "sample.pdf") {
 		t.Fatalf("expected raw response to contain the canned body, got: %s", raw)
+	}
+
+	// Regression check: on docling-serve v1.18.0, include_images/
+	// include_page_images weren't independent controls — image_export_mode
+	// alone decided whether picture crops or full-page renders came back, and
+	// "embedded" could only ever produce the latter (confirmed against real
+	// responses: every picture came back null, and "pages" carried ~193MB of
+	// unread full-page renders). Fixed upstream in docling-serve v1.22.1+;
+	// this deployment is now on v1.26.0, where these are correctly independent.
+	options, ok := gotBody["options"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected an options object in the request body, got: %v", gotBody)
+	}
+	if includeImages, _ := options["include_images"].(bool); !includeImages {
+		t.Errorf("expected include_images=true in the request, got: %v", options["include_images"])
+	}
+	if includePageImages, ok := options["include_page_images"].(bool); !ok || includePageImages {
+		t.Errorf("expected include_page_images=false in the request, got: %v", options["include_page_images"])
+	}
+	// Regression check: TableFormer's "accurate" mode is markedly slower than
+	// "fast" and buys nothing today — doclingTableItem doesn't map table
+	// cell/grid data yet, so the extra precision goes unused.
+	if tableMode, _ := options["table_mode"].(string); tableMode != "fast" {
+		t.Errorf("expected table_mode=fast in the request, got: %v", options["table_mode"])
 	}
 
 	result, err := external.ParseRaw(raw)
@@ -112,7 +141,7 @@ func TestParseRaw_MalformedImageDoesNotFailParse(t *testing.T) {
 			"json_content": {
 				"name": "sample.pdf",
 				"pictures": [
-					{"label": "picture", "prov": [{"page_no": 1, "bbox": [0, 0, 1, 1]}], "image": {"uri": "not-a-data-uri"}}
+					{"label": "picture", "prov": [{"page_no": 1, "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}}], "image": {"uri": "not-a-data-uri"}}
 				]
 			}
 		}

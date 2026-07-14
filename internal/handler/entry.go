@@ -54,7 +54,7 @@ func NewHandlers(repos *Repos) *Handlers {
 		repos.ApifyRepo,
 		videoService,
 		http.DefaultClient,
-		config.ApifyToken,
+		config.ApifyConfig.Token,
 	)
 	apifyHandler := NewApifyHandler(apifyService)
 

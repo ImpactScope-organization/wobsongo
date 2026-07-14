@@ -13,13 +13,13 @@ func (ExtractMediaDTO) Kind() string {
 	return string(JobTypeExtractMedia)
 }
 
-// TranscriptionJobDTO is the river job kind for transcribing downloaded media via Modal.
-type TranscriptionJobDTO struct {
+// TranscriptionJob is the river job kind for transcribing downloaded media via Modal.
+type TranscriptionJob struct {
 	VideoID     uuid.UUID `json:"video_id"`
 	DownloadURL string    `json:"download_url"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (TranscriptionJobDTO) Kind() string {
+func (TranscriptionJob) Kind() string {
 	return string(JobTypeTranscribeVideo)
 }

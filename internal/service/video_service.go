@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type VideoService struct {
@@ -43,12 +45,12 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 
 		videoData := &model.Video{
 			VideoURL:         item.SubmittedVideoURL,
-			AuthorUsername:   item.AuthorMeta.Name,
-			AuthorProfileURL: item.AuthorMeta.ProfileURL,
+			AuthorUsername:   item.AuthorMetadata.Name,
+			AuthorProfileURL: item.AuthorMetadata.ProfileURL,
 			Caption:          item.Text,
 			PlayCount:        item.PlayCount,
 			LikeCount:        item.DiggCount,
-			ThumbnailURL:     item.VideoMeta.CoverUrl,
+			ThumbnailURL:     item.VideoMetadata.CoverUrl,
 			LocationCreated:  item.LocationCreated,
 			VideoCreatedAt:   item.CreateTimeISO,
 			VideoType:        "tiktok",
@@ -64,7 +66,7 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 
 			// Enqueue a transcription job if a media download URL is available.
 			if len(item.MediaUrls) > 0 {
-				payload := queue.TranscriptionJobDTO{
+				payload := queue.TranscriptionJob{
 					VideoID:     videoData.ID,
 					DownloadURL: item.MediaUrls[0],
 				}
@@ -89,4 +91,13 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 	}
 
 	return errors.Join(errs...)
+}
+
+// UpdateVideoTranscription updates the transcription text for a video by its ID.
+func (s *VideoService) UpdateVideoTranscription(
+	ctx context.Context,
+	text pgtype.Text,
+	id uuid.UUID,
+) error {
+	return s.videoRepo.UpdateVideoTranscription(ctx, text, id)
 }

@@ -19,14 +19,10 @@ const (
 	apifyStatusSucceeded   = "SUCCEEDED"
 )
 
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 type ApifyService struct {
 	apifyRepo    data.ApifyRepoer
 	videoService *VideoService
-	httpClient   HTTPClient
+	httpClient   data.HTTPClient
 	apifyToken   string
 }
 
@@ -34,7 +30,7 @@ type ApifyService struct {
 func NewApifyService(
 	apifyRepo data.ApifyRepoer,
 	videoService *VideoService,
-	httpClient HTTPClient,
+	httpClient data.HTTPClient,
 	apifyToken string,
 ) *ApifyService {
 	return &ApifyService{

@@ -15,7 +15,7 @@ type VideoRepoer interface {
 	CreateVideos(ctx context.Context, video *model.Video) error
 
 	// EnqueueTranscriptionJob adds a new transcription job to the River queue.
-	EnqueueTranscriptionJob(ctx context.Context, payload queue.TranscriptionJobDTO) error
+	EnqueueTranscriptionJob(ctx context.Context, payload queue.TranscriptionJob) error
 
 	// UpdateVideoTranscription updates row in the video table with the transcription result.
 	UpdateVideoTranscription(ctx context.Context, text pgtype.Text, id uuid.UUID) error

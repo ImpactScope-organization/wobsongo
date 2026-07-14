@@ -22,27 +22,27 @@ const transcriptionJobTimeout = 5 * time.Minute
 // TranscriptionWorker processes transcription jobs by sending media URLs to the
 // Modal ASR service and storing the resulting transcript in the database.
 type TranscriptionWorker struct {
-	river.WorkerDefaults[queue.TranscriptionJobDTO]
-	videoRepo  data.VideoRepoer
-	modalURL   string
-	httpClient service.HTTPClient
+	river.WorkerDefaults[queue.TranscriptionJob]
+	videoService *service.VideoService
+	modalURL     string
+	httpClient   data.HTTPClient
 }
 
 // NewTranscriptionWorker creates a new TranscriptionWorker instance.
 func NewTranscriptionWorker(
-	videoRepo data.VideoRepoer,
+	videoService *service.VideoService,
 	modalURL string,
 ) *TranscriptionWorker {
 	return &TranscriptionWorker{
-		videoRepo: videoRepo,
-		modalURL:  modalURL,
+		videoService: videoService,
+		modalURL:     modalURL,
 		httpClient: &http.Client{
 			Timeout: transcriptionJobTimeout,
 		},
 	}
 }
 
-func (w *TranscriptionWorker) Timeout(_ *river.Job[queue.TranscriptionJobDTO]) time.Duration {
+func (w *TranscriptionWorker) Timeout(_ *river.Job[queue.TranscriptionJob]) time.Duration {
 	return transcriptionJobTimeout
 }
 
@@ -50,7 +50,7 @@ func (w *TranscriptionWorker) Timeout(_ *river.Job[queue.TranscriptionJobDTO]) t
 // persisting the transcription result.
 func (w *TranscriptionWorker) Work(
 	ctx context.Context,
-	job *river.Job[queue.TranscriptionJobDTO],
+	job *river.Job[queue.TranscriptionJob],
 ) error {
 	log.Printf("[TranscriptionWorker] Starting transcription for VideoID: %s", job.Args.VideoID)
 
@@ -113,7 +113,7 @@ func (w *TranscriptionWorker) Work(
 	}
 
 	// Persist the transcription result.
-	err = w.videoRepo.UpdateVideoTranscription(ctx, dbText, job.Args.VideoID)
+	err = w.videoService.UpdateVideoTranscription(ctx, dbText, job.Args.VideoID)
 	if err != nil {
 		return fmt.Errorf("failed to save transcription to db: %w", err)
 	}

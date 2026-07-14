@@ -116,7 +116,7 @@ func (r *videoRepo) CreateVideos(ctx context.Context, v *model.Video) error {
 // EnqueueTranscriptionJob adds a new transcription job to the River queue.
 func (r *videoRepo) EnqueueTranscriptionJob(
 	ctx context.Context,
-	payload queue.TranscriptionJobDTO,
+	payload queue.TranscriptionJob,
 ) error {
 	if r.tx != nil {
 		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, nil)

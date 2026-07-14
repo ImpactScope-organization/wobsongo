@@ -38,9 +38,9 @@ var serveCmd = &cobra.Command{
 		defer pool.Close()
 
 		apifyDispatcher := external.NewDispatcher(
-			config.ApifyToken,
-			config.ApifyTikTokActorID,
-			config.ApifyIGActorID,
+			config.ApifyConfig.Token,
+			config.ApifyConfig.TikTokActorID,
+			config.ApifyConfig.IGActorID,
 		)
 
 		// The media provider is constructed here (not inside buildApp) so it
@@ -115,6 +115,7 @@ var serveCmd = &cobra.Command{
 		atomicKnowledgeRepo := repo.NewAtomicKnowledgeRepo(db.New(pool), pool)
 
 		workerVideoRepo := repo.NewVideoRepo(db.New(pool), pool, nil)
+		workerVideoService := service.NewVideoService(workerVideoRepo)
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -123,8 +124,8 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, mediaWorker)
 
 		transcriptionWorker := worker.NewTranscriptionWorker(
-			workerVideoRepo,
-			config.ModalASREndpoint,
+			workerVideoService,
+			config.ASRConfig.Endpoint,
 		)
 		river.AddWorker(workers, transcriptionWorker)
 

@@ -12,6 +12,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/testhelpers"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 )
 
@@ -272,4 +273,221 @@ func TestAtomicKnowledgeRepo_UpdateEmbedding_PersistsAndRoundTrips(t *testing.T)
 			break
 		}
 	}
+}
+
+// setupSearchTestFixtures creates a document + a single parent chunk, real-
+// committed (not testhelpers.WithTxRollback — the three SearchBy* methods
+// query via r.pool directly with raw SQL, not the tx-scoped db.Queries, so
+// rows inserted inside a rolled-back transaction on a different connection
+// would never be visible to them; same reasoning as TestAtomicKnowledgeRepo_WithTx).
+// Registers cleanup to delete the document (cascades to chunks/facts).
+func setupSearchTestFixtures(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	q *db.Queries,
+) (ctx context.Context, chunkID uuid.UUID) {
+	t.Helper()
+	ctx = t.Context()
+
+	documentRepo := repo.NewDocumentRepo(q, pool, nil)
+	doc := newTestDocument(uuid.NewString())
+	if err := documentRepo.Create(ctx, doc); err != nil {
+		t.Fatalf("unexpected error creating parent document: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "delete from documents where id = $1", doc.ID)
+	})
+
+	chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+	chunk := newTestDocumentChunk(doc.ID, 0)
+	if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{chunk}); err != nil {
+		t.Fatalf("unexpected error creating parent chunk: %v", err)
+	}
+	return ctx, chunk.ID
+}
+
+func TestAtomicKnowledgeRepo_SearchByEmbedding_OrdersByDistanceAndExcludesCurated(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, q := testhelpers.SetupTestDB(t)
+	t.Cleanup(func() { pool.Close() })
+	ctx, chunkID := setupSearchTestFixtures(t, pool, q)
+
+	docID, err := documentIDForChunk(ctx, pool, chunkID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
+	near := newTestAtomicKnowledge(docID, chunkID)
+	far := newTestAtomicKnowledge(docID, chunkID)
+	invalid := newTestAtomicKnowledge(docID, chunkID)
+	invalid.MarkedAsInvalid = true
+	if err := knowledgeRepo.CreateBatch(
+		ctx,
+		[]model.AtomicKnowledge{near, far, invalid},
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nearVec := testDirectionalEmbedding(0)
+	farVec := testDirectionalEmbedding(500)
+	for id, vec := range map[uuid.UUID][]float32{
+		near.ID: nearVec, far.ID: farVec, invalid.ID: nearVec,
+	} {
+		if err := knowledgeRepo.UpdateEmbedding(ctx, id, vec); err != nil {
+			t.Fatalf("unexpected error embedding fact: %v", err)
+		}
+	}
+
+	// See TestDocumentChunkRepo_SearchByEmbedding_OrdersByDistance for why a
+	// generous limit + presence/relative-order assertions are used instead
+	// of an exact result count: this DB may carry real facts from unrelated
+	// documents.
+	results, err := knowledgeRepo.SearchByEmbedding(ctx, nearVec, 1000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nearIdx, farIdx := -1, -1
+	for i, r := range results {
+		switch r.Item.ID {
+		case near.ID:
+			nearIdx = i
+		case far.ID:
+			farIdx = i
+		case invalid.ID:
+			t.Errorf("expected the marked-invalid fact to be excluded from results")
+		}
+	}
+	if nearIdx == -1 {
+		t.Fatalf("expected the near fact to appear in results")
+	}
+	if farIdx == -1 {
+		t.Fatalf("expected the far fact to appear in results")
+	}
+	if nearIdx >= farIdx {
+		t.Errorf("expected near fact (rank %d) to outrank far fact (rank %d)", nearIdx, farIdx)
+	}
+}
+
+func TestAtomicKnowledgeRepo_SearchByFullText_MatchesAndExcludesCurated(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, q := testhelpers.SetupTestDB(t)
+	t.Cleanup(func() { pool.Close() })
+	ctx, chunkID := setupSearchTestFixtures(t, pool, q)
+
+	docID, err := documentIDForChunk(ctx, pool, chunkID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
+	relevant := newTestAtomicKnowledge(docID, chunkID)
+	relevant.Subject = "quokka"
+	relevant.Predicate = "inhabits"
+	relevant.Object = "Rottnest Island"
+	irrelevant := newTestAtomicKnowledge(docID, chunkID)
+	irrelevant.Subject = "Alice"
+	irrelevant.Predicate = "founded"
+	irrelevant.Object = "Acme Corp"
+	irrelevant.Note = "unrelated fact"
+	irrelevantFlagged := newTestAtomicKnowledge(docID, chunkID)
+	irrelevantFlagged.Subject = "quokka"
+	irrelevantFlagged.Predicate = "inhabits"
+	irrelevantFlagged.Object = "Rottnest Island"
+	irrelevantFlagged.MarkedAsIrrelevant = true
+	if err := knowledgeRepo.CreateBatch(
+		ctx,
+		[]model.AtomicKnowledge{relevant, irrelevant, irrelevantFlagged},
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	results, err := knowledgeRepo.SearchByFullText(ctx, "quokka Rottnest", 1000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var sawRelevant bool
+	for _, r := range results {
+		switch r.Item.ID {
+		case relevant.ID:
+			sawRelevant = true
+		case irrelevant.ID:
+			t.Errorf("expected the unrelated fact not to match \"quokka Rottnest\"")
+		case irrelevantFlagged.ID:
+			t.Errorf("expected the marked-irrelevant fact to be excluded from results")
+		}
+	}
+	if !sawRelevant {
+		t.Fatalf("expected the quokka fact to appear in results")
+	}
+}
+
+func TestAtomicKnowledgeRepo_SearchBySimilarity_MatchesAndExcludesCurated(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, q := testhelpers.SetupTestDB(t)
+	t.Cleanup(func() { pool.Close() })
+	ctx, chunkID := setupSearchTestFixtures(t, pool, q)
+
+	docID, err := documentIDForChunk(ctx, pool, chunkID)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	knowledgeRepo := repo.NewAtomicKnowledgeRepo(q, pool)
+	similar := newTestAtomicKnowledge(docID, chunkID)
+	similar.Subject = "platypus"
+	dissimilar := newTestAtomicKnowledge(docID, chunkID)
+	dissimilar.Subject = "spreadsheet formula"
+	invalidButSimilar := newTestAtomicKnowledge(docID, chunkID)
+	invalidButSimilar.Subject = "platypus"
+	invalidButSimilar.MarkedAsInvalid = true
+	if err := knowledgeRepo.CreateBatch(
+		ctx,
+		[]model.AtomicKnowledge{similar, dissimilar, invalidButSimilar},
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// "platypuss" is a one-character typo of "platypus" — trigram-similar
+	// enough to match via pg_trgm's % operator without being an exact match.
+	results, err := knowledgeRepo.SearchBySimilarity(ctx, "platypuss", 1000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var sawSimilar bool
+	for _, r := range results {
+		switch r.Item.ID {
+		case similar.ID:
+			sawSimilar = true
+		case dissimilar.ID:
+			t.Errorf("expected the dissimilar fact not to trigram-match \"platypuss\"")
+		case invalidButSimilar.ID:
+			t.Errorf("expected the marked-invalid fact to be excluded from results")
+		}
+	}
+	if !sawSimilar {
+		t.Fatalf("expected the platypus fact to appear in results")
+	}
+}
+
+// documentIDForChunk looks up a chunk's parent document ID directly — the
+// test fixtures need it to build model.AtomicKnowledge values, and
+// data.DocumentChunkRepoer has no narrower way to fetch just that.
+func documentIDForChunk(ctx context.Context, pool *pgxpool.Pool, chunkID uuid.UUID) (uuid.UUID, error) {
+	var documentID uuid.UUID
+	err := pool.QueryRow(
+		ctx,
+		"select document_id from document_chunks where id = $1",
+		chunkID,
+	).Scan(&documentID)
+	return documentID, err
 }

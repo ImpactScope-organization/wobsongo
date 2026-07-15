@@ -24,11 +24,23 @@ var _ data.AtomicKnowledgeRepoer = &AtomicKnowledgeRepoerMock{}
 //			CreateBatchFunc: func(ctx context.Context, knowledge []model.AtomicKnowledge) error {
 //				panic("mock out the CreateBatch method")
 //			},
+//			GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.AtomicKnowledge, error) {
+//				panic("mock out the GetByID method")
+//			},
 //			ListNeedingEmbeddingFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error) {
 //				panic("mock out the ListNeedingEmbedding method")
 //			},
 //			MarkChunkKnowledgeExtractedFunc: func(ctx context.Context, chunkID uuid.UUID) error {
 //				panic("mock out the MarkChunkKnowledgeExtracted method")
+//			},
+//			SearchByEmbeddingFunc: func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+//				panic("mock out the SearchByEmbedding method")
+//			},
+//			SearchByFullTextFunc: func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+//				panic("mock out the SearchByFullText method")
+//			},
+//			SearchBySimilarityFunc: func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+//				panic("mock out the SearchBySimilarity method")
 //			},
 //			UpdateEmbeddingFunc: func(ctx context.Context, id uuid.UUID, embedding []float32) error {
 //				panic("mock out the UpdateEmbedding method")
@@ -46,11 +58,23 @@ type AtomicKnowledgeRepoerMock struct {
 	// CreateBatchFunc mocks the CreateBatch method.
 	CreateBatchFunc func(ctx context.Context, knowledge []model.AtomicKnowledge) error
 
+	// GetByIDFunc mocks the GetByID method.
+	GetByIDFunc func(ctx context.Context, id uuid.UUID) (*model.AtomicKnowledge, error)
+
 	// ListNeedingEmbeddingFunc mocks the ListNeedingEmbedding method.
 	ListNeedingEmbeddingFunc func(ctx context.Context, documentID uuid.UUID) ([]model.AtomicKnowledge, error)
 
 	// MarkChunkKnowledgeExtractedFunc mocks the MarkChunkKnowledgeExtracted method.
 	MarkChunkKnowledgeExtractedFunc func(ctx context.Context, chunkID uuid.UUID) error
+
+	// SearchByEmbeddingFunc mocks the SearchByEmbedding method.
+	SearchByEmbeddingFunc func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error)
+
+	// SearchByFullTextFunc mocks the SearchByFullText method.
+	SearchByFullTextFunc func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error)
+
+	// SearchBySimilarityFunc mocks the SearchBySimilarity method.
+	SearchBySimilarityFunc func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error)
 
 	// UpdateEmbeddingFunc mocks the UpdateEmbedding method.
 	UpdateEmbeddingFunc func(ctx context.Context, id uuid.UUID, embedding []float32) error
@@ -67,6 +91,13 @@ type AtomicKnowledgeRepoerMock struct {
 			// Knowledge is the knowledge argument value.
 			Knowledge []model.AtomicKnowledge
 		}
+		// GetByID holds details about calls to the GetByID method.
+		GetByID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
 		// ListNeedingEmbedding holds details about calls to the ListNeedingEmbedding method.
 		ListNeedingEmbedding []struct {
 			// Ctx is the ctx argument value.
@@ -80,6 +111,33 @@ type AtomicKnowledgeRepoerMock struct {
 			Ctx context.Context
 			// ChunkID is the chunkID argument value.
 			ChunkID uuid.UUID
+		}
+		// SearchByEmbedding holds details about calls to the SearchByEmbedding method.
+		SearchByEmbedding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// QueryVector is the queryVector argument value.
+			QueryVector []float32
+			// Limit is the limit argument value.
+			Limit int
+		}
+		// SearchByFullText holds details about calls to the SearchByFullText method.
+		SearchByFullText []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Query is the query argument value.
+			Query string
+			// Limit is the limit argument value.
+			Limit int
+		}
+		// SearchBySimilarity holds details about calls to the SearchBySimilarity method.
+		SearchBySimilarity []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Query is the query argument value.
+			Query string
+			// Limit is the limit argument value.
+			Limit int
 		}
 		// UpdateEmbedding holds details about calls to the UpdateEmbedding method.
 		UpdateEmbedding []struct {
@@ -99,8 +157,12 @@ type AtomicKnowledgeRepoerMock struct {
 		}
 	}
 	lockCreateBatch                 sync.RWMutex
+	lockGetByID                     sync.RWMutex
 	lockListNeedingEmbedding        sync.RWMutex
 	lockMarkChunkKnowledgeExtracted sync.RWMutex
+	lockSearchByEmbedding           sync.RWMutex
+	lockSearchByFullText            sync.RWMutex
+	lockSearchBySimilarity          sync.RWMutex
 	lockUpdateEmbedding             sync.RWMutex
 	lockWithTx                      sync.RWMutex
 }
@@ -138,6 +200,42 @@ func (mock *AtomicKnowledgeRepoerMock) CreateBatchCalls() []struct {
 	mock.lockCreateBatch.RLock()
 	calls = mock.calls.CreateBatch
 	mock.lockCreateBatch.RUnlock()
+	return calls
+}
+
+// GetByID calls GetByIDFunc.
+func (mock *AtomicKnowledgeRepoerMock) GetByID(ctx context.Context, id uuid.UUID) (*model.AtomicKnowledge, error) {
+	if mock.GetByIDFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.GetByIDFunc: method is nil but AtomicKnowledgeRepoer.GetByID was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}{
+		Ctx: ctx,
+		ID:  id,
+	}
+	mock.lockGetByID.Lock()
+	mock.calls.GetByID = append(mock.calls.GetByID, callInfo)
+	mock.lockGetByID.Unlock()
+	return mock.GetByIDFunc(ctx, id)
+}
+
+// GetByIDCalls gets all the calls that were made to GetByID.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.GetByIDCalls())
+func (mock *AtomicKnowledgeRepoerMock) GetByIDCalls() []struct {
+	Ctx context.Context
+	ID  uuid.UUID
+} {
+	var calls []struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}
+	mock.lockGetByID.RLock()
+	calls = mock.calls.GetByID
+	mock.lockGetByID.RUnlock()
 	return calls
 }
 
@@ -210,6 +308,126 @@ func (mock *AtomicKnowledgeRepoerMock) MarkChunkKnowledgeExtractedCalls() []stru
 	mock.lockMarkChunkKnowledgeExtracted.RLock()
 	calls = mock.calls.MarkChunkKnowledgeExtracted
 	mock.lockMarkChunkKnowledgeExtracted.RUnlock()
+	return calls
+}
+
+// SearchByEmbedding calls SearchByEmbeddingFunc.
+func (mock *AtomicKnowledgeRepoerMock) SearchByEmbedding(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	if mock.SearchByEmbeddingFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.SearchByEmbeddingFunc: method is nil but AtomicKnowledgeRepoer.SearchByEmbedding was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		QueryVector []float32
+		Limit       int
+	}{
+		Ctx:         ctx,
+		QueryVector: queryVector,
+		Limit:       limit,
+	}
+	mock.lockSearchByEmbedding.Lock()
+	mock.calls.SearchByEmbedding = append(mock.calls.SearchByEmbedding, callInfo)
+	mock.lockSearchByEmbedding.Unlock()
+	return mock.SearchByEmbeddingFunc(ctx, queryVector, limit)
+}
+
+// SearchByEmbeddingCalls gets all the calls that were made to SearchByEmbedding.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.SearchByEmbeddingCalls())
+func (mock *AtomicKnowledgeRepoerMock) SearchByEmbeddingCalls() []struct {
+	Ctx         context.Context
+	QueryVector []float32
+	Limit       int
+} {
+	var calls []struct {
+		Ctx         context.Context
+		QueryVector []float32
+		Limit       int
+	}
+	mock.lockSearchByEmbedding.RLock()
+	calls = mock.calls.SearchByEmbedding
+	mock.lockSearchByEmbedding.RUnlock()
+	return calls
+}
+
+// SearchByFullText calls SearchByFullTextFunc.
+func (mock *AtomicKnowledgeRepoerMock) SearchByFullText(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	if mock.SearchByFullTextFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.SearchByFullTextFunc: method is nil but AtomicKnowledgeRepoer.SearchByFullText was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}{
+		Ctx:   ctx,
+		Query: query,
+		Limit: limit,
+	}
+	mock.lockSearchByFullText.Lock()
+	mock.calls.SearchByFullText = append(mock.calls.SearchByFullText, callInfo)
+	mock.lockSearchByFullText.Unlock()
+	return mock.SearchByFullTextFunc(ctx, query, limit)
+}
+
+// SearchByFullTextCalls gets all the calls that were made to SearchByFullText.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.SearchByFullTextCalls())
+func (mock *AtomicKnowledgeRepoerMock) SearchByFullTextCalls() []struct {
+	Ctx   context.Context
+	Query string
+	Limit int
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}
+	mock.lockSearchByFullText.RLock()
+	calls = mock.calls.SearchByFullText
+	mock.lockSearchByFullText.RUnlock()
+	return calls
+}
+
+// SearchBySimilarity calls SearchBySimilarityFunc.
+func (mock *AtomicKnowledgeRepoerMock) SearchBySimilarity(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	if mock.SearchBySimilarityFunc == nil {
+		panic("AtomicKnowledgeRepoerMock.SearchBySimilarityFunc: method is nil but AtomicKnowledgeRepoer.SearchBySimilarity was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}{
+		Ctx:   ctx,
+		Query: query,
+		Limit: limit,
+	}
+	mock.lockSearchBySimilarity.Lock()
+	mock.calls.SearchBySimilarity = append(mock.calls.SearchBySimilarity, callInfo)
+	mock.lockSearchBySimilarity.Unlock()
+	return mock.SearchBySimilarityFunc(ctx, query, limit)
+}
+
+// SearchBySimilarityCalls gets all the calls that were made to SearchBySimilarity.
+// Check the length with:
+//
+//	len(mockedAtomicKnowledgeRepoer.SearchBySimilarityCalls())
+func (mock *AtomicKnowledgeRepoerMock) SearchBySimilarityCalls() []struct {
+	Ctx   context.Context
+	Query string
+	Limit int
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}
+	mock.lockSearchBySimilarity.RLock()
+	calls = mock.calls.SearchBySimilarity
+	mock.lockSearchBySimilarity.RUnlock()
 	return calls
 }
 

@@ -32,6 +32,7 @@ func Execute() {
 	rootCmd.AddCommand(documentCmd)
 	rootCmd.AddCommand(doclingCmd)
 	rootCmd.AddCommand(healthcheckCmd)
+	rootCmd.AddCommand(ragCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

@@ -13,3 +13,13 @@ type Embedder interface {
 	// so no lossy float64/float32 conversion is needed at the repo boundary.
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 }
+
+// ScoredResult pairs a hydrated row with its native relevance score from
+// whichever retrieval method produced it (cosine distance, ts_rank_cd, or
+// trigram similarity — these are NOT comparable across methods; hybrid
+// search fuses by rank position within each method's list, not by score
+// value, see service.fuseRRF).
+type ScoredResult[T any] struct {
+	Item  T
+	Score float64
+}

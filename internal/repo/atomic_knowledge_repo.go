@@ -10,6 +10,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
 )
 
 // AtomicKnowledgeRepo is a Postgres-backed implementation of data.AtomicKnowledgeRepoer.
@@ -26,6 +27,18 @@ var _ data.AtomicKnowledgeRepoer = (*AtomicKnowledgeRepo)(nil)
 // (including tests) can supply a tx-scoped *db.Queries.
 func NewAtomicKnowledgeRepo(q *db.Queries, pool *pgxpool.Pool) data.AtomicKnowledgeRepoer {
 	return &AtomicKnowledgeRepo{q: q, pool: pool}
+}
+
+// GetByID retrieves a single fact by its ID.
+func (r *AtomicKnowledgeRepo) GetByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.AtomicKnowledge, error) {
+	fact, err := r.q.GetAtomicKnowledgeByID(ctx, id)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return toModelAtomicKnowledge(&fact), nil
 }
 
 // CreateBatch inserts multiple fully-formed knowledge facts in a single COPY operation.
@@ -95,6 +108,70 @@ func (r *AtomicKnowledgeRepo) UpdateEmbedding(
 		return mapPostgresError(err)
 	}
 	return nil
+}
+
+// SearchByEmbedding returns the limit facts (excluding any marked invalid or
+// irrelevant) whose embedding is closest (cosine distance) to queryVector,
+// ordered nearest-first.
+func (r *AtomicKnowledgeRepo) SearchByEmbedding(
+	ctx context.Context,
+	queryVector []float32,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, embedding <=> $1 AS score FROM atomic_knowledge
+		 WHERE embedding IS NOT NULL AND NOT marked_as_invalid AND NOT marked_as_irrelevant
+		 ORDER BY score ASC
+		 LIMIT $2`,
+		[]any{pgvector.NewVector(queryVector), limit},
+		r.GetByID,
+	)
+}
+
+// SearchByFullText returns the limit facts (excluding any marked invalid or
+// irrelevant) whose subject/predicate/object/note best match query via
+// Postgres full-text search (ts_rank_cd), ordered best-first.
+func (r *AtomicKnowledgeRepo) SearchByFullText(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, ts_rank_cd(fts, websearch_to_tsquery('english', $1)) AS score
+		 FROM atomic_knowledge
+		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND fts @@ websearch_to_tsquery('english', $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit},
+		r.GetByID,
+	)
+}
+
+// SearchBySimilarity returns the limit facts (excluding any marked invalid or
+// irrelevant) whose subject/predicate/object trigram-match query, ranked by
+// the best of the three fields' similarity, ordered best-first.
+func (r *AtomicKnowledgeRepo) SearchBySimilarity(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, GREATEST(similarity(subject, $1), similarity(predicate, $1), similarity(object, $1)) AS score
+		 FROM atomic_knowledge
+		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND (subject % $1 OR predicate % $1 OR object % $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit},
+		r.GetByID,
+	)
 }
 
 // WithTx executes fn within a Postgres transaction, giving it a

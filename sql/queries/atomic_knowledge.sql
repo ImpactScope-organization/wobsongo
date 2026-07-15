@@ -1,3 +1,6 @@
+-- name: GetAtomicKnowledgeByID :one
+SELECT * FROM atomic_knowledge WHERE id = $1;
+
 -- name: CreateAtomicKnowledgeBatch :copyfrom
 INSERT INTO atomic_knowledge (
     id, created_at, updated_at, document_id, document_chunk_id, truth_tier,

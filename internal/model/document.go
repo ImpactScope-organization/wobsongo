@@ -275,3 +275,23 @@ type AtomicKnowledge struct {
 	// MarkedAsIrrelevant indicates whether the knowledge statement has been marked as irrelevant.
 	MarkedAsIrrelevant bool `json:"marked_as_irrelevant" binding:"required"`
 }
+
+// SPOText builds the canonical text representation of a fact: "{Subject}
+// {Predicate} {Object}", with Note appended if non-empty. Single source of
+// truth for what gets embedded (internal/worker/embed_knowledge.go) and what
+// gets displayed for a fact search hit (internal/service/rag.go) — these
+// must stay identical, or search results won't reflect what was actually
+// embedded.
+func (k *AtomicKnowledge) SPOText() string {
+	var b strings.Builder
+	b.WriteString(k.Subject)
+	b.WriteByte(' ')
+	b.WriteString(k.Predicate)
+	b.WriteByte(' ')
+	b.WriteString(k.Object)
+	if k.Note != "" {
+		b.WriteByte(' ')
+		b.WriteString(k.Note)
+	}
+	return b.String()
+}

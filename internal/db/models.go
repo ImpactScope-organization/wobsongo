@@ -27,6 +27,7 @@ type AtomicKnowledge struct {
 	MarkedAsInvalid    bool
 	MarkedAsIrrelevant bool
 	Embedding          *pgvector_go.Vector
+	Fts                interface{}
 }
 
 type Document struct {
@@ -61,6 +62,7 @@ type DocumentChunk struct {
 	AssetUrl             string
 	Embedding            *pgvector_go.Vector
 	KnowledgeExtractedAt pgtype.Timestamptz
+	TextFts              interface{}
 }
 
 type User struct {

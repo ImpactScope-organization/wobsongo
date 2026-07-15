@@ -48,6 +48,24 @@ type DocumentChunkRepoer interface {
 	// filtering logic (heuristics and/or NLP/LLM-based scoring) lands later.
 	ShouldBeStored(ctx context.Context, chunk model.DocumentChunk) (bool, error)
 
+	// SearchByEmbedding returns the limit chunks whose embedding is closest
+	// (cosine distance) to queryVector, ordered nearest-first. One of the
+	// hybrid-search retrieval methods; see service.RAGService.
+	SearchByEmbedding(
+		ctx context.Context,
+		queryVector []float32,
+		limit int,
+	) ([]ScoredResult[model.DocumentChunk], error)
+
+	// SearchByFullText returns the limit chunks whose text best matches query
+	// via Postgres full-text search (ts_rank_cd), ordered best-first. One of
+	// the hybrid-search retrieval methods; see service.RAGService.
+	SearchByFullText(
+		ctx context.Context,
+		query string,
+		limit int,
+	) ([]ScoredResult[model.DocumentChunk], error)
+
 	TxAware[DocumentChunkRepoer]
 	queue.JobEnqueuer
 }

@@ -161,6 +161,45 @@ func (r *DocumentChunkRepo) ShouldBeStored(_ context.Context, _ model.DocumentCh
 	return true, nil
 }
 
+// SearchByEmbedding returns the limit chunks whose embedding is closest
+// (cosine distance) to queryVector, ordered nearest-first.
+func (r *DocumentChunkRepo) SearchByEmbedding(
+	ctx context.Context,
+	queryVector []float32,
+	limit int,
+) ([]data.ScoredResult[model.DocumentChunk], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, embedding <=> $1 AS score FROM document_chunks
+		 WHERE embedding IS NOT NULL
+		 ORDER BY score ASC
+		 LIMIT $2`,
+		[]any{pgvector.NewVector(queryVector), limit},
+		r.GetByID,
+	)
+}
+
+// SearchByFullText returns the limit chunks whose text best matches query via
+// Postgres full-text search (ts_rank_cd), ordered best-first.
+func (r *DocumentChunkRepo) SearchByFullText(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.DocumentChunk], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, ts_rank_cd(text_fts, websearch_to_tsquery('english', $1)) AS score
+		 FROM document_chunks
+		 WHERE text_fts @@ websearch_to_tsquery('english', $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit},
+		r.GetByID,
+	)
+}
+
 // WithTx executes fn within a Postgres transaction, giving it a
 // transaction-scoped repo whose Enqueue calls are part of the same
 // transaction as any CRUD calls it makes.

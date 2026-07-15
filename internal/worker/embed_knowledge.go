@@ -3,11 +3,9 @@ package worker
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal/data"
-	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/riverqueue/river"
 )
@@ -71,7 +69,7 @@ func (w *EmbedKnowledgeWorker) Work(
 
 		texts := make([]string, len(batch))
 		for i := range batch {
-			texts[i] = factText(&batch[i])
+			texts[i] = batch[i].SPOText()
 		}
 
 		vectors, err := w.Embedder.Embed(ctx, texts)
@@ -99,20 +97,4 @@ func (w *EmbedKnowledgeWorker) Work(
 		}
 	}
 	return nil
-}
-
-// factText builds the string to embed for a fact: its subject-predicate-
-// object triple, with Note appended if present.
-func factText(k *model.AtomicKnowledge) string {
-	var b strings.Builder
-	b.WriteString(k.Subject)
-	b.WriteByte(' ')
-	b.WriteString(k.Predicate)
-	b.WriteByte(' ')
-	b.WriteString(k.Object)
-	if k.Note != "" {
-		b.WriteByte(' ')
-		b.WriteString(k.Note)
-	}
-	return b.String()
 }

@@ -13,6 +13,11 @@ import (
 // and this repo doesn't chain to a further job (fact embedding is a separate,
 // not-yet-built step).
 type AtomicKnowledgeRepoer interface {
+	// GetByID retrieves a single fact by its ID. Added for hybrid search
+	// (service.RAGService) to hydrate search hits — no prior caller needed a
+	// single-row read.
+	GetByID(ctx context.Context, id uuid.UUID) (*model.AtomicKnowledge, error)
+
 	// CreateBatch inserts multiple fully-formed knowledge facts in a single operation.
 	CreateBatch(ctx context.Context, knowledge []model.AtomicKnowledge) error
 
@@ -27,6 +32,37 @@ type AtomicKnowledgeRepoer interface {
 
 	// UpdateEmbedding persists the embedding vector for a single fact.
 	UpdateEmbedding(ctx context.Context, id uuid.UUID, embedding []float32) error
+
+	// SearchByEmbedding returns the limit facts (excluding any marked invalid
+	// or irrelevant) whose embedding is closest (cosine distance) to
+	// queryVector, ordered nearest-first. One of the hybrid-search retrieval
+	// methods; see service.RAGService.
+	SearchByEmbedding(
+		ctx context.Context,
+		queryVector []float32,
+		limit int,
+	) ([]ScoredResult[model.AtomicKnowledge], error)
+
+	// SearchByFullText returns the limit facts (excluding any marked invalid
+	// or irrelevant) whose subject/predicate/object/note best match query via
+	// Postgres full-text search (ts_rank_cd), ordered best-first. One of the
+	// hybrid-search retrieval methods; see service.RAGService.
+	SearchByFullText(
+		ctx context.Context,
+		query string,
+		limit int,
+	) ([]ScoredResult[model.AtomicKnowledge], error)
+
+	// SearchBySimilarity returns the limit facts (excluding any marked
+	// invalid or irrelevant) whose subject/predicate/object trigram-match
+	// query, ranked by the best of the three fields' similarity, ordered
+	// best-first. One of the hybrid-search retrieval methods; see
+	// service.RAGService.
+	SearchBySimilarity(
+		ctx context.Context,
+		query string,
+		limit int,
+	) ([]ScoredResult[model.AtomicKnowledge], error)
 
 	TxAware[AtomicKnowledgeRepoer]
 }

@@ -34,6 +34,8 @@ func Execute() {
 	rootCmd.AddCommand(healthcheckCmd)
 	rootCmd.AddCommand(ragCmd)
 	rootCmd.AddCommand(evalExtractionCmd)
+	rootCmd.AddCommand(evalJudgeCmd)
+	rootCmd.AddCommand(claimCheckCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

@@ -42,6 +42,14 @@ type RAGResult struct {
 	Page int
 	// TruthTier is set for fact hits only; empty for chunk hits.
 	TruthTier string
+	// ChunkText is the source chunk's full text, hydrated for fact-source
+	// hits only (see hydrateFactChunks) — gives a downstream consumer (e.g. a
+	// claim judge) the surrounding context a bare SPO fact doesn't carry on
+	// its own. Empty for chunk-source hits, which already ARE the chunk.
+	ChunkText string
+	// chunkID is a fact hit's parent chunk ID, used internally by Search to
+	// populate ChunkText — not exposed beyond this package.
+	chunkID uuid.UUID
 }
 
 // RAGService performs hybrid search across document chunks and atomic-
@@ -136,7 +144,31 @@ func (s *RAGService) Search(ctx context.Context, query string, limit int) ([]RAG
 	if len(fused) > limit {
 		fused = fused[:limit]
 	}
+
+	if err := s.hydrateFactChunks(ctx, fused); err != nil {
+		return nil, fmt.Errorf("failed to hydrate fact chunk context: %w", err)
+	}
+
 	return fused, nil
+}
+
+// hydrateFactChunks populates ChunkText for every fact-source result in
+// results by fetching its parent chunk — only for the given (already fused
+// and truncated to limit) results, not every raw candidate before fusion, so
+// this costs at most limit single-row lookups regardless of how many
+// candidates each of the five search methods returned.
+func (s *RAGService) hydrateFactChunks(ctx context.Context, results []RAGResult) error {
+	for i := range results {
+		if results[i].Source != "fact" {
+			continue
+		}
+		chunk, err := s.chunkRepo.GetByID(ctx, results[i].chunkID)
+		if err != nil {
+			return fmt.Errorf("failed to fetch parent chunk %s: %w", results[i].chunkID, err)
+		}
+		results[i].ChunkText = chunk.Text
+	}
+	return nil
 }
 
 func mapChunkResults(
@@ -170,6 +202,7 @@ func mapFactResults(
 			DocumentID: r.Item.DocumentID,
 			Text:       r.Item.SPOText(),
 			TruthTier:  r.Item.TruthTier.String(),
+			chunkID:    r.Item.DocumentChunkID,
 		}
 	}
 	return out

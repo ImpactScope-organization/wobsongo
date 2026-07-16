@@ -114,12 +114,13 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 		},
 	}
 	fact := model.AtomicKnowledge{
-		ID:         factID,
-		DocumentID: docID,
-		TruthTier:  model.TruthTierAxiomatic,
-		Subject:    "Alice",
-		Predicate:  "founded",
-		Object:     "Acme",
+		ID:              factID,
+		DocumentID:      docID,
+		DocumentChunkID: chunkID,
+		TruthTier:       model.TruthTierAxiomatic,
+		Subject:         "Alice",
+		Predicate:       "founded",
+		Object:          "Acme",
 	}
 
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
@@ -132,6 +133,15 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 		context.Context, string, int,
 	) ([]data.ScoredResult[model.DocumentChunk], error) {
 		return nil, nil
+	}
+	// hydrateFactChunks fetches the fact's parent chunk by ID — same chunkID
+	// as the chunk hit above, so this also exercises a fact and its own
+	// source chunk both appearing in one fused result set.
+	chunkRepo.GetByIDFunc = func(_ context.Context, id uuid.UUID) (*model.DocumentChunk, error) {
+		if id != chunkID {
+			t.Fatalf("GetByID called with unexpected id %s", id)
+		}
+		return &chunk, nil
 	}
 
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
@@ -171,11 +181,17 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 	if results[0].TruthTier != "axiomatic" {
 		t.Errorf("expected TruthTier %q, got %q", "axiomatic", results[0].TruthTier)
 	}
+	if results[0].ChunkText != "chunk text" {
+		t.Errorf("expected the fact hit's ChunkText hydrated from its parent chunk, got %q", results[0].ChunkText)
+	}
 	if results[1].Key != "chunk:"+chunkID.String() {
 		t.Errorf("expected the chunk ranked second, got %s", results[1].Key)
 	}
 	if results[1].Page != 3 {
 		t.Errorf("expected chunk Page 3, got %d", results[1].Page)
+	}
+	if results[1].ChunkText != "" {
+		t.Errorf("expected a chunk-source hit's ChunkText to stay empty, got %q", results[1].ChunkText)
 	}
 }
 
@@ -267,5 +283,50 @@ func TestRAGService_Search_RepoErrorPropagates(t *testing.T) {
 	s := NewRAGService(chunkRepo, knowledgeRepo, &stubEmbedder{vector: []float32{1}})
 	if _, err := s.Search(t.Context(), "query", 10); err == nil {
 		t.Fatal("expected an error when a repo search fails")
+	}
+}
+
+func TestRAGService_Search_HydrationErrorPropagates(t *testing.T) {
+	fact := model.AtomicKnowledge{
+		ID:              uuid.New(),
+		DocumentChunkID: uuid.New(),
+		TruthTier:       model.TruthTierAxiomatic,
+	}
+
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.SearchByEmbeddingFunc = func(
+		context.Context, []float32, int,
+	) ([]data.ScoredResult[model.DocumentChunk], error) {
+		return nil, nil
+	}
+	chunkRepo.SearchByFullTextFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.DocumentChunk], error) {
+		return nil, nil
+	}
+	chunkRepo.GetByIDFunc = func(context.Context, uuid.UUID) (*model.DocumentChunk, error) {
+		return nil, errors.New("chunk not found")
+	}
+
+	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
+	knowledgeRepo.SearchByEmbeddingFunc = func(
+		context.Context, []float32, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return []data.ScoredResult[model.AtomicKnowledge]{{Item: fact, Score: 0.9}}, nil
+	}
+	knowledgeRepo.SearchByFullTextFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return nil, nil
+	}
+	knowledgeRepo.SearchBySimilarityFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return nil, nil
+	}
+
+	s := NewRAGService(chunkRepo, knowledgeRepo, &stubEmbedder{vector: []float32{1}})
+	if _, err := s.Search(t.Context(), "query", 10); err == nil {
+		t.Fatal("expected an error when hydrating a fact's parent chunk fails")
 	}
 }

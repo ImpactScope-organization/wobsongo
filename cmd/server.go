@@ -91,6 +91,22 @@ var serveCmd = &cobra.Command{
 			config.ExtractionConfig.APIKey,
 		)
 
+		if err := internal.IsClaimCheckOK(config.ClaimCheckConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		claimAnalyzerClient := external.NewClaimAnalyzerClient(
+			config.ClaimCheckConfig.BaseURL,
+			config.ClaimCheckConfig.Model,
+			config.ClaimCheckConfig.APIKey,
+		)
+		judgeClient := external.NewJudgeClient(
+			config.ClaimCheckConfig.BaseURL,
+			config.ClaimCheckConfig.Model,
+			config.ClaimCheckConfig.APIKey,
+		)
+
 		// riverClient is assigned below, after workers (which need to be
 		// registered via river.AddWorker before river.NewClient produces the
 		// client) are constructed. ChunkRepo/RiverJobEnqueuer only resolve it
@@ -204,7 +220,13 @@ var serveCmd = &cobra.Command{
 		}()
 
 		// Build and start HTTP API server.
-		app := buildApp(config, pool, riverClient, mediaProvider)
+		app := buildApp(config, pool, riverClient, mediaProvider, buildAppClaimCheckDeps{
+			chunkRepo:     chunkRepo,
+			knowledgeRepo: atomicKnowledgeRepo,
+			embedder:      embeddingClient,
+			claimAnalyzer: claimAnalyzerClient,
+			claimJudge:    judgeClient,
+		})
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
 		if err := app.Start(); err != nil {

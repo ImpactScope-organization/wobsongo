@@ -41,3 +41,21 @@ type BackgroundJob interface {
 	// Kind returns the kind of the job.
 	Kind() string
 }
+
+// Queue names — one per logical workload, so document ingestion (which can
+// run continuously for hours on a large document, see ExtractKnowledgeWorker)
+// and media/video processing (Apify extraction, transcription) scale and
+// throttle independently instead of competing for the same worker pool.
+// Each job DTO declares its queue via InsertOpts() (river.JobArgsWithInsertOpts),
+// so callers enqueueing via queue.JobEnqueuer never need to specify it
+// themselves — see cmd/server.go for where these are registered with MaxWorkers.
+const (
+	// QueueDocumentIngestion is used by every job in the document-ingestion
+	// pipeline: ParseDocumentDTO, ProcessParsedDocumentDTO,
+	// CaptionImageChunksDTO, EmbedChunksDTO, ExtractKnowledgeDTO, EmbedKnowledgeDTO.
+	QueueDocumentIngestion = "document_ingestion"
+
+	// QueueMediaProcessing is used by the media/video pipeline:
+	// ExtractMediaDTO, TranscriptionJob.
+	QueueMediaProcessing = "media_processing"
+)

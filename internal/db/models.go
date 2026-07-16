@@ -28,6 +28,7 @@ type AtomicKnowledge struct {
 	MarkedAsIrrelevant bool
 	Embedding          *pgvector_go.Vector
 	Fts                interface{}
+	Category           int32
 }
 
 type Document struct {

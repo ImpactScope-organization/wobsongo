@@ -42,6 +42,7 @@ func (r iteratorForCreateAtomicKnowledgeBatch) Values() ([]interface{}, error) {
 		r.rows[0].Note,
 		r.rows[0].MarkedAsInvalid,
 		r.rows[0].MarkedAsIrrelevant,
+		r.rows[0].Category,
 	}, nil
 }
 
@@ -50,7 +51,7 @@ func (r iteratorForCreateAtomicKnowledgeBatch) Err() error {
 }
 
 func (q *Queries) CreateAtomicKnowledgeBatch(ctx context.Context, arg []CreateAtomicKnowledgeBatchParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"atomic_knowledge"}, []string{"id", "created_at", "updated_at", "document_id", "document_chunk_id", "truth_tier", "topics", "subject", "predicate", "object", "note", "marked_as_invalid", "marked_as_irrelevant"}, &iteratorForCreateAtomicKnowledgeBatch{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"atomic_knowledge"}, []string{"id", "created_at", "updated_at", "document_id", "document_chunk_id", "truth_tier", "topics", "subject", "predicate", "object", "note", "marked_as_invalid", "marked_as_irrelevant", "category"}, &iteratorForCreateAtomicKnowledgeBatch{rows: arg})
 }
 
 // iteratorForCreateDocumentChunksBatch implements pgx.CopyFromSource.

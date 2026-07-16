@@ -309,15 +309,28 @@ func TestDocumentChunkRepo_CRUD(t *testing.T) {
 		},
 	)
 
-	t.Run("ShouldBeStored_PassThrough", func(t *testing.T) {
+	t.Run("ShouldBeStored_ExcludesReferenceLayout", func(t *testing.T) {
 		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
 			chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
-			ok, err := chunkRepo.ShouldBeStored(ctx, newTestDocumentChunk(uuid.New(), 0))
+			doc := model.Document{ID: uuid.New()}
+
+			paragraph := newTestDocumentChunk(uuid.New(), 0)
+			ok, err := chunkRepo.ShouldBeStored(ctx, doc, paragraph)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !ok {
-				t.Error("expected the pass-through ShouldBeStored to always return true")
+				t.Error("expected a paragraph-layout chunk to be stored")
+			}
+
+			reference := newTestDocumentChunk(uuid.New(), 0)
+			reference.LayoutType = model.LayoutTypeReference
+			ok, err = chunkRepo.ShouldBeStored(ctx, doc, reference)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if ok {
+				t.Error("expected a reference-layout chunk not to be stored")
 			}
 		})
 	})

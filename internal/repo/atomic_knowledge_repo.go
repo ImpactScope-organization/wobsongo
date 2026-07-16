@@ -111,8 +111,8 @@ func (r *AtomicKnowledgeRepo) UpdateEmbedding(
 }
 
 // SearchByEmbedding returns the limit facts (excluding any marked invalid or
-// irrelevant) whose embedding is closest (cosine distance) to queryVector,
-// ordered nearest-first.
+// irrelevant, or category=metadata) whose embedding is closest (cosine
+// distance) to queryVector, ordered nearest-first.
 func (r *AtomicKnowledgeRepo) SearchByEmbedding(
 	ctx context.Context,
 	queryVector []float32,
@@ -123,16 +123,17 @@ func (r *AtomicKnowledgeRepo) SearchByEmbedding(
 		r.pool,
 		`SELECT id, embedding <=> $1 AS score FROM atomic_knowledge
 		 WHERE embedding IS NOT NULL AND NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
 		 ORDER BY score ASC
 		 LIMIT $2`,
-		[]any{pgvector.NewVector(queryVector), limit},
+		[]any{pgvector.NewVector(queryVector), limit, int(model.FactCategoryMetadata)},
 		r.GetByID,
 	)
 }
 
 // SearchByFullText returns the limit facts (excluding any marked invalid or
-// irrelevant) whose subject/predicate/object/note best match query via
-// Postgres full-text search (ts_rank_cd), ordered best-first.
+// irrelevant, or category=metadata) whose subject/predicate/object/note best
+// match query via Postgres full-text search (ts_rank_cd), ordered best-first.
 func (r *AtomicKnowledgeRepo) SearchByFullText(
 	ctx context.Context,
 	query string,
@@ -144,17 +145,19 @@ func (r *AtomicKnowledgeRepo) SearchByFullText(
 		`SELECT id, ts_rank_cd(fts, websearch_to_tsquery('english', $1)) AS score
 		 FROM atomic_knowledge
 		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
 		   AND fts @@ websearch_to_tsquery('english', $1)
 		 ORDER BY score DESC
 		 LIMIT $2`,
-		[]any{query, limit},
+		[]any{query, limit, int(model.FactCategoryMetadata)},
 		r.GetByID,
 	)
 }
 
 // SearchBySimilarity returns the limit facts (excluding any marked invalid or
-// irrelevant) whose subject/predicate/object trigram-match query, ranked by
-// the best of the three fields' similarity, ordered best-first.
+// irrelevant, or category=metadata) whose subject/predicate/object
+// trigram-match query, ranked by the best of the three fields' similarity,
+// ordered best-first.
 func (r *AtomicKnowledgeRepo) SearchBySimilarity(
 	ctx context.Context,
 	query string,
@@ -166,10 +169,11 @@ func (r *AtomicKnowledgeRepo) SearchBySimilarity(
 		`SELECT id, GREATEST(similarity(subject, $1), similarity(predicate, $1), similarity(object, $1)) AS score
 		 FROM atomic_knowledge
 		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
 		   AND (subject % $1 OR predicate % $1 OR object % $1)
 		 ORDER BY score DESC
 		 LIMIT $2`,
-		[]any{query, limit},
+		[]any{query, limit, int(model.FactCategoryMetadata)},
 		r.GetByID,
 	)
 }
@@ -207,6 +211,7 @@ func toModelAtomicKnowledge(k *db.AtomicKnowledge) *model.AtomicKnowledge {
 		DocumentID:         k.DocumentID,
 		DocumentChunkID:    k.DocumentChunkID,
 		TruthTier:          model.TruthTier(k.TruthTier),
+		Category:           model.FactCategory(k.Category),
 		Topics:             k.Topics,
 		Subject:            k.Subject,
 		Predicate:          k.Predicate,
@@ -229,6 +234,7 @@ func toCreateAtomicKnowledgeBatchParams(
 		DocumentID:         k.DocumentID,
 		DocumentChunkID:    k.DocumentChunkID,
 		TruthTier:          toInt32(int(k.TruthTier)),
+		Category:           toInt32(int(k.Category)),
 		Topics:             k.Topics,
 		Subject:            k.Subject,
 		Predicate:          k.Predicate,

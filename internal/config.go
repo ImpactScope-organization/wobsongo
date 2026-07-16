@@ -245,14 +245,10 @@ func (c *Config) IsOK() error {
 		return errors.New("JWTExpiryHours is invalid")
 	}
 
-	if c.ApifyConfig == nil || c.ApifyConfig.Token == "" {
-		return errors.New("APIFY_API_TOKEN is not set")
-	}
-	if c.ASRConfig == nil {
-		return errors.New("MODAL_ASR_ENDPOINT config is not set")
-	}
-	if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
-		return err
+	if c.ASRConfig != nil && c.ASRConfig.Endpoint != "" {
+		if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
+			return err
+		}
 	}
 	return nil
 }

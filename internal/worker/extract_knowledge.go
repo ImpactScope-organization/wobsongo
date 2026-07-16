@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,9 +35,9 @@ const extractKnowledgeFixedOverhead = 1 * time.Minute
 // extractKnowledgePerChunkBudget bounds how long a single round of
 // concurrent chunks (see ExtractKnowledgeWorker.Concurrency) gets within the
 // job's overall timeout — margin over ExtractionClient's own per-call HTTP timeout
-// (5 minutes, external/extraction_client.go's extractionHTTPTimeout) to also
+// (7 minutes, external/extraction_client.go's extractionHTTPTimeout) to also
 // cover that chunk's DB write.
-const extractKnowledgePerChunkBudget = 6 * time.Minute
+const extractKnowledgePerChunkBudget = 8 * time.Minute
 
 // extractKnowledgeBatchSize caps how many chunks a single job execution
 // extracts before re-enqueueing a continuation job for the rest (see
@@ -54,7 +55,7 @@ const extractKnowledgePerChunkBudget = 6 * time.Minute
 // stay safely above it — small and constant regardless of total document
 // size; a huge document just takes more job hops, which is fine since
 // progress commits per-chunk already. At the default concurrency (5) this
-// caps Timeout() around 31 minutes (extractKnowledgeFixedOverhead +
+// caps Timeout() around 41 minutes (extractKnowledgeFixedOverhead +
 // ceil(25/5)*extractKnowledgePerChunkBudget), comfortably under River's
 // 1-hour default RescueStuckJobsAfter.
 const extractKnowledgeBatchSize = 25
@@ -165,7 +166,7 @@ func (w *ExtractKnowledgeWorker) Work(
 	for i := range batch {
 		chunk := &batch[i]
 		g.Go(func() error {
-			return w.extractChunk(ctx, job.Args.DocumentID, doc.Title, chunk)
+			return w.extractChunk(ctx, doc, chunk)
 		})
 	}
 	if err := g.Wait(); err != nil {
@@ -199,21 +200,35 @@ func (w *ExtractKnowledgeWorker) Work(
 // connection per call) and touches only its own chunk.
 func (w *ExtractKnowledgeWorker) extractChunk(
 	ctx context.Context,
-	documentID uuid.UUID,
-	documentTitle string,
+	doc *model.Document,
 	chunk *model.DocumentChunk,
 ) error {
 	extracted, err := w.Extractor.Extract(ctx, &data.ExtractionRequest{
-		Text:          chunk.Text,
-		DocumentTitle: documentTitle,
+		Text:            chunk.Text,
+		DocumentTitle:   doc.Title,
+		PublisherName:   doc.PublisherName,
+		PublicationYear: doc.PublicationYear,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to extract knowledge for chunk %s: %w", chunk.ID, err)
 	}
 
 	now := time.Now()
-	facts := make([]model.AtomicKnowledge, len(extracted))
+	facts := make([]model.AtomicKnowledge, 0, len(extracted))
 	for j := range extracted {
+		if extracted[j].Category == model.FactCategoryMetadata {
+			// Never persisted — administrative/bibliographic content about
+			// the document itself, not clinical content. Logged (not
+			// silently dropped) as a cheap audit trail against
+			// misclassification: FactCategoryUnknown is still stored, so
+			// only confidently-metadata facts are discarded here.
+			log.Printf(
+				"[ExtractKnowledgeWorker] discarding metadata-category fact: subject=%q predicate=%q object=%q chunk=%s",
+				extracted[j].Subject, extracted[j].Predicate, extracted[j].Object, chunk.ID,
+			)
+			continue
+		}
+
 		topics := extracted[j].Topics
 		if topics == nil {
 			// Must be non-nil: this batch insert goes through Postgres's
@@ -225,19 +240,20 @@ func (w *ExtractKnowledgeWorker) extractChunk(
 			// which can omit or null the field.
 			topics = []string{}
 		}
-		facts[j] = model.AtomicKnowledge{
+		facts = append(facts, model.AtomicKnowledge{
 			ID:              uuid.New(),
 			CreatedAt:       now,
 			UpdatedAt:       now,
-			DocumentID:      documentID,
+			DocumentID:      doc.ID,
 			DocumentChunkID: chunk.ID,
 			TruthTier:       extracted[j].TruthTier,
+			Category:        extracted[j].Category,
 			Topics:          topics,
 			Subject:         extracted[j].Subject,
 			Predicate:       extracted[j].Predicate,
 			Object:          extracted[j].Object,
 			Note:            extracted[j].Note,
-		}
+		})
 	}
 
 	err = w.KnowledgeRepo.WithTx(ctx, func(tx data.AtomicKnowledgeRepoer) error {

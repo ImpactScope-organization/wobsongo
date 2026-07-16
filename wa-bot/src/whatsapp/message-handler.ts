@@ -60,7 +60,7 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
 
     // If the status is 'processing' send a waiting message and store the job context.
     const waitingMsg = await conversationService.sendMessage(jid, {
-      text: '⏳ Processing your video, please wait...',
+      text: '⏳ Processing, please wait...',
     });
 
     savePendingJob(result.jobId, {

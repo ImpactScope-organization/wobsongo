@@ -52,7 +52,7 @@ func NewApifyService(
 	}
 }
 
-// TriggerExtraction is the bot's entry point. The bot checks the cache first,
+// TriggerExtraction is the bot's entry point. Checks the cache first,
 // and only constructs an ExtractionRequest when the data is not found in the database.
 func (s *ApifyService) TriggerExtraction(
 	ctx context.Context,

@@ -9,7 +9,7 @@ export function extractDone(req: Request, res: Response): void {
   const body = req.body as ExtractDoneCallback;
 
   if (!body.jobId || !body.status) {
-    res.status(400).json({ error: 'obId and status are required' });
+    res.status(400).json({ error: 'jobId and status are required' });
     return;
   }
 

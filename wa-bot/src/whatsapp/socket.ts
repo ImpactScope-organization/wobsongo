@@ -21,7 +21,7 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
   const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
   const { version } = await fetchLatestBaileysVersion();
 
-  // Create the WhatsApp socket connection.
+  // Create the WA socket connection.
   const sock = makeWASocket({ version, auth: state, logger });
   setSock(sock);
   setStatus('starting');

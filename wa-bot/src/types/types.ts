@@ -21,9 +21,6 @@ export interface SendMessageRequest {
   // The text content of the message.
   text?: string;
 
-  // The URL of an audio file to be sent as a voice message.
-  audioUrl?: string;
-
   // The ID of an existing message to quote/reply to.
   replyToMessageId?: string;
 }

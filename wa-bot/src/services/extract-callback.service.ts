@@ -34,7 +34,6 @@ export async function handleExtractDone(
         replyToMessageId: pending.waitingMessageId,
       });
     } else {
-      // harusnya nggak kejadian (callback bilang completed tapi re-fetch belum ada datanya)
       await conversationService.sendMessage(pending.jid, {
         text: '⚠️ The video has been processed, but the result cannot be fetched yet. Please send the link again.',
         replyToMessageId: pending.waitingMessageId,

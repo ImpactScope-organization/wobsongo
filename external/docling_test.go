@@ -89,8 +89,11 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 		t.Fatalf("unexpected error parsing raw response: %v", err)
 	}
 
-	if result.Title != "sample.pdf" {
-		t.Errorf("expected title %q, got %q", "sample.pdf", result.Title)
+	// The fixture's "title"-labeled chunk ("Sample Guideline") is the real,
+	// content-derived title — doc.Name ("sample.pdf") is just the filename
+	// Docling was given and must not be preferred over it.
+	if result.Title != "Sample Guideline" {
+		t.Errorf("expected title %q, got %q", "Sample Guideline", result.Title)
 	}
 
 	// Filtering is NOT this package's job — noise-type items (page_footer) must
@@ -162,6 +165,56 @@ func TestParseRaw_MalformedImageDoesNotFailParse(t *testing.T) {
 			"expected no decoded image data for a malformed URI, got %q",
 			result.Chunks[0].RawImageData,
 		)
+	}
+}
+
+func TestParseRaw_Title_FallsBackToSectionHeaderWhenNoTitleLabel(t *testing.T) {
+	// Mirrors a real case: Docling tagged nothing "title" for this document,
+	// but its actual title was the first "section_header"-labeled chunk.
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "e146b714c0a394a860c25674f07aebcc7f84137042ff65f619e2d37484165e28.pdf",
+				"texts": [
+					{"text": "Guideline for the prevention, diagnosis and treatment of infertility", "label": "section_header", "prov": [{"page_no": 1, "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}}]},
+					{"text": "Some body text.", "label": "text", "prov": [{"page_no": 2, "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}}]}
+				]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Title != "Guideline for the prevention, diagnosis and treatment of infertility" {
+		t.Errorf(
+			"expected the first section_header's text as title, got %q",
+			result.Title,
+		)
+	}
+}
+
+func TestParseRaw_Title_FallsBackToDocNameWhenNoTitleOrSectionHeader(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "sample.pdf",
+				"texts": [
+					{"text": "Some body text.", "label": "text", "prov": [{"page_no": 1, "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}}]}
+				]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Title != "sample.pdf" {
+		t.Errorf("expected doc.Name as a last-resort fallback, got %q", result.Title)
 	}
 }
 

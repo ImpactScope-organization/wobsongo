@@ -203,6 +203,20 @@ func loadExtractionConfigOrDefault(logger *slog.Logger, envs ...string) *Extract
 	return extractionConfig
 }
 
+// loadClaimCheckConfigOrDefault loads ClaimCheck configuration, or an empty
+// ClaimCheckConfig if unset/invalid. Deliberately empty (not a fake populated
+// default) — internal.IsClaimCheckOK is a hard startup requirement wherever
+// the claim-checking feature is actually wired in, and a fake non-empty
+// default would defeat that check.
+func loadClaimCheckConfigOrDefault(logger *slog.Logger, envs ...string) *ClaimCheckConfig {
+	claimCheckConfig, err := NewClaimCheckConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load ClaimCheck configuration", "error", err)
+		return &ClaimCheckConfig{}
+	}
+	return claimCheckConfig
+}
+
 // loadEmailConfigOrDefault loads email configuration or returns default for testing.
 func loadEmailConfigOrDefault(logger *slog.Logger, envs ...string) *EmailConfig {
 	emailConfig, err := NewEmailConfig(envs...)

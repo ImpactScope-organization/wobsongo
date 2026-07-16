@@ -59,6 +59,106 @@
                 }
             }
         },
+        "/api/v1/claims/check": {
+            "post": {
+                "description": "Checks a claim (e.g. from a video transcript) against the knowledge base and returns a cited verdict. Out-of-scope input (not health-related) is a normal 200 response with in_scope=false, not an error.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "claims"
+                ],
+                "summary": "Check a claim",
+                "parameters": [
+                    {
+                        "description": "Check Claim Form",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.CheckClaimDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ClaimCheckResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/documents": {
             "get": {
                 "description": "Retrieves a paginated list of documents.",
@@ -913,6 +1013,63 @@
                 }
             }
         },
+        "dto.CheckClaimDTO": {
+            "type": "object",
+            "required": [
+                "text"
+            ],
+            "properties": {
+                "text": {
+                    "description": "Text is the claim or message to check — may be a direct question, a\ncasual claim, or a sentence pulled from a video transcript.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.CitationResponse": {
+            "type": "object",
+            "properties": {
+                "document_id": {
+                    "description": "DocumentID is the source document this evidence came from.",
+                    "type": "string"
+                },
+                "index": {
+                    "description": "Index is the same 0-based number the judge's Reasoning text references\ninline as \"[N]\" — use it to link a prose citation back to this entry.",
+                    "type": "integer"
+                },
+                "source": {
+                    "description": "Source is \"chunk\" or \"fact\".",
+                    "type": "string"
+                },
+                "text": {
+                    "description": "Text is the matched text — a chunk's text, or a fact's subject-predicate-object.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ClaimCheckResponse": {
+            "type": "object",
+            "properties": {
+                "in_scope": {
+                    "description": "InScope is false if the input wasn't a health-related inquiry at all —\nthis system doesn't take inquiries unrelated to health.",
+                    "type": "boolean"
+                },
+                "overall_summary": {
+                    "description": "OverallSummary is a short rollup across every sub-claim's verdict.\nEmpty when InScope is false.",
+                    "type": "string"
+                },
+                "refusal_reason": {
+                    "description": "RefusalReason explains why InScope is false. Empty when InScope is true.",
+                    "type": "string"
+                },
+                "sub_claims": {
+                    "description": "SubClaims is the per-sub-claim breakdown. Empty when InScope is false.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.SubClaimResponse"
+                    }
+                }
+            }
+        },
         "dto.CreateDocumentDTO": {
             "type": "object",
             "required": [
@@ -1018,6 +1175,38 @@
                 },
                 "ttl": {
                     "type": "integer"
+                }
+            }
+        },
+        "dto.SubClaimResponse": {
+            "type": "object",
+            "properties": {
+                "citations": {
+                    "description": "Citations are the specific pieces of knowledge-base evidence the\nverdict is based on. Empty whenever Verdict is insufficient_evidence.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/dto.CitationResponse"
+                    }
+                },
+                "claim": {
+                    "description": "Claim is the normalized sub-claim text that was actually checked.",
+                    "type": "string"
+                },
+                "reasoning": {
+                    "description": "Reasoning is the judge's explanation for the verdict.",
+                    "type": "string"
+                },
+                "recommend_medical_consult": {
+                    "description": "RecommendMedicalConsult is true whenever the claim's subject matter\nwarrants recommending a real doctor — this system provides quick\naccess to reliable information, it does not replace one.",
+                    "type": "boolean"
+                },
+                "severity": {
+                    "description": "Severity is one of: routine, serious, emergency.",
+                    "type": "string"
+                },
+                "verdict": {
+                    "description": "Verdict is one of: supported, contradicted, partially_supported, mixed, insufficient_evidence.\ninsufficient_evidence never implies the claim itself is right or wrong\n— only that the knowledge base had nothing relevant to check it against.",
+                    "type": "string"
                 }
             }
         },

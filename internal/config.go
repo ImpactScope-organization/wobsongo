@@ -97,6 +97,18 @@ type ExtractionConfig struct {
 	Concurrency int `json:"concurrency"`
 }
 
+// ClaimCheckConfig holds the configuration for the claim-checking endpoints
+// (scope/decomposition analysis and verdict judging) — both generic
+// OpenAI-compatible text chat-completions APIs, expected to point at the
+// same backend as ExtractionConfig in practice, but decoupled as its own
+// config since the claim-checking feature is logically separate from
+// document ingestion.
+type ClaimCheckConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+}
+
 // EmailConfig groups transactional email configurations.
 type EmailConfig struct {
 	// Transactional holds configuration for user-triggered emails.
@@ -167,6 +179,7 @@ type Config struct {
 	VLMConfig          *VLMConfig        `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig  `json:"embedding_config"`     // Embedding configuration for chunk embeddings
 	ExtractionConfig   *ExtractionConfig `json:"extraction_config"`    // Extraction configuration for atomic knowledge
+	ClaimCheckConfig   *ClaimCheckConfig `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -223,6 +236,17 @@ func IsExtractionOK(c *ExtractionConfig) error {
 	}
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("ExtractionConfig is incomplete")
+	}
+	return nil
+}
+
+// IsClaimCheckOK checks if the ClaimCheck configuration is valid.
+func IsClaimCheckOK(c *ClaimCheckConfig) error {
+	if c == nil {
+		return errors.New("ClaimCheckConfig is not set")
+	}
+	if c.BaseURL == "" || c.Model == "" {
+		return errors.New("ClaimCheckConfig is incomplete")
 	}
 	return nil
 }
@@ -381,6 +405,9 @@ func NewConfig(envs ...string) *Config {
 	// Load Extraction configuration (atomic knowledge) — same reasoning as VLM.
 	extractionConfig := loadExtractionConfigOrDefault(logger, envs...)
 
+	// Load ClaimCheck configuration (claim-checking) — same reasoning as VLM.
+	claimCheckConfig := loadClaimCheckConfigOrDefault(logger, envs...)
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -404,6 +431,7 @@ func NewConfig(envs ...string) *Config {
 		VLMConfig:          vlmConfig,
 		EmbeddingConfig:    embeddingConfig,
 		ExtractionConfig:   extractionConfig,
+		ClaimCheckConfig:   claimCheckConfig,
 	}
 	return defaultConfig
 }
@@ -544,6 +572,34 @@ func NewExtractionConfig(envs ...string) (*ExtractionConfig, error) {
 // defaultExtractionConcurrency is used when EXTRACTION_CONCURRENCY is unset
 // or invalid (non-numeric, zero, or negative).
 const defaultExtractionConcurrency = 5
+
+// NewClaimCheckConfig creates a new ClaimCheckConfig from environment variables.
+func NewClaimCheckConfig(envs ...string) (*ClaimCheckConfig, error) {
+	// Note: .env file should already be loaded by NewConfig() before calling this.
+	// This function only loads .env when called independently (e.g., in tests).
+	if len(envs) > 0 && envs[0] != "" {
+		source := envs[0]
+		if err := godotenv.Load(source); err != nil {
+			fmt.Printf("Warning: Failed to load .env file: %s\n", err.Error())
+		} else {
+			fmt.Printf("(NewClaimCheckConfig) Loaded environment from: %s\n", source)
+		}
+	}
+
+	baseURL := getEnv("CLAIM_CHECK_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("CLAIM_CHECK_BASE_URL is not set")
+	}
+	model := getEnv("CLAIM_CHECK_MODEL", "")
+	if model == "" {
+		return nil, errors.New("CLAIM_CHECK_MODEL is not set")
+	}
+	return &ClaimCheckConfig{
+		BaseURL: baseURL,
+		Model:   model,
+		APIKey:  getEnv("CLAIM_CHECK_API_KEY", ""),
+	}, nil
+}
 
 // NewEmailConfig creates a new EmailConfig from environment variables.
 func NewEmailConfig(envs ...string) (*EmailConfig, error) {

@@ -333,10 +333,32 @@ func mapDoclingDocument(doc *doclingDocument) *data.ProcessedDocument {
 	}
 
 	return &data.ProcessedDocument{
-		Title:     doc.Name,
+		Title:     documentTitle(doc),
 		PageCount: maxPage,
 		Chunks:    chunks,
 	}
+}
+
+// documentTitle derives a real, content-based title for doc — doc.Name is
+// not one: it's Docling's echo of whatever filename/URL it was given to
+// parse, and this system always uploads under a content-hash filename (see
+// internal/repo/media.go), so doc.Name is never anything but that hash.
+// Confirmed against a real document: Docling didn't tag anything "title"
+// for it, but its actual title was reliably present as the very first
+// "section_header"-labeled chunk — hence that two-step fallback here before
+// giving up and using doc.Name as a last resort.
+func documentTitle(doc *doclingDocument) string {
+	for _, t := range doc.Texts {
+		if t.Label == string(model.LayoutTypeTitle) && strings.TrimSpace(t.Text) != "" {
+			return t.Text
+		}
+	}
+	for _, t := range doc.Texts {
+		if t.Label == string(model.LayoutTypeSectionHeader) && strings.TrimSpace(t.Text) != "" {
+			return t.Text
+		}
+	}
+	return doc.Name
 }
 
 // firstProv extracts the page number and bounding box from the first

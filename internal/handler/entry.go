@@ -15,6 +15,7 @@ type Handlers struct {
 	apifyHandler    *ApifyHandler
 	documentHandler *DocumentHandler
 	mediaHandler    *MediaHandler
+	claimHandler    *ClaimHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -33,6 +34,8 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 	v1.GET("/media/upload", h.mediaHandler.getPresignedPOSTURL)
 	v1.GET("/media/presigned-url", h.mediaHandler.getPresignedGETURL)
+
+	v1.POST("/claims/check", h.claimHandler.checkClaimHandler)
 }
 
 // Repos holds the repository interfaces required by the handlers.
@@ -41,6 +44,11 @@ type Repos struct {
 	VideoRepo     data.VideoRepoer
 	DocumentRepo  data.DocumentRepoer
 	MediaProvider data.MediaUploadProvider
+	ChunkRepo     data.DocumentChunkRepoer
+	KnowledgeRepo data.AtomicKnowledgeRepoer
+	Embedder      data.Embedder
+	ClaimAnalyzer data.ClaimAnalyzer
+	ClaimJudge    data.ClaimJudge
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -66,10 +74,16 @@ func NewHandlers(repos *Repos) *Handlers {
 	mediaService := service.NewMediaService(repos.MediaProvider)
 	mediaHandler := NewMediaHandler(mediaService)
 
+	// Initialize claim-checking services and handlers
+	ragService := service.NewRAGService(repos.ChunkRepo, repos.KnowledgeRepo, repos.Embedder)
+	claimService := service.NewClaimService(repos.ClaimAnalyzer, repos.ClaimJudge, ragService)
+	claimHandler := NewClaimHandler(claimService)
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
 		mediaHandler:    mediaHandler,
+		claimHandler:    claimHandler,
 	}
 }
 

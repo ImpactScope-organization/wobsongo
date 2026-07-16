@@ -7,6 +7,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
@@ -171,9 +172,15 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, embedKnowledgeWorker)
 
 		// Initialize River client with the database pool and registered workers.
+		// Document ingestion and media processing get separate queues (see
+		// each job DTO's InsertOpts() in internal/queue) so a long-running
+		// document import — extraction alone can run for hours on a large
+		// document, see internal/worker/extract_knowledge.go — can't starve
+		// video processing of worker slots, or vice versa.
 		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{
 			Queues: map[string]river.QueueConfig{
-				river.QueueDefault: {MaxWorkers: 10},
+				queue.QueueDocumentIngestion: {MaxWorkers: 10},
+				queue.QueueMediaProcessing:   {MaxWorkers: 10},
 			},
 			Workers: workers,
 		})

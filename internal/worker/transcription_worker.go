@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -26,12 +27,14 @@ type TranscriptionWorker struct {
 	videoService *service.VideoService
 	modalURL     string
 	httpClient   data.HTTPClient
+	botClient    *external.BotClient
 }
 
 // NewTranscriptionWorker creates a new TranscriptionWorker instance.
 func NewTranscriptionWorker(
 	videoService *service.VideoService,
 	modalURL string,
+	botClient *external.BotClient,
 ) *TranscriptionWorker {
 	return &TranscriptionWorker{
 		videoService: videoService,
@@ -39,6 +42,7 @@ func NewTranscriptionWorker(
 		httpClient: &http.Client{
 			Timeout: transcriptionJobTimeout,
 		},
+		botClient: botClient,
 	}
 }
 
@@ -56,10 +60,12 @@ func (w *TranscriptionWorker) Work(
 
 	// Load the Modal API endpoint from the environment.
 	if w.modalURL == "" {
-		return errors.New("transcription worker: modalURL is not configured")
+		err := errors.New("transcription worker: modalURL is not configured")
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
-	// Build the request payload for the Modal ASR service.
+	// Build the request payload for the Modal ASR service
 	payload := map[string]string{
 		"model":        "Omnilingual ASR",
 		"audio_url":    job.Args.DownloadURL,
@@ -69,26 +75,34 @@ func (w *TranscriptionWorker) Work(
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("failed to marshal modal payload: %w", err)
+		err = fmt.Errorf("failed to marshal modal payload: %w", err)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
 	// Send the transcription request to Modal.
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.modalURL, bytes.NewBuffer(body))
 	if err != nil {
-		return fmt.Errorf("failed to create http request: %w", err)
+		err = fmt.Errorf("failed to create http request: %w", err)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to execute modal request: %w", err)
+		err = fmt.Errorf("failed to execute modal request: %w", err)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 	defer func() {
 		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("modal API returned status %d", resp.StatusCode)
+		err = fmt.Errorf("modal API returned status %d", resp.StatusCode)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
 	// Decode the transcription response from Modal.
@@ -99,11 +113,15 @@ func (w *TranscriptionWorker) Work(
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&modalResp); err != nil {
-		return fmt.Errorf("failed to decode modal response: %w", err)
+		err = fmt.Errorf("failed to decode modal response: %w", err)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
 	if modalResp.Error != "" {
-		return fmt.Errorf("modal application error: %s", modalResp.Error)
+		err := fmt.Errorf("modal application error: %s", modalResp.Error)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
 	// Convert the transcript into pgtype.Text for database storage.
@@ -115,7 +133,9 @@ func (w *TranscriptionWorker) Work(
 	// Persist the transcription result.
 	err = w.videoService.UpdateVideoTranscription(ctx, dbText, job.Args.VideoID)
 	if err != nil {
-		return fmt.Errorf("failed to save transcription to db: %w", err)
+		err = fmt.Errorf("failed to save transcription to db: %w", err)
+		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		return err
 	}
 
 	log.Printf(
@@ -124,5 +144,30 @@ func (w *TranscriptionWorker) Work(
 		modalResp.LanguageDetected,
 	)
 
+	// Notify the external bot that this specific extraction job has successfully completed.
+	if notifyErr := w.botClient.NotifyExtractDone(
+		ctx,
+		job.Args.ExtractionID,
+		"completed",
+		"",
+	); notifyErr != nil {
+		log.Printf("[TranscriptionWorker] gagal notify bot: %v", notifyErr)
+	}
+
 	return nil
+}
+
+// notifyFailed is a helper to avoid writing repetitive if-err checks at every point of failure.
+func (w *TranscriptionWorker) notifyFailed(ctx context.Context, extractionID string, cause error) {
+	if extractionID == "" {
+		return
+	}
+	if err := w.botClient.NotifyExtractDone(
+		ctx,
+		extractionID,
+		"failed",
+		cause.Error(),
+	); err != nil {
+		log.Printf("[TranscriptionWorker] failed to notify bot (failed case): %v", err)
+	}
 }

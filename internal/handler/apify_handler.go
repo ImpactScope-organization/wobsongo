@@ -34,22 +34,28 @@ func NewApifyHandler(service *service.ApifyService) *ApifyHandler {
 // @Failure		500		{object}	map[string]string
 // @Router		/api/extract [post]
 func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
-	req := new(dto.ExtractionRequest)
+	req := new(dto.ExtractAPIRequest)
 	if err := c.Bind(req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: "JSON format not valid"})
 	}
+	if err := c.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: err.Error()})
+	}
 
-	if err := h.service.TriggerExtraction(c.Request().Context(), req); err != nil {
+	resp, err := h.service.TriggerExtraction(c.Request().Context(), req.URL)
+	if err != nil {
+		c.Logger().Errorf("TriggerExtraction failed: %v", err)
 		return c.JSON(
 			http.StatusInternalServerError,
-			map[string]string{errorKey: "Failed to enqueue media extraction job"},
+			map[string]string{errorKey: "Failed to process extraction"},
 		)
 	}
 
-	return c.JSON(
-		http.StatusAccepted,
-		map[string]string{"message": "Successfully enqueued media extraction job."},
-	)
+	statusCode := http.StatusOK
+	if resp.Status == dto.StatusProcessing {
+		statusCode = http.StatusAccepted
+	}
+	return c.JSON(statusCode, resp)
 }
 
 // @Summary		Apify webhook receiver
@@ -62,12 +68,14 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 // @Failure		400		{object}	map[string]string
 // @Router		/api/webhooks/apify [post]
 func (h *ApifyHandler) webhookHandler(c echo.Context) error {
+	extractionID := c.QueryParam("extractionId")
+
 	payload := new(dto.ApifyWebhookPayload)
 	if err := c.Bind(payload); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: "JSON format not valid"})
 	}
 
-	datasetID, err := h.service.ProcessWebhook(c.Request().Context(), payload)
+	datasetID, err := h.service.ProcessWebhook(c.Request().Context(), payload, extractionID)
 	if err != nil {
 		return c.JSON(
 			http.StatusInternalServerError,

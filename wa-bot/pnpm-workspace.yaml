@@ -1,0 +1,5 @@
+allowBuilds:
+  '@whiskeysockets/baileys': true
+  baileys: false
+  esbuild: false
+  protobufjs: true

@@ -14,6 +14,11 @@ type VideoRepoer interface {
 	// CreateVideos inserts a new video record into the database.
 	CreateVideos(ctx context.Context, video *model.Video) error
 
+	// GetByVideoURL returns the video record matching the given URL, or
+	// nil (with no error) if none exists yet — used by ApifyService to
+	// check cache before triggering a new Apify run.
+	GetByVideoURL(ctx context.Context, videoURL string) (*model.Video, error)
+
 	// EnqueueTranscriptionJob adds a new transcription job to the River queue.
 	EnqueueTranscriptionJob(ctx context.Context, payload queue.TranscriptionJob) error
 

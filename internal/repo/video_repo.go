@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -152,4 +153,42 @@ func (r *videoRepo) UpdateVideoTranscription(
 	}
 
 	return nil
+}
+
+// GetByVideoURL retrieves a video record from the database.
+// If the requested video does not exist (pgx.ErrNoRows), it intentionally
+// returns (nil, nil) to represent a normal cache miss rather than an error.
+// Any other database execution errors are wrapped and returned.
+func (r *videoRepo) GetByVideoURL(ctx context.Context, videoURL string) (*model.Video, error) {
+	row, err := r.q.GetVideoByURL(ctx, videoURL)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			//nolint:nilnil
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get video by url: %w", mapPostgresError(err))
+	}
+
+	// Safely map the nullable transcription text field
+	var transcriptionText *string
+	if row.TranscriptionText.Valid {
+		transcriptionText = &row.TranscriptionText.String
+	}
+
+	return &model.Video{
+		ID:                row.ID,
+		VideoURL:          row.VideoUrl,
+		AuthorUsername:    row.AuthorUsername,
+		AuthorProfileURL:  row.AuthorProfileUrl,
+		Caption:           row.Caption.String,
+		PlayCount:         row.PlayCount.Int64,
+		LikeCount:         row.LikeCount.Int64,
+		ThumbnailURL:      row.ThumbnailUrl,
+		LocationCreated:   row.LocationCreated.String,
+		VideoCreatedAt:    row.VideoCreatedAt.Time,
+		TranscriptionText: transcriptionText,
+		VideoType:         row.VideoType,
+		CreatedAt:         row.CreatedAt,
+		UpdatedAt:         row.UpdatedAt,
+	}, nil
 }

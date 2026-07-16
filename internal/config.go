@@ -111,7 +111,7 @@ type TransactionalEmailConfig struct {
 // ApifyConfig holds the configuration for Apify API and its actors.
 type ApifyConfig struct {
 	// Token is the API token used to authenticate with the Apify API.
-	Token string `json:"apify_api_token"`
+	Token string `json:"-"`
 
 	// TikTokActorID is the Apify Actor ID used for TikTok media extraction.
 	TikTokActorID string `json:"tiktok_actor_id"`
@@ -153,7 +153,10 @@ type Config struct {
 	GoogleClientID string `json:"-"`
 
 	// SentryDSN is the Data Source Name for Sentry error tracking.
-	SentryDSN string `json:"-"`
+	SentryDSN      string `json:"-"`
+	BotExtractPSK  string `json:"-"`            // BotExtractPSK is the Pre-Shared Key used to validate incoming extraction requests from the bot.
+	BotCallbackPSK string `json:"-"`            // BotCallbackPSK is the Pre-Shared Key used to authenticate outbound callback requests sent to the bot.
+	BotBaseURL     string `json:"bot_base_url"` // BotBaseURL is the base URL of the external bot service used for callbacks.
 }
 
 // IsS3OK checks if the S3 configuration is valid.
@@ -359,6 +362,11 @@ func NewConfig(envs ...string) *Config {
 	// Load Extraction configuration (atomic knowledge) — same reasoning as VLM.
 	extractionConfig := loadExtractionConfigOrDefault(logger, envs...)
 
+	// Load bot-related configurations from environment variables.
+	botExtractPSK := getEnv("BOT_EXTRACT_PSK", "")
+	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
+	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
+
 	defaultConfig = &Config{
 		Logger:             logger,
 		LogLevel:           logLevel,
@@ -382,6 +390,9 @@ func NewConfig(envs ...string) *Config {
 		VLMConfig:          vlmConfig,
 		EmbeddingConfig:    embeddingConfig,
 		ExtractionConfig:   extractionConfig,
+		BotExtractPSK:      botExtractPSK,
+		BotCallbackPSK:     botCallbackPSK,
+		BotBaseURL:         botBaseURL,
 	}
 	return defaultConfig
 }

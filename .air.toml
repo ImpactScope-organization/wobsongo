@@ -20,8 +20,9 @@ exclude_dir = [
   "specs",
   "docs",
   "sql",
+  "wa-bot"
 ]
-exclude_regex = ["_test\\.go", "_templ\\.go"]
+exclude_regex = ["_test\\.go", "_templ\\.go", "wa-bot/.*"]
 exclude_unchanged = true
 follow_symlink = false
 log = "build-errors-air.log"

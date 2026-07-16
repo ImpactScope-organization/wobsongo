@@ -75,6 +75,33 @@ func (q *Queries) CreateVideos(ctx context.Context, arg CreateVideosParams) (Cre
 	return i, err
 }
 
+const getVideoByURL = `-- name: GetVideoByURL :one
+SELECT id, video_url, author_username, author_profile_url, caption, play_count, like_count, thumbnail_url, location_created, video_created_at, transcription_text, hashtags, video_type, created_at, updated_at FROM videos WHERE video_url = $1 LIMIT 1
+`
+
+func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, error) {
+	row := q.db.QueryRow(ctx, getVideoByURL, videoUrl)
+	var i Video
+	err := row.Scan(
+		&i.ID,
+		&i.VideoUrl,
+		&i.AuthorUsername,
+		&i.AuthorProfileUrl,
+		&i.Caption,
+		&i.PlayCount,
+		&i.LikeCount,
+		&i.ThumbnailUrl,
+		&i.LocationCreated,
+		&i.VideoCreatedAt,
+		&i.TranscriptionText,
+		&i.Hashtags,
+		&i.VideoType,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateVideoTranscription = `-- name: UpdateVideoTranscription :exec
 UPDATE videos
 SET 

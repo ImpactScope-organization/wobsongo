@@ -15,13 +15,14 @@ type Handlers struct {
 	apifyHandler    *ApifyHandler
 	documentHandler *DocumentHandler
 	mediaHandler    *MediaHandler
+	botExtractPSK   string
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
 func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	// apify Webhooks (legacy, unversioned)
 	api.POST("/webhooks/apify", h.apifyHandler.webhookHandler)
-	api.POST("/extract", h.apifyHandler.extractMediaHandler)
+	api.POST("/extract", h.apifyHandler.extractMediaHandler, PSKAuthMiddleware(h.botExtractPSK))
 
 	// Versioned resource routes use /api/v1/{resource_name_plural}.
 	v1 := api.Group("/v1")
@@ -50,11 +51,14 @@ func NewHandlers(repos *Repos) *Handlers {
 	config := internal.NewConfig()
 	// Initialize Apify services and handlers
 	videoService := service.NewVideoService(repos.VideoRepo)
+	scheme := config.APISchemes()[0]
 	apifyService := service.NewApifyService(
 		repos.ApifyRepo,
+		repos.VideoRepo,
 		videoService,
 		http.DefaultClient,
 		config.ApifyConfig.Token,
+		scheme+"://"+config.APIHost,
 	)
 	apifyHandler := NewApifyHandler(apifyService)
 
@@ -70,6 +74,7 @@ func NewHandlers(repos *Repos) *Handlers {
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
 		mediaHandler:    mediaHandler,
+		botExtractPSK:   config.BotExtractPSK,
 	}
 }
 

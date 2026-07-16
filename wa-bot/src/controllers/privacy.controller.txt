@@ -1,0 +1,26 @@
+import type { Request, Response } from 'express';
+import * as privacyService from '../services/privacy.service.js';
+import type { PrivacySettings } from '../types/types.js';
+
+function getParam(value: string | string[] | undefined): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+export function getPrivacy(req: Request, res: Response): void {
+  const jid = getParam(req.params.jid);
+  if (!jid) {
+    res.status(400).json({ error: 'jid wajib diisi di path' });
+    return;
+  }
+  res.json(privacyService.get(jid));
+}
+
+export function updatePrivacy(req: Request, res: Response): void {
+  const jid = getParam(req.params.jid);
+  if (!jid) {
+    res.status(400).json({ error: 'jid wajib diisi di path' });
+    return;
+  }
+  const patch = req.body as Partial<PrivacySettings>;
+  res.json(privacyService.update(jid, patch));
+}

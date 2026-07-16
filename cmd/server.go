@@ -122,10 +122,12 @@ var serveCmd = &cobra.Command{
 		// register ExtractMediaWorker with River
 		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher)
 		river.AddWorker(workers, mediaWorker)
+		botClient := external.NewBotClient(config.BotBaseURL, config.BotCallbackPSK)
 
 		transcriptionWorker := worker.NewTranscriptionWorker(
 			workerVideoService,
 			config.ASRConfig.Endpoint,
+			botClient,
 		)
 		river.AddWorker(workers, transcriptionWorker)
 

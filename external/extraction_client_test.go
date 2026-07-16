@@ -36,7 +36,8 @@ func TestExtractionClient_Extract_Success(t *testing.T) {
 	factsJSON, err := json.Marshal([]map[string]any{
 		{
 			"subject": "Alice", "predicate": "founded", "object": "Acme",
-			"truth_tier": "axiomatic", "topics": []string{"business"}, "note": "",
+			"truth_tier": "axiomatic", "category": "clinical",
+			"topics": []string{"business"}, "note": "",
 		},
 	})
 	if err != nil {
@@ -76,6 +77,9 @@ func TestExtractionClient_Extract_Success(t *testing.T) {
 	if len(facts[0].Topics) != 1 || facts[0].Topics[0] != "business" {
 		t.Errorf("expected topics [business], got %v", facts[0].Topics)
 	}
+	if facts[0].Category != model.FactCategoryClinical {
+		t.Errorf("expected FactCategoryClinical, got %v", facts[0].Category)
+	}
 
 	if gotPath != "/v1/chat/completions" {
 		t.Errorf("expected path /v1/chat/completions, got %s", gotPath)
@@ -104,7 +108,7 @@ func TestExtractionClient_Extract_Success(t *testing.T) {
 
 func TestExtractionClient_Extract_StripsCodeFence(t *testing.T) {
 	fenced := "```json\n" +
-		`[{"subject":"a","predicate":"b","object":"c","truth_tier":"unknown","topics":[],"note":""}]` +
+		`[{"subject":"a","predicate":"b","object":"c","truth_tier":"unknown","category":"clinical","topics":[],"note":""}]` +
 		"\n```"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -146,11 +150,11 @@ func TestExtractionClient_Extract_SkipsUnrecognizedTruthTier(t *testing.T) {
 	factsJSON, err := json.Marshal([]map[string]any{
 		{
 			"subject": "good", "predicate": "p", "object": "o",
-			"truth_tier": "axiomatic", "topics": []string{}, "note": "",
+			"truth_tier": "axiomatic", "category": "clinical", "topics": []string{}, "note": "",
 		},
 		{
 			"subject": "bad", "predicate": "p", "object": "o",
-			"truth_tier": "not-a-real-tier", "topics": []string{}, "note": "",
+			"truth_tier": "not-a-real-tier", "category": "clinical", "topics": []string{}, "note": "",
 		},
 	})
 	if err != nil {
@@ -171,6 +175,91 @@ func TestExtractionClient_Extract_SkipsUnrecognizedTruthTier(t *testing.T) {
 	}
 	if len(facts) != 1 || facts[0].Subject != "good" {
 		t.Errorf("expected only the fact with a recognized truth_tier to survive, got %+v", facts)
+	}
+}
+
+func TestExtractionClient_Extract_SkipsUnrecognizedCategory(t *testing.T) {
+	factsJSON, err := json.Marshal([]map[string]any{
+		{
+			"subject": "good", "predicate": "p", "object": "o",
+			"truth_tier": "axiomatic", "category": "clinical", "topics": []string{}, "note": "",
+		},
+		{
+			"subject": "bad", "predicate": "p", "object": "o",
+			"truth_tier": "axiomatic", "category": "not-a-real-category", "topics": []string{}, "note": "",
+		},
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal fake facts: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(chatResponseBody(t, string(factsJSON)))
+	}))
+	defer server.Close()
+
+	client := external.NewExtractionClient(server.URL, "some-model", "")
+	facts, err := client.Extract(t.Context(), &data.ExtractionRequest{Text: "text"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(facts) != 1 || facts[0].Subject != "good" {
+		t.Errorf("expected only the fact with a recognized category to survive, got %+v", facts)
+	}
+}
+
+func TestExtractionClient_Extract_PromptIncludesPublisherContextWhenSet(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(chatResponseBody(t, "[]"))
+	}))
+	defer server.Close()
+
+	client := external.NewExtractionClient(server.URL, "some-model", "")
+	_, err := client.Extract(t.Context(), &data.ExtractionRequest{
+		Text:            "text",
+		DocumentTitle:   "Guideline",
+		PublisherName:   "World Health Organization (WHO)",
+		PublicationYear: 2023,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	messages, _ := gotBody["messages"].([]any)
+	message, _ := messages[0].(map[string]any)
+	content, _ := message["content"].(string)
+	if !strings.Contains(content, "World Health Organization (WHO)") || !strings.Contains(content, "2023") {
+		t.Errorf("expected prompt to include publisher and year, got: %s", content)
+	}
+}
+
+func TestExtractionClient_Extract_PromptOmitsPublisherContextWhenUnset(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(chatResponseBody(t, "[]"))
+	}))
+	defer server.Close()
+
+	client := external.NewExtractionClient(server.URL, "some-model", "")
+	_, err := client.Extract(t.Context(), &data.ExtractionRequest{Text: "text"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	messages, _ := gotBody["messages"].([]any)
+	message, _ := messages[0].(map[string]any)
+	content, _ := message["content"].(string)
+	if strings.Contains(content, "Publisher:") {
+		t.Errorf("expected no Publisher line when unset, got: %s", content)
 	}
 }
 

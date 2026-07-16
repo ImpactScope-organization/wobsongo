@@ -68,6 +68,63 @@ func ParseTruthTier(s string) (TruthTier, error) {
 	return TruthTierUnknown, fmt.Errorf("unrecognized truth tier %q", s)
 }
 
+// FactCategory classifies whether an extracted fact is substantive clinical
+// content or administrative/bibliographic metadata about the document
+// itself — an axis orthogonal to TruthTier (epistemic reliability). Coarse
+// by design: a fine-grained taxonomy (bibliographic vs. authorship vs.
+// administrative vs. document-structure) is harder for an LLM to apply
+// consistently than a binary clinical/not distinction, and the actual
+// filtering need is binary.
+type FactCategory int
+
+const (
+	// FactCategoryClinical represents a substantive clinical/scientific
+	// claim, finding, or recommendation.
+	FactCategoryClinical FactCategory = iota
+
+	// FactCategoryMetadata represents administrative/bibliographic content
+	// about the document itself — authorship, affiliations, citations,
+	// guideline-development process, document structure — not clinical
+	// content.
+	FactCategoryMetadata
+
+	// FactCategoryUnknown represents a fact whose category is genuinely
+	// unclear. Unlike FactCategoryMetadata, this is never discarded —
+	// erring toward recall for ambiguous cases.
+	FactCategoryUnknown
+)
+
+// factCategoryNames is the canonical string form of each FactCategory, used
+// both for String() and ParseFactCategory — the wire format an LLM
+// extraction response communicates categories in, independent of how
+// they're persisted.
+var factCategoryNames = map[FactCategory]string{
+	FactCategoryClinical: "clinical",
+	FactCategoryMetadata: "metadata",
+	FactCategoryUnknown:  "unknown",
+}
+
+// String returns c's canonical lowercase name, or "unknown" for an
+// out-of-range value.
+func (c FactCategory) String() string {
+	if name, ok := factCategoryNames[c]; ok {
+		return name
+	}
+	return "unknown"
+}
+
+// ParseFactCategory parses s (case-insensitive) into a FactCategory,
+// matching the names String() produces. Returns an error for anything else.
+func ParseFactCategory(s string) (FactCategory, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	for category, name := range factCategoryNames {
+		if name == s {
+			return category, nil
+		}
+	}
+	return FactCategoryUnknown, fmt.Errorf("unrecognized fact category %q", s)
+}
+
 // LayoutType represents the structural classification assigned by Docling
 // to a specific parsed document element.
 type LayoutType string
@@ -250,6 +307,10 @@ type AtomicKnowledge struct {
 
 	// TruthTier represents the level of factual accuracy and reliability of the knowledge statement.
 	TruthTier TruthTier `json:"truth_tier" binding:"required"`
+
+	// Category distinguishes substantive clinical content from
+	// administrative/bibliographic metadata about the document itself.
+	Category FactCategory `json:"category" binding:"required"`
 
 	// Topics is a list of topics associated with this atomic knowledge entry.
 	Topics []string `json:"topics" binding:"required"`

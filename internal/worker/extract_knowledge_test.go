@@ -152,6 +152,54 @@ func TestExtractKnowledgeWorker_Work_Success(t *testing.T) {
 	}
 }
 
+// TestExtractKnowledgeWorker_Work_DiscardsMetadataCategoryFacts is a
+// regression check: a metadata-category fact must never be passed to
+// CreateBatch at all (not just tagged and kept) — only clinical/unknown
+// facts get persisted.
+func TestExtractKnowledgeWorker_Work_DiscardsMetadataCategoryFacts(t *testing.T) {
+	chunk := model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "text"}}
+
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.ListChunksNeedingKnowledgeExtractionFunc = func(_ context.Context, _ uuid.UUID) ([]model.DocumentChunk, error) {
+		return []model.DocumentChunk{chunk}, nil
+	}
+	chunkRepo.EnqueueFunc = func(_ context.Context, _ queue.BackgroundJob) error {
+		return nil
+	}
+
+	knowledgeRepo := newAtomicKnowledgeRepoWithTx()
+	var created []model.AtomicKnowledge
+	knowledgeRepo.CreateBatchFunc = func(_ context.Context, facts []model.AtomicKnowledge) error {
+		created = append(created, facts...)
+		return nil
+	}
+	knowledgeRepo.MarkChunkKnowledgeExtractedFunc = func(context.Context, uuid.UUID) error {
+		return nil
+	}
+
+	extractor := &stubExtractor{
+		facts: []data.ExtractedFact{
+			{Subject: "WHO", Predicate: "recommends", Object: "X", Category: model.FactCategoryClinical},
+			{Subject: "Alice", Predicate: "authored", Object: "chapter 3", Category: model.FactCategoryMetadata},
+			{Subject: "Bob", Predicate: "might be", Object: "relevant", Category: model.FactCategoryUnknown},
+		},
+	}
+
+	w := NewExtractKnowledgeWorker(chunkRepo, knowledgeRepo, newDocumentServiceWithTitle("Doc"), extractor, 0)
+	if err := w.Work(t.Context(), newExtractJob(uuid.New())); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(created) != 2 {
+		t.Fatalf("expected 2 persisted facts (clinical + unknown), got %d: %+v", len(created), created)
+	}
+	for _, f := range created {
+		if f.Category == model.FactCategoryMetadata {
+			t.Errorf("expected no metadata-category fact to be persisted, got %+v", f)
+		}
+	}
+}
+
 // TestExtractKnowledgeWorker_Work_MoreThanBatchSize_EnqueuesContinuation is a
 // regression check: a single job execution must not try to extract an
 // arbitrarily large backlog in one go (see extractKnowledgeBatchSize's

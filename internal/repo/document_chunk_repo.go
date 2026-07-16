@@ -153,12 +153,21 @@ func (r *DocumentChunkRepo) Update(ctx context.Context, chunk *model.DocumentChu
 }
 
 // ShouldBeStored decides whether a chunk carries enough information/context
-// to be worth persisting. A pass-through today (always true); real filtering
-// logic (heuristics and/or NLP/LLM-based scoring) lands later.
+// to be worth persisting. Reference-layout chunks (bibliography/citation
+// entries) are structurally reliable noise — always bibliographic, never
+// clinical — so they're dropped before ever being stored, embedded, or
+// extracted from. Footnotes are deliberately left alone: they sometimes carry
+// substantive caveats, not just citations, unlike references. doc isn't
+// consumed by this check yet; it's threaded through for future
+// heuristic/LLM-based storage decisions that do need document-level context.
 //
-//nolint:gocritic // chunk is passed by value: fixed by the data.DocumentChunkRepoer interface signature.
-func (r *DocumentChunkRepo) ShouldBeStored(_ context.Context, _ model.DocumentChunk) (bool, error) {
-	return true, nil
+//nolint:gocritic // doc/chunk are passed by value: fixed by the data.DocumentChunkRepoer interface signature.
+func (r *DocumentChunkRepo) ShouldBeStored(
+	_ context.Context,
+	_ model.Document,
+	chunk model.DocumentChunk,
+) (bool, error) {
+	return chunk.LayoutType != model.LayoutTypeReference, nil
 }
 
 // SearchByEmbedding returns the limit chunks whose embedding is closest

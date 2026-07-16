@@ -4,9 +4,10 @@ SELECT * FROM atomic_knowledge WHERE id = $1;
 -- name: CreateAtomicKnowledgeBatch :copyfrom
 INSERT INTO atomic_knowledge (
     id, created_at, updated_at, document_id, document_chunk_id, truth_tier,
-    topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant
+    topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant,
+    category
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 );
 
 -- name: ListKnowledgeNeedingEmbedding :many

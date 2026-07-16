@@ -324,9 +324,11 @@ func TestAtomicKnowledgeRepo_SearchByEmbedding_OrdersByDistanceAndExcludesCurate
 	far := newTestAtomicKnowledge(docID, chunkID)
 	invalid := newTestAtomicKnowledge(docID, chunkID)
 	invalid.MarkedAsInvalid = true
+	metadata := newTestAtomicKnowledge(docID, chunkID)
+	metadata.Category = model.FactCategoryMetadata
 	if err := knowledgeRepo.CreateBatch(
 		ctx,
-		[]model.AtomicKnowledge{near, far, invalid},
+		[]model.AtomicKnowledge{near, far, invalid, metadata},
 	); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -334,7 +336,7 @@ func TestAtomicKnowledgeRepo_SearchByEmbedding_OrdersByDistanceAndExcludesCurate
 	nearVec := testDirectionalEmbedding(0)
 	farVec := testDirectionalEmbedding(500)
 	for id, vec := range map[uuid.UUID][]float32{
-		near.ID: nearVec, far.ID: farVec, invalid.ID: nearVec,
+		near.ID: nearVec, far.ID: farVec, invalid.ID: nearVec, metadata.ID: nearVec,
 	} {
 		if err := knowledgeRepo.UpdateEmbedding(ctx, id, vec); err != nil {
 			t.Fatalf("unexpected error embedding fact: %v", err)
@@ -359,6 +361,8 @@ func TestAtomicKnowledgeRepo_SearchByEmbedding_OrdersByDistanceAndExcludesCurate
 			farIdx = i
 		case invalid.ID:
 			t.Errorf("expected the marked-invalid fact to be excluded from results")
+		case metadata.ID:
+			t.Errorf("expected the metadata-category fact to be excluded from results")
 		}
 	}
 	if nearIdx == -1 {
@@ -400,9 +404,14 @@ func TestAtomicKnowledgeRepo_SearchByFullText_MatchesAndExcludesCurated(t *testi
 	irrelevantFlagged.Predicate = "inhabits"
 	irrelevantFlagged.Object = "Rottnest Island"
 	irrelevantFlagged.MarkedAsIrrelevant = true
+	metadata := newTestAtomicKnowledge(docID, chunkID)
+	metadata.Subject = "quokka"
+	metadata.Predicate = "inhabits"
+	metadata.Object = "Rottnest Island"
+	metadata.Category = model.FactCategoryMetadata
 	if err := knowledgeRepo.CreateBatch(
 		ctx,
-		[]model.AtomicKnowledge{relevant, irrelevant, irrelevantFlagged},
+		[]model.AtomicKnowledge{relevant, irrelevant, irrelevantFlagged, metadata},
 	); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -421,6 +430,8 @@ func TestAtomicKnowledgeRepo_SearchByFullText_MatchesAndExcludesCurated(t *testi
 			t.Errorf("expected the unrelated fact not to match \"quokka Rottnest\"")
 		case irrelevantFlagged.ID:
 			t.Errorf("expected the marked-irrelevant fact to be excluded from results")
+		case metadata.ID:
+			t.Errorf("expected the metadata-category fact to be excluded from results")
 		}
 	}
 	if !sawRelevant {
@@ -449,9 +460,12 @@ func TestAtomicKnowledgeRepo_SearchBySimilarity_MatchesAndExcludesCurated(t *tes
 	invalidButSimilar := newTestAtomicKnowledge(docID, chunkID)
 	invalidButSimilar.Subject = "platypus"
 	invalidButSimilar.MarkedAsInvalid = true
+	metadataButSimilar := newTestAtomicKnowledge(docID, chunkID)
+	metadataButSimilar.Subject = "platypus"
+	metadataButSimilar.Category = model.FactCategoryMetadata
 	if err := knowledgeRepo.CreateBatch(
 		ctx,
-		[]model.AtomicKnowledge{similar, dissimilar, invalidButSimilar},
+		[]model.AtomicKnowledge{similar, dissimilar, invalidButSimilar, metadataButSimilar},
 	); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -472,6 +486,8 @@ func TestAtomicKnowledgeRepo_SearchBySimilarity_MatchesAndExcludesCurated(t *tes
 			t.Errorf("expected the dissimilar fact not to trigram-match \"platypuss\"")
 		case invalidButSimilar.ID:
 			t.Errorf("expected the marked-invalid fact to be excluded from results")
+		case metadataButSimilar.ID:
+			t.Errorf("expected the metadata-category fact to be excluded from results")
 		}
 	}
 	if !sawSimilar {

@@ -46,7 +46,7 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			SearchByFullTextFunc: func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
 //				panic("mock out the SearchByFullText method")
 //			},
-//			ShouldBeStoredFunc: func(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
+//			ShouldBeStoredFunc: func(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error) {
 //				panic("mock out the ShouldBeStored method")
 //			},
 //			UpdateFunc: func(ctx context.Context, chunk *model.DocumentChunk) error {
@@ -87,7 +87,7 @@ type DocumentChunkRepoerMock struct {
 	SearchByFullTextFunc func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.DocumentChunk], error)
 
 	// ShouldBeStoredFunc mocks the ShouldBeStored method.
-	ShouldBeStoredFunc func(ctx context.Context, chunk model.DocumentChunk) (bool, error)
+	ShouldBeStoredFunc func(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, chunk *model.DocumentChunk) error
@@ -161,6 +161,8 @@ type DocumentChunkRepoerMock struct {
 		ShouldBeStored []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+			// Doc is the doc argument value.
+			Doc model.Document
 			// Chunk is the chunk argument value.
 			Chunk model.DocumentChunk
 		}
@@ -489,21 +491,23 @@ func (mock *DocumentChunkRepoerMock) SearchByFullTextCalls() []struct {
 }
 
 // ShouldBeStored calls ShouldBeStoredFunc.
-func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
+func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error) {
 	if mock.ShouldBeStoredFunc == nil {
 		panic("DocumentChunkRepoerMock.ShouldBeStoredFunc: method is nil but DocumentChunkRepoer.ShouldBeStored was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
+		Doc   model.Document
 		Chunk model.DocumentChunk
 	}{
 		Ctx:   ctx,
+		Doc:   doc,
 		Chunk: chunk,
 	}
 	mock.lockShouldBeStored.Lock()
 	mock.calls.ShouldBeStored = append(mock.calls.ShouldBeStored, callInfo)
 	mock.lockShouldBeStored.Unlock()
-	return mock.ShouldBeStoredFunc(ctx, chunk)
+	return mock.ShouldBeStoredFunc(ctx, doc, chunk)
 }
 
 // ShouldBeStoredCalls gets all the calls that were made to ShouldBeStored.
@@ -512,10 +516,12 @@ func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, chunk m
 //	len(mockedDocumentChunkRepoer.ShouldBeStoredCalls())
 func (mock *DocumentChunkRepoerMock) ShouldBeStoredCalls() []struct {
 	Ctx   context.Context
+	Doc   model.Document
 	Chunk model.DocumentChunk
 } {
 	var calls []struct {
 		Ctx   context.Context
+		Doc   model.Document
 		Chunk model.DocumentChunk
 	}
 	mock.lockShouldBeStored.RLock()

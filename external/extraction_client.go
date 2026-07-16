@@ -18,9 +18,14 @@ import (
 // extractionMaxTokens bounds the LLM's response length for one chunk's
 // extracted facts. A chunk can yield dozens of facts (e.g. a personnel/
 // affiliation roster), each needing ~40-80 tokens of JSON — confirmed against
-// a real response that got cut off mid-fact at the previous 1500-token
-// budget, producing invalid truncated JSON on every retry.
-const extractionMaxTokens = 4000
+// real responses that got cut off mid-fact at both the original 1500-token
+// budget and, later, at 4000 (a personnel-roster-heavy chunk still exceeded
+// it), producing invalid truncated JSON on every retry. Bumped alongside
+// extractionHTTPTimeout (this file) and extractKnowledgePerChunkBudget
+// (internal/worker/extract_knowledge.go) — a bigger budget takes longer to
+// generate, so raising this alone would just trade truncation failures for
+// more frequent timeout failures.
+const extractionMaxTokens = 6000
 
 // ExtractionClient implements data.KnowledgeExtractor against a generic
 // OpenAI-compatible text chat-completions API — works unmodified against
@@ -40,7 +45,7 @@ var _ data.KnowledgeExtractor = (*ExtractionClient)(nil)
 // previous 2-minute budget wasn't enough for a cloud-hosted LLM generating up
 // to extractionMaxTokens under variable load — must stay comfortably below
 // extractKnowledgePerChunkBudget (internal/worker/extract_knowledge.go).
-const extractionHTTPTimeout = 5 * time.Minute
+const extractionHTTPTimeout = 7 * time.Minute
 
 // NewExtractionClient creates a new ExtractionClient targeting the given
 // base URL/model. apiKey may be empty — self-hosted servers often need no auth.
@@ -76,6 +81,7 @@ type extractedFactJSON struct {
 	Predicate string   `json:"predicate"`
 	Object    string   `json:"object"`
 	TruthTier string   `json:"truth_tier"`
+	Category  string   `json:"category"`
 	Topics    []string `json:"topics"`
 	Note      string   `json:"note"`
 }
@@ -168,12 +174,24 @@ func (c *ExtractionClient) Extract(
 			)
 			continue
 		}
+		category, err := model.ParseFactCategory(raw.Category)
+		if err != nil {
+			log.Printf(
+				"[ExtractionClient] skipping fact with unrecognized category %q: subject=%q predicate=%q object=%q",
+				raw.Category,
+				raw.Subject,
+				raw.Predicate,
+				raw.Object,
+			)
+			continue
+		}
 		facts = append(facts, data.ExtractedFact{
 			Subject:   raw.Subject,
 			Predicate: raw.Predicate,
 			Object:    raw.Object,
 			Note:      raw.Note,
 			TruthTier: tier,
+			Category:  category,
 			Topics:    raw.Topics,
 		})
 	}
@@ -190,7 +208,7 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("Respond with ONLY a JSON array (no markdown, no commentary), where each ")
 	b.WriteString("element has this shape:\n")
 	b.WriteString(`{"subject": "...", "predicate": "...", "object": "...", ` +
-		`"truth_tier": "...", "topics": ["..."], "note": "..."}` + "\n\n")
+		`"truth_tier": "...", "category": "...", "topics": ["..."], "note": "..."}` + "\n\n")
 	b.WriteString("truth_tier must be exactly one of: axiomatic, temporal, probabilistic, ")
 	b.WriteString("subjective, unknown, invalid.\n")
 	b.WriteString("- axiomatic: high factual accuracy and reliability.\n")
@@ -199,12 +217,28 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("- subjective: opinion or perspective, not strongly factual.\n")
 	b.WriteString("- unknown: needs further verification or context.\n")
 	b.WriteString("- invalid: false or misleading.\n\n")
+	b.WriteString("category must be exactly one of: clinical, metadata, unknown.\n")
+	b.WriteString("- clinical: a substantive clinical/scientific claim, finding, or ")
+	b.WriteString("recommendation (treatment efficacy, diagnostic criteria, epidemiological ")
+	b.WriteString("findings, guideline recommendations).\n")
+	b.WriteString("- metadata: about the document itself, not clinical content — authorship, ")
+	b.WriteString("affiliations, citations/references, guideline-development process, document ")
+	b.WriteString(`structure (e.g. "Chapter 5 contains recommendations on..."), or other `)
+	b.WriteString("administrative/bibliographic information.\n")
+	b.WriteString("- unknown: genuinely unclear which.\n\n")
 	b.WriteString("topics is a short list of subject-matter tags. note is optional context; ")
 	b.WriteString("use \"\" if none. If the text contains no extractable factual claims, ")
 	b.WriteString("respond with an empty array: [].\n\n")
 
 	if req.DocumentTitle != "" {
 		fmt.Fprintf(&b, "Document: %q\n", req.DocumentTitle)
+	}
+	if req.PublisherName != "" {
+		fmt.Fprintf(&b, "Publisher: %q", req.PublisherName)
+		if req.PublicationYear > 0 {
+			fmt.Fprintf(&b, " (%d)", req.PublicationYear)
+		}
+		b.WriteString("\n")
 	}
 	b.WriteString("Text:\n\"\"\"\n")
 	b.WriteString(req.Text)

@@ -62,7 +62,7 @@ func newPassThroughChunkRepo() *mockrepo.DocumentChunkRepoerMock {
 	repo.WithTxFunc = func(_ context.Context, fn func(data.DocumentChunkRepoer) error) error {
 		return fn(repo)
 	}
-	repo.ShouldBeStoredFunc = func(_ context.Context, _ model.DocumentChunk) (bool, error) {
+	repo.ShouldBeStoredFunc = func(_ context.Context, _ model.Document, _ model.DocumentChunk) (bool, error) {
 		return true, nil
 	}
 	repo.CreateBatchFunc = func(_ context.Context, _ []model.DocumentChunk) error {
@@ -169,7 +169,7 @@ func TestProcessParsedDocumentWorker_Work_UploadsImageAndEnqueuesCaption(t *test
 	chunkRepo.WithTxFunc = func(_ context.Context, fn func(data.DocumentChunkRepoer) error) error {
 		return fn(chunkRepo)
 	}
-	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, _ model.DocumentChunk) (bool, error) {
+	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, _ model.Document, _ model.DocumentChunk) (bool, error) {
 		return true, nil
 	}
 	chunkRepo.CreateBatchFunc = func(_ context.Context, chunks []model.DocumentChunk) error {
@@ -472,7 +472,7 @@ func TestProcessParsedDocumentWorker_Work_ShouldBeStoredFiltersChunks(t *testing
 	chunkRepo.WithTxFunc = func(_ context.Context, fn func(data.DocumentChunkRepoer) error) error {
 		return fn(chunkRepo)
 	}
-	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, chunk model.DocumentChunk) (bool, error) {
+	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, _ model.Document, chunk model.DocumentChunk) (bool, error) {
 		return chunk.Text != "drop me", nil
 	}
 	var stored []model.DocumentChunk
@@ -527,7 +527,7 @@ func TestProcessParsedDocumentWorker_Work_CreateBatchError(t *testing.T) {
 	chunkRepo.WithTxFunc = func(_ context.Context, fn func(data.DocumentChunkRepoer) error) error {
 		return fn(chunkRepo)
 	}
-	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, _ model.DocumentChunk) (bool, error) {
+	chunkRepo.ShouldBeStoredFunc = func(_ context.Context, _ model.Document, _ model.DocumentChunk) (bool, error) {
 		return true, nil
 	}
 	chunkRepo.CreateBatchFunc = func(_ context.Context, _ []model.DocumentChunk) error {

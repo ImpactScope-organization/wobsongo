@@ -27,10 +27,11 @@ type CreateAtomicKnowledgeBatchParams struct {
 	Note               string
 	MarkedAsInvalid    bool
 	MarkedAsIrrelevant bool
+	Category           int32
 }
 
 const getAtomicKnowledgeByID = `-- name: GetAtomicKnowledgeByID :one
-SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts FROM atomic_knowledge WHERE id = $1
+SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts, category FROM atomic_knowledge WHERE id = $1
 `
 
 func (q *Queries) GetAtomicKnowledgeByID(ctx context.Context, id uuid.UUID) (AtomicKnowledge, error) {
@@ -52,12 +53,13 @@ func (q *Queries) GetAtomicKnowledgeByID(ctx context.Context, id uuid.UUID) (Ato
 		&i.MarkedAsIrrelevant,
 		&i.Embedding,
 		&i.Fts,
+		&i.Category,
 	)
 	return i, err
 }
 
 const listKnowledgeNeedingEmbedding = `-- name: ListKnowledgeNeedingEmbedding :many
-SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts FROM atomic_knowledge
+SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts, category FROM atomic_knowledge
 WHERE document_id = $1 AND embedding IS NULL
 ORDER BY created_at ASC
 `
@@ -87,6 +89,7 @@ func (q *Queries) ListKnowledgeNeedingEmbedding(ctx context.Context, documentID 
 			&i.MarkedAsIrrelevant,
 			&i.Embedding,
 			&i.Fts,
+			&i.Category,
 		); err != nil {
 			return nil, err
 		}

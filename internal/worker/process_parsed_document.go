@@ -129,6 +129,11 @@ func (w *ProcessParsedDocumentWorker) Work(
 		)
 	}
 
+	doc, err := w.DocumentService.GetByID(ctx, job.Args.DocumentID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch document %s: %w", job.Args.DocumentID, err)
+	}
+
 	kept, dropped := filterNoiseChunks(result.Chunks)
 	log.Printf(
 		"[ProcessParsedDocumentWorker] document=%s title=%q page_count=%d chunks_kept=%d chunks_dropped=%d",
@@ -171,7 +176,7 @@ func (w *ProcessParsedDocumentWorker) Work(
 				Topics:      []string{},
 				ParsedChunk: *c,
 			}
-			ok, err := tx.ShouldBeStored(ctx, chunk)
+			ok, err := tx.ShouldBeStored(ctx, *doc, chunk)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate chunk %d for storage: %w", i, err)
 			}

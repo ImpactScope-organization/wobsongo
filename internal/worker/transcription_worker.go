@@ -24,21 +24,27 @@ const transcriptionJobTimeout = 5 * time.Minute
 // Modal ASR service and storing the resulting transcript in the database.
 type TranscriptionWorker struct {
 	river.WorkerDefaults[queue.TranscriptionJob]
-	videoService *service.VideoService
-	modalURL     string
-	httpClient   data.HTTPClient
-	botClient    *external.BotClient
+	videoService  *service.VideoService
+	modalURL      string
+	asrModel      string
+	asrSourceLang string
+	httpClient    data.HTTPClient
+	botClient     *external.BotClient
 }
 
 // NewTranscriptionWorker creates a new TranscriptionWorker instance.
 func NewTranscriptionWorker(
 	videoService *service.VideoService,
 	modalURL string,
+	asrModel string,
+	asrSourceLang string,
 	botClient *external.BotClient,
 ) *TranscriptionWorker {
 	return &TranscriptionWorker{
-		videoService: videoService,
-		modalURL:     modalURL,
+		videoService:  videoService,
+		modalURL:      modalURL,
+		asrModel:      asrModel,
+		asrSourceLang: asrSourceLang,
 		httpClient: &http.Client{
 			Timeout: transcriptionJobTimeout,
 		},
@@ -67,9 +73,9 @@ func (w *TranscriptionWorker) Work(
 
 	// Build the request payload for the Modal ASR service
 	payload := map[string]string{
-		"model":        "Omnilingual ASR",
+		"model":        w.asrModel,
 		"audio_url":    job.Args.DownloadURL,
-		"source_lang":  "english",
+		"source_lang":  w.asrSourceLang,
 		"audio_format": "mp4",
 	}
 

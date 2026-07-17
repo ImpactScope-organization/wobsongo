@@ -124,6 +124,12 @@ type ApifyConfig struct {
 type ASRConfig struct {
 	// Endpoint is the Modal ASR API endpoint used for audio transcription requests.
 	Endpoint string `json:"endpoint"`
+
+	// Model is the ASR model to use for transcription
+	Model string `json:"model"`
+
+	// SourceLang is the source language hint sent to the Modal ASR endpoint
+	SourceLang string `json:"source_lang"`
 }
 
 type Config struct {
@@ -231,6 +237,12 @@ func (c *Config) IsOK() error {
 	if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
 		return err
 	}
+	if err := validateASRModel(c.ASRConfig.Model); err != nil {
+		return err
+	}
+	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -250,6 +262,34 @@ func validateModalASREndpoint(rawURL string) error {
 			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
 			u.Hostname(),
 		)
+	}
+	return nil
+}
+
+var validASRModels = map[string]bool{
+	"Omnilingual ASR":                 true,
+	"Whisper Small (Untrained)":       true,
+	"Whisper Large-V3 (Untrained)":    true,
+	"Whisper Large-V3 (Augmentation)": true,
+	"Whisper Small (Augmentation)":    true,
+	"Whisper Large-V3":                true,
+	"Whisper Small":                   true,
+}
+
+var validSourceLangs = map[string]bool{
+	"auto": true, "french": true, "english": true, "moore": true, "dioula": true,
+}
+
+func validateASRModel(model string) error {
+	if !validASRModels[model] {
+		return fmt.Errorf("MODAL_ASR_MODEL %q is not a recognized model", model)
+	}
+	return nil
+}
+
+func validateASRSourceLang(lang string) error {
+	if !validSourceLangs[lang] {
+		return fmt.Errorf("MODAL_ASR_SOURCE_LANG %q is not a recognized language", lang)
 	}
 	return nil
 }
@@ -346,7 +386,9 @@ func NewConfig(envs ...string) *Config {
 
 	// Parse ASR configuration
 	asrConfig := &ASRConfig{
-		Endpoint: getEnv("MODAL_ASR_ENDPOINT", ""),
+		Endpoint:   getEnv("MODAL_ASR_ENDPOINT", ""),
+		Model:      getEnv("MODAL_ASR_MODEL", "Omnilingual ASR"),
+		SourceLang: getEnv("MODAL_ASR_SOURCE_LANG", "auto"),
 	}
 
 	// Parse Docling configuration

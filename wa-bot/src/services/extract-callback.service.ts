@@ -25,7 +25,7 @@ export async function handleExtractDone(
   }
 
   try {
-    // Re-call the /extract endpoint using the SAME url. 
+    // Re-call the /extract endpoint using the SAME url.
     const result = await callGoExtract(pending.url);
 
     if (result.status === 'completed' && result.data) {

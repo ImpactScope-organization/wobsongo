@@ -9,11 +9,24 @@ import { Boom } from '@hapi/boom';
 import P from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
 import { setSock, setStatus } from './socket-manager.js';
+import { rm } from 'node:fs/promises';
 
 const logger = P({ level: 'silent' });
 
 // OnMessage defines the callback signature used to process incoming WA messages.
 type OnMessage = (sock: WASocket, msg: WAMessage) => Promise<void>;
+
+// Wraps an async event listener so its rejection is caught and logged.
+function safeListener<Args extends unknown[]>(
+  fn: (...args: Args) => Promise<void>,
+  label: string
+): (...args: Args) => void {
+  return (...args: Args) => {
+    fn(...args).catch((err: unknown) => {
+      console.error(`[socket] error in ${label} listener:`, err);
+    });
+  };
+}
 
 // startSocket initializes and manages the Baileys WA socket connection.
 export async function startSocket(onMessage: OnMessage): Promise<void> {
@@ -27,7 +40,7 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
   setStatus('starting');
 
   // Listen for credential updates and save them locally.
-  sock.ev.on('creds.update', saveCreds);
+  sock.ev.on('creds.update', safeListener(saveCreds, 'creds.update'));
 
   // Listen for changes in the connection lifecycle.
   sock.ev.on('connection.update', (update) => {
@@ -46,15 +59,26 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
       setStatus('connected');
     }
 
+    const RECONNECT_DELAY_MS = 3000;
+
     // The connection was closed or dropped.
     if (connection === 'close') {
-      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+      const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode as
+        DisconnectReason | undefined;
       const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       setStatus('disconnected');
 
       // Attempt to automatically reconnect unless the user explicitly logged out.
       if (shouldReconnect) {
-        startSocket(onMessage);
+        console.log(
+          `Connection closed (code ${statusCode}). Reconnecting in ${RECONNECT_DELAY_MS}ms...`
+        );
+        setTimeout(() => {
+          startSocket(onMessage).catch((err) => {
+            console.error('[socket] reconnect failed:', err);
+            setStatus('disconnected');
+          });
+        }, RECONNECT_DELAY_MS);
       } else {
         console.log('Logged out. Delete the auth_info_baileys folder and run /bot/start again.');
         setSock(undefined);
@@ -64,10 +88,13 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
   });
 
   // Listen for new incoming messages
-  sock.ev.on('messages.upsert', async ({ type, messages }) => {
-    if (type !== 'notify') return;
-    for (const msg of messages) await onMessage(sock, msg);
-  });
+  sock.ev.on(
+    'messages.upsert',
+    safeListener(async ({ type, messages }) => {
+      if (type !== 'notify') return;
+      for (const msg of messages) await onMessage(sock, msg);
+    }, 'messages.upsert')
+  );
 }
 
 // stopSocket terminates the active WA socket connection.
@@ -76,13 +103,16 @@ export async function stopSocket(purgeData: boolean): Promise<void> {
   const sock = getSock();
 
   // Attempt to safely log out of the active session.
-  await sock?.logout().catch(() => {});
+  await sock?.logout().catch((err) => {
+    console.error('[stopSocket] logout failed (continuing anyway):', err);
+  });
   setSock(undefined);
   setStatus('stopped');
 
   // If requested, remove the session directory from the filesystem.
   if (purgeData) {
-    const { rm } = await import('node:fs/promises');
-    await rm('auth_info_baileys', { recursive: true, force: true }).catch(() => {});
+    await rm('auth_info_baileys', { recursive: true, force: true }).catch((err) => {
+      console.error('[stopSocket] failed to purge session data:', err);
+    });
   }
 }

@@ -5,7 +5,6 @@ import type { ExtractDoneCallback } from '../types/types.js';
 // extractDone handles the webhook callback from the backend indicating
 // that a media extraction job has finished (either successfully or with an error).
 export function extractDone(req: Request, res: Response): void {
-    console.log('[extractDone] req.body:', JSON.stringify(req.body));
   const body = req.body as ExtractDoneCallback;
 
   if (!body.jobId || !body.status) {

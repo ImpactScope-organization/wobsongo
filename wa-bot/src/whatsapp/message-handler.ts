@@ -5,7 +5,7 @@ import * as conversationService from '../services/conversation.service.js';
 
 const TIKTOK_URL_REGEX = /https?:\/\/(www\.)?(vt\.)?tiktok\.com\/\S+/i;
 
-// WELCOME_TEXT contains the default onboarding and help instructions 
+// WELCOME_TEXT contains the default onboarding and help instructions
 // when user send "/start" command.
 const WELCOME_TEXT = `👋 Hello! I am a TikTok transcription bot.
 How to use:
@@ -22,24 +22,24 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
   const text = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text;
   if (!text) return;
 
-  const trimmed = text.trim();
-
-  // Handle the basic /start command by sending the help text.
-  if (trimmed === '/start') {
-    await sock.sendMessage(jid, { text: WELCOME_TEXT });
-    return;
-  }
-
-  // Attempt to extract a valid TikTok URL from the user's message.
-  const tiktokUrl = trimmed.match(TIKTOK_URL_REGEX)?.[0];
-  if (!tiktokUrl) {
-    await sock.sendMessage(jid, {
-      text: 'Please send a valid TikTok video link, or type /start for help..',
-    });
-    return;
-  }
-
   try {
+    const trimmed = text.trim();
+
+    // Handle the basic /start command by sending the help text.
+    if (trimmed === '/start') {
+      await sock.sendMessage(jid, { text: WELCOME_TEXT });
+      return;
+    }
+
+    // Attempt to extract a valid TikTok URL from the user's message.
+    const tiktokUrl = trimmed.match(TIKTOK_URL_REGEX)?.[0];
+    if (!tiktokUrl) {
+      await sock.sendMessage(jid, {
+        text: 'Please send a valid TikTok video link, or type /start for help..',
+      });
+      return;
+    }
+
     // Initiate the extraction process by calling the Go backend.
     const result = await callGoExtract(tiktokUrl);
 

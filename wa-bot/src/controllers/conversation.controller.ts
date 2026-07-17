@@ -15,7 +15,7 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
   }
 
   const body = req.body as SendMessageRequest;
-  if (!body.text && !body.audioUrl) {
+  if (!body.text) {
     res.status(400).json({ error: 'Tiktok URL is required.' });
     return;
   }

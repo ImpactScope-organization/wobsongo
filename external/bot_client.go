@@ -44,7 +44,7 @@ type extractDoneCallback struct {
 func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg string) error {
 	body, err := json.Marshal(extractDoneCallback{JobID: jobID, Status: status, Error: errMsg})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to marshal callback payload: %w", err)
 	}
 
 	req, err := http.NewRequestWithContext(
@@ -54,7 +54,7 @@ func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg
 		bytes.NewBuffer(body),
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create callback request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
@@ -63,9 +63,11 @@ func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to execute callback request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("bot callback returned status %d", resp.StatusCode)

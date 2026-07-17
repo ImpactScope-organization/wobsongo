@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/impactscope-organization/wobsongo/internal/dto"
@@ -74,9 +73,13 @@ func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 	if err := c.Bind(payload); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: "JSON format not valid"})
 	}
+	if err := c.Validate(payload); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{errorKey: err.Error()})
+	}
 
 	datasetID, err := h.service.ProcessWebhook(c.Request().Context(), payload, extractionID)
 	if err != nil {
+		c.Logger().Errorf("ProcessWebhook failed (extractionId=%s): %v", extractionID, err)
 		return c.JSON(
 			http.StatusInternalServerError,
 			map[string]string{errorKey: "Internal server error"},
@@ -87,6 +90,6 @@ func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 		return c.String(http.StatusOK, "Ignored: status is not SUCCEEDED")
 	}
 
-	log.Printf("Apify successful. Dataset ID: %s\n", datasetID)
+	c.Logger().Infof("Apify successful. Dataset ID: %s", datasetID)
 	return c.JSON(http.StatusOK, map[string]string{"message": "Webhook received successfully"})
 }

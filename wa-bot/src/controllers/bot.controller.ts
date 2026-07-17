@@ -9,7 +9,7 @@ export async function startBot(_req: Request, res: Response): Promise<void> {
 }
 
 //stopBot handles the HTTP request to gracefully shut down the bot instance.
-// It accepts an optional 'purgeData' flag in the request body, 
+// It accepts an optional 'purgeData' flag in the request body,
 // which determines  whether the bot's local session data should be deleted upon stopping.
 export async function stopBot(req: Request, res: Response): Promise<void> {
   const body = req.body as StopBotRequest;

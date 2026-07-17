@@ -25,6 +25,9 @@ type JudgeEvidence struct {
 	// tier at all (not merely an "unknown" one).
 	TruthTier  string
 	DocumentID uuid.UUID
+	// Language is the source chunk's/fact's own language, mirroring
+	// service.RAGResult.Language.
+	Language model.Language
 }
 
 // JudgeRequest bundles one sub-claim with the evidence retrieved for it. The

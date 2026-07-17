@@ -245,8 +245,11 @@ func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t 
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(enqueued) != 2 {
-		t.Fatalf("expected 2 jobs enqueued (embed + extract), got %d: %+v", len(enqueued), enqueued)
+	if len(enqueued) != 3 {
+		t.Fatalf(
+			"expected 3 jobs enqueued (embed + extract + translate), got %d: %+v",
+			len(enqueued), enqueued,
+		)
 	}
 	embedJob, ok := enqueued[0].(queue.EmbedChunksDTO)
 	if !ok {
@@ -271,6 +274,20 @@ func TestProcessParsedDocumentWorker_Work_NoImagesEnqueuesEmbeddingNotCaption(t 
 			"expected enqueued extract job DocumentID %s, got %s",
 			job.Args.DocumentID,
 			extractJob.DocumentID,
+		)
+	}
+	translateJob, ok := enqueued[2].(queue.TranslateChunksDTO)
+	if !ok {
+		t.Fatalf(
+			"expected third enqueued job to be queue.TranslateChunksDTO, got %T",
+			enqueued[2],
+		)
+	}
+	if translateJob.DocumentID != job.Args.DocumentID {
+		t.Errorf(
+			"expected enqueued translate job DocumentID %s, got %s",
+			job.Args.DocumentID,
+			translateJob.DocumentID,
 		)
 	}
 }

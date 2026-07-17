@@ -92,6 +92,15 @@ definitions:
         description: Filetype is the mime type of the document file (e.g., "application/pdf",
           "text/plain").
         type: string
+      language:
+        description: |-
+          Language is the document's language ("en" or "fr") — required, not
+          auto-detected, since French must be first-class for this deployment
+          and silently defaulting risks mis-tagging a document.
+        enum:
+        - en
+        - fr
+        type: string
       page_count:
         description: PageCount is the number of pages in the document.
         type: integer
@@ -112,6 +121,7 @@ definitions:
     - filename
     - filesize
     - filetype
+    - language
     - page_count
     - sha256
     - title
@@ -246,6 +256,13 @@ definitions:
         description: IngestedAt is the timestamp when the document was ingested into
           the system.
         type: string
+      language:
+        allOf:
+        - $ref: '#/definitions/model.Language'
+        description: |-
+          Language is the language this document is written in, set explicitly
+          at ingestion (e.g. `wob document insert --language fr`) rather than
+          auto-detected — the cheapest, most reliable option for now.
       modified_at:
         description: ModifiedAt is the timestamp when the document was last modified.
         type: string
@@ -270,11 +287,20 @@ definitions:
     - filesize
     - filetype
     - id
+    - language
     - modified_at
     - page_count
     - sha256
     - title
     type: object
+  model.Language:
+    enum:
+    - 0
+    - 1
+    type: integer
+    x-enum-varnames:
+    - LanguageEnglish
+    - LanguageFrench
   model.POSTUploadPolicy:
     properties:
       formFields:

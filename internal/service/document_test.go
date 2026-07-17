@@ -44,6 +44,7 @@ func TestDocumentService_Create(t *testing.T) {
 		PageCount:       10,
 		PublisherName:   "Fake Press",
 		PublicationYear: 2020,
+		Language:        "en",
 	}
 
 	doc, err := svc.Create(t.Context(), req)
@@ -83,7 +84,7 @@ func TestDocumentService_Create_PropagatesRepoError(t *testing.T) {
 	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrInternal }
 	svc := service.NewDocumentService(repo)
 
-	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{})
+	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{Language: "en"})
 	if !errors.Is(err, data.ErrInternal) {
 		t.Errorf("expected data.ErrInternal, got %v", err)
 	}
@@ -135,7 +136,7 @@ func TestDocumentService_Create_ConcurrentDuplicate_ReturnsExistingNoOp(t *testi
 	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrConflict }
 	svc := service.NewDocumentService(repo)
 
-	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{SHA256: existing.SHA256})
+	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{SHA256: existing.SHA256, Language: "en"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

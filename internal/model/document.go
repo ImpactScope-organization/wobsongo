@@ -125,6 +125,60 @@ func ParseFactCategory(s string) (FactCategory, error) {
 	return FactCategoryUnknown, fmt.Errorf("unrecognized fact category %q", s)
 }
 
+// Language identifies the language a document (and everything derived from
+// it — chunks, facts) is written in. Only English/French are supported —
+// see internal/model/document.go's Document.Language doc comment for why
+// this is set explicitly at ingestion rather than auto-detected.
+type Language int
+
+const (
+	// LanguageEnglish is the default/zero value, matching existing
+	// pre-bilingual-support data (all English) without a backfill migration.
+	LanguageEnglish Language = iota
+	LanguageFrench
+)
+
+// languageNames is the canonical string form of each Language, used both for
+// String() and ParseLanguage — the wire format the CLI/API communicate
+// languages in, independent of how they're persisted (a plain INTEGER,
+// matching this schema's existing convention for TruthTier/FactCategory
+// rather than a native Postgres ENUM type).
+var languageNames = map[Language]string{
+	LanguageEnglish: "en",
+	LanguageFrench:  "fr",
+}
+
+// String returns l's canonical ISO-639-1 code, or "en" for an out-of-range value.
+func (l Language) String() string {
+	if name, ok := languageNames[l]; ok {
+		return name
+	}
+	return "en"
+}
+
+// ParseLanguage parses s (case-insensitive) into a Language, matching the
+// names String() produces. Returns an error for anything else.
+func ParseLanguage(s string) (Language, error) {
+	s = strings.ToLower(strings.TrimSpace(s))
+	for language, name := range languageNames {
+		if name == s {
+			return language, nil
+		}
+	}
+	return LanguageEnglish, fmt.Errorf("unrecognized language %q", s)
+}
+
+// Other returns the other of the two supported languages. Only meaningful
+// while exactly two languages are supported — see the bilingual-support
+// plan's documented migration path for a third language, which would need a
+// side-table rather than this kind of binary toggle.
+func (l Language) Other() Language {
+	if l == LanguageEnglish {
+		return LanguageFrench
+	}
+	return LanguageEnglish
+}
+
 // LayoutType represents the structural classification assigned by Docling
 // to a specific parsed document element.
 type LayoutType string
@@ -202,6 +256,11 @@ type Document struct {
 
 	// PublicationYear is the year the document was published.
 	PublicationYear int `json:"publication_year"`
+
+	// Language is the language this document is written in, set explicitly
+	// at ingestion (e.g. `wob document insert --language fr`) rather than
+	// auto-detected — the cheapest, most reliable option for now.
+	Language Language `json:"language" binding:"required"`
 }
 
 // BoundingBox defines the coordinates of a text element on a PDF page layout.
@@ -282,6 +341,19 @@ type DocumentChunk struct {
 	// "processed, found nothing."
 	KnowledgeExtractedAt *time.Time `json:"-"`
 
+	// Language is copied down from the parent Document at chunk-insert time
+	// (an immutable parent attribute, not redundant denormalization) —
+	// needed on this row directly because Postgres generated columns can't
+	// reference another table, and text_fts_en/text_fts_fr need to know
+	// which language `text` itself is in.
+	Language Language `json:"language" binding:"required"`
+
+	// TextTranslated is a translation of Text into whichever of English/French
+	// isn't Language, populated once at ingestion by TranslateChunksWorker.
+	// Empty until translated — never shown in citations/display, which
+	// always use Text; purely feeds the "other" language's full-text search.
+	TextTranslated string `json:"-"`
+
 	ParsedChunk
 }
 
@@ -335,6 +407,19 @@ type AtomicKnowledge struct {
 
 	// MarkedAsIrrelevant indicates whether the knowledge statement has been marked as irrelevant.
 	MarkedAsIrrelevant bool `json:"marked_as_irrelevant" binding:"required"`
+
+	// Language is copied down from the parent DocumentChunk at extraction
+	// time — see DocumentChunk.Language's doc comment for why this can't
+	// just be a join to the parent document/chunk.
+	Language Language `json:"language" binding:"required"`
+
+	// SearchTextTranslated is a translation of SPOText() into whichever of
+	// English/French isn't Language — a single concatenated blob purely for
+	// full-text search, not per-field, and never shown in citations/display
+	// (which always use Subject/Predicate/Object/Note verbatim). Empty until
+	// translated (folded into the same extraction call, see
+	// ExtractedFact.TranslatedSearchText).
+	SearchTextTranslated string `json:"-"`
 }
 
 // SPOText builds the canonical text representation of a fact: "{Subject}

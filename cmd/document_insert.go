@@ -43,6 +43,7 @@ var (
 	documentInsertTitle     string
 	documentInsertPublisher string
 	documentInsertYear      int
+	documentInsertLanguage  string
 	documentInsertApply     bool
 )
 
@@ -74,10 +75,13 @@ func init() {
 		StringVar(&documentInsertPublisher, "publisher", "", "Publisher name")
 	documentInsertCmd.Flags().IntVar(&documentInsertYear, "year", 0, "Publication year")
 	documentInsertCmd.Flags().
+		StringVar(&documentInsertLanguage, "language", "", "Document language: \"en\" or \"fr\" (required — never auto-detected)")
+	documentInsertCmd.Flags().
 		BoolVar(&documentInsertApply, "apply", false, "Actually upload the file and insert the document (default is a dry run)")
 
 	documentInsertCmd.MarkFlagsOneRequired("file", "url")
 	documentInsertCmd.MarkFlagsMutuallyExclusive("file", "url")
+	_ = documentInsertCmd.MarkFlagRequired("language")
 
 	documentCmd.AddCommand(documentInsertCmd)
 }
@@ -162,13 +166,14 @@ func runDocumentInsert(cmd *cobra.Command, _ []string) {
 
 	if !documentInsertApply {
 		cmd.Printf(
-			"Dry run: would insert document (title=%q, filename=%s, file_key=%s, sha256=%s, filetype=%s, filesize=%d)\n",
+			"Dry run: would insert document (title=%q, filename=%s, file_key=%s, sha256=%s, filetype=%s, filesize=%d, language=%s)\n",
 			req.Title,
 			req.Filename,
 			req.FileKey,
 			req.SHA256,
 			req.Filetype,
 			req.Filesize,
+			req.Language,
 		)
 		cmd.Println("Re-run with --apply to actually upload the file and insert the document.")
 		return
@@ -259,6 +264,7 @@ func buildCreateDocumentDTO(
 		PageCount:       0, // backfilled by ParseDocumentWorker once Docling parses it
 		PublisherName:   documentInsertPublisher,
 		PublicationYear: documentInsertYear,
+		Language:        documentInsertLanguage,
 	}, nil, cleanup, nil
 }
 

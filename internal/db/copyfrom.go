@@ -43,6 +43,8 @@ func (r iteratorForCreateAtomicKnowledgeBatch) Values() ([]interface{}, error) {
 		r.rows[0].MarkedAsInvalid,
 		r.rows[0].MarkedAsIrrelevant,
 		r.rows[0].Category,
+		r.rows[0].Language,
+		r.rows[0].SearchTextTranslated,
 	}, nil
 }
 
@@ -51,7 +53,7 @@ func (r iteratorForCreateAtomicKnowledgeBatch) Err() error {
 }
 
 func (q *Queries) CreateAtomicKnowledgeBatch(ctx context.Context, arg []CreateAtomicKnowledgeBatchParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"atomic_knowledge"}, []string{"id", "created_at", "updated_at", "document_id", "document_chunk_id", "truth_tier", "topics", "subject", "predicate", "object", "note", "marked_as_invalid", "marked_as_irrelevant", "category"}, &iteratorForCreateAtomicKnowledgeBatch{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"atomic_knowledge"}, []string{"id", "created_at", "updated_at", "document_id", "document_chunk_id", "truth_tier", "topics", "subject", "predicate", "object", "note", "marked_as_invalid", "marked_as_irrelevant", "category", "language", "search_text_translated"}, &iteratorForCreateAtomicKnowledgeBatch{rows: arg})
 }
 
 // iteratorForCreateDocumentChunksBatch implements pgx.CopyFromSource.
@@ -87,6 +89,8 @@ func (r iteratorForCreateDocumentChunksBatch) Values() ([]interface{}, error) {
 		r.rows[0].LayoutType,
 		r.rows[0].BoundingBox,
 		r.rows[0].AssetUrl,
+		r.rows[0].Language,
+		r.rows[0].TextTranslated,
 	}, nil
 }
 
@@ -95,5 +99,5 @@ func (r iteratorForCreateDocumentChunksBatch) Err() error {
 }
 
 func (q *Queries) CreateDocumentChunksBatch(ctx context.Context, arg []CreateDocumentChunksBatchParams) (int64, error) {
-	return q.db.CopyFrom(ctx, []string{"document_chunks"}, []string{"id", "created_at", "updated_at", "document_id", "sequence_number", "topics", "factuality_score", "text", "page", "chapter", "layout_type", "bounding_box", "asset_url"}, &iteratorForCreateDocumentChunksBatch{rows: arg})
+	return q.db.CopyFrom(ctx, []string{"document_chunks"}, []string{"id", "created_at", "updated_at", "document_id", "sequence_number", "topics", "factuality_score", "text", "page", "chapter", "layout_type", "bounding_box", "asset_url", "language", "text_translated"}, &iteratorForCreateDocumentChunksBatch{rows: arg})
 }

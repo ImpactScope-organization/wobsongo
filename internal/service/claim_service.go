@@ -27,6 +27,9 @@ type Citation struct {
 	ChunkText  string
 	TruthTier  string
 	DocumentID uuid.UUID
+	// Language is the source chunk's/fact's own language, mirroring
+	// RAGResult.Language.
+	Language model.Language
 }
 
 // SubClaimResult is one sub-claim's retrieval + judgment outcome.
@@ -144,6 +147,7 @@ func (s *ClaimService) checkSubClaim(ctx context.Context, claim string) (*SubCla
 			ChunkText:  h.ChunkText,
 			TruthTier:  h.TruthTier,
 			DocumentID: h.DocumentID,
+			Language:   h.Language,
 		}
 	}
 
@@ -163,6 +167,7 @@ func (s *ClaimService) checkSubClaim(ctx context.Context, claim string) (*SubCla
 				ChunkText:  e.ChunkText,
 				TruthTier:  e.TruthTier,
 				DocumentID: e.DocumentID,
+				Language:   e.Language,
 			})
 		}
 	}

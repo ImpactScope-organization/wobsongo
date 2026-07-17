@@ -42,6 +42,15 @@ func (s *DocumentService) Create(
 		return nil, err
 	}
 
+	// req.Language is already constrained to "en"/"fr" by CreateDocumentDTO's
+	// validate:"oneof=en fr" tag, so this should never actually error — but
+	// handled properly rather than ignored, since ParseLanguage is the
+	// single source of truth for what's a valid language.
+	language, err := model.ParseLanguage(req.Language)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	doc := &model.Document{
 		ID:              uuid.New(),
@@ -56,9 +65,10 @@ func (s *DocumentService) Create(
 		PageCount:       req.PageCount,
 		PublisherName:   req.PublisherName,
 		PublicationYear: req.PublicationYear,
+		Language:        language,
 	}
 
-	err := s.repo.WithTx(ctx, func(txRepo data.DocumentRepoer) error {
+	err = s.repo.WithTx(ctx, func(txRepo data.DocumentRepoer) error {
 		if err := txRepo.Create(ctx, doc); err != nil {
 			return err
 		}

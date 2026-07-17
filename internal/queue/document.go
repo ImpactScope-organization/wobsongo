@@ -104,3 +104,20 @@ func (EmbedKnowledgeDTO) Kind() string {
 func (EmbedKnowledgeDTO) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{Queue: QueueDocumentIngestion}
 }
+
+// TranslateChunksDTO is the river job kind for translating all of a
+// document's chunks that have text but haven't been translated yet, into
+// the other supported language.
+type TranslateChunksDTO struct {
+	DocumentID uuid.UUID `json:"document_id"`
+}
+
+// Kind implements queue.BackgroundJob and river.JobArgs.
+func (TranslateChunksDTO) Kind() string {
+	return string(JobTypeTranslateChunks)
+}
+
+// InsertOpts implements river.JobArgsWithInsertOpts.
+func (TranslateChunksDTO) InsertOpts() river.InsertOpts {
+	return river.InsertOpts{Queue: QueueDocumentIngestion}
+}

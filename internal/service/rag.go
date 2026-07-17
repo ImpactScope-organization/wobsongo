@@ -42,6 +42,10 @@ type RAGResult struct {
 	Page int
 	// TruthTier is set for fact hits only; empty for chunk hits.
 	TruthTier string
+	// Language is the source chunk's/fact's own language — useful for
+	// debugging cross-lingual retrieval, since a hit's language doesn't have
+	// to match the query's.
+	Language model.Language
 	// ChunkText is the source chunk's full text, hydrated for fact-source
 	// hits only (see hydrateFactChunks) — gives a downstream consumer (e.g. a
 	// claim judge) the surrounding context a bare SPO fact doesn't carry on
@@ -184,6 +188,7 @@ func mapChunkResults(
 			DocumentID: r.Item.DocumentID,
 			Text:       r.Item.Text,
 			Page:       r.Item.Page,
+			Language:   r.Item.Language,
 		}
 	}
 	return out
@@ -202,6 +207,7 @@ func mapFactResults(
 			DocumentID: r.Item.DocumentID,
 			Text:       r.Item.SPOText(),
 			TruthTier:  r.Item.TruthTier.String(),
+			Language:   r.Item.Language,
 			chunkID:    r.Item.DocumentChunkID,
 		}
 	}

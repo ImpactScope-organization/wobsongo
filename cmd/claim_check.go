@@ -99,8 +99,8 @@ func printClaimCheckResult(cmd *cobra.Command, result *service.ClaimCheckResult)
 			cmd.Printf("   citations: (matches the [N] references in reasoning above)\n")
 			for _, c := range sc.Citations {
 				cmd.Printf(
-					"     [%d] (%s) doc=%s %s\n",
-					c.Index, c.Source, c.DocumentID, truncateForDisplay(c.Text, 200),
+					"     [%d] (%s) doc=%s lang=%s %s\n",
+					c.Index, c.Source, c.DocumentID, c.Language, truncateForDisplay(c.Text, 200),
 				)
 			}
 		}

@@ -1088,6 +1088,7 @@ const docTemplate = `{
                 "filename",
                 "filesize",
                 "filetype",
+                "language",
                 "page_count",
                 "sha256",
                 "title"
@@ -1108,6 +1109,14 @@ const docTemplate = `{
                 "filetype": {
                     "description": "Filetype is the mime type of the document file (e.g., \"application/pdf\", \"text/plain\").",
                     "type": "string"
+                },
+                "language": {
+                    "description": "Language is the document's language (\"en\" or \"fr\") — required, not\nauto-detected, since French must be first-class for this deployment\nand silently defaulting risks mis-tagging a document.",
+                    "type": "string",
+                    "enum": [
+                        "en",
+                        "fr"
+                    ]
                 },
                 "page_count": {
                     "description": "PageCount is the number of pages in the document.",
@@ -1271,6 +1280,7 @@ const docTemplate = `{
                 "filesize",
                 "filetype",
                 "id",
+                "language",
                 "modified_at",
                 "page_count",
                 "sha256",
@@ -1305,6 +1315,14 @@ const docTemplate = `{
                     "description": "IngestedAt is the timestamp when the document was ingested into the system.",
                     "type": "string"
                 },
+                "language": {
+                    "description": "Language is the language this document is written in, set explicitly\nat ingestion (e.g. ` + "`" + `wob document insert --language fr` + "`" + `) rather than\nauto-detected — the cheapest, most reliable option for now.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.Language"
+                        }
+                    ]
+                },
                 "modified_at": {
                     "description": "ModifiedAt is the timestamp when the document was last modified.",
                     "type": "string"
@@ -1330,6 +1348,17 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "model.Language": {
+            "type": "integer",
+            "enum": [
+                0,
+                1
+            ],
+            "x-enum-varnames": [
+                "LanguageEnglish",
+                "LanguageFrench"
+            ]
         },
         "model.POSTUploadPolicy": {
             "type": "object",

@@ -33,6 +33,11 @@ const (
 	// JobTypeEmbedKnowledge represents a job type for computing and storing
 	// embeddings for a document's not-yet-embedded atomic knowledge facts.
 	JobTypeEmbedKnowledge BackgroundJobType = "embed_knowledge"
+
+	// JobTypeTranslateChunks represents a job type for translating a
+	// document's text-bearing, not-yet-translated chunks into the other
+	// supported language, for cross-lingual full-text search.
+	JobTypeTranslateChunks BackgroundJobType = "translate_chunks"
 )
 
 // BackgroundJob represents a generic background job.
@@ -52,7 +57,8 @@ type BackgroundJob interface {
 const (
 	// QueueDocumentIngestion is used by every job in the document-ingestion
 	// pipeline: ParseDocumentDTO, ProcessParsedDocumentDTO,
-	// CaptionImageChunksDTO, EmbedChunksDTO, ExtractKnowledgeDTO, EmbedKnowledgeDTO.
+	// CaptionImageChunksDTO, EmbedChunksDTO, ExtractKnowledgeDTO,
+	// EmbedKnowledgeDTO, TranslateChunksDTO.
 	QueueDocumentIngestion = "document_ingestion"
 
 	// QueueMediaProcessing is used by the media/video pipeline:

@@ -69,8 +69,8 @@ func runRAG(cmd *cobra.Command, args []string) {
 
 	for i, r := range results {
 		cmd.Printf(
-			"%d. [%s] score=%.4f methods=%s doc=%s\n",
-			i+1, r.Source, r.RRFScore, strings.Join(r.Methods, ","), r.DocumentID,
+			"%d. [%s] score=%.4f methods=%s doc=%s lang=%s\n",
+			i+1, r.Source, r.RRFScore, strings.Join(r.Methods, ","), r.DocumentID, r.Language,
 		)
 		if r.Source == "fact" {
 			cmd.Printf("    truth_tier=%s\n", r.TruthTier)

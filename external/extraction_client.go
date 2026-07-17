@@ -77,13 +77,14 @@ type extractionChatMessage struct {
 // extractedFactJSON is the wire shape the LLM is instructed to respond with,
 // one per extracted fact.
 type extractedFactJSON struct {
-	Subject   string   `json:"subject"`
-	Predicate string   `json:"predicate"`
-	Object    string   `json:"object"`
-	TruthTier string   `json:"truth_tier"`
-	Category  string   `json:"category"`
-	Topics    []string `json:"topics"`
-	Note      string   `json:"note"`
+	Subject              string   `json:"subject"`
+	Predicate            string   `json:"predicate"`
+	Object               string   `json:"object"`
+	TruthTier            string   `json:"truth_tier"`
+	Category             string   `json:"category"`
+	Topics               []string `json:"topics"`
+	Note                 string   `json:"note"`
+	SearchTextTranslated string   `json:"search_text_translated"`
 }
 
 // Extract implements data.KnowledgeExtractor.
@@ -186,13 +187,14 @@ func (c *ExtractionClient) Extract(
 			continue
 		}
 		facts = append(facts, data.ExtractedFact{
-			Subject:   raw.Subject,
-			Predicate: raw.Predicate,
-			Object:    raw.Object,
-			Note:      raw.Note,
-			TruthTier: tier,
-			Category:  category,
-			Topics:    raw.Topics,
+			Subject:              raw.Subject,
+			Predicate:            raw.Predicate,
+			Object:               raw.Object,
+			Note:                 raw.Note,
+			TruthTier:            tier,
+			Category:             category,
+			Topics:               raw.Topics,
+			TranslatedSearchText: raw.SearchTextTranslated,
 		})
 	}
 	return facts, nil
@@ -208,7 +210,8 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("Respond with ONLY a JSON array (no markdown, no commentary), where each ")
 	b.WriteString("element has this shape:\n")
 	b.WriteString(`{"subject": "...", "predicate": "...", "object": "...", ` +
-		`"truth_tier": "...", "category": "...", "topics": ["..."], "note": "..."}` + "\n\n")
+		`"truth_tier": "...", "category": "...", "topics": ["..."], "note": "...", ` +
+		`"search_text_translated": "..."}` + "\n\n")
 	b.WriteString("truth_tier must be exactly one of: axiomatic, temporal, probabilistic, ")
 	b.WriteString("subjective, unknown, invalid.\n")
 	b.WriteString("- axiomatic: high factual accuracy and reliability.\n")
@@ -229,6 +232,22 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("topics is a short list of subject-matter tags. note is optional context; ")
 	b.WriteString("use \"\" if none. If the text contains no extractable factual claims, ")
 	b.WriteString("respond with an empty array: [].\n\n")
+
+	sourceLanguage := languageDisplayNames[req.Language]
+	targetLanguage := languageDisplayNames[req.Language.Other()]
+	fmt.Fprintf(
+		&b,
+		"The source text below is written in %s. Keep subject, predicate, ",
+		sourceLanguage,
+	)
+	b.WriteString("object, and note in that SAME language — never translate them.\n")
+	fmt.Fprintf(
+		&b,
+		"search_text_translated must be a %s translation of the concatenated "+
+			"subject, predicate, object, and note — used only for cross-language "+
+			"search, not for display.\n\n",
+		targetLanguage,
+	)
 
 	if req.DocumentTitle != "" {
 		fmt.Fprintf(&b, "Document: %q\n", req.DocumentTitle)

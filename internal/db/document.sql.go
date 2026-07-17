@@ -27,10 +27,11 @@ func (q *Queries) CountDocuments(ctx context.Context) (int64, error) {
 const createDocument = `-- name: CreateDocument :one
 INSERT INTO documents (
     id, created_at, modified_at, ingested_at, file_key, sha256,
-    title, filename, filetype, filesize, page_count, publisher_name, publication_year
+    title, filename, filetype, filesize, page_count, publisher_name, publication_year,
+    language
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-) RETURNING id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+) RETURNING id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year, language
 `
 
 type CreateDocumentParams struct {
@@ -47,6 +48,7 @@ type CreateDocumentParams struct {
 	PageCount       int32
 	PublisherName   string
 	PublicationYear int32
+	Language        int32
 }
 
 func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error) {
@@ -64,6 +66,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		arg.PageCount,
 		arg.PublisherName,
 		arg.PublicationYear,
+		arg.Language,
 	)
 	var i Document
 	err := row.Scan(
@@ -80,6 +83,7 @@ func (q *Queries) CreateDocument(ctx context.Context, arg CreateDocumentParams) 
 		&i.PageCount,
 		&i.PublisherName,
 		&i.PublicationYear,
+		&i.Language,
 	)
 	return i, err
 }
@@ -94,7 +98,7 @@ func (q *Queries) DeleteDocument(ctx context.Context, id uuid.UUID) error {
 }
 
 const getDocumentByID = `-- name: GetDocumentByID :one
-SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year FROM documents WHERE id = $1
+SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year, language FROM documents WHERE id = $1
 `
 
 func (q *Queries) GetDocumentByID(ctx context.Context, id uuid.UUID) (Document, error) {
@@ -114,12 +118,13 @@ func (q *Queries) GetDocumentByID(ctx context.Context, id uuid.UUID) (Document, 
 		&i.PageCount,
 		&i.PublisherName,
 		&i.PublicationYear,
+		&i.Language,
 	)
 	return i, err
 }
 
 const getDocumentBySHA256 = `-- name: GetDocumentBySHA256 :one
-SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year FROM documents WHERE sha256 = $1
+SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year, language FROM documents WHERE sha256 = $1
 `
 
 func (q *Queries) GetDocumentBySHA256(ctx context.Context, sha256 string) (Document, error) {
@@ -139,12 +144,13 @@ func (q *Queries) GetDocumentBySHA256(ctx context.Context, sha256 string) (Docum
 		&i.PageCount,
 		&i.PublisherName,
 		&i.PublicationYear,
+		&i.Language,
 	)
 	return i, err
 }
 
 const paginateDocuments = `-- name: PaginateDocuments :many
-SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year FROM documents ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year, language FROM documents ORDER BY created_at DESC LIMIT $1 OFFSET $2
 `
 
 type PaginateDocumentsParams struct {
@@ -175,6 +181,7 @@ func (q *Queries) PaginateDocuments(ctx context.Context, arg PaginateDocumentsPa
 			&i.PageCount,
 			&i.PublisherName,
 			&i.PublicationYear,
+			&i.Language,
 		); err != nil {
 			return nil, err
 		}
@@ -198,9 +205,10 @@ UPDATE documents SET
     filesize = $9,
     page_count = $10,
     publisher_name = $11,
-    publication_year = $12
+    publication_year = $12,
+    language = $13
 WHERE id = $1
-RETURNING id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year
+RETURNING id, created_at, modified_at, ingested_at, file_key, sha256, title, filename, filetype, filesize, page_count, publisher_name, publication_year, language
 `
 
 type UpdateDocumentParams struct {
@@ -216,6 +224,7 @@ type UpdateDocumentParams struct {
 	PageCount       int32
 	PublisherName   string
 	PublicationYear int32
+	Language        int32
 }
 
 func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error) {
@@ -232,6 +241,7 @@ func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) 
 		arg.PageCount,
 		arg.PublisherName,
 		arg.PublicationYear,
+		arg.Language,
 	)
 	var i Document
 	err := row.Scan(
@@ -248,6 +258,7 @@ func (q *Queries) UpdateDocument(ctx context.Context, arg UpdateDocumentParams) 
 		&i.PageCount,
 		&i.PublisherName,
 		&i.PublicationYear,
+		&i.Language,
 	)
 	return i, err
 }

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -43,6 +44,7 @@ var (
 	documentInsertTitle     string
 	documentInsertPublisher string
 	documentInsertYear      int
+	documentInsertLanguage  string
 	documentInsertApply     bool
 )
 
@@ -74,10 +76,13 @@ func init() {
 		StringVar(&documentInsertPublisher, "publisher", "", "Publisher name")
 	documentInsertCmd.Flags().IntVar(&documentInsertYear, "year", 0, "Publication year")
 	documentInsertCmd.Flags().
+		StringVar(&documentInsertLanguage, "language", "", "Document language: \"en\" or \"fr\" (required — never auto-detected)")
+	documentInsertCmd.Flags().
 		BoolVar(&documentInsertApply, "apply", false, "Actually upload the file and insert the document (default is a dry run)")
 
 	documentInsertCmd.MarkFlagsOneRequired("file", "url")
 	documentInsertCmd.MarkFlagsMutuallyExclusive("file", "url")
+	_ = documentInsertCmd.MarkFlagRequired("language")
 
 	documentCmd.AddCommand(documentInsertCmd)
 }
@@ -162,13 +167,14 @@ func runDocumentInsert(cmd *cobra.Command, _ []string) {
 
 	if !documentInsertApply {
 		cmd.Printf(
-			"Dry run: would insert document (title=%q, filename=%s, file_key=%s, sha256=%s, filetype=%s, filesize=%d)\n",
+			"Dry run: would insert document (title=%q, filename=%s, file_key=%s, sha256=%s, filetype=%s, filesize=%d, language=%s)\n",
 			req.Title,
 			req.Filename,
 			req.FileKey,
 			req.SHA256,
 			req.Filetype,
 			req.Filesize,
+			req.Language,
 		)
 		cmd.Println("Re-run with --apply to actually upload the file and insert the document.")
 		return
@@ -259,6 +265,7 @@ func buildCreateDocumentDTO(
 		PageCount:       0, // backfilled by ParseDocumentWorker once Docling parses it
 		PublisherName:   documentInsertPublisher,
 		PublicationYear: documentInsertYear,
+		Language:        documentInsertLanguage,
 	}, nil, cleanup, nil
 }
 
@@ -315,13 +322,46 @@ func openDocumentSource(
 		return nil, "", nil, fmt.Errorf("failed to rewind downloaded file: %w", err)
 	}
 
-	parsed, err := url.Parse(sourceURL)
-	if err != nil {
-		cleanup()
-		return nil, "", nil, fmt.Errorf("failed to parse URL: %w", err)
+	// Prefer the real filename from Content-Disposition when the server
+	// sends one — some download endpoints (e.g. MinIO console's "Share"
+	// links, which wrap the actual presigned URL behind an opaque
+	// /api/v1/download-shared-object/<base64> path) have no usable
+	// extension in the URL path itself, so falling back to path.Base(URL)
+	// unconditionally would reject a perfectly valid file.
+	filename := filenameFromContentDisposition(resp.Header.Get("Content-Disposition"))
+	if filename == "" {
+		parsed, err := url.Parse(sourceURL)
+		if err != nil {
+			cleanup()
+			return nil, "", nil, fmt.Errorf("failed to parse URL: %w", err)
+		}
+		filename = path.Base(parsed.Path)
 	}
 
-	return tmp, path.Base(parsed.Path), cleanup, nil
+	return tmp, filename, cleanup, nil
+}
+
+// filenameFromContentDisposition extracts and returns the base filename from
+// a Content-Disposition header value, or "" if header is empty, unparseable,
+// or carries no filename. The filename param is unescaped and path.Base'd
+// before returning — some servers (e.g. MinIO console) send it
+// percent-encoded and/or including a bucket/folder prefix.
+func filenameFromContentDisposition(header string) string {
+	if header == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(header)
+	if err != nil {
+		return ""
+	}
+	filename := params["filename"]
+	if filename == "" {
+		return ""
+	}
+	if unescaped, err := url.QueryUnescape(filename); err == nil {
+		filename = unescaped
+	}
+	return path.Base(filename)
 }
 
 // hashAndSniff computes the SHA256 hash, detects the content type, and

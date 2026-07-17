@@ -13,22 +13,25 @@ import (
 )
 
 type AtomicKnowledge struct {
-	ID                 uuid.UUID
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	DocumentID         uuid.UUID
-	DocumentChunkID    uuid.UUID
-	TruthTier          int32
-	Topics             []string
-	Subject            string
-	Predicate          string
-	Object             string
-	Note               string
-	MarkedAsInvalid    bool
-	MarkedAsIrrelevant bool
-	Embedding          *pgvector_go.Vector
-	Fts                interface{}
-	Category           int32
+	ID                   uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	DocumentID           uuid.UUID
+	DocumentChunkID      uuid.UUID
+	TruthTier            int32
+	Topics               []string
+	Subject              string
+	Predicate            string
+	Object               string
+	Note                 string
+	MarkedAsInvalid      bool
+	MarkedAsIrrelevant   bool
+	Embedding            *pgvector_go.Vector
+	Category             int32
+	Language             int32
+	SearchTextTranslated pgtype.Text
+	FtsEn                interface{}
+	FtsFr                interface{}
 }
 
 type Document struct {
@@ -45,6 +48,7 @@ type Document struct {
 	PageCount       int32
 	PublisherName   string
 	PublicationYear int32
+	Language        int32
 }
 
 type DocumentChunk struct {
@@ -63,7 +67,10 @@ type DocumentChunk struct {
 	AssetUrl             string
 	Embedding            *pgvector_go.Vector
 	KnowledgeExtractedAt pgtype.Timestamptz
-	TextFts              interface{}
+	Language             int32
+	TextTranslated       pgtype.Text
+	TextFtsEn            interface{}
+	TextFtsFr            interface{}
 }
 
 type User struct {

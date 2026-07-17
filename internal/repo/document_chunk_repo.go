@@ -3,6 +3,7 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -10,6 +11,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pgvector/pgvector-go"
 	"github.com/riverqueue/river"
@@ -116,6 +118,52 @@ func (r *DocumentChunkRepo) ListChunksNeedingKnowledgeExtraction(
 	return chunks, nil
 }
 
+// ListChunksNeedingTranslation retrieves chunks for a document that have text
+// but haven't been translated yet, ordered by SequenceNumber.
+func (r *DocumentChunkRepo) ListChunksNeedingTranslation(
+	ctx context.Context,
+	documentID uuid.UUID,
+) ([]model.DocumentChunk, error) {
+	rows, err := r.q.ListChunksNeedingTranslation(ctx, documentID)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+
+	chunks := make([]model.DocumentChunk, 0, len(rows))
+	for i := range rows {
+		chunks = append(chunks, *toModelDocumentChunk(&rows[i]))
+	}
+	return chunks, nil
+}
+
+// UpdateChunkTranslation persists a chunk's translated text.
+func (r *DocumentChunkRepo) UpdateChunkTranslation(
+	ctx context.Context,
+	chunkID uuid.UUID,
+	textTranslated string,
+) error {
+	if err := r.q.UpdateChunkTranslation(ctx, db.UpdateChunkTranslationParams{
+		ID:             chunkID,
+		TextTranslated: toPgText(textTranslated),
+		UpdatedAt:      time.Now(),
+	}); err != nil {
+		return mapPostgresError(err)
+	}
+	return nil
+}
+
+// ListDocumentIDsNeedingTranslation returns the IDs of every document that
+// has at least one chunk with text but no translation yet.
+func (r *DocumentChunkRepo) ListDocumentIDsNeedingTranslation(
+	ctx context.Context,
+) ([]uuid.UUID, error) {
+	ids, err := r.q.ListDocumentIDsNeedingTranslation(ctx)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return ids, nil
+}
+
 // CreateBatch inserts multiple fully-formed chunks in a single COPY operation.
 func (r *DocumentChunkRepo) CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error {
 	if len(chunks) == 0 {
@@ -190,7 +238,11 @@ func (r *DocumentChunkRepo) SearchByEmbedding(
 }
 
 // SearchByFullText returns the limit chunks whose text best matches query via
-// Postgres full-text search (ts_rank_cd), ordered best-first.
+// Postgres full-text search (ts_rank_cd), ordered best-first. Matches
+// against both the English and French tsvector columns and takes the best of
+// the two — query language isn't known up front, and a chunk's own language
+// may differ from the query's, so this is what makes cross-lingual full-text
+// search work without the caller needing to specify a language.
 func (r *DocumentChunkRepo) SearchByFullText(
 	ctx context.Context,
 	query string,
@@ -199,9 +251,13 @@ func (r *DocumentChunkRepo) SearchByFullText(
 	return searchScored(
 		ctx,
 		r.pool,
-		`SELECT id, ts_rank_cd(text_fts, websearch_to_tsquery('english', $1)) AS score
+		`SELECT id, GREATEST(
+		     ts_rank_cd(text_fts_en, websearch_to_tsquery('english', $1)),
+		     ts_rank_cd(text_fts_fr, websearch_to_tsquery('french', $1))
+		 ) AS score
 		 FROM document_chunks
-		 WHERE text_fts @@ websearch_to_tsquery('english', $1)
+		 WHERE text_fts_en @@ websearch_to_tsquery('english', $1)
+		    OR text_fts_fr @@ websearch_to_tsquery('french', $1)
 		 ORDER BY score DESC
 		 LIMIT $2`,
 		[]any{query, limit},
@@ -258,6 +314,8 @@ func toModelDocumentChunk(d *db.DocumentChunk) *model.DocumentChunk {
 		FactualityScore:      d.FactualityScore,
 		Embedding:            fromPgvector(d.Embedding),
 		KnowledgeExtractedAt: fromPgTimestamptz(d.KnowledgeExtractedAt),
+		Language:             model.Language(d.Language),
+		TextTranslated:       fromPgText(d.TextTranslated),
 		ParsedChunk: model.ParsedChunk{
 			Text:        d.Text,
 			Page:        int(d.Page),
@@ -291,6 +349,27 @@ func fromPgvector(v *pgvector.Vector) []float32 {
 	return v.Slice()
 }
 
+// toPgText converts a model-level "empty string means absent" value into a
+// pgtype.Text, so a genuinely-untranslated chunk/fact is stored as SQL NULL
+// (matching the text_translated/search_text_translated IS NULL idempotency
+// filter) rather than an empty string.
+func toPgText(s string) pgtype.Text {
+	if s == "" {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: s, Valid: true}
+}
+
+// fromPgText converts a scanned pgtype.Text column back into the model's
+// "empty string means absent" convention. A SQL NULL (not yet translated)
+// maps to "".
+func fromPgText(t pgtype.Text) string {
+	if !t.Valid {
+		return ""
+	}
+	return t.String
+}
+
 // toCreateDocumentChunksBatchParams maps a model.DocumentChunk to sqlc's batch-insert params.
 func toCreateDocumentChunksBatchParams(c *model.DocumentChunk) db.CreateDocumentChunksBatchParams {
 	return db.CreateDocumentChunksBatchParams{
@@ -307,6 +386,8 @@ func toCreateDocumentChunksBatchParams(c *model.DocumentChunk) db.CreateDocument
 		LayoutType:      string(c.LayoutType),
 		BoundingBox:     c.BoundingBox[:],
 		AssetUrl:        c.AssetURL,
+		Language:        toInt32(int(c.Language)),
+		TextTranslated:  toPgText(c.TextTranslated),
 	}
 }
 

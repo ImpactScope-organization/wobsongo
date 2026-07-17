@@ -42,6 +42,7 @@ func validCreateDocumentBody() dto.CreateDocumentDTO {
 		PageCount:       10,
 		PublisherName:   "Fake Press",
 		PublicationYear: 2020,
+		Language:        "en",
 	}
 }
 

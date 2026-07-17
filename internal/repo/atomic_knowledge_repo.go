@@ -133,7 +133,10 @@ func (r *AtomicKnowledgeRepo) SearchByEmbedding(
 
 // SearchByFullText returns the limit facts (excluding any marked invalid or
 // irrelevant, or category=metadata) whose subject/predicate/object/note best
-// match query via Postgres full-text search (ts_rank_cd), ordered best-first.
+// match query via Postgres full-text search (ts_rank_cd), ordered
+// best-first. Matches against both the English and French tsvector columns
+// and takes the best of the two — see document_chunk_repo.go's
+// SearchByFullText for why.
 func (r *AtomicKnowledgeRepo) SearchByFullText(
 	ctx context.Context,
 	query string,
@@ -142,11 +145,15 @@ func (r *AtomicKnowledgeRepo) SearchByFullText(
 	return searchScored(
 		ctx,
 		r.pool,
-		`SELECT id, ts_rank_cd(fts, websearch_to_tsquery('english', $1)) AS score
+		`SELECT id, GREATEST(
+		     ts_rank_cd(fts_en, websearch_to_tsquery('english', $1)),
+		     ts_rank_cd(fts_fr, websearch_to_tsquery('french', $1))
+		 ) AS score
 		 FROM atomic_knowledge
 		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
 		   AND category != $3
-		   AND fts @@ websearch_to_tsquery('english', $1)
+		   AND (fts_en @@ websearch_to_tsquery('english', $1)
+		        OR fts_fr @@ websearch_to_tsquery('french', $1))
 		 ORDER BY score DESC
 		 LIMIT $2`,
 		[]any{query, limit, int(model.FactCategoryMetadata)},
@@ -205,21 +212,23 @@ func (r *AtomicKnowledgeRepo) WithTx(
 // toModelAtomicKnowledge maps a sqlc-generated db.AtomicKnowledge row to model.AtomicKnowledge.
 func toModelAtomicKnowledge(k *db.AtomicKnowledge) *model.AtomicKnowledge {
 	return &model.AtomicKnowledge{
-		ID:                 k.ID,
-		CreatedAt:          k.CreatedAt,
-		UpdatedAt:          k.UpdatedAt,
-		DocumentID:         k.DocumentID,
-		DocumentChunkID:    k.DocumentChunkID,
-		TruthTier:          model.TruthTier(k.TruthTier),
-		Category:           model.FactCategory(k.Category),
-		Topics:             k.Topics,
-		Subject:            k.Subject,
-		Predicate:          k.Predicate,
-		Object:             k.Object,
-		Note:               k.Note,
-		Embedding:          fromPgvector(k.Embedding),
-		MarkedAsInvalid:    k.MarkedAsInvalid,
-		MarkedAsIrrelevant: k.MarkedAsIrrelevant,
+		ID:                   k.ID,
+		CreatedAt:            k.CreatedAt,
+		UpdatedAt:            k.UpdatedAt,
+		DocumentID:           k.DocumentID,
+		DocumentChunkID:      k.DocumentChunkID,
+		TruthTier:            model.TruthTier(k.TruthTier),
+		Category:             model.FactCategory(k.Category),
+		Topics:               k.Topics,
+		Subject:              k.Subject,
+		Predicate:            k.Predicate,
+		Object:               k.Object,
+		Note:                 k.Note,
+		Embedding:            fromPgvector(k.Embedding),
+		MarkedAsInvalid:      k.MarkedAsInvalid,
+		MarkedAsIrrelevant:   k.MarkedAsIrrelevant,
+		Language:             model.Language(k.Language),
+		SearchTextTranslated: fromPgText(k.SearchTextTranslated),
 	}
 }
 
@@ -228,19 +237,21 @@ func toCreateAtomicKnowledgeBatchParams(
 	k *model.AtomicKnowledge,
 ) db.CreateAtomicKnowledgeBatchParams {
 	return db.CreateAtomicKnowledgeBatchParams{
-		ID:                 k.ID,
-		CreatedAt:          k.CreatedAt,
-		UpdatedAt:          k.UpdatedAt,
-		DocumentID:         k.DocumentID,
-		DocumentChunkID:    k.DocumentChunkID,
-		TruthTier:          toInt32(int(k.TruthTier)),
-		Category:           toInt32(int(k.Category)),
-		Topics:             k.Topics,
-		Subject:            k.Subject,
-		Predicate:          k.Predicate,
-		Object:             k.Object,
-		Note:               k.Note,
-		MarkedAsInvalid:    k.MarkedAsInvalid,
-		MarkedAsIrrelevant: k.MarkedAsIrrelevant,
+		ID:                   k.ID,
+		CreatedAt:            k.CreatedAt,
+		UpdatedAt:            k.UpdatedAt,
+		DocumentID:           k.DocumentID,
+		DocumentChunkID:      k.DocumentChunkID,
+		TruthTier:            toInt32(int(k.TruthTier)),
+		Category:             toInt32(int(k.Category)),
+		Topics:               k.Topics,
+		Subject:              k.Subject,
+		Predicate:            k.Predicate,
+		Object:               k.Object,
+		Note:                 k.Note,
+		MarkedAsInvalid:      k.MarkedAsInvalid,
+		MarkedAsIrrelevant:   k.MarkedAsIrrelevant,
+		Language:             toInt32(int(k.Language)),
+		SearchTextTranslated: toPgText(k.SearchTextTranslated),
 	}
 }

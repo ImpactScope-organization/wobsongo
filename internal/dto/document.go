@@ -28,6 +28,11 @@ type CreateDocumentDTO struct {
 
 	// PublicationYear is the year the document was published.
 	PublicationYear int `json:"publication_year"`
+
+	// Language is the document's language ("en" or "fr") — required, not
+	// auto-detected, since French must be first-class for this deployment
+	// and silently defaulting risks mis-tagging a document.
+	Language string `json:"language" validate:"required,oneof=en fr"`
 }
 
 // UpdateDocumentDTO represents the payload for updating a document's descriptive

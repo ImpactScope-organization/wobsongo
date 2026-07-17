@@ -203,6 +203,20 @@ func loadExtractionConfigOrDefault(logger *slog.Logger, envs ...string) *Extract
 	return extractionConfig
 }
 
+// loadTranslationConfigOrDefault loads Translation configuration, or an empty
+// TranslationConfig if unset/invalid. Deliberately empty (not a fake
+// populated default) — internal.IsTranslationOK is a hard startup
+// requirement wherever the translation worker is actually wired in, and a
+// fake non-empty default would defeat that check.
+func loadTranslationConfigOrDefault(logger *slog.Logger, envs ...string) *TranslationConfig {
+	translationConfig, err := NewTranslationConfig(envs...)
+	if err != nil {
+		logger.Warn("Failed to load Translation configuration", "error", err)
+		return &TranslationConfig{}
+	}
+	return translationConfig
+}
+
 // loadClaimCheckConfigOrDefault loads ClaimCheck configuration, or an empty
 // ClaimCheckConfig if unset/invalid. Deliberately empty (not a fake populated
 // default) — internal.IsClaimCheckOK is a hard startup requirement wherever

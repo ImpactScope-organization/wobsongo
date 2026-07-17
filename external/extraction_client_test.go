@@ -153,8 +153,13 @@ func TestExtractionClient_Extract_SkipsUnrecognizedTruthTier(t *testing.T) {
 			"truth_tier": "axiomatic", "category": "clinical", "topics": []string{}, "note": "",
 		},
 		{
-			"subject": "bad", "predicate": "p", "object": "o",
-			"truth_tier": "not-a-real-tier", "category": "clinical", "topics": []string{}, "note": "",
+			"subject":    "bad",
+			"predicate":  "p",
+			"object":     "o",
+			"truth_tier": "not-a-real-tier",
+			"category":   "clinical",
+			"topics":     []string{},
+			"note":       "",
 		},
 	})
 	if err != nil {
@@ -185,8 +190,13 @@ func TestExtractionClient_Extract_SkipsUnrecognizedCategory(t *testing.T) {
 			"truth_tier": "axiomatic", "category": "clinical", "topics": []string{}, "note": "",
 		},
 		{
-			"subject": "bad", "predicate": "p", "object": "o",
-			"truth_tier": "axiomatic", "category": "not-a-real-category", "topics": []string{}, "note": "",
+			"subject":    "bad",
+			"predicate":  "p",
+			"object":     "o",
+			"truth_tier": "axiomatic",
+			"category":   "not-a-real-category",
+			"topics":     []string{},
+			"note":       "",
 		},
 	})
 	if err != nil {
@@ -234,7 +244,8 @@ func TestExtractionClient_Extract_PromptIncludesPublisherContextWhenSet(t *testi
 	messages, _ := gotBody["messages"].([]any)
 	message, _ := messages[0].(map[string]any)
 	content, _ := message["content"].(string)
-	if !strings.Contains(content, "World Health Organization (WHO)") || !strings.Contains(content, "2023") {
+	if !strings.Contains(content, "World Health Organization (WHO)") ||
+		!strings.Contains(content, "2023") {
 		t.Errorf("expected prompt to include publisher and year, got: %s", content)
 	}
 }

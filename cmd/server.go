@@ -91,6 +91,17 @@ var serveCmd = &cobra.Command{
 			config.ExtractionConfig.APIKey,
 		)
 
+		if err := internal.IsTranslationOK(config.TranslationConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		translationClient := external.NewTranslationClient(
+			config.TranslationConfig.BaseURL,
+			config.TranslationConfig.Model,
+			config.TranslationConfig.APIKey,
+		)
+
 		if err := internal.IsClaimCheckOK(config.ClaimCheckConfig); err != nil {
 			cmd.PrintErrf("Config error: %s\n", err.Error())
 			os.Exit(1)
@@ -190,6 +201,15 @@ var serveCmd = &cobra.Command{
 		// register EmbedKnowledgeWorker with River
 		embedKnowledgeWorker := worker.NewEmbedKnowledgeWorker(atomicKnowledgeRepo, embeddingClient)
 		river.AddWorker(workers, embedKnowledgeWorker)
+
+		// register TranslateChunksWorker with River
+		translateChunksWorker := worker.NewTranslateChunksWorker(
+			chunkRepo,
+			documentService,
+			translationClient,
+			config.TranslationConfig.Concurrency,
+		)
+		river.AddWorker(workers, translateChunksWorker)
 
 		// Initialize River client with the database pool and registered workers.
 		// Document ingestion and media processing get separate queues (see

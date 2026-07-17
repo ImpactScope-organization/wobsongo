@@ -7,6 +7,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
+	"github.com/impactscope-organization/wobsongo/internal/validation"
 )
 
 // DocumentService defines a set of available methods
@@ -42,6 +44,28 @@ func (s *DocumentService) Create(
 		return nil, err
 	}
 
+	// Re-checked here, not just via CreateDocumentDTO's `s3key` validator
+	// tag, because that tag is only enforced by the HTTP handler's
+	// c.Validate(req) — the CLI (cmd/document_insert.go) calls Create
+	// directly and never runs the DTO through a validator at all. Without
+	// this, a malformed FileKey (confirmed in production: a UUID-style key
+	// left over from before this codebase settled on SHA256-based keys)
+	// gets a document row and a ParseDocumentDTO enqueued that can never
+	// succeed — Docling presigning rejects it every single retry, forever.
+	// Failing fast here means a bad key never reaches the queue at all.
+	if !validation.ValidateS3PrefixAndFile(req.FileKey) {
+		return nil, fmt.Errorf("invalid or malformed file key: %s", req.FileKey)
+	}
+
+	// req.Language is already constrained to "en"/"fr" by CreateDocumentDTO's
+	// validate:"oneof=en fr" tag, so this should never actually error — but
+	// handled properly rather than ignored, since ParseLanguage is the
+	// single source of truth for what's a valid language.
+	language, err := model.ParseLanguage(req.Language)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now()
 	doc := &model.Document{
 		ID:              uuid.New(),
@@ -56,9 +80,10 @@ func (s *DocumentService) Create(
 		PageCount:       req.PageCount,
 		PublisherName:   req.PublisherName,
 		PublicationYear: req.PublicationYear,
+		Language:        language,
 	}
 
-	err := s.repo.WithTx(ctx, func(txRepo data.DocumentRepoer) error {
+	err = s.repo.WithTx(ctx, func(txRepo data.DocumentRepoer) error {
 		if err := txRepo.Create(ctx, doc); err != nil {
 			return err
 		}

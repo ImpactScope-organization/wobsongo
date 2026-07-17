@@ -79,11 +79,11 @@ func runClaimCheck(cmd *cobra.Command, args []string) {
 
 func printClaimCheckResult(cmd *cobra.Command, result *service.ClaimCheckResult) {
 	if !result.InScope {
-		cmd.Printf("Out of scope: %s\n", result.RefusalReason)
+		cmd.Printf("Out of scope (lang=%s): %s\n", result.Language, result.RefusalReason)
 		return
 	}
 
-	cmd.Printf("Overall: %s\n\n", result.OverallSummary)
+	cmd.Printf("Overall (lang=%s): %s\n\n", result.Language, result.OverallSummary)
 	for i, sc := range result.SubClaims {
 		cmd.Printf("%d. %q\n", i+1, sc.Claim)
 		cmd.Printf(
@@ -99,8 +99,8 @@ func printClaimCheckResult(cmd *cobra.Command, result *service.ClaimCheckResult)
 			cmd.Printf("   citations: (matches the [N] references in reasoning above)\n")
 			for _, c := range sc.Citations {
 				cmd.Printf(
-					"     [%d] (%s) doc=%s %s\n",
-					c.Index, c.Source, c.DocumentID, truncateForDisplay(c.Text, 200),
+					"     [%d] (%s) doc=%s lang=%s %s\n",
+					c.Index, c.Source, c.DocumentID, c.Language, truncateForDisplay(c.Text, 200),
 				)
 			}
 		}

@@ -10,28 +10,31 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 	pgvector_go "github.com/pgvector/pgvector-go"
 )
 
 type CreateAtomicKnowledgeBatchParams struct {
-	ID                 uuid.UUID
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	DocumentID         uuid.UUID
-	DocumentChunkID    uuid.UUID
-	TruthTier          int32
-	Topics             []string
-	Subject            string
-	Predicate          string
-	Object             string
-	Note               string
-	MarkedAsInvalid    bool
-	MarkedAsIrrelevant bool
-	Category           int32
+	ID                   uuid.UUID
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	DocumentID           uuid.UUID
+	DocumentChunkID      uuid.UUID
+	TruthTier            int32
+	Topics               []string
+	Subject              string
+	Predicate            string
+	Object               string
+	Note                 string
+	MarkedAsInvalid      bool
+	MarkedAsIrrelevant   bool
+	Category             int32
+	Language             int32
+	SearchTextTranslated pgtype.Text
 }
 
 const getAtomicKnowledgeByID = `-- name: GetAtomicKnowledgeByID :one
-SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts, category FROM atomic_knowledge WHERE id = $1
+SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, category, language, search_text_translated, fts_en, fts_fr FROM atomic_knowledge WHERE id = $1
 `
 
 func (q *Queries) GetAtomicKnowledgeByID(ctx context.Context, id uuid.UUID) (AtomicKnowledge, error) {
@@ -52,14 +55,17 @@ func (q *Queries) GetAtomicKnowledgeByID(ctx context.Context, id uuid.UUID) (Ato
 		&i.MarkedAsInvalid,
 		&i.MarkedAsIrrelevant,
 		&i.Embedding,
-		&i.Fts,
 		&i.Category,
+		&i.Language,
+		&i.SearchTextTranslated,
+		&i.FtsEn,
+		&i.FtsFr,
 	)
 	return i, err
 }
 
 const listKnowledgeNeedingEmbedding = `-- name: ListKnowledgeNeedingEmbedding :many
-SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, fts, category FROM atomic_knowledge
+SELECT id, created_at, updated_at, document_id, document_chunk_id, truth_tier, topics, subject, predicate, object, note, marked_as_invalid, marked_as_irrelevant, embedding, category, language, search_text_translated, fts_en, fts_fr FROM atomic_knowledge
 WHERE document_id = $1 AND embedding IS NULL
 ORDER BY created_at ASC
 `
@@ -88,8 +94,11 @@ func (q *Queries) ListKnowledgeNeedingEmbedding(ctx context.Context, documentID 
 			&i.MarkedAsInvalid,
 			&i.MarkedAsIrrelevant,
 			&i.Embedding,
-			&i.Fts,
 			&i.Category,
+			&i.Language,
+			&i.SearchTextTranslated,
+			&i.FtsEn,
+			&i.FtsFr,
 		); err != nil {
 			return nil, err
 		}

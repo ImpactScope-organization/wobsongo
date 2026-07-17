@@ -37,6 +37,24 @@ type DocumentChunkRepoer interface {
 		documentID uuid.UUID,
 	) ([]model.DocumentChunk, error)
 
+	// ListChunksNeedingTranslation retrieves chunks for a document that have
+	// text but haven't been translated yet, ordered by SequenceNumber. Used
+	// by TranslateChunksWorker; the filter also makes retries idempotent — a
+	// chunk already translated is never returned again.
+	ListChunksNeedingTranslation(
+		ctx context.Context,
+		documentID uuid.UUID,
+	) ([]model.DocumentChunk, error)
+
+	// UpdateChunkTranslation persists a chunk's translated text.
+	UpdateChunkTranslation(ctx context.Context, chunkID uuid.UUID, textTranslated string) error
+
+	// ListDocumentIDsNeedingTranslation returns the IDs of every document
+	// that has at least one chunk with text but no translation yet. Used to
+	// backfill translation for documents ingested before TranslateChunksDTO
+	// was enqueued automatically at ingestion time.
+	ListDocumentIDsNeedingTranslation(ctx context.Context) ([]uuid.UUID, error)
+
 	// CreateBatch inserts multiple fully-formed chunks in a single operation.
 	CreateBatch(ctx context.Context, chunks []model.DocumentChunk) error
 

@@ -182,7 +182,10 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 		t.Errorf("expected TruthTier %q, got %q", "axiomatic", results[0].TruthTier)
 	}
 	if results[0].ChunkText != "chunk text" {
-		t.Errorf("expected the fact hit's ChunkText hydrated from its parent chunk, got %q", results[0].ChunkText)
+		t.Errorf(
+			"expected the fact hit's ChunkText hydrated from its parent chunk, got %q",
+			results[0].ChunkText,
+		)
 	}
 	if results[1].Key != "chunk:"+chunkID.String() {
 		t.Errorf("expected the chunk ranked second, got %s", results[1].Key)
@@ -191,7 +194,10 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 		t.Errorf("expected chunk Page 3, got %d", results[1].Page)
 	}
 	if results[1].ChunkText != "" {
-		t.Errorf("expected a chunk-source hit's ChunkText to stay empty, got %q", results[1].ChunkText)
+		t.Errorf(
+			"expected a chunk-source hit's ChunkText to stay empty, got %q",
+			results[1].ChunkText,
+		)
 	}
 }
 

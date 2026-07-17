@@ -23,6 +23,12 @@ type ExtractionRequest struct {
 
 	// PublicationYear is the parent document's publication year, for grounding.
 	PublicationYear int
+
+	// Language is the source chunk's language — tells the extractor what
+	// language to preserve subject/predicate/object/note in, and which
+	// language to translate the search text into (the other of the two
+	// supported languages).
+	Language model.Language
 }
 
 // ExtractedFact is a single subject-predicate-object fact extracted from a
@@ -36,6 +42,12 @@ type ExtractedFact struct {
 	TruthTier model.TruthTier
 	Category  model.FactCategory
 	Topics    []string
+
+	// TranslatedSearchText is a concatenated subject+predicate+object+note
+	// blob translated into the other of the two supported languages from
+	// ExtractionRequest.Language — used purely for cross-lingual full-text
+	// search, never shown in citations/display.
+	TranslatedSearchText string
 }
 
 // KnowledgeExtractor extracts zero or more atomic facts from a chunk of

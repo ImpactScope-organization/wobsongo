@@ -40,6 +40,12 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			ListChunksNeedingKnowledgeExtractionFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
 //				panic("mock out the ListChunksNeedingKnowledgeExtraction method")
 //			},
+//			ListChunksNeedingTranslationFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+//				panic("mock out the ListChunksNeedingTranslation method")
+//			},
+//			ListDocumentIDsNeedingTranslationFunc: func(ctx context.Context) ([]uuid.UUID, error) {
+//				panic("mock out the ListDocumentIDsNeedingTranslation method")
+//			},
 //			SearchByEmbeddingFunc: func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
 //				panic("mock out the SearchByEmbedding method")
 //			},
@@ -51,6 +57,9 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			},
 //			UpdateFunc: func(ctx context.Context, chunk *model.DocumentChunk) error {
 //				panic("mock out the Update method")
+//			},
+//			UpdateChunkTranslationFunc: func(ctx context.Context, chunkID uuid.UUID, textTranslated string) error {
+//				panic("mock out the UpdateChunkTranslation method")
 //			},
 //			WithTxFunc: func(ctx context.Context, fn func(data.DocumentChunkRepoer) error) error {
 //				panic("mock out the WithTx method")
@@ -80,6 +89,12 @@ type DocumentChunkRepoerMock struct {
 	// ListChunksNeedingKnowledgeExtractionFunc mocks the ListChunksNeedingKnowledgeExtraction method.
 	ListChunksNeedingKnowledgeExtractionFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
 
+	// ListChunksNeedingTranslationFunc mocks the ListChunksNeedingTranslation method.
+	ListChunksNeedingTranslationFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
+
+	// ListDocumentIDsNeedingTranslationFunc mocks the ListDocumentIDsNeedingTranslation method.
+	ListDocumentIDsNeedingTranslationFunc func(ctx context.Context) ([]uuid.UUID, error)
+
 	// SearchByEmbeddingFunc mocks the SearchByEmbedding method.
 	SearchByEmbeddingFunc func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error)
 
@@ -91,6 +106,9 @@ type DocumentChunkRepoerMock struct {
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, chunk *model.DocumentChunk) error
+
+	// UpdateChunkTranslationFunc mocks the UpdateChunkTranslation method.
+	UpdateChunkTranslationFunc func(ctx context.Context, chunkID uuid.UUID, textTranslated string) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(ctx context.Context, fn func(data.DocumentChunkRepoer) error) error
@@ -139,6 +157,18 @@ type DocumentChunkRepoerMock struct {
 			// DocumentID is the documentID argument value.
 			DocumentID uuid.UUID
 		}
+		// ListChunksNeedingTranslation holds details about calls to the ListChunksNeedingTranslation method.
+		ListChunksNeedingTranslation []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// DocumentID is the documentID argument value.
+			DocumentID uuid.UUID
+		}
+		// ListDocumentIDsNeedingTranslation holds details about calls to the ListDocumentIDsNeedingTranslation method.
+		ListDocumentIDsNeedingTranslation []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// SearchByEmbedding holds details about calls to the SearchByEmbedding method.
 		SearchByEmbedding []struct {
 			// Ctx is the ctx argument value.
@@ -173,6 +203,15 @@ type DocumentChunkRepoerMock struct {
 			// Chunk is the chunk argument value.
 			Chunk *model.DocumentChunk
 		}
+		// UpdateChunkTranslation holds details about calls to the UpdateChunkTranslation method.
+		UpdateChunkTranslation []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ChunkID is the chunkID argument value.
+			ChunkID uuid.UUID
+			// TextTranslated is the textTranslated argument value.
+			TextTranslated string
+		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
 			// Ctx is the ctx argument value.
@@ -187,10 +226,13 @@ type DocumentChunkRepoerMock struct {
 	lockListByDocumentID                     sync.RWMutex
 	lockListChunksNeedingEmbedding           sync.RWMutex
 	lockListChunksNeedingKnowledgeExtraction sync.RWMutex
+	lockListChunksNeedingTranslation         sync.RWMutex
+	lockListDocumentIDsNeedingTranslation    sync.RWMutex
 	lockSearchByEmbedding                    sync.RWMutex
 	lockSearchByFullText                     sync.RWMutex
 	lockShouldBeStored                       sync.RWMutex
 	lockUpdate                               sync.RWMutex
+	lockUpdateChunkTranslation               sync.RWMutex
 	lockWithTx                               sync.RWMutex
 }
 
@@ -410,6 +452,74 @@ func (mock *DocumentChunkRepoerMock) ListChunksNeedingKnowledgeExtractionCalls()
 	return calls
 }
 
+// ListChunksNeedingTranslation calls ListChunksNeedingTranslationFunc.
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingTranslation(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
+	if mock.ListChunksNeedingTranslationFunc == nil {
+		panic("DocumentChunkRepoerMock.ListChunksNeedingTranslationFunc: method is nil but DocumentChunkRepoer.ListChunksNeedingTranslation was just called")
+	}
+	callInfo := struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}{
+		Ctx:        ctx,
+		DocumentID: documentID,
+	}
+	mock.lockListChunksNeedingTranslation.Lock()
+	mock.calls.ListChunksNeedingTranslation = append(mock.calls.ListChunksNeedingTranslation, callInfo)
+	mock.lockListChunksNeedingTranslation.Unlock()
+	return mock.ListChunksNeedingTranslationFunc(ctx, documentID)
+}
+
+// ListChunksNeedingTranslationCalls gets all the calls that were made to ListChunksNeedingTranslation.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.ListChunksNeedingTranslationCalls())
+func (mock *DocumentChunkRepoerMock) ListChunksNeedingTranslationCalls() []struct {
+	Ctx        context.Context
+	DocumentID uuid.UUID
+} {
+	var calls []struct {
+		Ctx        context.Context
+		DocumentID uuid.UUID
+	}
+	mock.lockListChunksNeedingTranslation.RLock()
+	calls = mock.calls.ListChunksNeedingTranslation
+	mock.lockListChunksNeedingTranslation.RUnlock()
+	return calls
+}
+
+// ListDocumentIDsNeedingTranslation calls ListDocumentIDsNeedingTranslationFunc.
+func (mock *DocumentChunkRepoerMock) ListDocumentIDsNeedingTranslation(ctx context.Context) ([]uuid.UUID, error) {
+	if mock.ListDocumentIDsNeedingTranslationFunc == nil {
+		panic("DocumentChunkRepoerMock.ListDocumentIDsNeedingTranslationFunc: method is nil but DocumentChunkRepoer.ListDocumentIDsNeedingTranslation was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockListDocumentIDsNeedingTranslation.Lock()
+	mock.calls.ListDocumentIDsNeedingTranslation = append(mock.calls.ListDocumentIDsNeedingTranslation, callInfo)
+	mock.lockListDocumentIDsNeedingTranslation.Unlock()
+	return mock.ListDocumentIDsNeedingTranslationFunc(ctx)
+}
+
+// ListDocumentIDsNeedingTranslationCalls gets all the calls that were made to ListDocumentIDsNeedingTranslation.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.ListDocumentIDsNeedingTranslationCalls())
+func (mock *DocumentChunkRepoerMock) ListDocumentIDsNeedingTranslationCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockListDocumentIDsNeedingTranslation.RLock()
+	calls = mock.calls.ListDocumentIDsNeedingTranslation
+	mock.lockListDocumentIDsNeedingTranslation.RUnlock()
+	return calls
+}
+
 // SearchByEmbedding calls SearchByEmbeddingFunc.
 func (mock *DocumentChunkRepoerMock) SearchByEmbedding(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
 	if mock.SearchByEmbeddingFunc == nil {
@@ -563,6 +673,46 @@ func (mock *DocumentChunkRepoerMock) UpdateCalls() []struct {
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update
 	mock.lockUpdate.RUnlock()
+	return calls
+}
+
+// UpdateChunkTranslation calls UpdateChunkTranslationFunc.
+func (mock *DocumentChunkRepoerMock) UpdateChunkTranslation(ctx context.Context, chunkID uuid.UUID, textTranslated string) error {
+	if mock.UpdateChunkTranslationFunc == nil {
+		panic("DocumentChunkRepoerMock.UpdateChunkTranslationFunc: method is nil but DocumentChunkRepoer.UpdateChunkTranslation was just called")
+	}
+	callInfo := struct {
+		Ctx            context.Context
+		ChunkID        uuid.UUID
+		TextTranslated string
+	}{
+		Ctx:            ctx,
+		ChunkID:        chunkID,
+		TextTranslated: textTranslated,
+	}
+	mock.lockUpdateChunkTranslation.Lock()
+	mock.calls.UpdateChunkTranslation = append(mock.calls.UpdateChunkTranslation, callInfo)
+	mock.lockUpdateChunkTranslation.Unlock()
+	return mock.UpdateChunkTranslationFunc(ctx, chunkID, textTranslated)
+}
+
+// UpdateChunkTranslationCalls gets all the calls that were made to UpdateChunkTranslation.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.UpdateChunkTranslationCalls())
+func (mock *DocumentChunkRepoerMock) UpdateChunkTranslationCalls() []struct {
+	Ctx            context.Context
+	ChunkID        uuid.UUID
+	TextTranslated string
+} {
+	var calls []struct {
+		Ctx            context.Context
+		ChunkID        uuid.UUID
+		TextTranslated string
+	}
+	mock.lockUpdateChunkTranslation.RLock()
+	calls = mock.calls.UpdateChunkTranslation
+	mock.lockUpdateChunkTranslation.RUnlock()
 	return calls
 }
 

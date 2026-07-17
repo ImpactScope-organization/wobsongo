@@ -7,9 +7,10 @@ SELECT * FROM documents WHERE sha256 = $1;
 -- name: CreateDocument :one
 INSERT INTO documents (
     id, created_at, modified_at, ingested_at, file_key, sha256,
-    title, filename, filetype, filesize, page_count, publisher_name, publication_year
+    title, filename, filetype, filesize, page_count, publisher_name, publication_year,
+    language
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 ) RETURNING *;
 
 -- name: UpdateDocument :one
@@ -24,7 +25,8 @@ UPDATE documents SET
     filesize = $9,
     page_count = $10,
     publisher_name = $11,
-    publication_year = $12
+    publication_year = $12,
+    language = $13
 WHERE id = $1
 RETURNING *;
 

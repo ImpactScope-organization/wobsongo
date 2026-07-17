@@ -8,10 +8,11 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import P from 'pino';
 import qrcodeTerminal from 'qrcode-terminal';
-import { setSock, setStatus } from './socket-manager.js';
+import { getSock, setSock, setStatus } from './socket-manager.js';
 import { rm } from 'node:fs/promises';
 
 const logger = P({ level: 'silent' });
+const RECONNECT_DELAY_MS = 3000;
 
 // OnMessage defines the callback signature used to process incoming WA messages.
 type OnMessage = (sock: WASocket, msg: WAMessage) => Promise<void>;
@@ -59,8 +60,6 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
       setStatus('connected');
     }
 
-    const RECONNECT_DELAY_MS = 3000;
-
     // The connection was closed or dropped.
     if (connection === 'close') {
       const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode as
@@ -70,9 +69,7 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
 
       // Attempt to automatically reconnect unless the user explicitly logged out.
       if (shouldReconnect) {
-        console.log(
-          `Connection closed (code ${statusCode}). Reconnecting in ${RECONNECT_DELAY_MS}ms...`
-        );
+        console.log(`Connection closed. Reconnecting in ${RECONNECT_DELAY_MS}ms...`);
         setTimeout(() => {
           startSocket(onMessage).catch((err) => {
             console.error('[socket] reconnect failed:', err);
@@ -99,19 +96,24 @@ export async function startSocket(onMessage: OnMessage): Promise<void> {
 
 // stopSocket terminates the active WA socket connection.
 export async function stopSocket(purgeData: boolean): Promise<void> {
-  const { getSock } = await import('./socket-manager.js');
   const sock = getSock();
 
-  // Attempt to safely log out of the active session.
-  await sock?.logout().catch((err) => {
-    console.error('[stopSocket] logout failed (continuing anyway):', err);
-  });
+  if (purgeData) {
+    await sock?.logout().catch((err: unknown) => {
+      console.error('[stopSocket] logout failed (continuing anyway):', err);
+    });
+  } else {
+    await sock?.end(undefined)?.catch((err: unknown) => {
+      console.error('[stopSocket] end failed (continuing anyway):', err);
+    });
+  }
+
   setSock(undefined);
   setStatus('stopped');
 
   // If requested, remove the session directory from the filesystem.
   if (purgeData) {
-    await rm('auth_info_baileys', { recursive: true, force: true }).catch((err) => {
+    await rm('auth_info_baileys', { recursive: true, force: true }).catch((err: unknown) => {
       console.error('[stopSocket] failed to purge session data:', err);
     });
   }

@@ -147,15 +147,6 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, transcriptionWorker)
 
-		transcriptionWorker = worker.NewTranscriptionWorker(
-			workerVideoService,
-			config.ASRConfig.Endpoint,
-			config.ASRConfig.Model,
-			config.ASRConfig.SourceLang,
-			botClient,
-		)
-		river.AddWorker(workers, transcriptionWorker)
-
 		// register ParseDocumentWorker with River
 		parseDocumentWorker := worker.NewParseDocumentWorker(
 			doclingClient,

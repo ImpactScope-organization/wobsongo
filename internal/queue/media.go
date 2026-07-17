@@ -25,8 +25,8 @@ func (ExtractMediaDTO) InsertOpts() river.InsertOpts {
 // TranscriptionJob is the river job kind for transcribing downloaded media via Modal.
 type TranscriptionJob struct {
 	ExtractionID string    `json:"extraction_id"`
-	VideoID     uuid.UUID `json:"video_id"`
-	DownloadURL string    `json:"download_url"`
+	VideoID      uuid.UUID `json:"video_id"`
+	DownloadURL  string    `json:"download_url"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.

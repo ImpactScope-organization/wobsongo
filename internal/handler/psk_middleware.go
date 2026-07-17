@@ -3,9 +3,11 @@ package handler
 
 import (
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/labstack/echo/v4"
 )
 
@@ -26,14 +28,22 @@ func PSKAuthMiddleware(expectedKey string) echo.MiddlewareFunc {
 
 			// Check if the Authorization header contains the required "PSK " prefix
 			if !strings.HasPrefix(header, prefix) {
-				return c.JSON(http.StatusUnauthorized, map[string]string{errorKey: "missing PSK"})
+				return &model.APIError{
+					Code:     http.StatusUnauthorized,
+					Internal: errors.New("missing PSK prefix in Authorization header"),
+					Public:   "missing PSK",
+				}
 			}
 
 			// Extract the key part from the header
 			provided := strings.TrimPrefix(header, prefix)
 
 			if subtle.ConstantTimeCompare([]byte(provided), []byte(expectedKey)) != 1 {
-				return c.JSON(http.StatusUnauthorized, map[string]string{errorKey: "invalid PSK"})
+				return &model.APIError{
+					Code:     http.StatusUnauthorized,
+					Internal: errors.New("PSK mismatch"),
+					Public:   "invalid PSK",
+				}
 			}
 			return next(c)
 		}

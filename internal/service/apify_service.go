@@ -60,7 +60,7 @@ func (s *ApifyService) TriggerExtraction(
 ) (*dto.ExtractResponse, error) {
 	// 1. Cache check
 	video, err := s.videoRepo.GetByVideoURL(ctx, targetURL)
-	if err != nil {
+	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return nil, fmt.Errorf("failed to check existing video: %w", err)
 	}
 	// If a valid cache is found, return the completed status immediately.

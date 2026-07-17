@@ -163,8 +163,7 @@ func (r *videoRepo) GetByVideoURL(ctx context.Context, videoURL string) (*model.
 	row, err := r.q.GetVideoByURL(ctx, videoURL)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			//nolint:nilnil
-			return nil, nil
+			return nil, data.ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to get video by url: %w", mapPostgresError(err))
 	}

@@ -1,6 +1,10 @@
 package data
 
-import "context"
+import (
+	"context"
+
+	"github.com/impactscope-organization/wobsongo/internal/model"
+)
 
 // ClaimAnalysis is the result of scoping and decomposing a raw input message,
 // before any retrieval happens.
@@ -18,6 +22,13 @@ type ClaimAnalysis struct {
 	// more crisp assertions a retrieval query can match well against. Empty
 	// when InScope is false.
 	SubClaims []string
+
+	// Language is the detected language of the original input message —
+	// threaded through to the judge (data.JudgeRequest.ResponseLanguage) and
+	// to ClaimCheckResult.OverallSummary, so the whole response matches
+	// whatever language the user actually asked in, regardless of what
+	// language the retrieved evidence happens to be stored in.
+	Language model.Language
 }
 
 // ClaimAnalyzer scopes and decomposes a raw input message before retrieval:

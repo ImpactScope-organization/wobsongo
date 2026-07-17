@@ -83,7 +83,11 @@ func runEvalExtraction(cmd *cobra.Command, args []string) {
 		expected, err := model.ParseFactCategory(fixture.ExpectedCategory)
 		if err != nil {
 			failed++
-			cmd.Printf("FAIL %s: invalid expected_category %q in fixture\n", fixture.Label, fixture.ExpectedCategory)
+			cmd.Printf(
+				"FAIL %s: invalid expected_category %q in fixture\n",
+				fixture.Label,
+				fixture.ExpectedCategory,
+			)
 			continue
 		}
 

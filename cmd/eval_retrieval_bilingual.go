@@ -114,7 +114,10 @@ func runEvalRetrievalBilingual(cmd *cobra.Command, args []string) {
 		failed++
 		cmd.Printf(
 			"FAIL %s: expected pages %v via full-text match in both languages' top %d, missing/vector-only: %v\n",
-			fixture.Label, fixture.ExpectedPages, bilingualEvalTopN, missing,
+			fixture.Label,
+			fixture.ExpectedPages,
+			bilingualEvalTopN,
+			missing,
 		)
 	}
 

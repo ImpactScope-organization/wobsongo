@@ -101,7 +101,10 @@ func TestCheckClaimHandler_OutOfScope(t *testing.T) {
 
 func TestCheckClaimHandler_Success(t *testing.T) {
 	analyzer := &stubAnalyzer{
-		analysis: &data.ClaimAnalysis{InScope: true, SubClaims: []string{"vitamin C prevents colds"}},
+		analysis: &data.ClaimAnalysis{
+			InScope:   true,
+			SubClaims: []string{"vitamin C prevents colds"},
+		},
 	}
 	judge := &stubJudge{
 		verdict: &data.JudgeVerdict{
@@ -122,7 +125,12 @@ func TestCheckClaimHandler_Success(t *testing.T) {
 		context.Context, string, int,
 	) ([]data.ScoredResult[model.DocumentChunk], error) {
 		return []data.ScoredResult[model.DocumentChunk]{
-			{Item: model.DocumentChunk{ParsedChunk: model.ParsedChunk{Text: "relevant passage"}}, Score: 0.9},
+			{
+				Item: model.DocumentChunk{
+					ParsedChunk: model.ParsedChunk{Text: "relevant passage"},
+				},
+				Score: 0.9,
+			},
 		}, nil
 	}
 
@@ -187,6 +195,11 @@ func TestCheckClaimHandler_MissingText(t *testing.T) {
 	app.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("expected status %d, got %d: %s", http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+		t.Fatalf(
+			"expected status %d, got %d: %s",
+			http.StatusUnprocessableEntity,
+			rec.Code,
+			rec.Body.String(),
+		)
 	}
 }

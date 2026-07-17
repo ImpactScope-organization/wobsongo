@@ -225,7 +225,10 @@ func (w *ExtractKnowledgeWorker) extractChunk(
 			// only confidently-metadata facts are discarded here.
 			log.Printf(
 				"[ExtractKnowledgeWorker] discarding metadata-category fact: subject=%q predicate=%q object=%q chunk=%s",
-				extracted[j].Subject, extracted[j].Predicate, extracted[j].Object, chunk.ID,
+				extracted[j].Subject,
+				extracted[j].Predicate,
+				extracted[j].Object,
+				chunk.ID,
 			)
 			continue
 		}

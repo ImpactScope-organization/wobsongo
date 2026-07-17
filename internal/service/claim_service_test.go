@@ -36,7 +36,10 @@ type stubClaimJudge struct {
 	judgeFunc func(req *data.JudgeRequest) (*data.JudgeVerdict, error)
 }
 
-func (s *stubClaimJudge) Judge(_ context.Context, req *data.JudgeRequest) (*data.JudgeVerdict, error) {
+func (s *stubClaimJudge) Judge(
+	_ context.Context,
+	req *data.JudgeRequest,
+) (*data.JudgeVerdict, error) {
 	s.mu.Lock()
 	s.calls = append(s.calls, req.Claim)
 	s.mu.Unlock()
@@ -96,7 +99,10 @@ func TestClaimService_CheckClaim_OutOfScopeShortCircuitsBeforeRetrieval(t *testi
 	}
 
 	s := NewClaimService(analyzer, judge, newEmptyRAGService())
-	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "what's the capital of France?"})
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "what's the capital of France?"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -116,7 +122,10 @@ func TestClaimService_CheckClaim_OutOfScopeShortCircuitsBeforeRetrieval(t *testi
 
 func TestClaimService_CheckClaim_ZeroEvidenceNeverReachesJudge(t *testing.T) {
 	analyzer := &stubClaimAnalyzer{
-		analysis: &data.ClaimAnalysis{InScope: true, SubClaims: []string{"an obscure unverifiable claim"}},
+		analysis: &data.ClaimAnalysis{
+			InScope:   true,
+			SubClaims: []string{"an obscure unverifiable claim"},
+		},
 	}
 	judge := &stubClaimJudge{
 		judgeFunc: func(*data.JudgeRequest) (*data.JudgeVerdict, error) {
@@ -126,7 +135,10 @@ func TestClaimService_CheckClaim_ZeroEvidenceNeverReachesJudge(t *testing.T) {
 	}
 
 	s := NewClaimService(analyzer, judge, newEmptyRAGService())
-	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "an obscure unverifiable claim"})
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "an obscure unverifiable claim"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -159,7 +171,14 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 	) ([]data.ScoredResult[model.DocumentChunk], error) {
 		if query == "claim A" {
 			return []data.ScoredResult[model.DocumentChunk]{
-				{Item: model.DocumentChunk{ID: uuid.New(), DocumentID: docID, ParsedChunk: model.ParsedChunk{Text: "supporting text"}}, Score: 0.9},
+				{
+					Item: model.DocumentChunk{
+						ID:          uuid.New(),
+						DocumentID:  docID,
+						ParsedChunk: model.ParsedChunk{Text: "supporting text"},
+					},
+					Score: 0.9,
+				},
 			}, nil
 		}
 		return nil, nil
@@ -169,7 +188,11 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 		if id != factChunkID {
 			t.Fatalf("GetByID called with unexpected id %s", id)
 		}
-		return &model.DocumentChunk{ID: factChunkID, DocumentID: docID, ParsedChunk: model.ParsedChunk{Text: "contradicting passage"}}, nil
+		return &model.DocumentChunk{
+			ID:          factChunkID,
+			DocumentID:  docID,
+			ParsedChunk: model.ParsedChunk{Text: "contradicting passage"},
+		}, nil
 	}
 
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
@@ -183,7 +206,15 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
 		if query == "claim B" {
 			return []data.ScoredResult[model.AtomicKnowledge]{
-				{Item: model.AtomicKnowledge{ID: uuid.New(), DocumentID: docID, DocumentChunkID: factChunkID, TruthTier: model.TruthTierAxiomatic}, Score: 0.9},
+				{
+					Item: model.AtomicKnowledge{
+						ID:              uuid.New(),
+						DocumentID:      docID,
+						DocumentChunkID: factChunkID,
+						TruthTier:       model.TruthTierAxiomatic,
+					},
+					Score: 0.9,
+				},
 			}, nil
 		}
 		return nil, nil
@@ -203,9 +234,15 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 		judgeFunc: func(req *data.JudgeRequest) (*data.JudgeVerdict, error) {
 			switch req.Claim {
 			case "claim A":
-				return &data.JudgeVerdict{Verdict: model.VerdictSupported, CitedEvidence: []int{0}}, nil
+				return &data.JudgeVerdict{
+					Verdict:       model.VerdictSupported,
+					CitedEvidence: []int{0},
+				}, nil
 			case "claim B":
-				return &data.JudgeVerdict{Verdict: model.VerdictContradicted, CitedEvidence: []int{0}}, nil
+				return &data.JudgeVerdict{
+					Verdict:       model.VerdictContradicted,
+					CitedEvidence: []int{0},
+				}, nil
 			default:
 				t.Fatalf("unexpected claim %q", req.Claim)
 				return nil, nil
@@ -226,13 +263,18 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 	}
 	// Order must match the analyzer's SubClaims order regardless of which
 	// goroutine finished first.
-	if result.SubClaims[0].Claim != "claim A" || result.SubClaims[0].Verdict != model.VerdictSupported {
+	if result.SubClaims[0].Claim != "claim A" ||
+		result.SubClaims[0].Verdict != model.VerdictSupported {
 		t.Errorf("expected sub-claim 0 = claim A/Supported, got %+v", result.SubClaims[0])
 	}
-	if result.SubClaims[1].Claim != "claim B" || result.SubClaims[1].Verdict != model.VerdictContradicted {
+	if result.SubClaims[1].Claim != "claim B" ||
+		result.SubClaims[1].Verdict != model.VerdictContradicted {
 		t.Errorf("expected sub-claim 1 = claim B/Contradicted, got %+v", result.SubClaims[1])
 	}
 	if result.OverallSummary != "contains inaccuracies" {
-		t.Errorf("expected overall summary to reflect the contradiction, got %q", result.OverallSummary)
+		t.Errorf(
+			"expected overall summary to reflect the contradiction, got %q",
+			result.OverallSummary,
+		)
 	}
 }

@@ -498,7 +498,11 @@ func TestAtomicKnowledgeRepo_SearchBySimilarity_MatchesAndExcludesCurated(t *tes
 // documentIDForChunk looks up a chunk's parent document ID directly — the
 // test fixtures need it to build model.AtomicKnowledge values, and
 // data.DocumentChunkRepoer has no narrower way to fetch just that.
-func documentIDForChunk(ctx context.Context, pool *pgxpool.Pool, chunkID uuid.UUID) (uuid.UUID, error) {
+func documentIDForChunk(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	chunkID uuid.UUID,
+) (uuid.UUID, error) {
 	var documentID uuid.UUID
 	err := pool.QueryRow(
 		ctx,

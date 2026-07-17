@@ -36,6 +36,12 @@ type JudgeEvidence struct {
 type JudgeRequest struct {
 	Claim    string
 	Evidence []JudgeEvidence
+	// ResponseLanguage is the language the judge's Reasoning must be written
+	// in — the original query's detected language (data.ClaimAnalysis.Language),
+	// not any individual evidence item's language. Evidence is never
+	// translated; it's shown to the judge exactly as stored, in whatever
+	// language it happens to be in.
+	ResponseLanguage model.Language
 }
 
 // JudgeVerdict is the judge's decision for one sub-claim.

@@ -51,6 +51,11 @@ type ClaimCheckResult struct {
 	RefusalReason  string
 	OverallSummary string
 	SubClaims      []SubClaimResult
+	// Language is the original input message's detected language
+	// (data.ClaimAnalysis.Language) — OverallSummary and every sub-claim's
+	// Reasoning are written in this language, regardless of what language
+	// the cited evidence happens to be stored in.
+	Language model.Language
 }
 
 // ClaimService orchestrates claim-checking as a fixed, bounded pipeline —
@@ -84,7 +89,11 @@ func (s *ClaimService) CheckClaim(
 		return nil, fmt.Errorf("failed to analyze claim: %w", err)
 	}
 	if !analysis.InScope {
-		return &ClaimCheckResult{InScope: false, RefusalReason: analysis.RefusalReason}, nil
+		return &ClaimCheckResult{
+			InScope:       false,
+			RefusalReason: analysis.RefusalReason,
+			Language:      analysis.Language,
+		}, nil
 	}
 
 	subClaims := analysis.SubClaims
@@ -103,7 +112,7 @@ func (s *ClaimService) CheckClaim(
 	g, gctx := errgroup.WithContext(ctx)
 	for i, claim := range subClaims {
 		g.Go(func() error {
-			result, err := s.checkSubClaim(gctx, claim)
+			result, err := s.checkSubClaim(gctx, claim, analysis.Language)
 			if err != nil {
 				return err
 			}
@@ -117,8 +126,9 @@ func (s *ClaimService) CheckClaim(
 
 	return &ClaimCheckResult{
 		InScope:        true,
-		OverallSummary: summarizeVerdicts(results),
+		OverallSummary: summarizeVerdicts(results, analysis.Language),
 		SubClaims:      results,
+		Language:       analysis.Language,
 	}, nil
 }
 
@@ -126,7 +136,11 @@ func (s *ClaimService) CheckClaim(
 // sub-claim with no retrieved evidence never reaches the judge — there's
 // nothing to cite, so InsufficientEvidence is returned directly rather than
 // spending an LLM call to reach the same conclusion.
-func (s *ClaimService) checkSubClaim(ctx context.Context, claim string) (*SubClaimResult, error) {
+func (s *ClaimService) checkSubClaim(
+	ctx context.Context,
+	claim string,
+	language model.Language,
+) (*SubClaimResult, error) {
 	hits, err := s.rag.Search(ctx, claim, claimSearchLimit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to search evidence for sub-claim %q: %w", claim, err)
@@ -151,7 +165,11 @@ func (s *ClaimService) checkSubClaim(ctx context.Context, claim string) (*SubCla
 		}
 	}
 
-	verdict, err := s.judge.Judge(ctx, &data.JudgeRequest{Claim: claim, Evidence: evidence})
+	verdict, err := s.judge.Judge(ctx, &data.JudgeRequest{
+		Claim:            claim,
+		Evidence:         evidence,
+		ResponseLanguage: language,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to judge sub-claim %q: %w", claim, err)
 	}
@@ -182,9 +200,34 @@ func (s *ClaimService) checkSubClaim(ctx context.Context, claim string) (*SubCla
 	}, nil
 }
 
+// overallSummaryTemplates gives each of summarizeVerdicts' four outcomes in
+// both supported languages — mirrors languageDisplayNames' pattern
+// (external/translation_client.go) of a language-keyed lookup rather than an
+// LLM call, since this is a deterministic rollup of already-computed
+// verdicts, not something that needs its own model call.
+var overallSummaryTemplates = map[string]map[model.Language]string{
+	"contradicted": {
+		model.LanguageEnglish: "contains inaccuracies",
+		model.LanguageFrench:  "contient des inexactitudes",
+	},
+	"supported": {
+		model.LanguageEnglish: "supported",
+		model.LanguageFrench:  "confirmé",
+	},
+	"insufficient": {
+		model.LanguageEnglish: "partially verified — some aspects could not be checked against the knowledge base",
+		model.LanguageFrench:  "partiellement vérifié — certains aspects n'ont pas pu être vérifiés dans la base de connaissances",
+	},
+	"partial": {
+		model.LanguageEnglish: "partially supported",
+		model.LanguageFrench:  "partiellement confirmé",
+	},
+}
+
 // summarizeVerdicts rolls up per-sub-claim verdicts into one overall
-// description of the original message.
-func summarizeVerdicts(results []SubClaimResult) string {
+// description of the original message, in language (the original input
+// message's detected language) rather than always in English.
+func summarizeVerdicts(results []SubClaimResult, language model.Language) string {
 	anyContradicted := false
 	anyInsufficient := false
 	allSupported := true
@@ -202,14 +245,14 @@ func summarizeVerdicts(results []SubClaimResult) string {
 		}
 	}
 
+	key := "partial"
 	switch {
 	case anyContradicted:
-		return "contains inaccuracies"
+		key = "contradicted"
 	case allSupported:
-		return "supported"
+		key = "supported"
 	case anyInsufficient:
-		return "partially verified — some aspects could not be checked against the knowledge base"
-	default:
-		return "partially supported"
+		key = "insufficient"
 	}
+	return overallSummaryTemplates[key][language]
 }

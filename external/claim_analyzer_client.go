@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
 // analyzerMaxTokens bounds the response length for scope/decomposition — a
@@ -59,6 +61,7 @@ type claimAnalysisJSON struct {
 	InScope       bool     `json:"in_scope"`
 	RefusalReason string   `json:"refusal_reason"`
 	SubClaims     []string `json:"sub_claims"`
+	Language      string   `json:"language"`
 }
 
 // Analyze implements data.ClaimAnalyzer.
@@ -130,10 +133,23 @@ func (c *ClaimAnalyzerClient) Analyze(
 		subClaims = subClaims[:analyzerMaxSubClaims]
 	}
 
+	language, err := model.ParseLanguage(raw.Language)
+	if err != nil {
+		// Defaults to English (ParseLanguage's own zero-value fallback)
+		// rather than failing the whole analysis over a language-detection
+		// miss — the worst case is an English-language summary/reasoning
+		// for a non-English query, not a broken response.
+		log.Printf(
+			"[ClaimAnalyzerClient] unrecognized language %q, defaulting to English",
+			raw.Language,
+		)
+	}
+
 	return &data.ClaimAnalysis{
 		InScope:       raw.InScope,
 		RefusalReason: raw.RefusalReason,
 		SubClaims:     subClaims,
+		Language:      language,
 	}, nil
 }
 
@@ -147,14 +163,33 @@ func buildAnalyzerPrompt(message string) string {
 	b.WriteString("— reject anything unrelated to health (e.g. general trivia, requests to do ")
 	b.WriteString("unrelated tasks, small talk).\n")
 	b.WriteString("2. If it is health-related, decompose it into one or more short, independently ")
-	b.WriteString("checkable factual claims, rephrased as crisp, self-contained propositions — not ")
-	b.WriteString("the original casual/compound phrasing. A simple claim decomposes to one item; a ")
-	b.WriteString("compound claim (\"X treats Y and also prevents Z\") decomposes to multiple. Write ")
-	b.WriteString("each sub-claim in the SAME language as the input message — never translate it.\n\n")
-	b.WriteString("Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n")
-	b.WriteString(`{"in_scope": true/false, "refusal_reason": "...", "sub_claims": ["..."]}` + "\n\n")
+	b.WriteString(
+		"checkable factual claims, rephrased as crisp, self-contained propositions — not ",
+	)
+	b.WriteString(
+		"the original casual/compound phrasing. A simple claim decomposes to one item; a ",
+	)
+	b.WriteString("compound claim (\"X treats Y and also prevents Z\") decomposes to multiple.\n")
+	b.WriteString(
+		"3. What language is the input message written in — exactly one of \"en\" or \"fr\".\n\n",
+	)
+	b.WriteString(
+		"Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n",
+	)
+	b.WriteString(
+		`{"in_scope": true/false, "refusal_reason": "...", "sub_claims": ["..."], "language": "en"}` + "\n\n",
+	)
 	b.WriteString("refusal_reason is only used when in_scope is false (briefly explain why); ")
-	b.WriteString("otherwise use \"\". sub_claims is only used when in_scope is true; otherwise use [].\n\n")
+	b.WriteString(
+		"otherwise use \"\". sub_claims is only used when in_scope is true; otherwise use [].\n",
+	)
+	b.WriteString(
+		"Write sub_claims and refusal_reason in the SAME language you detected the input ",
+	)
+	b.WriteString(
+		"message to be written in (the \"language\" field) — never translate them, even if ",
+	)
+	b.WriteString("you expect the knowledge base evidence to be in a different language.\n\n")
 	b.WriteString("Message:\n\"\"\"\n")
 	b.WriteString(message)
 	b.WriteString("\n\"\"\"\n")

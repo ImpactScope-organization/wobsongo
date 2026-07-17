@@ -122,14 +122,20 @@ func (c *JudgeClient) Judge(
 
 	verdict, err := model.ParseVerdict(raw.Verdict)
 	if err != nil {
-		log.Printf("[JudgeClient] unrecognized verdict %q — defaulting to insufficient_evidence", raw.Verdict)
+		log.Printf(
+			"[JudgeClient] unrecognized verdict %q — defaulting to insufficient_evidence",
+			raw.Verdict,
+		)
 		verdict = model.VerdictInsufficientEvidence
 	}
 
 	severity, err := model.ParseSeverity(raw.Severity)
 	recommendConsult := raw.RecommendMedicalConsult
 	if err != nil {
-		log.Printf("[JudgeClient] unrecognized severity %q — defaulting to serious and forcing medical consult recommendation", raw.Severity)
+		log.Printf(
+			"[JudgeClient] unrecognized severity %q — defaulting to serious and forcing medical consult recommendation",
+			raw.Severity,
+		)
 		severity = model.SeveritySerious
 		recommendConsult = true
 	}
@@ -141,7 +147,11 @@ func (c *JudgeClient) Judge(
 		if idx >= 0 && idx < len(req.Evidence) {
 			validCitations = append(validCitations, idx)
 		} else {
-			log.Printf("[JudgeClient] dropping out-of-range citation index %d (evidence has %d items)", idx, len(req.Evidence))
+			log.Printf(
+				"[JudgeClient] dropping out-of-range citation index %d (evidence has %d items)",
+				idx,
+				len(req.Evidence),
+			)
 		}
 	}
 
@@ -152,7 +162,8 @@ func (c *JudgeClient) Judge(
 	if len(validCitations) == 0 && verdict != model.VerdictInsufficientEvidence {
 		log.Printf(
 			"[JudgeClient] verdict %q had no valid citations — forcing insufficient_evidence for claim %q",
-			verdict, req.Claim,
+			verdict,
+			req.Claim,
 		)
 		verdict = model.VerdictInsufficientEvidence
 	}
@@ -172,10 +183,16 @@ func buildJudgePrompt(req *data.JudgeRequest) string {
 	var b strings.Builder
 	b.WriteString("You are a strict, evidence-only fact-checking judge for a Sexual and ")
 	b.WriteString("Reproductive Health (SRH) knowledge base. You must decide whether a claim is ")
-	b.WriteString("supported, contradicted, or unaddressed — using ONLY the evidence listed below. ")
-	b.WriteString("You have no other context: even if you recognize the topic and believe you know ")
+	b.WriteString(
+		"supported, contradicted, or unaddressed — using ONLY the evidence listed below. ",
+	)
+	b.WriteString(
+		"You have no other context: even if you recognize the topic and believe you know ",
+	)
 	b.WriteString("the answer from your own training, you must ignore that entirely and judge ")
-	b.WriteString("strictly from the evidence provided. If the evidence doesn't address the claim, ")
+	b.WriteString(
+		"strictly from the evidence provided. If the evidence doesn't address the claim, ",
+	)
 	b.WriteString("say so — do not fill the gap with outside knowledge.\n\n")
 
 	fmt.Fprintf(&b, "Claim: %q\n\n", req.Claim)
@@ -196,9 +213,22 @@ func buildJudgePrompt(req *data.JudgeRequest) string {
 		b.WriteString("\n")
 	}
 
-	b.WriteString("Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n")
-	b.WriteString(`{"verdict": "...", "severity": "...", "recommend_medical_consult": true/false, ` +
-		`"reasoning": "...", "cited_evidence": [0, 2]}` + "\n\n")
+	fmt.Fprintf(
+		&b,
+		"Write the \"reasoning\" field in %s, regardless of what language the evidence "+
+			"above is written in — do not translate the evidence itself, just write your "+
+			"own reasoning in %s.\n\n",
+		languageDisplayNames[req.ResponseLanguage],
+		languageDisplayNames[req.ResponseLanguage],
+	)
+
+	b.WriteString(
+		"Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n",
+	)
+	b.WriteString(
+		`{"verdict": "...", "severity": "...", "recommend_medical_consult": true/false, ` +
+			`"reasoning": "...", "cited_evidence": [0, 2]}` + "\n\n",
+	)
 	b.WriteString("verdict must be exactly one of: supported, contradicted, partially_supported, ")
 	b.WriteString("mixed, insufficient_evidence.\n")
 	b.WriteString("- supported: the evidence backs the claim.\n")
@@ -210,19 +240,33 @@ func buildJudgePrompt(req *data.JudgeRequest) string {
 	b.WriteString("retrieved. Use this whenever you're not confident the evidence actually covers ")
 	b.WriteString("the claim — this never implies the claim itself is right or wrong.\n\n")
 	b.WriteString("severity must be exactly one of: routine, serious, emergency — how urgent/")
-	b.WriteString("high-stakes the claim's subject matter is if someone acted on wrong information. ")
-	b.WriteString("Set recommend_medical_consult to true whenever severity is serious or emergency — ")
-	b.WriteString("this system provides quick access to reliable information, it does not replace a ")
+	b.WriteString(
+		"high-stakes the claim's subject matter is if someone acted on wrong information. ",
+	)
+	b.WriteString(
+		"Set recommend_medical_consult to true whenever severity is serious or emergency — ",
+	)
+	b.WriteString(
+		"this system provides quick access to reliable information, it does not replace a ",
+	)
 	b.WriteString("real doctor, especially for serious or life-threatening situations.\n\n")
-	b.WriteString("cited_evidence must list the indices (from the Evidence list above, 0-based) that ")
-	b.WriteString("your verdict is actually based on. Required (non-empty) for any verdict other than ")
+	b.WriteString(
+		"cited_evidence must list the indices (from the Evidence list above, 0-based) that ",
+	)
+	b.WriteString(
+		"your verdict is actually based on. Required (non-empty) for any verdict other than ",
+	)
 	b.WriteString("insufficient_evidence — if you cannot point to specific evidence, use ")
 	b.WriteString("insufficient_evidence instead.\n\n")
-	b.WriteString("Whenever your reasoning references a specific piece of evidence, cite it inline as ")
-	b.WriteString(`"[N]" using that same 0-based index from the Evidence list — e.g. "evidence [2] ` +
-		`states...". Every index you cite inline in reasoning must also appear in cited_evidence, ` +
-		"and vice versa: the two must match exactly, so a reader can look up any \"[N]\" in your " +
-		"reasoning against the same-numbered item in cited_evidence.\n")
+	b.WriteString(
+		"Whenever your reasoning references a specific piece of evidence, cite it inline as ",
+	)
+	b.WriteString(
+		`"[N]" using that same 0-based index from the Evidence list — e.g. "evidence [2] ` +
+			`states...". Every index you cite inline in reasoning must also appear in cited_evidence, ` +
+			"and vice versa: the two must match exactly, so a reader can look up any \"[N]\" in your " +
+			"reasoning against the same-numbered item in cited_evidence.\n",
+	)
 
 	return b.String()
 }

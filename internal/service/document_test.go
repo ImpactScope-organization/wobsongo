@@ -36,7 +36,7 @@ func TestDocumentService_Create(t *testing.T) {
 
 	req := &dto.CreateDocumentDTO{
 		SHA256:          "abc123",
-		FileKey:         "docs/fake.pdf",
+		FileKey:         "documents/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
 		Title:           "A Fake Document",
 		Filename:        "fake.pdf",
 		Filetype:        "application/pdf",
@@ -84,7 +84,10 @@ func TestDocumentService_Create_PropagatesRepoError(t *testing.T) {
 	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrInternal }
 	svc := service.NewDocumentService(repo)
 
-	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{Language: "en"})
+	_, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{
+		FileKey:  "documents/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+		Language: "en",
+	})
 	if !errors.Is(err, data.ErrInternal) {
 		t.Errorf("expected data.ErrInternal, got %v", err)
 	}
@@ -136,7 +139,11 @@ func TestDocumentService_Create_ConcurrentDuplicate_ReturnsExistingNoOp(t *testi
 	repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrConflict }
 	svc := service.NewDocumentService(repo)
 
-	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{SHA256: existing.SHA256, Language: "en"})
+	doc, err := svc.Create(t.Context(), &dto.CreateDocumentDTO{
+		SHA256:   existing.SHA256,
+		FileKey:  "documents/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.pdf",
+		Language: "en",
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

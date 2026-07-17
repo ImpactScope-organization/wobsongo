@@ -235,7 +235,11 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 
 	sourceLanguage := languageDisplayNames[req.Language]
 	targetLanguage := languageDisplayNames[req.Language.Other()]
-	fmt.Fprintf(&b, "The source text below is written in %s. Keep subject, predicate, ", sourceLanguage)
+	fmt.Fprintf(
+		&b,
+		"The source text below is written in %s. Keep subject, predicate, ",
+		sourceLanguage,
+	)
 	b.WriteString("object, and note in that SAME language — never translate them.\n")
 	fmt.Fprintf(
 		&b,

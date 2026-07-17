@@ -68,7 +68,7 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 	if resp.Status == dto.StatusProcessing {
 		statusCode = http.StatusAccepted
 	}
-	return c.JSON(statusCode, resp)
+	return writeJSON(c, statusCode, resp)
 }
 
 // @Summary		Apify webhook receiver

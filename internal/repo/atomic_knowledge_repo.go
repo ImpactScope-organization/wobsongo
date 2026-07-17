@@ -3,12 +3,14 @@ package repo
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/pgvector/pgvector-go"
 )
 
 // AtomicKnowledgeRepo is a Postgres-backed implementation of data.AtomicKnowledgeRepoer.
@@ -25,6 +27,18 @@ var _ data.AtomicKnowledgeRepoer = (*AtomicKnowledgeRepo)(nil)
 // (including tests) can supply a tx-scoped *db.Queries.
 func NewAtomicKnowledgeRepo(q *db.Queries, pool *pgxpool.Pool) data.AtomicKnowledgeRepoer {
 	return &AtomicKnowledgeRepo{q: q, pool: pool}
+}
+
+// GetByID retrieves a single fact by its ID.
+func (r *AtomicKnowledgeRepo) GetByID(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.AtomicKnowledge, error) {
+	fact, err := r.q.GetAtomicKnowledgeByID(ctx, id)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return toModelAtomicKnowledge(&fact), nil
 }
 
 // CreateBatch inserts multiple fully-formed knowledge facts in a single COPY operation.
@@ -62,6 +76,108 @@ func (r *AtomicKnowledgeRepo) MarkChunkKnowledgeExtracted(
 	return nil
 }
 
+// ListNeedingEmbedding retrieves facts for a document that don't have an
+// embedding yet, ordered by CreatedAt.
+func (r *AtomicKnowledgeRepo) ListNeedingEmbedding(
+	ctx context.Context,
+	documentID uuid.UUID,
+) ([]model.AtomicKnowledge, error) {
+	rows, err := r.q.ListKnowledgeNeedingEmbedding(ctx, documentID)
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+
+	facts := make([]model.AtomicKnowledge, 0, len(rows))
+	for i := range rows {
+		facts = append(facts, *toModelAtomicKnowledge(&rows[i]))
+	}
+	return facts, nil
+}
+
+// UpdateEmbedding persists the embedding vector for a single fact.
+func (r *AtomicKnowledgeRepo) UpdateEmbedding(
+	ctx context.Context,
+	id uuid.UUID,
+	embedding []float32,
+) error {
+	if err := r.q.UpdateAtomicKnowledgeEmbedding(ctx, db.UpdateAtomicKnowledgeEmbeddingParams{
+		ID:        id,
+		Embedding: toPgvector(embedding),
+		UpdatedAt: time.Now(),
+	}); err != nil {
+		return mapPostgresError(err)
+	}
+	return nil
+}
+
+// SearchByEmbedding returns the limit facts (excluding any marked invalid or
+// irrelevant, or category=metadata) whose embedding is closest (cosine
+// distance) to queryVector, ordered nearest-first.
+func (r *AtomicKnowledgeRepo) SearchByEmbedding(
+	ctx context.Context,
+	queryVector []float32,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, embedding <=> $1 AS score FROM atomic_knowledge
+		 WHERE embedding IS NOT NULL AND NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
+		 ORDER BY score ASC
+		 LIMIT $2`,
+		[]any{pgvector.NewVector(queryVector), limit, int(model.FactCategoryMetadata)},
+		r.GetByID,
+	)
+}
+
+// SearchByFullText returns the limit facts (excluding any marked invalid or
+// irrelevant, or category=metadata) whose subject/predicate/object/note best
+// match query via Postgres full-text search (ts_rank_cd), ordered best-first.
+func (r *AtomicKnowledgeRepo) SearchByFullText(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, ts_rank_cd(fts, websearch_to_tsquery('english', $1)) AS score
+		 FROM atomic_knowledge
+		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
+		   AND fts @@ websearch_to_tsquery('english', $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit, int(model.FactCategoryMetadata)},
+		r.GetByID,
+	)
+}
+
+// SearchBySimilarity returns the limit facts (excluding any marked invalid or
+// irrelevant, or category=metadata) whose subject/predicate/object
+// trigram-match query, ranked by the best of the three fields' similarity,
+// ordered best-first.
+func (r *AtomicKnowledgeRepo) SearchBySimilarity(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, GREATEST(similarity(subject, $1), similarity(predicate, $1), similarity(object, $1)) AS score
+		 FROM atomic_knowledge
+		 WHERE NOT marked_as_invalid AND NOT marked_as_irrelevant
+		   AND category != $3
+		   AND (subject % $1 OR predicate % $1 OR object % $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit, int(model.FactCategoryMetadata)},
+		r.GetByID,
+	)
+}
+
 // WithTx executes fn within a Postgres transaction, giving it a
 // transaction-scoped repo so CreateBatch and MarkChunkKnowledgeExtracted
 // commit atomically.
@@ -86,6 +202,27 @@ func (r *AtomicKnowledgeRepo) WithTx(
 	return tx.Commit(ctx)
 }
 
+// toModelAtomicKnowledge maps a sqlc-generated db.AtomicKnowledge row to model.AtomicKnowledge.
+func toModelAtomicKnowledge(k *db.AtomicKnowledge) *model.AtomicKnowledge {
+	return &model.AtomicKnowledge{
+		ID:                 k.ID,
+		CreatedAt:          k.CreatedAt,
+		UpdatedAt:          k.UpdatedAt,
+		DocumentID:         k.DocumentID,
+		DocumentChunkID:    k.DocumentChunkID,
+		TruthTier:          model.TruthTier(k.TruthTier),
+		Category:           model.FactCategory(k.Category),
+		Topics:             k.Topics,
+		Subject:            k.Subject,
+		Predicate:          k.Predicate,
+		Object:             k.Object,
+		Note:               k.Note,
+		Embedding:          fromPgvector(k.Embedding),
+		MarkedAsInvalid:    k.MarkedAsInvalid,
+		MarkedAsIrrelevant: k.MarkedAsIrrelevant,
+	}
+}
+
 // toCreateAtomicKnowledgeBatchParams maps a model.AtomicKnowledge to sqlc's batch-insert params.
 func toCreateAtomicKnowledgeBatchParams(
 	k *model.AtomicKnowledge,
@@ -97,6 +234,7 @@ func toCreateAtomicKnowledgeBatchParams(
 		DocumentID:         k.DocumentID,
 		DocumentChunkID:    k.DocumentChunkID,
 		TruthTier:          toInt32(int(k.TruthTier)),
+		Category:           toInt32(int(k.Category)),
 		Topics:             k.Topics,
 		Subject:            k.Subject,
 		Predicate:          k.Predicate,

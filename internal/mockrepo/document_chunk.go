@@ -40,7 +40,13 @@ var _ data.DocumentChunkRepoer = &DocumentChunkRepoerMock{}
 //			ListChunksNeedingKnowledgeExtractionFunc: func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error) {
 //				panic("mock out the ListChunksNeedingKnowledgeExtraction method")
 //			},
-//			ShouldBeStoredFunc: func(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
+//			SearchByEmbeddingFunc: func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
+//				panic("mock out the SearchByEmbedding method")
+//			},
+//			SearchByFullTextFunc: func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
+//				panic("mock out the SearchByFullText method")
+//			},
+//			ShouldBeStoredFunc: func(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error) {
 //				panic("mock out the ShouldBeStored method")
 //			},
 //			UpdateFunc: func(ctx context.Context, chunk *model.DocumentChunk) error {
@@ -74,8 +80,14 @@ type DocumentChunkRepoerMock struct {
 	// ListChunksNeedingKnowledgeExtractionFunc mocks the ListChunksNeedingKnowledgeExtraction method.
 	ListChunksNeedingKnowledgeExtractionFunc func(ctx context.Context, documentID uuid.UUID) ([]model.DocumentChunk, error)
 
+	// SearchByEmbeddingFunc mocks the SearchByEmbedding method.
+	SearchByEmbeddingFunc func(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error)
+
+	// SearchByFullTextFunc mocks the SearchByFullText method.
+	SearchByFullTextFunc func(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.DocumentChunk], error)
+
 	// ShouldBeStoredFunc mocks the ShouldBeStored method.
-	ShouldBeStoredFunc func(ctx context.Context, chunk model.DocumentChunk) (bool, error)
+	ShouldBeStoredFunc func(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, chunk *model.DocumentChunk) error
@@ -127,10 +139,30 @@ type DocumentChunkRepoerMock struct {
 			// DocumentID is the documentID argument value.
 			DocumentID uuid.UUID
 		}
+		// SearchByEmbedding holds details about calls to the SearchByEmbedding method.
+		SearchByEmbedding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// QueryVector is the queryVector argument value.
+			QueryVector []float32
+			// Limit is the limit argument value.
+			Limit int
+		}
+		// SearchByFullText holds details about calls to the SearchByFullText method.
+		SearchByFullText []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Query is the query argument value.
+			Query string
+			// Limit is the limit argument value.
+			Limit int
+		}
 		// ShouldBeStored holds details about calls to the ShouldBeStored method.
 		ShouldBeStored []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
+			// Doc is the doc argument value.
+			Doc model.Document
 			// Chunk is the chunk argument value.
 			Chunk model.DocumentChunk
 		}
@@ -155,6 +187,8 @@ type DocumentChunkRepoerMock struct {
 	lockListByDocumentID                     sync.RWMutex
 	lockListChunksNeedingEmbedding           sync.RWMutex
 	lockListChunksNeedingKnowledgeExtraction sync.RWMutex
+	lockSearchByEmbedding                    sync.RWMutex
+	lockSearchByFullText                     sync.RWMutex
 	lockShouldBeStored                       sync.RWMutex
 	lockUpdate                               sync.RWMutex
 	lockWithTx                               sync.RWMutex
@@ -376,22 +410,104 @@ func (mock *DocumentChunkRepoerMock) ListChunksNeedingKnowledgeExtractionCalls()
 	return calls
 }
 
+// SearchByEmbedding calls SearchByEmbeddingFunc.
+func (mock *DocumentChunkRepoerMock) SearchByEmbedding(ctx context.Context, queryVector []float32, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
+	if mock.SearchByEmbeddingFunc == nil {
+		panic("DocumentChunkRepoerMock.SearchByEmbeddingFunc: method is nil but DocumentChunkRepoer.SearchByEmbedding was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		QueryVector []float32
+		Limit       int
+	}{
+		Ctx:         ctx,
+		QueryVector: queryVector,
+		Limit:       limit,
+	}
+	mock.lockSearchByEmbedding.Lock()
+	mock.calls.SearchByEmbedding = append(mock.calls.SearchByEmbedding, callInfo)
+	mock.lockSearchByEmbedding.Unlock()
+	return mock.SearchByEmbeddingFunc(ctx, queryVector, limit)
+}
+
+// SearchByEmbeddingCalls gets all the calls that were made to SearchByEmbedding.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.SearchByEmbeddingCalls())
+func (mock *DocumentChunkRepoerMock) SearchByEmbeddingCalls() []struct {
+	Ctx         context.Context
+	QueryVector []float32
+	Limit       int
+} {
+	var calls []struct {
+		Ctx         context.Context
+		QueryVector []float32
+		Limit       int
+	}
+	mock.lockSearchByEmbedding.RLock()
+	calls = mock.calls.SearchByEmbedding
+	mock.lockSearchByEmbedding.RUnlock()
+	return calls
+}
+
+// SearchByFullText calls SearchByFullTextFunc.
+func (mock *DocumentChunkRepoerMock) SearchByFullText(ctx context.Context, query string, limit int) ([]data.ScoredResult[model.DocumentChunk], error) {
+	if mock.SearchByFullTextFunc == nil {
+		panic("DocumentChunkRepoerMock.SearchByFullTextFunc: method is nil but DocumentChunkRepoer.SearchByFullText was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}{
+		Ctx:   ctx,
+		Query: query,
+		Limit: limit,
+	}
+	mock.lockSearchByFullText.Lock()
+	mock.calls.SearchByFullText = append(mock.calls.SearchByFullText, callInfo)
+	mock.lockSearchByFullText.Unlock()
+	return mock.SearchByFullTextFunc(ctx, query, limit)
+}
+
+// SearchByFullTextCalls gets all the calls that were made to SearchByFullText.
+// Check the length with:
+//
+//	len(mockedDocumentChunkRepoer.SearchByFullTextCalls())
+func (mock *DocumentChunkRepoerMock) SearchByFullTextCalls() []struct {
+	Ctx   context.Context
+	Query string
+	Limit int
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Query string
+		Limit int
+	}
+	mock.lockSearchByFullText.RLock()
+	calls = mock.calls.SearchByFullText
+	mock.lockSearchByFullText.RUnlock()
+	return calls
+}
+
 // ShouldBeStored calls ShouldBeStoredFunc.
-func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, chunk model.DocumentChunk) (bool, error) {
+func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error) {
 	if mock.ShouldBeStoredFunc == nil {
 		panic("DocumentChunkRepoerMock.ShouldBeStoredFunc: method is nil but DocumentChunkRepoer.ShouldBeStored was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
+		Doc   model.Document
 		Chunk model.DocumentChunk
 	}{
 		Ctx:   ctx,
+		Doc:   doc,
 		Chunk: chunk,
 	}
 	mock.lockShouldBeStored.Lock()
 	mock.calls.ShouldBeStored = append(mock.calls.ShouldBeStored, callInfo)
 	mock.lockShouldBeStored.Unlock()
-	return mock.ShouldBeStoredFunc(ctx, chunk)
+	return mock.ShouldBeStoredFunc(ctx, doc, chunk)
 }
 
 // ShouldBeStoredCalls gets all the calls that were made to ShouldBeStored.
@@ -400,10 +516,12 @@ func (mock *DocumentChunkRepoerMock) ShouldBeStored(ctx context.Context, chunk m
 //	len(mockedDocumentChunkRepoer.ShouldBeStoredCalls())
 func (mock *DocumentChunkRepoerMock) ShouldBeStoredCalls() []struct {
 	Ctx   context.Context
+	Doc   model.Document
 	Chunk model.DocumentChunk
 } {
 	var calls []struct {
 		Ctx   context.Context
+		Doc   model.Document
 		Chunk model.DocumentChunk
 	}
 	mock.lockShouldBeStored.RLock()

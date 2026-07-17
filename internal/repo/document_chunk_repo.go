@@ -153,12 +153,60 @@ func (r *DocumentChunkRepo) Update(ctx context.Context, chunk *model.DocumentChu
 }
 
 // ShouldBeStored decides whether a chunk carries enough information/context
-// to be worth persisting. A pass-through today (always true); real filtering
-// logic (heuristics and/or NLP/LLM-based scoring) lands later.
+// to be worth persisting. Reference-layout chunks (bibliography/citation
+// entries) are structurally reliable noise — always bibliographic, never
+// clinical — so they're dropped before ever being stored, embedded, or
+// extracted from. Footnotes are deliberately left alone: they sometimes carry
+// substantive caveats, not just citations, unlike references. doc isn't
+// consumed by this check yet; it's threaded through for future
+// heuristic/LLM-based storage decisions that do need document-level context.
 //
-//nolint:gocritic // chunk is passed by value: fixed by the data.DocumentChunkRepoer interface signature.
-func (r *DocumentChunkRepo) ShouldBeStored(_ context.Context, _ model.DocumentChunk) (bool, error) {
-	return true, nil
+//nolint:gocritic // doc/chunk are passed by value: fixed by the data.DocumentChunkRepoer interface signature.
+func (r *DocumentChunkRepo) ShouldBeStored(
+	_ context.Context,
+	_ model.Document,
+	chunk model.DocumentChunk,
+) (bool, error) {
+	return chunk.LayoutType != model.LayoutTypeReference, nil
+}
+
+// SearchByEmbedding returns the limit chunks whose embedding is closest
+// (cosine distance) to queryVector, ordered nearest-first.
+func (r *DocumentChunkRepo) SearchByEmbedding(
+	ctx context.Context,
+	queryVector []float32,
+	limit int,
+) ([]data.ScoredResult[model.DocumentChunk], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, embedding <=> $1 AS score FROM document_chunks
+		 WHERE embedding IS NOT NULL
+		 ORDER BY score ASC
+		 LIMIT $2`,
+		[]any{pgvector.NewVector(queryVector), limit},
+		r.GetByID,
+	)
+}
+
+// SearchByFullText returns the limit chunks whose text best matches query via
+// Postgres full-text search (ts_rank_cd), ordered best-first.
+func (r *DocumentChunkRepo) SearchByFullText(
+	ctx context.Context,
+	query string,
+	limit int,
+) ([]data.ScoredResult[model.DocumentChunk], error) {
+	return searchScored(
+		ctx,
+		r.pool,
+		`SELECT id, ts_rank_cd(text_fts, websearch_to_tsquery('english', $1)) AS score
+		 FROM document_chunks
+		 WHERE text_fts @@ websearch_to_tsquery('english', $1)
+		 ORDER BY score DESC
+		 LIMIT $2`,
+		[]any{query, limit},
+		r.GetByID,
+	)
 }
 
 // WithTx executes fn within a Postgres transaction, giving it a

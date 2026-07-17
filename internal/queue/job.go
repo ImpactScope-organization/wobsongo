@@ -29,6 +29,10 @@ const (
 	// JobTypeExtractKnowledge represents a job type for extracting atomic
 	// knowledge facts from a document's text-bearing, not-yet-extracted chunks.
 	JobTypeExtractKnowledge BackgroundJobType = "extract_knowledge"
+
+	// JobTypeEmbedKnowledge represents a job type for computing and storing
+	// embeddings for a document's not-yet-embedded atomic knowledge facts.
+	JobTypeEmbedKnowledge BackgroundJobType = "embed_knowledge"
 )
 
 // BackgroundJob represents a generic background job.
@@ -37,3 +41,21 @@ type BackgroundJob interface {
 	// Kind returns the kind of the job.
 	Kind() string
 }
+
+// Queue names — one per logical workload, so document ingestion (which can
+// run continuously for hours on a large document, see ExtractKnowledgeWorker)
+// and media/video processing (Apify extraction, transcription) scale and
+// throttle independently instead of competing for the same worker pool.
+// Each job DTO declares its queue via InsertOpts() (river.JobArgsWithInsertOpts),
+// so callers enqueueing via queue.JobEnqueuer never need to specify it
+// themselves — see cmd/server.go for where these are registered with MaxWorkers.
+const (
+	// QueueDocumentIngestion is used by every job in the document-ingestion
+	// pipeline: ParseDocumentDTO, ProcessParsedDocumentDTO,
+	// CaptionImageChunksDTO, EmbedChunksDTO, ExtractKnowledgeDTO, EmbedKnowledgeDTO.
+	QueueDocumentIngestion = "document_ingestion"
+
+	// QueueMediaProcessing is used by the media/video pipeline:
+	// ExtractMediaDTO, TranscriptionJob.
+	QueueMediaProcessing = "media_processing"
+)

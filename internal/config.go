@@ -64,7 +64,21 @@ type EmbeddingConfig struct {
 	BaseURL string `json:"base_url"`
 	Model   string `json:"model"`
 	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+
+	// Provider selects which wire shape to speak. "openai" (default) is the
+	// generic OpenAI-compatible /v1/embeddings shape (external.EmbeddingClient).
+	// "modal-bge" is a custom shape used by some bespoke Modal deployments
+	// (see external.ModalBGEClient) — a single POST to BaseURL itself with
+	// {"texts": [...]}, not /v1/embeddings with {"model", "input"}.
+	Provider string `json:"provider"`
 }
+
+// EmbeddingProviderOpenAI and EmbeddingProviderModalBGE are the recognized
+// values for EmbeddingConfig.Provider.
+const (
+	EmbeddingProviderOpenAI   = "openai"
+	EmbeddingProviderModalBGE = "modal-bge"
+)
 
 // ExtractionConfig holds the configuration for the atomic-knowledge
 // extraction endpoint — a generic OpenAI-compatible text chat-completions
@@ -72,6 +86,24 @@ type EmbeddingConfig struct {
 // that shape). Decoupled from VLMConfig: captioning needs vision, extraction
 // is text-only reasoning, and each may warrant a different model.
 type ExtractionConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+	// Concurrency bounds how many chunks ExtractKnowledgeWorker extracts at
+	// once. There's no documented rate limit to size this against precisely
+	// for a given provider — defaults to a conservative 5 and is tunable via
+	// EXTRACTION_CONCURRENCY without a code change/redeploy, since the right
+	// number depends on the specific endpoint's actual tolerance.
+	Concurrency int `json:"concurrency"`
+}
+
+// ClaimCheckConfig holds the configuration for the claim-checking endpoints
+// (scope/decomposition analysis and verdict judging) — both generic
+// OpenAI-compatible text chat-completions APIs, expected to point at the
+// same backend as ExtractionConfig in practice, but decoupled as its own
+// config since the claim-checking feature is logically separate from
+// document ingestion.
+type ClaimCheckConfig struct {
 	BaseURL string `json:"base_url"`
 	Model   string `json:"model"`
 	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
@@ -153,6 +185,7 @@ type Config struct {
 	VLMConfig          *VLMConfig        `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig  `json:"embedding_config"`     // Embedding configuration for chunk embeddings
 	ExtractionConfig   *ExtractionConfig `json:"extraction_config"`    // Extraction configuration for atomic knowledge
+	ClaimCheckConfig   *ClaimCheckConfig `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -196,6 +229,12 @@ func IsEmbeddingOK(c *EmbeddingConfig) error {
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("EmbeddingConfig is incomplete")
 	}
+	if c.Provider != EmbeddingProviderOpenAI && c.Provider != EmbeddingProviderModalBGE {
+		return fmt.Errorf(
+			"EmbeddingConfig has unrecognized provider %q (expected %q or %q)",
+			c.Provider, EmbeddingProviderOpenAI, EmbeddingProviderModalBGE,
+		)
+	}
 	return nil
 }
 
@@ -206,6 +245,17 @@ func IsExtractionOK(c *ExtractionConfig) error {
 	}
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("ExtractionConfig is incomplete")
+	}
+	return nil
+}
+
+// IsClaimCheckOK checks if the ClaimCheck configuration is valid.
+func IsClaimCheckOK(c *ClaimCheckConfig) error {
+	if c == nil {
+		return errors.New("ClaimCheckConfig is not set")
+	}
+	if c.BaseURL == "" || c.Model == "" {
+		return errors.New("ClaimCheckConfig is incomplete")
 	}
 	return nil
 }
@@ -227,7 +277,6 @@ func (c *Config) IsOK() error {
 	if c.JWTExpiryHours <= 0 {
 		return errors.New("JWTExpiryHours is invalid")
 	}
-
 	if c.ApifyConfig == nil || c.ApifyConfig.Token == "" {
 		return errors.New("APIFY_API_TOKEN is not set")
 	}
@@ -408,6 +457,8 @@ func NewConfig(envs ...string) *Config {
 	botExtractPSK := getEnv("BOT_EXTRACT_PSK", "")
 	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
 	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
+	// Load ClaimCheck configuration (claim-checking) — same reasoning as VLM.
+	claimCheckConfig := loadClaimCheckConfigOrDefault(logger, envs...)
 
 	defaultConfig = &Config{
 		Logger:             logger,
@@ -435,6 +486,7 @@ func NewConfig(envs ...string) *Config {
 		BotExtractPSK:      botExtractPSK,
 		BotCallbackPSK:     botCallbackPSK,
 		BotBaseURL:         botBaseURL,
+		ClaimCheckConfig:   claimCheckConfig,
 	}
 	return defaultConfig
 }
@@ -530,10 +582,12 @@ func NewEmbeddingConfig(envs ...string) (*EmbeddingConfig, error) {
 	if model == "" {
 		return nil, errors.New("EMBEDDING_MODEL is not set")
 	}
+	provider := getEnv("EMBEDDING_PROVIDER", EmbeddingProviderOpenAI)
 	return &EmbeddingConfig{
-		BaseURL: baseURL,
-		Model:   model,
-		APIKey:  getEnv("EMBEDDING_API_KEY", ""),
+		BaseURL:  baseURL,
+		Model:    model,
+		APIKey:   getEnv("EMBEDDING_API_KEY", ""),
+		Provider: provider,
 	}, nil
 }
 
@@ -558,10 +612,47 @@ func NewExtractionConfig(envs ...string) (*ExtractionConfig, error) {
 	if model == "" {
 		return nil, errors.New("EXTRACTION_MODEL is not set")
 	}
+	concurrency, err := strconv.Atoi(getEnv("EXTRACTION_CONCURRENCY", ""))
+	if err != nil || concurrency <= 0 {
+		concurrency = defaultExtractionConcurrency
+	}
 	return &ExtractionConfig{
+		BaseURL:     baseURL,
+		Model:       model,
+		APIKey:      getEnv("EXTRACTION_API_KEY", ""),
+		Concurrency: concurrency,
+	}, nil
+}
+
+// defaultExtractionConcurrency is used when EXTRACTION_CONCURRENCY is unset
+// or invalid (non-numeric, zero, or negative).
+const defaultExtractionConcurrency = 5
+
+// NewClaimCheckConfig creates a new ClaimCheckConfig from environment variables.
+func NewClaimCheckConfig(envs ...string) (*ClaimCheckConfig, error) {
+	// Note: .env file should already be loaded by NewConfig() before calling this.
+	// This function only loads .env when called independently (e.g., in tests).
+	if len(envs) > 0 && envs[0] != "" {
+		source := envs[0]
+		if err := godotenv.Load(source); err != nil {
+			fmt.Printf("Warning: Failed to load .env file: %s\n", err.Error())
+		} else {
+			fmt.Printf("(NewClaimCheckConfig) Loaded environment from: %s\n", source)
+		}
+	}
+
+	baseURL := getEnv("CLAIM_CHECK_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("CLAIM_CHECK_BASE_URL is not set")
+	}
+	model := getEnv("CLAIM_CHECK_MODEL", "")
+	if model == "" {
+		return nil, errors.New("CLAIM_CHECK_MODEL is not set")
+	}
+	return &ClaimCheckConfig{
 		BaseURL: baseURL,
 		Model:   model,
-		APIKey:  getEnv("EXTRACTION_API_KEY", ""),
+		APIKey:  getEnv("CLAIM_CHECK_API_KEY", ""),
 	}, nil
 }
 

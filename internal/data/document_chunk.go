@@ -44,9 +44,29 @@ type DocumentChunkRepoer interface {
 	Update(ctx context.Context, chunk *model.DocumentChunk) error
 
 	// ShouldBeStored decides whether a chunk carries enough information/context
-	// to be worth persisting. A pass-through today (always true); real
-	// filtering logic (heuristics and/or NLP/LLM-based scoring) lands later.
-	ShouldBeStored(ctx context.Context, chunk model.DocumentChunk) (bool, error)
+	// to be worth persisting. doc is threaded through alongside chunk so the
+	// decision can be informed by document-level context, not just the chunk
+	// in isolation, even though today's implementation only looks at
+	// chunk.LayoutType.
+	ShouldBeStored(ctx context.Context, doc model.Document, chunk model.DocumentChunk) (bool, error)
+
+	// SearchByEmbedding returns the limit chunks whose embedding is closest
+	// (cosine distance) to queryVector, ordered nearest-first. One of the
+	// hybrid-search retrieval methods; see service.RAGService.
+	SearchByEmbedding(
+		ctx context.Context,
+		queryVector []float32,
+		limit int,
+	) ([]ScoredResult[model.DocumentChunk], error)
+
+	// SearchByFullText returns the limit chunks whose text best matches query
+	// via Postgres full-text search (ts_rank_cd), ordered best-first. One of
+	// the hybrid-search retrieval methods; see service.RAGService.
+	SearchByFullText(
+		ctx context.Context,
+		query string,
+		limit int,
+	) ([]ScoredResult[model.DocumentChunk], error)
 
 	TxAware[DocumentChunkRepoer]
 	queue.JobEnqueuer

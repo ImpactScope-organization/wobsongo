@@ -69,6 +69,24 @@ services:
       interval: 5s
       timeout: 20s
       retries: 10
+  riverui:
+    # Official River queue dashboard — reads directly from the river_job
+    # tables already in this Postgres instance, no app-side changes needed.
+    # http://localhost:8080
+    image: ghcr.io/riverqueue/riverui:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      netwobsongocore:
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgres://wobsongocore:LocalDev123@postgres:5432/wobsongocore_db?sslmode=disable
+      # Uncomment to require basic auth (unauthenticated by default, fine for local dev):
+      # RIVER_BASIC_AUTH_USER: admin
+      # RIVER_BASIC_AUTH_PASS: LocalDev123
 
 volumes:
   wobsongocorepgdata:

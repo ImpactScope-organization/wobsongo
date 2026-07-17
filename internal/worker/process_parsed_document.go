@@ -129,6 +129,11 @@ func (w *ProcessParsedDocumentWorker) Work(
 		)
 	}
 
+	doc, err := w.DocumentService.GetByID(ctx, job.Args.DocumentID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch document %s: %w", job.Args.DocumentID, err)
+	}
+
 	kept, dropped := filterNoiseChunks(result.Chunks)
 	log.Printf(
 		"[ProcessParsedDocumentWorker] document=%s title=%q page_count=%d chunks_kept=%d chunks_dropped=%d",
@@ -162,9 +167,16 @@ func (w *ProcessParsedDocumentWorker) Work(
 				UpdatedAt:      now,
 				DocumentID:     job.Args.DocumentID,
 				SequenceNumber: i,
-				ParsedChunk:    *c,
+				// Topics must be a non-nil empty slice, not the zero value: the
+				// batch insert below goes through Postgres's COPY protocol
+				// (sqlc :copyfrom), which sends every column's literal value —
+				// a nil slice encodes as SQL NULL over COPY and violates
+				// topics' NOT NULL constraint, since COPY never falls back to
+				// a column's DEFAULT the way a plain INSERT would.
+				Topics:      []string{},
+				ParsedChunk: *c,
 			}
-			ok, err := tx.ShouldBeStored(ctx, chunk)
+			ok, err := tx.ShouldBeStored(ctx, *doc, chunk)
 			if err != nil {
 				return fmt.Errorf("failed to evaluate chunk %d for storage: %w", i, err)
 			}

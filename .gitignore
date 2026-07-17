@@ -63,3 +63,4 @@ lerna-debug.log*
 **/*_templ.go
 .devbox/
 site/
+pdfs/

@@ -16,9 +16,16 @@ import (
 )
 
 // extractionMaxTokens bounds the LLM's response length for one chunk's
-// extracted facts. Generous relative to captionMaxTokens since a chunk can
-// yield several facts, each with its own subject/predicate/object/topics.
-const extractionMaxTokens = 1500
+// extracted facts. A chunk can yield dozens of facts (e.g. a personnel/
+// affiliation roster), each needing ~40-80 tokens of JSON — confirmed against
+// real responses that got cut off mid-fact at both the original 1500-token
+// budget and, later, at 4000 (a personnel-roster-heavy chunk still exceeded
+// it), producing invalid truncated JSON on every retry. Bumped alongside
+// extractionHTTPTimeout (this file) and extractKnowledgePerChunkBudget
+// (internal/worker/extract_knowledge.go) — a bigger budget takes longer to
+// generate, so raising this alone would just trade truncation failures for
+// more frequent timeout failures.
+const extractionMaxTokens = 6000
 
 // ExtractionClient implements data.KnowledgeExtractor against a generic
 // OpenAI-compatible text chat-completions API — works unmodified against
@@ -33,6 +40,13 @@ type ExtractionClient struct {
 // Ensure ExtractionClient implements data.KnowledgeExtractor.
 var _ data.KnowledgeExtractor = (*ExtractionClient)(nil)
 
+// extractionHTTPTimeout bounds a single extraction call. Confirmed against a
+// real "Client.Timeout exceeded while awaiting headers" failure that the
+// previous 2-minute budget wasn't enough for a cloud-hosted LLM generating up
+// to extractionMaxTokens under variable load — must stay comfortably below
+// extractKnowledgePerChunkBudget (internal/worker/extract_knowledge.go).
+const extractionHTTPTimeout = 7 * time.Minute
+
 // NewExtractionClient creates a new ExtractionClient targeting the given
 // base URL/model. apiKey may be empty — self-hosted servers often need no auth.
 func NewExtractionClient(baseURL, model, apiKey string) *ExtractionClient {
@@ -41,7 +55,7 @@ func NewExtractionClient(baseURL, model, apiKey string) *ExtractionClient {
 		model:   model,
 		apiKey:  apiKey,
 		httpClient: &http.Client{
-			Timeout: 2 * time.Minute,
+			Timeout: extractionHTTPTimeout,
 		},
 	}
 }
@@ -67,6 +81,7 @@ type extractedFactJSON struct {
 	Predicate string   `json:"predicate"`
 	Object    string   `json:"object"`
 	TruthTier string   `json:"truth_tier"`
+	Category  string   `json:"category"`
 	Topics    []string `json:"topics"`
 	Note      string   `json:"note"`
 }
@@ -128,6 +143,13 @@ func (c *ExtractionClient) Extract(
 	if len(parsed.Choices) == 0 {
 		return nil, fmt.Errorf("extraction response contained no choices: %s", respBytes)
 	}
+	if parsed.Choices[0].FinishReason == "length" {
+		return nil, fmt.Errorf(
+			"extraction response was truncated by max_tokens=%d before finishing — "+
+				"this chunk yields more facts than the budget allows",
+			extractionMaxTokens,
+		)
+	}
 
 	content := stripJSONCodeFence(parsed.Choices[0].Message.Content)
 	if content == "" || content == "[]" {
@@ -152,12 +174,24 @@ func (c *ExtractionClient) Extract(
 			)
 			continue
 		}
+		category, err := model.ParseFactCategory(raw.Category)
+		if err != nil {
+			log.Printf(
+				"[ExtractionClient] skipping fact with unrecognized category %q: subject=%q predicate=%q object=%q",
+				raw.Category,
+				raw.Subject,
+				raw.Predicate,
+				raw.Object,
+			)
+			continue
+		}
 		facts = append(facts, data.ExtractedFact{
 			Subject:   raw.Subject,
 			Predicate: raw.Predicate,
 			Object:    raw.Object,
 			Note:      raw.Note,
 			TruthTier: tier,
+			Category:  category,
 			Topics:    raw.Topics,
 		})
 	}
@@ -174,7 +208,7 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("Respond with ONLY a JSON array (no markdown, no commentary), where each ")
 	b.WriteString("element has this shape:\n")
 	b.WriteString(`{"subject": "...", "predicate": "...", "object": "...", ` +
-		`"truth_tier": "...", "topics": ["..."], "note": "..."}` + "\n\n")
+		`"truth_tier": "...", "category": "...", "topics": ["..."], "note": "..."}` + "\n\n")
 	b.WriteString("truth_tier must be exactly one of: axiomatic, temporal, probabilistic, ")
 	b.WriteString("subjective, unknown, invalid.\n")
 	b.WriteString("- axiomatic: high factual accuracy and reliability.\n")
@@ -183,12 +217,28 @@ func buildExtractionPrompt(req *data.ExtractionRequest) string {
 	b.WriteString("- subjective: opinion or perspective, not strongly factual.\n")
 	b.WriteString("- unknown: needs further verification or context.\n")
 	b.WriteString("- invalid: false or misleading.\n\n")
+	b.WriteString("category must be exactly one of: clinical, metadata, unknown.\n")
+	b.WriteString("- clinical: a substantive clinical/scientific claim, finding, or ")
+	b.WriteString("recommendation (treatment efficacy, diagnostic criteria, epidemiological ")
+	b.WriteString("findings, guideline recommendations).\n")
+	b.WriteString("- metadata: about the document itself, not clinical content — authorship, ")
+	b.WriteString("affiliations, citations/references, guideline-development process, document ")
+	b.WriteString(`structure (e.g. "Chapter 5 contains recommendations on..."), or other `)
+	b.WriteString("administrative/bibliographic information.\n")
+	b.WriteString("- unknown: genuinely unclear which.\n\n")
 	b.WriteString("topics is a short list of subject-matter tags. note is optional context; ")
 	b.WriteString("use \"\" if none. If the text contains no extractable factual claims, ")
 	b.WriteString("respond with an empty array: [].\n\n")
 
 	if req.DocumentTitle != "" {
 		fmt.Fprintf(&b, "Document: %q\n", req.DocumentTitle)
+	}
+	if req.PublisherName != "" {
+		fmt.Fprintf(&b, "Publisher: %q", req.PublisherName)
+		if req.PublicationYear > 0 {
+			fmt.Fprintf(&b, " (%d)", req.PublicationYear)
+		}
+		b.WriteString("\n")
 	}
 	b.WriteString("Text:\n\"\"\"\n")
 	b.WriteString(req.Text)

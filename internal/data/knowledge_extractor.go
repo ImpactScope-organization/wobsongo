@@ -7,13 +7,22 @@ import (
 )
 
 // ExtractionRequest bundles a chunk's text with enough surrounding document
-// context for an LLM to extract grounded, attributable atomic facts.
+// context for an LLM to extract grounded, attributable atomic facts —
+// including distinguishing clinical content from the document's own
+// metadata (e.g. recognizing "this is the guideline's own front matter, not
+// clinical content").
 type ExtractionRequest struct {
 	// Text is the chunk's content to extract facts from.
 	Text string
 
 	// DocumentTitle is the parent document's title, for grounding.
 	DocumentTitle string
+
+	// PublisherName is the parent document's publisher, for grounding.
+	PublisherName string
+
+	// PublicationYear is the parent document's publication year, for grounding.
+	PublicationYear int
 }
 
 // ExtractedFact is a single subject-predicate-object fact extracted from a
@@ -25,6 +34,7 @@ type ExtractedFact struct {
 	Object    string
 	Note      string
 	TruthTier model.TruthTier
+	Category  model.FactCategory
 	Topics    []string
 }
 

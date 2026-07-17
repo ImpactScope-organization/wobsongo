@@ -5,7 +5,9 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/impactscope-organization/wobsongo/internal/worker"
@@ -76,11 +78,7 @@ var serveCmd = &cobra.Command{
 			os.Exit(1)
 			return
 		}
-		embeddingClient := external.NewEmbeddingClient(
-			config.EmbeddingConfig.BaseURL,
-			config.EmbeddingConfig.Model,
-			config.EmbeddingConfig.APIKey,
-		)
+		embeddingClient := newEmbeddingClient(config.EmbeddingConfig)
 
 		if err := internal.IsExtractionOK(config.ExtractionConfig); err != nil {
 			cmd.PrintErrf("Config error: %s\n", err.Error())
@@ -91,6 +89,22 @@ var serveCmd = &cobra.Command{
 			config.ExtractionConfig.BaseURL,
 			config.ExtractionConfig.Model,
 			config.ExtractionConfig.APIKey,
+		)
+
+		if err := internal.IsClaimCheckOK(config.ClaimCheckConfig); err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		claimAnalyzerClient := external.NewClaimAnalyzerClient(
+			config.ClaimCheckConfig.BaseURL,
+			config.ClaimCheckConfig.Model,
+			config.ClaimCheckConfig.APIKey,
+		)
+		judgeClient := external.NewJudgeClient(
+			config.ClaimCheckConfig.BaseURL,
+			config.ClaimCheckConfig.Model,
+			config.ClaimCheckConfig.APIKey,
 		)
 
 		// riverClient is assigned below, after workers (which need to be
@@ -133,6 +147,12 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, transcriptionWorker)
 
+		transcriptionWorker := worker.NewTranscriptionWorker(
+			workerVideoService,
+			config.ASRConfig.Endpoint,
+		)
+		river.AddWorker(workers, transcriptionWorker)
+
 		// register ParseDocumentWorker with River
 		parseDocumentWorker := worker.NewParseDocumentWorker(
 			doclingClient,
@@ -169,13 +189,24 @@ var serveCmd = &cobra.Command{
 			atomicKnowledgeRepo,
 			documentService,
 			extractionClient,
+			config.ExtractionConfig.Concurrency,
 		)
 		river.AddWorker(workers, extractKnowledgeWorker)
 
+		// register EmbedKnowledgeWorker with River
+		embedKnowledgeWorker := worker.NewEmbedKnowledgeWorker(atomicKnowledgeRepo, embeddingClient)
+		river.AddWorker(workers, embedKnowledgeWorker)
+
 		// Initialize River client with the database pool and registered workers.
+		// Document ingestion and media processing get separate queues (see
+		// each job DTO's InsertOpts() in internal/queue) so a long-running
+		// document import — extraction alone can run for hours on a large
+		// document, see internal/worker/extract_knowledge.go — can't starve
+		// video processing of worker slots, or vice versa.
 		riverClient, err = river.NewClient(riverpgxv5.New(pool), &river.Config{
 			Queues: map[string]river.QueueConfig{
-				river.QueueDefault: {MaxWorkers: 10},
+				queue.QueueDocumentIngestion: {MaxWorkers: 10},
+				queue.QueueMediaProcessing:   {MaxWorkers: 10},
 			},
 			Workers: workers,
 		})
@@ -199,7 +230,13 @@ var serveCmd = &cobra.Command{
 		}()
 
 		// Build and start HTTP API server.
-		app := buildApp(config, pool, riverClient, mediaProvider)
+		app := buildApp(config, pool, riverClient, mediaProvider, buildAppClaimCheckDeps{
+			chunkRepo:     chunkRepo,
+			knowledgeRepo: atomicKnowledgeRepo,
+			embedder:      embeddingClient,
+			claimAnalyzer: claimAnalyzerClient,
+			claimJudge:    judgeClient,
+		})
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
 		if err := app.Start(); err != nil {
@@ -208,4 +245,15 @@ var serveCmd = &cobra.Command{
 			return
 		}
 	},
+}
+
+// newEmbeddingClient constructs the data.Embedder implementation matching
+// cfg.Provider — shared between cmd/server.go and cmd/healthcheck.go so both
+// exercise the exact same wire shape. Assumes internal.IsEmbeddingOK(cfg)
+// has already been checked (Provider is guaranteed recognized by that gate).
+func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
+	if cfg.Provider == internal.EmbeddingProviderModalBGE {
+		return external.NewModalBGEClient(cfg.BaseURL, cfg.APIKey)
+	}
+	return external.NewEmbeddingClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
 }

@@ -19,11 +19,11 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
-// testEmbedding builds a document_chunks.embedding-dimension (1536) vector
+// testEmbedding builds a document_chunks.embedding-dimension (1024) vector
 // whose values are derived from seed, so distinct test vectors are easy to
-// tell apart in failure output without hardcoding 1536 literals per test.
+// tell apart in failure output without hardcoding 1024 literals per test.
 func testEmbedding(seed float32) []float32 {
-	vec := make([]float32, 1536)
+	vec := make([]float32, 1024)
 	for i := range vec {
 		vec[i] = seed
 	}
@@ -309,15 +309,28 @@ func TestDocumentChunkRepo_CRUD(t *testing.T) {
 		},
 	)
 
-	t.Run("ShouldBeStored_PassThrough", func(t *testing.T) {
+	t.Run("ShouldBeStored_ExcludesReferenceLayout", func(t *testing.T) {
 		testhelpers.WithTxRollback(t, pool, func(ctx context.Context, q *db.Queries) {
 			chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
-			ok, err := chunkRepo.ShouldBeStored(ctx, newTestDocumentChunk(uuid.New(), 0))
+			doc := model.Document{ID: uuid.New()}
+
+			paragraph := newTestDocumentChunk(uuid.New(), 0)
+			ok, err := chunkRepo.ShouldBeStored(ctx, doc, paragraph)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !ok {
-				t.Error("expected the pass-through ShouldBeStored to always return true")
+				t.Error("expected a paragraph-layout chunk to be stored")
+			}
+
+			reference := newTestDocumentChunk(uuid.New(), 0)
+			reference.LayoutType = model.LayoutTypeReference
+			ok, err = chunkRepo.ShouldBeStored(ctx, doc, reference)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if ok {
+				t.Error("expected a reference-layout chunk not to be stored")
 			}
 		})
 	})
@@ -422,4 +435,146 @@ func TestDocumentChunkRepo_WithTx_Enqueue(t *testing.T) {
 			t.Errorf("expected the chunk create to be rolled back, got: %v", err)
 		}
 	})
+}
+
+// testDirectionalEmbedding returns a 1024-dim one-hot vector (1.0 at index,
+// 0 elsewhere). Unlike testEmbedding's uniform vectors — which are always
+// parallel to each other regardless of seed, giving zero cosine distance
+// between any two — one-hot vectors at different indices are orthogonal
+// (cosine distance 1), so they're meaningfully distinguishable for
+// SearchByEmbedding ordering tests.
+func testDirectionalEmbedding(index int) []float32 {
+	vec := make([]float32, 1024)
+	vec[index] = 1.0
+	return vec
+}
+
+// TestDocumentChunkRepo_SearchByEmbedding_OrdersByDistance is an integration
+// test using real commits, not testhelpers.WithTxRollback: SearchByEmbedding
+// queries via r.pool directly (raw SQL, not the tx-scoped db.Queries), so
+// rows inserted inside a rolled-back transaction on a different connection
+// would never be visible to it. Same reasoning as
+// TestDocumentChunkRepo_WithTx_Enqueue/TestAtomicKnowledgeRepo_WithTx.
+func TestDocumentChunkRepo_SearchByEmbedding_OrdersByDistance(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, q := testhelpers.SetupTestDB(t)
+	t.Cleanup(func() { pool.Close() })
+	ctx := t.Context()
+
+	documentRepo := repo.NewDocumentRepo(q, pool, nil)
+	doc := newTestDocument(uuid.NewString())
+	if err := documentRepo.Create(ctx, doc); err != nil {
+		t.Fatalf("unexpected error creating parent document: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "delete from documents where id = $1", doc.ID)
+	})
+
+	chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+	near := newTestDocumentChunk(doc.ID, 0)
+	far := newTestDocumentChunk(doc.ID, 1)
+	unembedded := newTestDocumentChunk(doc.ID, 2)
+	if err := chunkRepo.CreateBatch(ctx, []model.DocumentChunk{near, far, unembedded}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nearVec := testDirectionalEmbedding(0)
+	farVec := testDirectionalEmbedding(500)
+	for id, vec := range map[uuid.UUID][]float32{near.ID: nearVec, far.ID: farVec} {
+		chunk, err := chunkRepo.GetByID(ctx, id)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		chunk.Embedding = vec
+		if err := chunkRepo.Update(ctx, chunk); err != nil {
+			t.Fatalf("unexpected error embedding chunk: %v", err)
+		}
+	}
+	// unembedded is left with a nil embedding — must never appear in results.
+
+	// Query against a generous limit, not 2: this DB may carry real embedded
+	// chunks from unrelated documents (this repo's dev DB does, from manual
+	// pipeline testing), so the two test rows aren't guaranteed to be the
+	// only — or even the top — global matches. Assert their relative order
+	// and presence by ID instead of exact result count/position.
+	results, err := chunkRepo.SearchByEmbedding(ctx, nearVec, 1000)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	nearIdx, farIdx := -1, -1
+	for i, r := range results {
+		switch r.Item.ID {
+		case near.ID:
+			nearIdx = i
+		case far.ID:
+			farIdx = i
+		case unembedded.ID:
+			t.Errorf("expected the unembedded chunk to be excluded from results")
+		}
+	}
+	if nearIdx == -1 {
+		t.Fatalf("expected the near chunk to appear in results")
+	}
+	if farIdx == -1 {
+		t.Fatalf("expected the far chunk to appear in results")
+	}
+	if nearIdx >= farIdx {
+		t.Errorf(
+			"expected near chunk (rank %d) to outrank far chunk (rank %d)",
+			nearIdx, farIdx,
+		)
+	}
+	if results[nearIdx].Score >= results[farIdx].Score {
+		t.Errorf(
+			"expected ascending distance order, got near=%v far=%v",
+			results[nearIdx].Score, results[farIdx].Score,
+		)
+	}
+}
+
+// TestDocumentChunkRepo_SearchByFullText_OrdersByRank is a real-commit
+// integration test — see TestDocumentChunkRepo_SearchByEmbedding_OrdersByDistance's
+// doc comment for why WithTxRollback can't be used here.
+func TestDocumentChunkRepo_SearchByFullText_OrdersByRank(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, q := testhelpers.SetupTestDB(t)
+	t.Cleanup(func() { pool.Close() })
+	ctx := t.Context()
+
+	documentRepo := repo.NewDocumentRepo(q, pool, nil)
+	doc := newTestDocument(uuid.NewString())
+	if err := documentRepo.Create(ctx, doc); err != nil {
+		t.Fatalf("unexpected error creating parent document: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "delete from documents where id = $1", doc.ID)
+	})
+
+	chunkRepo := repo.NewDocumentChunkRepo(q, pool, nil)
+	relevant := newTestDocumentChunk(doc.ID, 0)
+	relevant.Text = "giraffes have unusually long necks for reaching tall trees"
+	irrelevant := newTestDocumentChunk(doc.ID, 1)
+	irrelevant.Text = "the quarterly financial report was filed on time"
+	if err := chunkRepo.CreateBatch(
+		ctx,
+		[]model.DocumentChunk{relevant, irrelevant},
+	); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	results, err := chunkRepo.SearchByFullText(ctx, "giraffe necks", 10)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 matching chunk, got %d", len(results))
+	}
+	if results[0].Item.ID != relevant.ID {
+		t.Errorf("expected the giraffe chunk to match, got %s", results[0].Item.ID)
+	}
 }

@@ -30,7 +30,7 @@ type CreateDocumentChunksBatchParams struct {
 }
 
 const getDocumentChunkByID = `-- name: GetDocumentChunkByID :one
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks WHERE id = $1
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, text_fts FROM document_chunks WHERE id = $1
 `
 
 func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (DocumentChunk, error) {
@@ -52,12 +52,13 @@ func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (Docum
 		&i.AssetUrl,
 		&i.Embedding,
 		&i.KnowledgeExtractedAt,
+		&i.TextFts,
 	)
 	return i, err
 }
 
 const listChunksNeedingEmbedding = `-- name: ListChunksNeedingEmbedding :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, text_fts FROM document_chunks
 WHERE document_id = $1 AND text != '' AND embedding IS NULL
 ORDER BY sequence_number ASC
 `
@@ -87,6 +88,7 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 			&i.AssetUrl,
 			&i.Embedding,
 			&i.KnowledgeExtractedAt,
+			&i.TextFts,
 		); err != nil {
 			return nil, err
 		}
@@ -99,7 +101,7 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 }
 
 const listChunksNeedingKnowledgeExtraction = `-- name: ListChunksNeedingKnowledgeExtraction :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, text_fts FROM document_chunks
 WHERE document_id = $1 AND text != '' AND knowledge_extracted_at IS NULL
 ORDER BY sequence_number ASC
 `
@@ -129,6 +131,7 @@ func (q *Queries) ListChunksNeedingKnowledgeExtraction(ctx context.Context, docu
 			&i.AssetUrl,
 			&i.Embedding,
 			&i.KnowledgeExtractedAt,
+			&i.TextFts,
 		); err != nil {
 			return nil, err
 		}
@@ -141,7 +144,7 @@ func (q *Queries) ListChunksNeedingKnowledgeExtraction(ctx context.Context, docu
 }
 
 const listDocumentChunksByDocumentID = `-- name: ListDocumentChunksByDocumentID :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, text_fts FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
 `
 
 func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID uuid.UUID) ([]DocumentChunk, error) {
@@ -169,6 +172,7 @@ func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID
 			&i.AssetUrl,
 			&i.Embedding,
 			&i.KnowledgeExtractedAt,
+			&i.TextFts,
 		); err != nil {
 			return nil, err
 		}
@@ -199,7 +203,7 @@ UPDATE document_chunks SET
     asset_url = $7,
     embedding = $8
 WHERE id = $1
-RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at
+RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, text_fts
 `
 
 type UpdateDocumentChunkParams struct {
@@ -241,6 +245,7 @@ func (q *Queries) UpdateDocumentChunk(ctx context.Context, arg UpdateDocumentChu
 		&i.AssetUrl,
 		&i.Embedding,
 		&i.KnowledgeExtractedAt,
+		&i.TextFts,
 	)
 	return i, err
 }

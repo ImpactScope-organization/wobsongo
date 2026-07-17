@@ -156,7 +156,7 @@ type TransactionalEmailConfig struct {
 // ApifyConfig holds the configuration for Apify API and its actors.
 type ApifyConfig struct {
 	// Token is the API token used to authenticate with the Apify API.
-	Token string `json:"apify_api_token"`
+	Token string `json:"-"`
 
 	// TikTokActorID is the Apify Actor ID used for TikTok media extraction.
 	TikTokActorID string `json:"tiktok_actor_id"`
@@ -169,6 +169,12 @@ type ApifyConfig struct {
 type ASRConfig struct {
 	// Endpoint is the Modal ASR API endpoint used for audio transcription requests.
 	Endpoint string `json:"endpoint"`
+
+	// Model is the ASR model to use for transcription
+	Model string `json:"model"`
+
+	// SourceLang is the source language hint sent to the Modal ASR endpoint
+	SourceLang string `json:"source_lang"`
 }
 
 type Config struct {
@@ -200,7 +206,10 @@ type Config struct {
 	GoogleClientID string `json:"-"`
 
 	// SentryDSN is the Data Source Name for Sentry error tracking.
-	SentryDSN string `json:"-"`
+	SentryDSN      string `json:"-"`
+	BotExtractPSK  string `json:"-"`            // BotExtractPSK is the Pre-Shared Key used to validate incoming extraction requests from the bot.
+	BotCallbackPSK string `json:"-"`            // BotCallbackPSK is the Pre-Shared Key used to authenticate outbound callback requests sent to the bot.
+	BotBaseURL     string `json:"bot_base_url"` // BotBaseURL is the base URL of the external bot service used for callbacks.
 }
 
 // IsS3OK checks if the S3 configuration is valid.
@@ -293,11 +302,20 @@ func (c *Config) IsOK() error {
 	if c.JWTExpiryHours <= 0 {
 		return errors.New("JWTExpiryHours is invalid")
 	}
-
-	if c.ASRConfig != nil && c.ASRConfig.Endpoint != "" {
-		if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
-			return err
-		}
+	if c.ApifyConfig == nil || c.ApifyConfig.Token == "" {
+		return errors.New("APIFY_API_TOKEN is not set")
+	}
+	if c.ASRConfig == nil {
+		return errors.New("MODAL_ASR_ENDPOINT config is not set")
+	}
+	if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
+		return err
+	}
+	if err := validateASRModel(c.ASRConfig.Model); err != nil {
+		return err
+	}
+	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
+		return err
 	}
 	return nil
 }
@@ -318,6 +336,34 @@ func validateModalASREndpoint(rawURL string) error {
 			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
 			u.Hostname(),
 		)
+	}
+	return nil
+}
+
+var validASRModels = map[string]bool{
+	"Omnilingual ASR":                 true,
+	"Whisper Small (Untrained)":       true,
+	"Whisper Large-V3 (Untrained)":    true,
+	"Whisper Large-V3 (Augmentation)": true,
+	"Whisper Small (Augmentation)":    true,
+	"Whisper Large-V3":                true,
+	"Whisper Small":                   true,
+}
+
+var validSourceLangs = map[string]bool{
+	"auto": true, "french": true, "english": true, "moore": true, "dioula": true,
+}
+
+func validateASRModel(model string) error {
+	if !validASRModels[model] {
+		return fmt.Errorf("MODAL_ASR_MODEL %q is not a recognized model", model)
+	}
+	return nil
+}
+
+func validateASRSourceLang(lang string) error {
+	if !validSourceLangs[lang] {
+		return fmt.Errorf("MODAL_ASR_SOURCE_LANG %q is not a recognized language", lang)
 	}
 	return nil
 }
@@ -414,7 +460,9 @@ func NewConfig(envs ...string) *Config {
 
 	// Parse ASR configuration
 	asrConfig := &ASRConfig{
-		Endpoint: getEnv("MODAL_ASR_ENDPOINT", ""),
+		Endpoint:   getEnv("MODAL_ASR_ENDPOINT", ""),
+		Model:      getEnv("MODAL_ASR_MODEL", "Omnilingual ASR"),
+		SourceLang: getEnv("MODAL_ASR_SOURCE_LANG", "auto"),
 	}
 
 	// Parse Docling configuration
@@ -430,6 +478,11 @@ func NewConfig(envs ...string) *Config {
 	// Load Extraction configuration (atomic knowledge) — same reasoning as VLM.
 	extractionConfig := loadExtractionConfigOrDefault(logger, envs...)
 
+	// Load bot-related configurations from environment variables.
+	botExtractPSK := getEnv("BOT_EXTRACT_PSK", "")
+	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
+	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
+  
 	// Load Translation configuration (bilingual chunk/fact search text) — same reasoning as VLM.
 	translationConfig := loadTranslationConfigOrDefault(logger, envs...)
 
@@ -459,6 +512,9 @@ func NewConfig(envs ...string) *Config {
 		VLMConfig:          vlmConfig,
 		EmbeddingConfig:    embeddingConfig,
 		ExtractionConfig:   extractionConfig,
+		BotExtractPSK:      botExtractPSK,
+		BotCallbackPSK:     botCallbackPSK,
+		BotBaseURL:         botBaseURL,
 		TranslationConfig:  translationConfig,
 		ClaimCheckConfig:   claimCheckConfig,
 	}

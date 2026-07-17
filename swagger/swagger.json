@@ -24,7 +24,7 @@
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/dto.ExtractionRequest"
+                            "$ref": "#/definitions/dto.ExtractAPIRequest"
                         }
                     }
                 ],
@@ -32,28 +32,73 @@
                     "202": {
                         "description": "Accepted",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.ExtractResponse"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -955,19 +1000,73 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     },
                     "400": {
                         "description": "Bad Request",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
                         }
                     }
                 }
@@ -1129,22 +1228,68 @@
                 }
             }
         },
-        "dto.ExtractionRequest": {
+        "dto.ExtractAPIRequest": {
             "type": "object",
             "required": [
-                "target_url",
-                "webhook_url"
+                "url"
             ],
             "properties": {
-                "target_url": {
-                    "description": "TargetURL is the link to the video (e.g., TikTok or Instagram reels).",
-                    "type": "string"
-                },
-                "webhook_url": {
-                    "description": "WebhookURL is the endpoint Apify will call once the process is complete.",
+                "url": {
+                    "description": "URL is the target media link provided by the bot.",
                     "type": "string"
                 }
             }
+        },
+        "dto.ExtractData": {
+            "type": "object",
+            "properties": {
+                "transcript": {
+                    "description": "Transcript contains the transcribed text from the tiktok video.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.ExtractResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "description": "Data contains the final extraction results. It is omitted if the job is not yet completed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ExtractData"
+                        }
+                    ]
+                },
+                "error": {
+                    "description": "Error contains the error message if the extraction failed. It is omitted otherwise.",
+                    "type": "string"
+                },
+                "jobId": {
+                    "description": "JobID is the unique identifier for the extraction task.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status indicates the current state of the extraction job.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ExtractStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "dto.ExtractStatus": {
+            "type": "string",
+            "enum": [
+                "processing",
+                "completed",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "StatusProcessing",
+                "StatusCompleted",
+                "StatusFailed"
+            ]
         },
         "dto.PaginationResults-model_Document": {
             "type": "object",

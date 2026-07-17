@@ -126,20 +126,49 @@ definitions:
     - sha256
     - title
     type: object
-  dto.ExtractionRequest:
+  dto.ExtractAPIRequest:
     properties:
-      target_url:
-        description: TargetURL is the link to the video (e.g., TikTok or Instagram
-          reels).
-        type: string
-      webhook_url:
-        description: WebhookURL is the endpoint Apify will call once the process is
-          complete.
+      url:
+        description: URL is the target media link provided by the bot.
         type: string
     required:
-    - target_url
-    - webhook_url
+    - url
     type: object
+  dto.ExtractData:
+    properties:
+      transcript:
+        description: Transcript contains the transcribed text from the tiktok video.
+        type: string
+    type: object
+  dto.ExtractResponse:
+    properties:
+      data:
+        allOf:
+        - $ref: '#/definitions/dto.ExtractData'
+        description: Data contains the final extraction results. It is omitted if
+          the job is not yet completed.
+      error:
+        description: Error contains the error message if the extraction failed. It
+          is omitted otherwise.
+        type: string
+      jobId:
+        description: JobID is the unique identifier for the extraction task.
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/dto.ExtractStatus'
+        description: Status indicates the current state of the extraction job.
+    type: object
+  dto.ExtractStatus:
+    enum:
+    - processing
+    - completed
+    - failed
+    type: string
+    x-enum-varnames:
+    - StatusProcessing
+    - StatusCompleted
+    - StatusFailed
   dto.PaginationResults-model_Document:
     properties:
       items:
@@ -332,28 +361,46 @@ paths:
         name: form
         required: true
         schema:
-          $ref: '#/definitions/dto.ExtractionRequest'
+          $ref: '#/definitions/dto.ExtractAPIRequest'
       produces:
       - application/json
       responses:
         "202":
           description: Accepted
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.ExtractResponse'
+              type: object
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
         "500":
           description: Internal Server Error
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
       summary: Trigger media extraction
       tags:
       - media
@@ -852,15 +899,39 @@ paths:
         "200":
           description: OK
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  type: string
+              type: object
         "400":
           description: Bad Request
           schema:
-            additionalProperties:
-              type: string
-            type: object
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
       summary: Apify webhook receiver
       tags:
       - webhooks

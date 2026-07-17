@@ -1,0 +1,5 @@
+node_modules
+dist
+build
+auth_info_baileys
+*.md

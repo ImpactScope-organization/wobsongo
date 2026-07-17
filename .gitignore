@@ -26,6 +26,7 @@ coverage.xml
 
 # Node modules.
 node_modules/
+auth_info_baileys/
 
 # Vendor folders.
 vendor/

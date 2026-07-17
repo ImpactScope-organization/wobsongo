@@ -26,3 +26,6 @@ SET
     transcription_text = $1,
     updated_at = NOW()
 WHERE id = $2;
+
+-- name: GetVideoByURL :one
+SELECT * FROM videos WHERE video_url = $1 LIMIT 1;

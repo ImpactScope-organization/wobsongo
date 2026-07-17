@@ -1,5 +1,18 @@
 package dto
 
+type ExtractStatus string
+
+const (
+	// StatusProcessing indicates that the extraction job is currently in progress.
+	StatusProcessing ExtractStatus = "processing"
+
+	// StatusCompleted indicates that the extraction job has finished successfully.
+	StatusCompleted ExtractStatus = "completed"
+
+	// StatusFailed indicates that the extraction job encountered an error and could not complete.
+	StatusFailed ExtractStatus = "failed"
+)
+
 // ExtractionRequest represents the payload required to trigger a media extraction.
 // We strictly define the types as strings and enforce validation rules.
 type ExtractionRequest struct {
@@ -8,6 +21,35 @@ type ExtractionRequest struct {
 
 	// WebhookURL is the endpoint Apify will call once the process is complete.
 	WebhookURL string `json:"webhook_url" validate:"required,url"`
+}
+
+// ExtractAPIRequest is the public-facing payload sent by the WA bot.
+type ExtractAPIRequest struct {
+	// URL is the target media link provided by the bot.
+	URL string `json:"url" validate:"required,url"`
+}
+
+// ExtractResponse is the response returned to the bot, both on first call
+// (cache miss -> processing) and on the re-call after callback (cache hit
+// -> completed) same shape either way.
+type ExtractResponse struct {
+	// Status indicates the current state of the extraction job.
+	Status ExtractStatus `json:"status"`
+
+	// JobID is the unique identifier for the extraction task.
+	JobID string `json:"jobId"`
+
+	// Data contains the final extraction results. It is omitted if the job is not yet completed.
+	Data *ExtractData `json:"data,omitempty"`
+
+	// Error contains the error message if the extraction failed. It is omitted otherwise.
+	Error string `json:"error,omitempty"`
+}
+
+// ExtractData holds the successfully extracted information.
+type ExtractData struct {
+	// Transcript contains the transcribed text from the tiktok video.
+	Transcript string `json:"transcript"`
 }
 
 // ApifyWebhookPayload represents the JSON sent by Apify.

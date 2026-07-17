@@ -38,6 +38,7 @@ func Execute() {
 	rootCmd.AddCommand(evalRetrievalBilingualCmd)
 	rootCmd.AddCommand(backfillTranslationsCmd)
 	rootCmd.AddCommand(claimCheckCmd)
+	rootCmd.AddCommand(botCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

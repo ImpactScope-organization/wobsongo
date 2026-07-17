@@ -190,10 +190,17 @@ func evalJudgeFixture(
 	if fixture.ExpectedSeverity != "" {
 		expectedSeverity, err := model.ParseSeverity(fixture.ExpectedSeverity)
 		if err != nil {
-			return false, fmt.Sprintf("invalid expected_severity %q in fixture", fixture.ExpectedSeverity)
+			return false, fmt.Sprintf(
+				"invalid expected_severity %q in fixture",
+				fixture.ExpectedSeverity,
+			)
 		}
 		if verdict.Severity != expectedSeverity {
-			return false, fmt.Sprintf("expected severity %q, got %q", expectedSeverity, verdict.Severity)
+			return false, fmt.Sprintf(
+				"expected severity %q, got %q",
+				expectedSeverity,
+				verdict.Severity,
+			)
 		}
 	}
 

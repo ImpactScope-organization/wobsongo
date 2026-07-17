@@ -74,6 +74,7 @@ func (r *DocumentRepo) Create(ctx context.Context, entity *model.Document) error
 		PageCount:       toInt32(entity.PageCount),
 		PublisherName:   entity.PublisherName,
 		PublicationYear: toInt32(entity.PublicationYear),
+		Language:        toInt32(int(entity.Language)),
 	})
 	if err != nil {
 		return mapPostgresError(err)
@@ -97,6 +98,7 @@ func (r *DocumentRepo) Update(ctx context.Context, entity *model.Document) error
 		PageCount:       toInt32(entity.PageCount),
 		PublisherName:   entity.PublisherName,
 		PublicationYear: toInt32(entity.PublicationYear),
+		Language:        toInt32(int(entity.Language)),
 	})
 	if err != nil {
 		return mapPostgresError(err)
@@ -208,6 +210,7 @@ func toModelDocument(d *db.Document) *model.Document {
 		PageCount:       int(d.PageCount),
 		PublisherName:   d.PublisherName,
 		PublicationYear: int(d.PublicationYear),
+		Language:        model.Language(d.Language),
 	}
 }
 

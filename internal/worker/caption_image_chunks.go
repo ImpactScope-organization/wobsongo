@@ -210,6 +210,11 @@ func (w *CaptionImageChunksWorker) Work(
 	}); err != nil {
 		return fmt.Errorf("failed to enqueue knowledge extraction: %w", err)
 	}
+	if err := w.ChunkRepo.Enqueue(ctx, queue.TranslateChunksDTO{
+		DocumentID: job.Args.DocumentID,
+	}); err != nil {
+		return fmt.Errorf("failed to enqueue chunk translation: %w", err)
+	}
 	return nil
 }
 

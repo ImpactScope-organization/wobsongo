@@ -208,6 +208,7 @@ func (w *ExtractKnowledgeWorker) extractChunk(
 		DocumentTitle:   doc.Title,
 		PublisherName:   doc.PublisherName,
 		PublicationYear: doc.PublicationYear,
+		Language:        doc.Language,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to extract knowledge for chunk %s: %w", chunk.ID, err)
@@ -224,7 +225,10 @@ func (w *ExtractKnowledgeWorker) extractChunk(
 			// only confidently-metadata facts are discarded here.
 			log.Printf(
 				"[ExtractKnowledgeWorker] discarding metadata-category fact: subject=%q predicate=%q object=%q chunk=%s",
-				extracted[j].Subject, extracted[j].Predicate, extracted[j].Object, chunk.ID,
+				extracted[j].Subject,
+				extracted[j].Predicate,
+				extracted[j].Object,
+				chunk.ID,
 			)
 			continue
 		}
@@ -241,18 +245,20 @@ func (w *ExtractKnowledgeWorker) extractChunk(
 			topics = []string{}
 		}
 		facts = append(facts, model.AtomicKnowledge{
-			ID:              uuid.New(),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-			DocumentID:      doc.ID,
-			DocumentChunkID: chunk.ID,
-			TruthTier:       extracted[j].TruthTier,
-			Category:        extracted[j].Category,
-			Topics:          topics,
-			Subject:         extracted[j].Subject,
-			Predicate:       extracted[j].Predicate,
-			Object:          extracted[j].Object,
-			Note:            extracted[j].Note,
+			ID:                   uuid.New(),
+			CreatedAt:            now,
+			UpdatedAt:            now,
+			DocumentID:           doc.ID,
+			DocumentChunkID:      chunk.ID,
+			TruthTier:            extracted[j].TruthTier,
+			Category:             extracted[j].Category,
+			Topics:               topics,
+			Subject:              extracted[j].Subject,
+			Predicate:            extracted[j].Predicate,
+			Object:               extracted[j].Object,
+			Note:                 extracted[j].Note,
+			Language:             doc.Language,
+			SearchTextTranslated: extracted[j].TranslatedSearchText,
 		})
 	}
 

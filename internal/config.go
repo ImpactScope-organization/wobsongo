@@ -97,6 +97,19 @@ type ExtractionConfig struct {
 	Concurrency int `json:"concurrency"`
 }
 
+// TranslationConfig holds the configuration for the chunk/fact translation
+// endpoint — a generic OpenAI-compatible text chat-completions API. Decoupled
+// from ExtractionConfig so it can point at a cheaper dedicated MT backend
+// later, though it defaults to the same endpoint as extraction in practice.
+type TranslationConfig struct {
+	BaseURL string `json:"base_url"`
+	Model   string `json:"model"`
+	APIKey  string `json:"-"` // Never included in JSON (security); optional — self-hosted servers often need no auth
+	// Concurrency bounds how many chunks TranslateChunksWorker translates at
+	// once, mirroring ExtractionConfig.Concurrency's reasoning exactly.
+	Concurrency int `json:"concurrency"`
+}
+
 // ClaimCheckConfig holds the configuration for the claim-checking endpoints
 // (scope/decomposition analysis and verdict judging) — both generic
 // OpenAI-compatible text chat-completions APIs, expected to point at the
@@ -159,27 +172,28 @@ type ASRConfig struct {
 }
 
 type Config struct {
-	Logger             *slog.Logger      `json:"-"`                    // Never included in JSON (not serializable)
-	LogLevel           slog.Level        `json:"log_level"`            // Log level (debug, info, warn, error)
-	Env                string            `json:"env"`                  // Environment (development, staging, production)
-	JWTSecret          string            `json:"-"`                    // Never included in JSON (security)
-	JWTExpiryHours     int               `json:"jwt_expiry_hours"`     // JWT token expiry in hours
-	PostgresURI        string            `json:"-"`                    // Never included in JSON (security - contains credentials)
-	APIHost            string            `json:"api_host"`             // API host (e.g., "localhost:8000")
-	FrontendHost       string            `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
-	Port               int               `json:"port"`                 // Server port
-	CORSAllowedOrigins []string          `json:"cors_allowed_origins"` // CORS allowed origins
-	CORSAllowedMethods []string          `json:"cors_allowed_methods"` // CORS allowed methods
-	StorageProvider    StorageProvider   `json:"storage_provider"`     // Storage provider (local, s3)
-	S3Config           *S3Config         `json:"s3_config"`            // S3 configuration
-	EmailConfig        *EmailConfig      `json:"email_config"`         // Email configuration
-	ApifyConfig        *ApifyConfig      `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
-	ASRConfig          *ASRConfig        `json:"asr_config"`           // Configuration for the Modal ASR transcription service
-	DoclingBaseURL     string            `json:"docling_base_url"`     // Base URL of the Docling Serve instance
-	VLMConfig          *VLMConfig        `json:"vlm_config"`           // VLM configuration for image captioning
-	EmbeddingConfig    *EmbeddingConfig  `json:"embedding_config"`     // Embedding configuration for chunk embeddings
-	ExtractionConfig   *ExtractionConfig `json:"extraction_config"`    // Extraction configuration for atomic knowledge
-	ClaimCheckConfig   *ClaimCheckConfig `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
+	Logger             *slog.Logger       `json:"-"`                    // Never included in JSON (not serializable)
+	LogLevel           slog.Level         `json:"log_level"`            // Log level (debug, info, warn, error)
+	Env                string             `json:"env"`                  // Environment (development, staging, production)
+	JWTSecret          string             `json:"-"`                    // Never included in JSON (security)
+	JWTExpiryHours     int                `json:"jwt_expiry_hours"`     // JWT token expiry in hours
+	PostgresURI        string             `json:"-"`                    // Never included in JSON (security - contains credentials)
+	APIHost            string             `json:"api_host"`             // API host (e.g., "localhost:8000")
+	FrontendHost       string             `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
+	Port               int                `json:"port"`                 // Server port
+	CORSAllowedOrigins []string           `json:"cors_allowed_origins"` // CORS allowed origins
+	CORSAllowedMethods []string           `json:"cors_allowed_methods"` // CORS allowed methods
+	StorageProvider    StorageProvider    `json:"storage_provider"`     // Storage provider (local, s3)
+	S3Config           *S3Config          `json:"s3_config"`            // S3 configuration
+	EmailConfig        *EmailConfig       `json:"email_config"`         // Email configuration
+	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
+	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
+	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
+	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
+	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
+	ExtractionConfig   *ExtractionConfig  `json:"extraction_config"`    // Extraction configuration for atomic knowledge
+	TranslationConfig  *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
+	ClaimCheckConfig   *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -236,6 +250,17 @@ func IsExtractionOK(c *ExtractionConfig) error {
 	}
 	if c.BaseURL == "" || c.Model == "" {
 		return errors.New("ExtractionConfig is incomplete")
+	}
+	return nil
+}
+
+// IsTranslationOK checks if the Translation configuration is valid.
+func IsTranslationOK(c *TranslationConfig) error {
+	if c == nil {
+		return errors.New("TranslationConfig is not set")
+	}
+	if c.BaseURL == "" || c.Model == "" {
+		return errors.New("TranslationConfig is incomplete")
 	}
 	return nil
 }
@@ -405,6 +430,9 @@ func NewConfig(envs ...string) *Config {
 	// Load Extraction configuration (atomic knowledge) — same reasoning as VLM.
 	extractionConfig := loadExtractionConfigOrDefault(logger, envs...)
 
+	// Load Translation configuration (bilingual chunk/fact search text) — same reasoning as VLM.
+	translationConfig := loadTranslationConfigOrDefault(logger, envs...)
+
 	// Load ClaimCheck configuration (claim-checking) — same reasoning as VLM.
 	claimCheckConfig := loadClaimCheckConfigOrDefault(logger, envs...)
 
@@ -431,6 +459,7 @@ func NewConfig(envs ...string) *Config {
 		VLMConfig:          vlmConfig,
 		EmbeddingConfig:    embeddingConfig,
 		ExtractionConfig:   extractionConfig,
+		TranslationConfig:  translationConfig,
 		ClaimCheckConfig:   claimCheckConfig,
 	}
 	return defaultConfig
@@ -572,6 +601,43 @@ func NewExtractionConfig(envs ...string) (*ExtractionConfig, error) {
 // defaultExtractionConcurrency is used when EXTRACTION_CONCURRENCY is unset
 // or invalid (non-numeric, zero, or negative).
 const defaultExtractionConcurrency = 5
+
+// NewTranslationConfig creates a new TranslationConfig from environment variables.
+func NewTranslationConfig(envs ...string) (*TranslationConfig, error) {
+	// Note: .env file should already be loaded by NewConfig() before calling this.
+	// This function only loads .env when called independently (e.g., in tests).
+	if len(envs) > 0 && envs[0] != "" {
+		source := envs[0]
+		if err := godotenv.Load(source); err != nil {
+			fmt.Printf("Warning: Failed to load .env file: %s\n", err.Error())
+		} else {
+			fmt.Printf("(NewTranslationConfig) Loaded environment from: %s\n", source)
+		}
+	}
+
+	baseURL := getEnv("TRANSLATION_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("TRANSLATION_BASE_URL is not set")
+	}
+	model := getEnv("TRANSLATION_MODEL", "")
+	if model == "" {
+		return nil, errors.New("TRANSLATION_MODEL is not set")
+	}
+	concurrency, err := strconv.Atoi(getEnv("TRANSLATION_CONCURRENCY", ""))
+	if err != nil || concurrency <= 0 {
+		concurrency = defaultTranslationConcurrency
+	}
+	return &TranslationConfig{
+		BaseURL:     baseURL,
+		Model:       model,
+		APIKey:      getEnv("TRANSLATION_API_KEY", ""),
+		Concurrency: concurrency,
+	}, nil
+}
+
+// defaultTranslationConcurrency is used when TRANSLATION_CONCURRENCY is unset
+// or invalid (non-numeric, zero, or negative).
+const defaultTranslationConcurrency = 5
 
 // NewClaimCheckConfig creates a new ClaimCheckConfig from environment variables.
 func NewClaimCheckConfig(envs ...string) (*ClaimCheckConfig, error) {

@@ -35,6 +35,8 @@ func Execute() {
 	rootCmd.AddCommand(ragCmd)
 	rootCmd.AddCommand(evalExtractionCmd)
 	rootCmd.AddCommand(evalJudgeCmd)
+	rootCmd.AddCommand(evalRetrievalBilingualCmd)
+	rootCmd.AddCommand(backfillTranslationsCmd)
 	rootCmd.AddCommand(claimCheckCmd)
 
 	if err := rootCmd.Execute(); err != nil {

@@ -89,6 +89,11 @@ func TestClaimAnalyzerClient_Analyze_CapsSubClaimsAtMax(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(analysis.SubClaims) != maxSubClaims {
-		t.Errorf("expected sub-claims capped at %d, got %d: %v", maxSubClaims, len(analysis.SubClaims), analysis.SubClaims)
+		t.Errorf(
+			"expected sub-claims capped at %d, got %d: %v",
+			maxSubClaims,
+			len(analysis.SubClaims),
+			analysis.SubClaims,
+		)
 	}
 }

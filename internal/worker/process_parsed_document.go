@@ -174,6 +174,7 @@ func (w *ProcessParsedDocumentWorker) Work(
 				// topics' NOT NULL constraint, since COPY never falls back to
 				// a column's DEFAULT the way a plain INSERT would.
 				Topics:      []string{},
+				Language:    doc.Language,
 				ParsedChunk: *c,
 			}
 			ok, err := tx.ShouldBeStored(ctx, *doc, chunk)
@@ -215,6 +216,11 @@ func (w *ProcessParsedDocumentWorker) Work(
 				DocumentID: job.Args.DocumentID,
 			}); err != nil {
 				return fmt.Errorf("failed to enqueue knowledge extraction: %w", err)
+			}
+			if err := tx.Enqueue(ctx, queue.TranslateChunksDTO{
+				DocumentID: job.Args.DocumentID,
+			}); err != nil {
+				return fmt.Errorf("failed to enqueue chunk translation: %w", err)
 			}
 		}
 		return nil

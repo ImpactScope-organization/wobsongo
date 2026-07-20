@@ -158,7 +158,7 @@ func (w *TranscriptionWorker) Work(
 		"",
 		nil,
 	); notifyErr != nil {
-		log.Printf("[TranscriptionWorker] gagal notify bot: %v", notifyErr)
+		log.Printf("[TranscriptionWorker] Failed to notify the bot: %v", notifyErr)
 	}
 
 	return nil

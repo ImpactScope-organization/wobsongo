@@ -43,9 +43,6 @@ export async function handleExtractDone(
       });
       deletePendingJob(jobId);
     } else {
-      // Cache-hit but RAG job just got (re-)enqueued under its OWN jobId
-      // (result.jobId — the video's ID). Re-save the pendingJob under
-      // that id so the eventual RAG completion can still find it.
       savePendingJob(result.jobId, {
         jid: pending.jid,
         waitingMessageId: pending.waitingMessageId,
@@ -53,7 +50,7 @@ export async function handleExtractDone(
       });
     }
   } catch (err) {
-    console.error('[extract-callback] gagal re-fetch /extract:', err);
+    console.error('[extract-callback] failed re-fetch /extract:', err);
     await conversationService.sendMessage(pending.jid, {
       text: '❌ An error occurred while fetching the transcription result.',
     });

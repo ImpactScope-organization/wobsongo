@@ -51,10 +51,10 @@ type ExtractCallbackData struct {
 // extractDoneCallback represents the JSON payload structure sent to the bot service
 // to report the completion status of an extraction job.
 type extractDoneCallback struct {
-	JobID  string                `json:"jobId"`
-	Status string                `json:"status"`
-	Error  string                `json:"error,omitempty"`
-	Data   *ExtractCallbackData  `json:"data,omitempty"`
+	JobID  string               `json:"jobId"`
+	Status string               `json:"status"`
+	Error  string               `json:"error,omitempty"`
+	Data   *ExtractCallbackData `json:"data,omitempty"`
 }
 
 // NotifyExtractDone sends a POST request to the bot service callback endpoint
@@ -87,7 +87,7 @@ func (c *BotClient) NotifyExtractDone(
 		return fmt.Errorf("failed to create callback request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	
+
 	// Authenticate the request using the Pre-Shared Key.
 	req.Header.Set("Authorization", "PSK "+c.callbackPSK)
 
@@ -105,7 +105,7 @@ func (c *BotClient) NotifyExtractDone(
 	return nil
 }
 
-// doControlRequest is an internal helper function that constructs and executes an HTTP request 
+// doControlRequest is an internal helper function that constructs and executes an HTTP request
 // to the bot control API endpoint.
 
 func (c *BotClient) doControlRequest(
@@ -151,14 +151,14 @@ func (c *BotClient) doControlRequest(
 	return &status, nil
 }
 
-// Start sends a request to the bot's control API to initialize and start 
-// the WhatsApp socket connection. 
+// Start sends a request to the bot's control API to initialize and start
+// the WhatsApp socket connection.
 func (c *BotClient) Start(ctx context.Context) (*BotStatus, error) {
 	return c.doControlRequest(ctx, http.MethodPost, "/bot/start", nil)
 }
 
-// Stop sends a request to the bot's control API to gracefully disconnect 
-// the WhatsApp socket. The purgeData parameter determines whether the bot's 
+// Stop sends a request to the bot's control API to gracefully disconnect
+// the WhatsApp socket. The purgeData parameter determines whether the bot's
 // local session and authentication data should be deleted upon stopping.
 func (c *BotClient) Stop(ctx context.Context, purgeData bool) (*BotStatus, error) {
 	return c.doControlRequest(
@@ -169,7 +169,7 @@ func (c *BotClient) Stop(ctx context.Context, purgeData bool) (*BotStatus, error
 	)
 }
 
-// Status sends a request to the bot's control API to retrieve its current 
+// Status sends a request to the bot's control API to retrieve its current
 // operational state and active QR code (if applicable), without altering its lifecycle.
 func (c *BotClient) Status(ctx context.Context) (*BotStatus, error) {
 	return c.doControlRequest(ctx, http.MethodGet, "/bot/status", nil)

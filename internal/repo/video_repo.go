@@ -201,17 +201,17 @@ func (r *videoRepo) EnqueueRAGSearchJob(
 	payload queue.RAGSearchJob,
 ) error {
 	opts := &river.InsertOpts{
-    UniqueOpts: river.UniqueOpts{
-        ByArgs: true,
-        ByState: []rivertype.JobState{
-            rivertype.JobStateAvailable,
-            rivertype.JobStatePending,
-            rivertype.JobStateRunning,
-            rivertype.JobStateRetryable,
-            rivertype.JobStateScheduled,
-        },
-    },
-}
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable,
+				rivertype.JobStatePending,
+				rivertype.JobStateRunning,
+				rivertype.JobStateRetryable,
+				rivertype.JobStateScheduled,
+			},
+		},
+	}
 
 	if r.tx != nil {
 		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, opts)

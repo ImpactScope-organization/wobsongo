@@ -22,18 +22,6 @@ const (
 
 	// apifyStatusSucceeded represents the expected resource status for a successfully completed actor run.
 	apifyStatusSucceeded = "SUCCEEDED"
-
-	// ragSearchLimit bounds how many fused RAG results are considered when
-	// summarizing a video's transcript for the bot -- same reasoning as
-	// ragDefaultLimit in cmd/rag.go, just scoped to this use case.
-	ragSearchLimit = 5
-
-	// ragSummaryPointCount caps how many top results are included in the
-	// summary sent to the user, so WhatsApp messages stay readable.
-	ragSummaryPointCount = 3
-
-	// ragSummaryCharLimit bounds each summarized point's length.
-	ragSummaryCharLimit = 400
 )
 
 type ApifyService struct {
@@ -196,37 +184,4 @@ func (s *ApifyService) FetchDataset(
 	}
 
 	return items, nil
-}
-
-// formatRAGSummary formats the top RAG search results into a numbered
-// summary for use in the answer-generation prompt.
-func formatRAGSummary(results []RAGResult) string {
-	if len(results) == 0 {
-		return "No relevant information was found in the knowledge database."
-	}
-
-	var sb strings.Builder
-	count := 0
-	for _, r := range results {
-		if count >= ragSummaryPointCount {
-			break
-		}
-		text := r.Text
-		if r.Source == "fact" && r.ChunkText != "" {
-			text = r.ChunkText
-		}
-		count++
-		sb.WriteString(fmt.Sprintf("%d. %s\n\n", count, truncateRAGText(text, ragSummaryCharLimit)))
-	}
-	return strings.TrimSpace(sb.String())
-}
-
-// truncateRAGText truncates a string to at most n runes, appending an
-// ellipsis if the text exceeds the limit.
-func truncateRAGText(s string, n int) string {
-	runes := []rune(s)
-	if len(runes) <= n {
-		return s
-	}
-	return string(runes[:n]) + "..."
 }

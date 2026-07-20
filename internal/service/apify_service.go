@@ -22,12 +22,25 @@ const (
 
 	// apifyStatusSucceeded represents the expected resource status for a successfully completed actor run.
 	apifyStatusSucceeded = "SUCCEEDED"
+
+	// ragSearchLimit bounds how many fused RAG results are considered when
+	// summarizing a video's transcript for the bot -- same reasoning as
+	// ragDefaultLimit in cmd/rag.go, just scoped to this use case.
+	ragSearchLimit = 5
+
+	// ragSummaryPointCount caps how many top results are included in the
+	// summary sent to the user, so WhatsApp messages stay readable.
+	ragSummaryPointCount = 3
+
+	// ragSummaryCharLimit bounds each summarized point's length.
+	ragSummaryCharLimit = 400
 )
 
 type ApifyService struct {
 	apifyRepo      data.ApifyRepoer
 	videoRepo      data.VideoRepoer
 	videoService   *VideoService
+	ragService     *RAGService
 	httpClient     data.HTTPClient
 	apifyToken     string
 	baseWebhookURL string
@@ -38,6 +51,7 @@ func NewApifyService(
 	apifyRepo data.ApifyRepoer,
 	videoRepo data.VideoRepoer,
 	videoService *VideoService,
+	ragService *RAGService,
 	httpClient data.HTTPClient,
 	apifyToken string,
 	baseWebhookURL string,
@@ -46,6 +60,7 @@ func NewApifyService(
 		apifyRepo:      apifyRepo,
 		videoRepo:      videoRepo,
 		videoService:   videoService,
+		ragService:     ragService,
 		httpClient:     httpClient,
 		apifyToken:     apifyToken,
 		baseWebhookURL: baseWebhookURL,
@@ -63,14 +78,23 @@ func (s *ApifyService) TriggerExtraction(
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return nil, fmt.Errorf("failed to check existing video: %w", err)
 	}
-	// If a valid cache is found, return the completed status immediately.
+
+	// If a valid cache is found, reuse the existing transcript by enqueueing a RAG search
+	// job and return a processing response. Duplicate RAG jobs for the same
+	// extraction are ignored by the queue.
 	if video != nil && video.TranscriptionText != nil && *video.TranscriptionText != "" {
+		extractionID := video.ID.String()
+
+		if err := s.videoRepo.EnqueueRAGSearchJob(ctx, queue.RAGSearchJob{
+			ExtractionID: extractionID,
+			Transcript:   *video.TranscriptionText,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to enqueue rag search: %w", err)
+		}
+
 		return &dto.ExtractResponse{
-			Status: dto.StatusCompleted,
-			JobID:  video.ID.String(),
-			Data: &dto.ExtractData{
-				Transcript: *video.TranscriptionText,
-			},
+			Status: dto.StatusProcessing,
+			JobID:  extractionID,
 		}, nil
 	}
 
@@ -82,16 +106,11 @@ func (s *ApifyService) TriggerExtraction(
 		extractionID,
 	)
 
-	internalReq := &dto.ExtractionRequest{
-		TargetURL:  targetURL,
-		WebhookURL: webhookURL,
-	}
-
 	// Enqueue the job for background processing.
 	args := queue.ExtractMediaDTO{
 		ExtractionID: extractionID,
-		TargetURL:    internalReq.TargetURL,
-		WebhookURL:   internalReq.WebhookURL,
+		TargetURL:    targetURL,
+		WebhookURL:   webhookURL,
 	}
 
 	if err := s.apifyRepo.EnqueueExtraction(ctx, args); err != nil {
@@ -177,4 +196,37 @@ func (s *ApifyService) FetchDataset(
 	}
 
 	return items, nil
+}
+
+// formatRAGSummary formats the top RAG search results into a numbered
+// summary for use in the answer-generation prompt.
+func formatRAGSummary(results []RAGResult) string {
+	if len(results) == 0 {
+		return "No relevant information was found in the knowledge database."
+	}
+
+	var sb strings.Builder
+	count := 0
+	for _, r := range results {
+		if count >= ragSummaryPointCount {
+			break
+		}
+		text := r.Text
+		if r.Source == "fact" && r.ChunkText != "" {
+			text = r.ChunkText
+		}
+		count++
+		sb.WriteString(fmt.Sprintf("%d. %s\n\n", count, truncateRAGText(text, ragSummaryCharLimit)))
+	}
+	return strings.TrimSpace(sb.String())
+}
+
+// truncateRAGText truncates a string to at most n runes, appending an
+// ellipsis if the text exceeds the limit.
+func truncateRAGText(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) <= n {
+		return s
+	}
+	return string(runes[:n]) + "..."
 }

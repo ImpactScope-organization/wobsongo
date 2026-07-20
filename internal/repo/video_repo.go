@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
 type videoRepo struct {
@@ -190,4 +191,41 @@ func (r *videoRepo) GetByVideoURL(ctx context.Context, videoURL string) (*model.
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 	}, nil
+}
+
+// EnqueueRAGSearchJob adds a RAG search job to the River queue.
+// The operation is idempotent: if a job for the same extraction is
+// already queued or running, the duplicate is ignored.
+func (r *videoRepo) EnqueueRAGSearchJob(
+	ctx context.Context,
+	payload queue.RAGSearchJob,
+) error {
+	opts := &river.InsertOpts{
+    UniqueOpts: river.UniqueOpts{
+        ByArgs: true,
+        ByState: []rivertype.JobState{
+            rivertype.JobStateAvailable,
+            rivertype.JobStatePending,
+            rivertype.JobStateRunning,
+            rivertype.JobStateRetryable,
+            rivertype.JobStateScheduled,
+        },
+    },
+}
+
+	if r.tx != nil {
+		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, opts)
+		if err != nil {
+			return fmt.Errorf("failed to insert rag search job into river queue: %w", err)
+		}
+		return nil
+	}
+
+	err := r.WithTx(ctx, func(txRepo data.VideoRepoer) error {
+		return txRepo.EnqueueRAGSearchJob(ctx, payload)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to execute rag search job with tx: %w", err)
+	}
+	return nil
 }

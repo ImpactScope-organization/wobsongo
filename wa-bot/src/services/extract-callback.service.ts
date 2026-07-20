@@ -1,13 +1,14 @@
-import { getPendingJob, deletePendingJob } from './pending-job.store.js';
+import { getPendingJob, deletePendingJob, savePendingJob } from './pending-job.store.js';
 import { callGoExtract } from './go-client.service.js';
 import * as conversationService from './conversation.service.js';
-import type { ExtractCallbackStatus } from '../types/types.js';
+import type { ExtractCallbackStatus, ExtractData } from '../types/types.js';
 
 // handleExtractDone is triggered when the Go backend hits the POST /callback/extract-done endpoint.
 export async function handleExtractDone(
   jobId: string,
   status: ExtractCallbackStatus,
-  errorMsg?: string
+  errorMsg?: string,
+  data?: ExtractData
 ): Promise<void> {
   const pending = getPendingJob(jobId);
   if (!pending) {
@@ -18,34 +19,44 @@ export async function handleExtractDone(
   if (status === 'failed') {
     await conversationService.sendMessage(pending.jid, {
       text: `❌ Failed to process video. ${errorMsg ?? ''}`.trim(),
-      replyToMessageId: pending.waitingMessageId,
     });
     deletePendingJob(jobId);
     return;
   }
 
   try {
-    // Re-call the /extract endpoint using the SAME url.
+    if (data) {
+      // The callback already includes the final result.
+      await conversationService.sendMessage(pending.jid, {
+        text: data.answer ?? data.transcript ?? '',
+      });
+      deletePendingJob(jobId);
+      return;
+    }
+
+    // Pull model fallback (transcription flow): re-call with the same URL.
     const result = await callGoExtract(pending.url);
 
     if (result.status === 'completed' && result.data) {
       await conversationService.sendMessage(pending.jid, {
-        text: `📝 Transcription result:\n\n${result.data.transcript}`,
-        replyToMessageId: pending.waitingMessageId,
+        text: result.data.answer ?? result.data.transcript,
       });
+      deletePendingJob(jobId);
     } else {
-      await conversationService.sendMessage(pending.jid, {
-        text: '⚠️ The video has been processed, but the result cannot be fetched yet. Please send the link again.',
-        replyToMessageId: pending.waitingMessageId,
+      // Cache-hit but RAG job just got (re-)enqueued under its OWN jobId
+      // (result.jobId — the video's ID). Re-save the pendingJob under
+      // that id so the eventual RAG completion can still find it.
+      savePendingJob(result.jobId, {
+        jid: pending.jid,
+        waitingMessageId: pending.waitingMessageId,
+        url: pending.url,
       });
     }
   } catch (err) {
     console.error('[extract-callback] gagal re-fetch /extract:', err);
     await conversationService.sendMessage(pending.jid, {
       text: '❌ An error occurred while fetching the transcription result.',
-      replyToMessageId: pending.waitingMessageId,
     });
-  } finally {
     deletePendingJob(jobId);
   }
 }

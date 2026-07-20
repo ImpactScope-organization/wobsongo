@@ -19,6 +19,9 @@ type BotClient struct {
 	httpClient  *http.Client
 }
 
+// NewBotClient creates and returns a new instance of BotClient.
+// It initializes the underlying HTTP client with a default timeout of 10 seconds
+// to prevent indefinite hanging on network requests.
 type BotStatus struct {
 	Status string `json:"status"`
 	QR     string `json:"qr,omitempty"`
@@ -36,12 +39,22 @@ func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 	}
 }
 
+// ExtractCallbackData contains the result returned directly in the
+// callback. Used for RAG responses (not persisted), while
+// TranscriptionWorker leaves it nil and retrieves the cached transcript
+// via /api/extract.
+type ExtractCallbackData struct {
+	Transcript string `json:"transcript,omitempty"`
+	Answer     string `json:"answer,omitempty"`
+}
+
 // extractDoneCallback represents the JSON payload structure sent to the bot service
 // to report the completion status of an extraction job.
 type extractDoneCallback struct {
-	JobID  string `json:"jobId"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	JobID  string                `json:"jobId"`
+	Status string                `json:"status"`
+	Error  string                `json:"error,omitempty"`
+	Data   *ExtractCallbackData  `json:"data,omitempty"`
 }
 
 // NotifyExtractDone sends a POST request to the bot service callback endpoint
@@ -49,8 +62,17 @@ type extractDoneCallback struct {
 // It includes the job ID, its final status, and an optional error message.
 // Returns an error if the request fails to build, execute, or if the server
 // returns a status code other than 204 No Content.
-func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg string) error {
-	body, err := json.Marshal(extractDoneCallback{JobID: jobID, Status: status, Error: errMsg})
+func (c *BotClient) NotifyExtractDone(
+	ctx context.Context,
+	jobID, status, errMsg string,
+	data *ExtractCallbackData,
+) error {
+	body, err := json.Marshal(extractDoneCallback{
+		JobID:  jobID,
+		Status: status,
+		Error:  errMsg,
+		Data:   data,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal callback payload: %w", err)
 	}
@@ -65,7 +87,7 @@ func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg
 		return fmt.Errorf("failed to create callback request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-
+	
 	// Authenticate the request using the Pre-Shared Key.
 	req.Header.Set("Authorization", "PSK "+c.callbackPSK)
 
@@ -85,6 +107,7 @@ func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg
 
 // doControlRequest is an internal helper function that constructs and executes an HTTP request 
 // to the bot control API endpoint.
+
 func (c *BotClient) doControlRequest(
 	ctx context.Context,
 	method, path string,

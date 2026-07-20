@@ -25,6 +25,9 @@ type VideoRepoer interface {
 	// UpdateVideoTranscription updates row in the video table with the transcription result.
 	UpdateVideoTranscription(ctx context.Context, text pgtype.Text, id uuid.UUID) error
 
+	// EnqueueRAGSearchJob adds a new RAG search job to the River queue.
+	EnqueueRAGSearchJob(ctx context.Context, payload queue.RAGSearchJob) error
+
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]
 }

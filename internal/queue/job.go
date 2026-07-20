@@ -38,6 +38,9 @@ const (
 	// document's text-bearing, not-yet-translated chunks into the other
 	// supported language, for cross-lingual full-text search.
 	JobTypeTranslateChunks BackgroundJobType = "translate_chunks"
+
+	// JobTypeRagSearch represents a job type for performing a RAG search.
+	JobTypeRagSearch BackgroundJobType = "rag_search"
 )
 
 // BackgroundJob represents a generic background job.

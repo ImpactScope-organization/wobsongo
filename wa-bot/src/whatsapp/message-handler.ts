@@ -40,6 +40,11 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
       return;
     }
 
+    // If the status is 'processing' send a waiting message and store the job context.
+    const waitingMsg = await conversationService.sendMessage(jid, {
+      text: '⏳ Processing, please wait...',
+    });
+
     // Initiate the extraction process by calling the Go backend.
     const result = await callGoExtract(tiktokUrl);
 
@@ -57,11 +62,6 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
       });
       return;
     }
-
-    // If the status is 'processing' send a waiting message and store the job context.
-    const waitingMsg = await conversationService.sendMessage(jid, {
-      text: '⏳ Processing, please wait...',
-    });
 
     savePendingJob(result.jobId, {
       jid,

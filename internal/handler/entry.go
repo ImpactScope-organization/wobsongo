@@ -59,11 +59,13 @@ func NewHandlers(repos *Repos) *Handlers {
 	config := internal.NewConfig()
 	// Initialize Apify services and handlers
 	videoService := service.NewVideoService(repos.VideoRepo)
+	ragService := service.NewRAGService(repos.ChunkRepo, repos.KnowledgeRepo, repos.Embedder)
 	scheme := config.APISchemes()[0]
 	apifyService := service.NewApifyService(
 		repos.ApifyRepo,
 		repos.VideoRepo,
 		videoService,
+		ragService,
 		http.DefaultClient,
 		config.ApifyConfig.Token,
 		scheme+"://"+config.APIHost,
@@ -79,7 +81,6 @@ func NewHandlers(repos *Repos) *Handlers {
 	mediaHandler := NewMediaHandler(mediaService)
 
 	// Initialize claim-checking services and handlers
-	ragService := service.NewRAGService(repos.ChunkRepo, repos.KnowledgeRepo, repos.Embedder)
 	claimService := service.NewClaimService(repos.ClaimAnalyzer, repos.ClaimJudge, ragService)
 	claimHandler := NewClaimHandler(claimService)
 

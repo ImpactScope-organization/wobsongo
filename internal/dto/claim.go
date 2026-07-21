@@ -22,6 +22,12 @@ type ClaimCheckResponse struct {
 	// Empty when InScope is false.
 	OverallSummary string `json:"overall_summary,omitempty"`
 
+	// FormattedMessage is a human-facing, color-coded (emoji-per-verdict)
+	// rendering of OverallSummary and every sub-claim's verdict/reasoning —
+	// meant to be displayed as-is by a chat client. Plain text, no
+	// HTML/Markdown markup. Empty when InScope is false.
+	FormattedMessage string `json:"formatted_message,omitempty"`
+
 	// SubClaims is the per-sub-claim breakdown. Empty when InScope is false.
 	SubClaims []SubClaimResponse `json:"sub_claims,omitempty"`
 }

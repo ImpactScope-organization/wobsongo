@@ -277,4 +277,32 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 			result.OverallSummary,
 		)
 	}
+
+	wantMessage := "❌ contains inaccuracies — 2 claims checked\n\n" +
+		"✅ 1. claim A\n\n" +
+		"❌ 2. claim B"
+	if result.FormattedMessage != wantMessage {
+		t.Errorf(
+			"expected formatted message %q, got %q",
+			wantMessage, result.FormattedMessage,
+		)
+	}
+}
+
+func TestClaimService_CheckClaim_OutOfScopeHasNoFormattedMessage(t *testing.T) {
+	analyzer := &stubClaimAnalyzer{
+		analysis: &data.ClaimAnalysis{InScope: false, RefusalReason: "not health-related"},
+	}
+	s := NewClaimService(analyzer, &stubClaimJudge{}, newEmptyRAGService())
+
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "what's the capital of France?"},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.FormattedMessage != "" {
+		t.Errorf("expected no formatted message for out-of-scope input, got %q", result.FormattedMessage)
+	}
 }

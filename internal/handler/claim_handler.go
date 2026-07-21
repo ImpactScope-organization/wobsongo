@@ -61,9 +61,10 @@ func (h *ClaimHandler) checkClaimHandler(c echo.Context) error {
 // toClaimCheckResponse converts the service-layer result into the wire DTO.
 func toClaimCheckResponse(result *service.ClaimCheckResult) dto.ClaimCheckResponse {
 	resp := dto.ClaimCheckResponse{
-		InScope:        result.InScope,
-		RefusalReason:  result.RefusalReason,
-		OverallSummary: result.OverallSummary,
+		InScope:          result.InScope,
+		RefusalReason:    result.RefusalReason,
+		OverallSummary:   result.OverallSummary,
+		FormattedMessage: result.FormattedMessage,
 	}
 	if len(result.SubClaims) == 0 {
 		return resp

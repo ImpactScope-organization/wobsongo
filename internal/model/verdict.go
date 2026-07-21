@@ -66,6 +66,25 @@ func ParseVerdict(s string) (Verdict, error) {
 	return VerdictInsufficientEvidence, fmt.Errorf("unrecognized verdict %q", s)
 }
 
+// verdictEmoji is the color-coding shown alongside each Verdict in a
+// human-facing rendered message (e.g. a chat bot reply).
+var verdictEmoji = map[Verdict]string{
+	VerdictSupported:            "✅",
+	VerdictContradicted:         "❌",
+	VerdictPartiallySupported:   "⚠️",
+	VerdictMixed:                "🔶",
+	VerdictInsufficientEvidence: "❓",
+}
+
+// Emoji returns v's color-coding emoji, or "❓" for an out-of-range value —
+// the same safest-fallback reasoning as String().
+func (v Verdict) Emoji() string {
+	if emoji, ok := verdictEmoji[v]; ok {
+		return emoji
+	}
+	return "❓"
+}
+
 // Severity classifies how urgent/high-stakes a claim's subject matter is,
 // as decided by a ClaimJudge — used to decide whether to attach a
 // recommend-a-real-doctor disclaimer to the response, not to influence the Verdict itself.

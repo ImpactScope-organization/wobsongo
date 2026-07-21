@@ -1159,6 +1159,10 @@ const docTemplate = `{
         "dto.ClaimCheckResponse": {
             "type": "object",
             "properties": {
+                "formatted_message": {
+                    "description": "FormattedMessage is a human-facing, color-coded (emoji-per-verdict)\nrendering of OverallSummary and every sub-claim's verdict/reasoning —\nmeant to be displayed as-is by a chat client. Plain text, no\nHTML/Markdown markup. Empty when InScope is false.",
+                    "type": "string"
+                },
                 "in_scope": {
                     "description": "InScope is false if the input wasn't a health-related inquiry at all —\nthis system doesn't take inquiries unrelated to health.",
                     "type": "boolean"

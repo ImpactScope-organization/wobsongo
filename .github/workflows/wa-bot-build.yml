@@ -1,0 +1,47 @@
+name: Build Docker image and push to GHCR, deploy Bot to Dokploy
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "wa-bot/src/**"
+      - "wa-bot/package.json"
+      - "wa-bot/pnpm-lock.yaml"
+      - "wa-bot/pnpm-workspace.yaml"
+      - "wa-bot/tsconfig.json"
+      - "wa-bot/Dockerfile"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Bot Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./wa-bot
+          file: ./wa-bot/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/impactscope-organization/wobsongo/bot:latest-main
+          platforms: linux/amd64
+
+      - name: Trigger Dokploy Deployment
+        run: |
+          echo "Triggering Dokploy deploy for app ${{ vars.DOKPLOY_BOT_STAGING_APPLICATION_ID }}..."
+          curl -X POST \
+            "${{ vars.DOKPLOY_URL }}/api/application.deploy" \
+            -H "accept: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"applicationId\": \"${{ vars.DOKPLOY_BOT_STAGING_APPLICATION_ID }}\"}"

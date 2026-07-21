@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -50,7 +52,14 @@ type ClaimCheckResult struct {
 	InScope        bool
 	RefusalReason  string
 	OverallSummary string
-	SubClaims      []SubClaimResult
+	// FormattedMessage is a human-facing rendering of OverallSummary and
+	// every sub-claim's verdict/reasoning, color-coded with an emoji per
+	// verdict — meant to be displayed as-is by a chat client (e.g. the
+	// WhatsApp bot) without it having to reimplement verdict-to-emoji
+	// logic itself. Plain text, no HTML/Markdown markup, since this API is
+	// transport-agnostic. Empty when InScope is false.
+	FormattedMessage string
+	SubClaims        []SubClaimResult
 	// Language is the original input message's detected language
 	// (data.ClaimAnalysis.Language) — OverallSummary and every sub-claim's
 	// Reasoning are written in this language, regardless of what language
@@ -124,11 +133,13 @@ func (s *ClaimService) CheckClaim(
 		return nil, fmt.Errorf("failed to check sub-claims: %w", err)
 	}
 
+	overallSummary := summarizeVerdicts(results, analysis.Language)
 	return &ClaimCheckResult{
-		InScope:        true,
-		OverallSummary: summarizeVerdicts(results, analysis.Language),
-		SubClaims:      results,
-		Language:       analysis.Language,
+		InScope:          true,
+		OverallSummary:   overallSummary,
+		FormattedMessage: formatClaimMessage(results, overallSummary, analysis.Language),
+		SubClaims:        results,
+		Language:         analysis.Language,
 	}, nil
 }
 
@@ -200,34 +211,44 @@ func (s *ClaimService) checkSubClaim(
 	}, nil
 }
 
+// Overall rollup categories produced by overallVerdictKey — shared between
+// overallSummaryTemplates and overallEmoji so both stay keyed consistently.
+const (
+	overallKeyContradicted = "contradicted"
+	overallKeySupported    = "supported"
+	overallKeyInsufficient = "insufficient"
+	overallKeyPartial      = "partial"
+)
+
 // overallSummaryTemplates gives each of summarizeVerdicts' four outcomes in
 // both supported languages — mirrors languageDisplayNames' pattern
 // (external/translation_client.go) of a language-keyed lookup rather than an
 // LLM call, since this is a deterministic rollup of already-computed
 // verdicts, not something that needs its own model call.
 var overallSummaryTemplates = map[string]map[model.Language]string{
-	"contradicted": {
+	overallKeyContradicted: {
 		model.LanguageEnglish: "contains inaccuracies",
 		model.LanguageFrench:  "contient des inexactitudes",
 	},
-	"supported": {
+	overallKeySupported: {
 		model.LanguageEnglish: "supported",
 		model.LanguageFrench:  "confirmé",
 	},
-	"insufficient": {
+	overallKeyInsufficient: {
 		model.LanguageEnglish: "partially verified — some aspects could not be checked against the knowledge base",
 		model.LanguageFrench:  "partiellement vérifié — certains aspects n'ont pas pu être vérifiés dans la base de connaissances",
 	},
-	"partial": {
+	overallKeyPartial: {
 		model.LanguageEnglish: "partially supported",
 		model.LanguageFrench:  "partiellement confirmé",
 	},
 }
 
-// summarizeVerdicts rolls up per-sub-claim verdicts into one overall
-// description of the original message, in language (the original input
-// message's detected language) rather than always in English.
-func summarizeVerdicts(results []SubClaimResult, language model.Language) string {
+// overallVerdictKey classifies a set of sub-claim verdicts into one of
+// summarizeVerdicts' four rollup categories — extracted so
+// summarizeVerdicts and formatClaimMessage can share the same
+// classification without deriving it twice.
+func overallVerdictKey(results []SubClaimResult) string {
 	anyContradicted := false
 	anyInsufficient := false
 	allSupported := true
@@ -245,14 +266,79 @@ func summarizeVerdicts(results []SubClaimResult, language model.Language) string
 		}
 	}
 
-	key := "partial"
 	switch {
 	case anyContradicted:
-		key = "contradicted"
+		return overallKeyContradicted
 	case allSupported:
-		key = "supported"
+		return overallKeySupported
 	case anyInsufficient:
-		key = "insufficient"
+		return overallKeyInsufficient
+	default:
+		return overallKeyPartial
 	}
-	return overallSummaryTemplates[key][language]
+}
+
+// summarizeVerdicts rolls up per-sub-claim verdicts into one overall
+// description of the original message, in language (the original input
+// message's detected language) rather than always in English.
+func summarizeVerdicts(results []SubClaimResult, language model.Language) string {
+	return overallSummaryTemplates[overallVerdictKey(results)][language]
+}
+
+// overallEmoji is the color-coding shown alongside the overall rollup in a
+// FormattedMessage, keyed the same way as overallSummaryTemplates.
+var overallEmoji = map[string]string{
+	overallKeySupported:    "✅",
+	overallKeyContradicted: "❌",
+	overallKeyInsufficient: "❓",
+	overallKeyPartial:      "⚠️",
+}
+
+// claimsCheckedLabelTemplates gives the pluralized "N claims checked" label
+// in both supported languages, mirroring overallSummaryTemplates' pattern.
+var claimsCheckedLabelTemplates = map[model.Language]struct{ one, many string }{
+	model.LanguageEnglish: {one: "claim checked", many: "claims checked"},
+	model.LanguageFrench:  {one: "affirmation vérifiée", many: "affirmations vérifiées"},
+}
+
+// formatClaimMessage renders results and overallSummary into a human-facing,
+// color-coded (emoji-per-verdict) plain-text message meant to be displayed
+// as-is by a chat client — mirrors wobsongo-verify's Telegram bot output,
+// adapted to this API's 5-value verdict taxonomy and bilingual support.
+// Plain text rather than HTML/Markdown, since this API is transport-agnostic
+// unlike a bot that sends directly to one chat platform.
+func formatClaimMessage(
+	results []SubClaimResult,
+	overallSummary string,
+	language model.Language,
+) string {
+	label := claimsCheckedLabelTemplates[language].many
+	if len(results) == 1 {
+		label = claimsCheckedLabelTemplates[language].one
+	}
+
+	var b strings.Builder
+	b.WriteString(overallEmoji[overallVerdictKey(results)])
+	b.WriteString(" ")
+	b.WriteString(overallSummary)
+	b.WriteString(" — ")
+	b.WriteString(strconv.Itoa(len(results)))
+	b.WriteString(" ")
+	b.WriteString(label)
+	b.WriteString("\n\n")
+
+	for i, r := range results {
+		b.WriteString(r.Verdict.Emoji())
+		b.WriteString(" ")
+		b.WriteString(strconv.Itoa(i + 1))
+		b.WriteString(". ")
+		b.WriteString(r.Claim)
+		if r.Reasoning != "" {
+			b.WriteString("\n")
+			b.WriteString(r.Reasoning)
+		}
+		b.WriteString("\n\n")
+	}
+
+	return strings.TrimSpace(b.String())
 }

@@ -55,6 +55,13 @@ definitions:
     type: object
   dto.ClaimCheckResponse:
     properties:
+      formatted_message:
+        description: |-
+          FormattedMessage is a human-facing, color-coded (emoji-per-verdict)
+          rendering of OverallSummary and every sub-claim's verdict/reasoning —
+          meant to be displayed as-is by a chat client. Plain text, no
+          HTML/Markdown markup. Empty when InScope is false.
+        type: string
       in_scope:
         description: |-
           InScope is false if the input wasn't a health-related inquiry at all —

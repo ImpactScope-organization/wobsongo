@@ -97,6 +97,9 @@ func TestCheckClaimHandler_OutOfScope(t *testing.T) {
 	if resp.Data.RefusalReason != "not health-related" {
 		t.Errorf("expected refusal reason to propagate, got %q", resp.Data.RefusalReason)
 	}
+	if resp.Data.FormattedMessage != "" {
+		t.Errorf("expected no formatted message for out-of-scope input, got %q", resp.Data.FormattedMessage)
+	}
 }
 
 func TestCheckClaimHandler_Success(t *testing.T) {
@@ -178,6 +181,12 @@ func TestCheckClaimHandler_Success(t *testing.T) {
 	}
 	if resp.Data.SubClaims[0].Verdict != "supported" {
 		t.Errorf("expected verdict %q, got %q", "supported", resp.Data.SubClaims[0].Verdict)
+	}
+	wantMessage := "✅ supported — 1 claim checked\n\n" +
+		"✅ 1. vitamin C prevents colds\n" +
+		"the cited chunk backs this"
+	if resp.Data.FormattedMessage != wantMessage {
+		t.Errorf("expected formatted message %q, got %q", wantMessage, resp.Data.FormattedMessage)
 	}
 }
 

@@ -19,14 +19,14 @@ type BotClient struct {
 	httpClient  *http.Client
 }
 
-// NewBotClient creates and returns a new instance of BotClient.
-// It initializes the underlying HTTP client with a default timeout of 10 seconds
-// to prevent indefinite hanging on network requests.
 type BotStatus struct {
 	Status string `json:"status"`
 	QR     string `json:"qr,omitempty"`
 }
 
+// NewBotClient creates and returns a new instance of BotClient.
+// It initializes the underlying HTTP client with a default timeout of 10 seconds
+// to prevent indefinite hanging on network requests.
 func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 	return &BotClient{
 		baseURL:     baseURL,

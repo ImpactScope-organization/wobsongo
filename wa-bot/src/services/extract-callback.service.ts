@@ -35,7 +35,7 @@ export async function handleExtractDone(
     }
 
     // Pull model fallback (transcription flow): re-call with the same URL.
-    const result = await callGoExtract(pending.url);
+    const result = await callGoExtract({ url: pending.url });
 
     if (result.status === 'completed' && result.data) {
       await conversationService.sendMessage(pending.jid, {

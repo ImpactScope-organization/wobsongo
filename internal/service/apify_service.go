@@ -60,8 +60,23 @@ func NewApifyService(
 func (s *ApifyService) TriggerExtraction(
 	ctx context.Context,
 	targetURL string,
+	question string,
 ) (*dto.ExtractResponse, error) {
-	// 1. Cache check
+	// Each question is processed as a new RAG job using the same
+	// worker/notification pipeline as video requests, but without
+	// the initial video lookup.
+	if question != "" {
+		extractionID := uuid.New().String()
+		if err := s.videoRepo.EnqueueRAGSearchJob(ctx, queue.RAGSearchJob{
+			ExtractionID: extractionID,
+			Transcript:   question,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to enqueue rag search: %w", err)
+		}
+		return &dto.ExtractResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
+	}
+
+	// Cache check
 	video, err := s.videoRepo.GetByVideoURL(ctx, targetURL)
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return nil, fmt.Errorf("failed to check existing video: %w", err)
@@ -86,7 +101,7 @@ func (s *ApifyService) TriggerExtraction(
 		}, nil
 	}
 
-	// 2. If Cache miss generate a new extraction ID and construct the ExtractionRequest.
+	// If Cache miss generate a new extraction ID and construct the ExtractionRequest.
 	extractionID := uuid.New().String()
 	webhookURL := fmt.Sprintf(
 		"%s/api/webhooks/apify?extractionId=%s",

@@ -26,7 +26,10 @@ type ExtractionRequest struct {
 // ExtractAPIRequest is the public-facing payload sent by the WA bot.
 type ExtractAPIRequest struct {
 	// URL is the target media link provided by the bot.
-	URL string `json:"url" validate:"required,url"`
+	URL string `json:"url,omitempty" validate:"required_without=Question,omitempty,url"`
+
+	// Question is a free-text question to search the knowledge base.
+	Question string `json:"question,omitempty" validate:"required_without=URL"`
 }
 
 // ExtractResponse is the response returned to the bot, both on first call

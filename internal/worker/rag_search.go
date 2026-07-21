@@ -98,37 +98,17 @@ func (w *RAGSearchWorker) notifyFailed(ctx context.Context, extractionID string,
 // formatRAGSummary formats the top RAG search results into a numbered
 // summary suitable for the bot response.
 func formatRAGSummary(results []service.RAGResult) string {
-	const (
-		summaryPointCount = 3
-		summaryCharLimit  = 400
-	)
-
 	if len(results) == 0 {
 		return "No relevant information was found in the knowledge database."
 	}
 
 	var b strings.Builder
-	count := 0
-	for _, r := range results {
-		if count >= summaryPointCount {
-			break
-		}
+	for i, r := range results {
 		text := r.Text
 		if r.Source == "fact" && r.ChunkText != "" {
 			text = r.ChunkText
 		}
-		count++
-		fmt.Fprintf(&b, "%d. %s\n\n", count, truncateRunes(text, summaryCharLimit))
+		fmt.Fprintf(&b, "%d. %s\n\n", i+1, text)
 	}
 	return strings.TrimSpace(b.String())
-}
-
-// truncateRunes truncates a string to at most n runes, appending an
-// ellipsis if the text exceeds the limit.
-func truncateRunes(s string, n int) string {
-	runes := []rune(s)
-	if len(runes) <= n {
-		return s
-	}
-	return string(runes[:n]) + "..."
 }

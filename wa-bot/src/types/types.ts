@@ -77,7 +77,7 @@ export interface ExtractDoneCallback {
   error?: string;
 
   // The extraction result returned by the Go backend.
-  data?: ExtractData
+  data?: ExtractData;
 }
 
 export interface PendingExtractJob {

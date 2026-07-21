@@ -1,0 +1,7 @@
+{
+  "componentsDir": "components",
+  "utilsDir": "utils",
+  "moduleName": "github.com/impactscope-organization/wobsongo",
+  "jsDir": "assets/js",
+  "jsPublicPath": "/static/js"
+}

@@ -6,10 +6,14 @@ import (
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/auth"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/handler"
 	"github.com/impactscope-organization/wobsongo/internal/validation"
+	"github.com/impactscope-organization/wobsongo/internal/webhandler"
+	"github.com/impactscope-organization/wobsongo/ui"
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 const (
@@ -30,6 +34,7 @@ type App struct {
 	embedder      data.Embedder
 	claimAnalyzer data.ClaimAnalyzer
 	claimJudge    data.ClaimJudge
+	userRepo      data.UserRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -123,6 +128,13 @@ func WithClaimJudge(judge data.ClaimJudge) AppOption {
 	}
 }
 
+// WithUserRepo sets the user repository for the application's web layer.
+func WithUserRepo(repo data.UserRepoer) AppOption {
+	return func(a *App) {
+		a.userRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -163,6 +175,24 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)
+
+	// HTML routes, mounted alongside /api on the same Echo instance — token
+	// comes from a cookie instead of the Authorization header.
+	jwtAuth := auth.New(config.JWTSecret, config.JWTExpiryHours)
+	webGroup := e.Group("",
+		handler.JWTFromCookieMiddleware(webhandler.AuthCookieName),
+		handler.JWTParserMiddleware(jwtAuth),
+		middleware.CSRFWithConfig(middleware.CSRFConfig{
+			TokenLookup:    "form:_csrf",
+			CookieSecure:   config.IsProduction(),
+			CookieSameSite: http.SameSiteLaxMode,
+		}),
+	)
+	webhandler.RegisterWebRoutes(
+		webGroup, &webhandler.WebRepos{UserRepo: app.userRepo}, jwtAuth, config,
+	)
+
+	e.StaticFS("/static", ui.StaticFS)
 
 	return app
 }

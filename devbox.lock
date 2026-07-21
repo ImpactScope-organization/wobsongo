@@ -676,6 +676,44 @@
         }
       }
     },
+    "tailwindcss_4@4.3.2": {
+      "last_modified": "2026-07-08T21:13:06Z",
+      "resolved": "github:NixOS/nixpkgs/389ed85304b281ca7f306cf8a1eb4378651ca44e#tailwindcss_4",
+      "source": "devbox-search",
+      "version": "4.3.2",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qifyxd7kn4xn46r770m614l8516g17qn-tailwindcss_4-4.3.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/qifyxd7kn4xn46r770m614l8516g17qn-tailwindcss_4-4.3.2"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/f3mvpdzs7nx14zf8a8qhy8wlw8q407pv-tailwindcss_4-4.3.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/f3mvpdzs7nx14zf8a8qhy8wlw8q407pv-tailwindcss_4-4.3.2"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/s79l9nkklfkfp4lqcc9rwmrbbabmrrv7-tailwindcss_4-4.3.2",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/s79l9nkklfkfp4lqcc9rwmrbbabmrrv7-tailwindcss_4-4.3.2"
+        }
+      }
+    },
     "uv@0.11.19": {
       "last_modified": "2026-06-11T01:27:03Z",
       "resolved": "github:NixOS/nixpkgs/b503dde361500433ca25a32e8f4d218bf58fb659#uv",

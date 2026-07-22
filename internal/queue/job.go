@@ -39,8 +39,8 @@ const (
 	// supported language, for cross-lingual full-text search.
 	JobTypeTranslateChunks BackgroundJobType = "translate_chunks"
 
-	// JobTypeRagSearch represents a job type for performing a RAG search.
-	JobTypeRagSearch BackgroundJobType = "rag_search"
+	// JobTypeClaimCheck represents a job type for running the claim-checking.
+	JobTypeClaimCheck BackgroundJobType = "claim_check"
 )
 
 // BackgroundJob represents a generic background job.

@@ -12,7 +12,7 @@ import { getSock, setSock, setStatus } from './socket-manager.js';
 import { rm } from 'node:fs/promises';
 
 const logger = P({ level: 'silent' });
-const RECONNECT_DELAY_MS = 3000;
+const RECONNECT_DELAY_MS = 300;
 
 // OnMessage defines the callback signature used to process incoming WA messages.
 type OnMessage = (sock: WASocket, msg: WAMessage) => Promise<void>;

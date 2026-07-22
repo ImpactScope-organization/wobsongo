@@ -98,7 +98,10 @@ func TestCheckClaimHandler_OutOfScope(t *testing.T) {
 		t.Errorf("expected refusal reason to propagate, got %q", resp.Data.RefusalReason)
 	}
 	if resp.Data.FormattedMessage != "" {
-		t.Errorf("expected no formatted message for out-of-scope input, got %q", resp.Data.FormattedMessage)
+		t.Errorf(
+			"expected no formatted message for out-of-scope input, got %q",
+			resp.Data.FormattedMessage,
+		)
 	}
 }
 

@@ -193,12 +193,12 @@ func (r *videoRepo) GetByVideoURL(ctx context.Context, videoURL string) (*model.
 	}, nil
 }
 
-// EnqueueRAGSearchJob adds a RAG search job to the River queue.
-// The operation is idempotent: if a job for the same extraction is
-// already queued or running, the duplicate is ignored.
-func (r *videoRepo) EnqueueRAGSearchJob(
+// EnqueueClaimCheckJob adds a claim-check job to the River queue.
+// Idempotent per ExtractionID, a duplicate enqueue while a job is
+// already in flight is silently skipped.
+func (r *videoRepo) EnqueueClaimCheckJob(
 	ctx context.Context,
-	payload queue.RAGSearchJob,
+	payload queue.ClaimCheckJob,
 ) error {
 	opts := &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{
@@ -216,16 +216,16 @@ func (r *videoRepo) EnqueueRAGSearchJob(
 	if r.tx != nil {
 		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, opts)
 		if err != nil {
-			return fmt.Errorf("failed to insert rag search job into river queue: %w", err)
+			return fmt.Errorf("failed to insert claim check job into river queue: %w", err)
 		}
 		return nil
 	}
 
 	err := r.WithTx(ctx, func(txRepo data.VideoRepoer) error {
-		return txRepo.EnqueueRAGSearchJob(ctx, payload)
+		return txRepo.EnqueueClaimCheckJob(ctx, payload)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to execute rag search job with tx: %w", err)
+		return fmt.Errorf("failed to execute claim check job with tx: %w", err)
 	}
 	return nil
 }

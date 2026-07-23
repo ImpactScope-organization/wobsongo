@@ -43,6 +43,7 @@ func buildApp(
 		riverClient,
 	)
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
+	userRepo := repo.NewUserRepo(queries, pool)
 
 	return core.NewApp(
 		echo.New(),
@@ -56,5 +57,6 @@ func buildApp(
 		core.WithEmbedder(claimCheck.embedder),
 		core.WithClaimAnalyzer(claimCheck.claimAnalyzer),
 		core.WithClaimJudge(claimCheck.claimJudge),
+		core.WithUserRepo(userRepo),
 	)
 }

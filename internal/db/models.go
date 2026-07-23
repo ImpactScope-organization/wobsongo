@@ -74,9 +74,13 @@ type DocumentChunk struct {
 }
 
 type User struct {
-	ID        int32
-	Email     string
-	CreatedAt pgtype.Timestamp
+	ID           uuid.UUID
+	Email        string
+	Name         string
+	PasswordHash string
+	Role         int16
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
 }
 
 type Video struct {

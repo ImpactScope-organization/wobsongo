@@ -34,21 +34,12 @@ export async function handleExtractDone(
       return;
     }
 
-    // Pull model fallback (transcription flow): re-call with the same URL.
     const result = await callGoExtract({ url: pending.url });
-
-    if (result.status === 'completed' && result.data) {
-      await conversationService.sendMessage(pending.jid, {
-        text: result.data.answer ?? result.data.transcript,
-      });
-      deletePendingJob(jobId);
-    } else {
-      savePendingJob(result.jobId, {
-        jid: pending.jid,
-        waitingMessageId: pending.waitingMessageId,
-        url: pending.url,
-      });
-    }
+    savePendingJob(result.jobId, {
+      jid: pending.jid,
+      waitingMessageId: pending.waitingMessageId,
+      url: pending.url,
+    });
   } catch (err) {
     console.error('[extract-callback] failed re-fetch /extract:', err);
     await conversationService.sendMessage(pending.jid, {

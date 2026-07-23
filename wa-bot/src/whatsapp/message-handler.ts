@@ -43,14 +43,6 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
       ? await callGoExtract({ url: tiktokUrl })
       : await callGoExtract({ question: trimmed });
 
-    if (result.status === 'completed' && result.data) {
-      // If the data is already available. Reply immediately without sending a "wait" message.
-      await conversationService.sendMessage(jid, {
-        text: `📝 Transcription result:\n\n${result.data.transcript}`,
-      });
-      return;
-    }
-
     if (result.status === 'failed') {
       await conversationService.sendMessage(jid, {
         text: `❌ Failed to process the video. ${result.error ?? ''}`.trim(),

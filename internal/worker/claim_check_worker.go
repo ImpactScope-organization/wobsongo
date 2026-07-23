@@ -13,7 +13,6 @@ import (
 	"github.com/riverqueue/river"
 )
 
-
 const claimCheckJobTimeout = 3 * time.Minute
 
 // ClaimCheckWorker runs the full claim-check pipeline (analyze → retrieve →

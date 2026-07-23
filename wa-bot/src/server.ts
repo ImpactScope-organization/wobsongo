@@ -1,12 +1,7 @@
-import express, { ErrorRequestHandler } from 'express';
+import express from 'express';
 import { controlRouter, callbackRouter } from './routers/control.router.js';
 import { env } from './config/env.js';
 import * as botService from './services/bot.service.js';
-
-const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
-  console.error('[unhandled error]', err);
-  res.status(500).json({ error: 'Internal server error' });
-};
 
 export function createServer() {
   const app = express();

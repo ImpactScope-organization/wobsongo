@@ -29,7 +29,6 @@ type ApifyService struct {
 	apifyRepo      data.ApifyRepoer
 	videoRepo      data.VideoRepoer
 	videoService   *VideoService
-	claimService   *ClaimService
 	httpClient     data.HTTPClient
 	apifyToken     string
 	baseWebhookURL string
@@ -40,7 +39,6 @@ func NewApifyService(
 	apifyRepo data.ApifyRepoer,
 	videoRepo data.VideoRepoer,
 	videoService *VideoService,
-	claimService *ClaimService,
 	httpClient data.HTTPClient,
 	apifyToken string,
 	baseWebhookURL string,
@@ -49,7 +47,6 @@ func NewApifyService(
 		apifyRepo:      apifyRepo,
 		videoRepo:      videoRepo,
 		videoService:   videoService,
-		claimService:   claimService,
 		httpClient:     httpClient,
 		apifyToken:     apifyToken,
 		baseWebhookURL: baseWebhookURL,
@@ -85,7 +82,7 @@ func (s *ApifyService) TriggerExtraction(
 		return s.handleCachedTranscript(ctx, video)
 	}
 
-	 // If Cache miss generate a new extraction ID and construct the ExtractionRequest.
+	// If Cache miss generate a new extraction ID and construct the ExtractionRequest.
 	extractionID := uuid.New().String()
 	webhookURL := fmt.Sprintf(
 		"%s/api/webhooks/apify?extractionId=%s",

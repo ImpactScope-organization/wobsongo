@@ -12,7 +12,7 @@ export function createServer() {
   const app = express();
   app.use(express.json());
   app.use(controlRouter);
-  app.use(callbackRouter);
+  app.use(callbackRouter); // Mount the callback router to handle external webhook notifications\
 
   const server = app.listen(env.port, () => {
     console.log(`Listening on port ${env.port}`);

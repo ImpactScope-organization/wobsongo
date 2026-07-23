@@ -56,7 +56,7 @@ func NewApifyService(
 	}
 }
 
-// TriggerExtraction handles two request shapes: a video URL (transcribe →
+// TriggerExtraction handles two request shapes: a video URL (transcribe ->
 // claim-check the transcript once ready) or a free-text question
 // (claim-check directly).
 func (s *ApifyService) TriggerExtraction(
@@ -85,6 +85,7 @@ func (s *ApifyService) TriggerExtraction(
 		return s.handleCachedTranscript(ctx, video)
 	}
 
+	 // If Cache miss generate a new extraction ID and construct the ExtractionRequest.
 	extractionID := uuid.New().String()
 	webhookURL := fmt.Sprintf(
 		"%s/api/webhooks/apify?extractionId=%s",
@@ -92,6 +93,7 @@ func (s *ApifyService) TriggerExtraction(
 		extractionID,
 	)
 
+	// Enqueue the job for background processing.
 	args := queue.ExtractMediaDTO{
 		ExtractionID: extractionID,
 		TargetURL:    targetURL,

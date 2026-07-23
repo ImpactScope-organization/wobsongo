@@ -36,10 +36,8 @@ func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 	}
 }
 
-// ExtractCallbackData contains the result returned directly in the
-// callback. Used for RAG responses (not persisted), while
-// TranscriptionWorker leaves it nil and retrieves the cached transcript
-// via /api/extract.
+// ExtractCallbackData contains the claim-check result returned directly
+// in the completion callback.
 type ExtractCallbackData struct {
 	Transcript string `json:"transcript,omitempty"`
 	Answer     string `json:"answer,omitempty"`

@@ -13,16 +13,11 @@ import (
 	"github.com/riverqueue/river"
 )
 
-// claimCheckJobTimeout is generous relative to RAG search alone — this
-// pipeline does an analyzer LLM call, then per-sub-claim retrieval AND a
-// judge LLM call, before it has anything to report.
+
 const claimCheckJobTimeout = 3 * time.Minute
 
-// ClaimCheckWorker runs the full claim-checking pipeline (scope/decompose →
-// retrieve → judge) for a piece of text and pushes the resulting
-// FormattedMessage directly in the completion callback — nothing here is
-// persisted, since a claim check reflects the knowledge base's state at
-// request time.
+// ClaimCheckWorker runs the full claim-check pipeline (analyze → retrieve →
+// judge) for a piece of text.
 type ClaimCheckWorker struct {
 	river.WorkerDefaults[queue.ClaimCheckJob]
 	claimService *service.ClaimService
@@ -55,9 +50,6 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 		return err
 	}
 
-	// Out-of-scope input has no FormattedMessage — RefusalReason is the
-	// only user-facing text that path produces (see
-	// cmd/claim_check.go's printClaimCheckResult for the same pattern).
 	message := result.FormattedMessage
 	if !result.InScope {
 		message = result.RefusalReason

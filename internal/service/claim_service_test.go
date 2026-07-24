@@ -303,6 +303,9 @@ func TestClaimService_CheckClaim_OutOfScopeHasNoFormattedMessage(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result.FormattedMessage != "" {
-		t.Errorf("expected no formatted message for out-of-scope input, got %q", result.FormattedMessage)
+		t.Errorf(
+			"expected no formatted message for out-of-scope input, got %q",
+			result.FormattedMessage,
+		)
 	}
 }

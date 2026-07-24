@@ -15,7 +15,7 @@ export function extractDone(req: Request, res: Response): void {
   // send a response to the Go backend to prevent it from timing out.
   res.sendStatus(204);
 
-  handleExtractDone(body.jobId, body.status, body.error).catch((err) => {
+  handleExtractDone(body.jobId, body.status, body.error, body.data).catch((err) => {
     console.error('[callback.controller] background processing error:', err);
   });
 }

@@ -36,12 +36,20 @@ func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 	}
 }
 
+// ExtractCallbackData contains the claim-check result returned directly
+// in the completion callback.
+type ExtractCallbackData struct {
+	Transcript string `json:"transcript,omitempty"`
+	Answer     string `json:"answer,omitempty"`
+}
+
 // extractDoneCallback represents the JSON payload structure sent to the bot service
 // to report the completion status of an extraction job.
 type extractDoneCallback struct {
-	JobID  string `json:"jobId"`
-	Status string `json:"status"`
-	Error  string `json:"error,omitempty"`
+	JobID  string               `json:"jobId"`
+	Status string               `json:"status"`
+	Error  string               `json:"error,omitempty"`
+	Data   *ExtractCallbackData `json:"data,omitempty"`
 }
 
 // NotifyExtractDone sends a POST request to the bot service callback endpoint
@@ -49,8 +57,17 @@ type extractDoneCallback struct {
 // It includes the job ID, its final status, and an optional error message.
 // Returns an error if the request fails to build, execute, or if the server
 // returns a status code other than 204 No Content.
-func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg string) error {
-	body, err := json.Marshal(extractDoneCallback{JobID: jobID, Status: status, Error: errMsg})
+func (c *BotClient) NotifyExtractDone(
+	ctx context.Context,
+	jobID, status, errMsg string,
+	data *ExtractCallbackData,
+) error {
+	body, err := json.Marshal(extractDoneCallback{
+		JobID:  jobID,
+		Status: status,
+		Error:  errMsg,
+		Data:   data,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal callback payload: %w", err)
 	}
@@ -83,8 +100,9 @@ func (c *BotClient) NotifyExtractDone(ctx context.Context, jobID, status, errMsg
 	return nil
 }
 
-// doControlRequest is an internal helper function that constructs and executes an HTTP request 
+// doControlRequest is an internal helper function that constructs and executes an HTTP request
 // to the bot control API endpoint.
+
 func (c *BotClient) doControlRequest(
 	ctx context.Context,
 	method, path string,
@@ -128,14 +146,14 @@ func (c *BotClient) doControlRequest(
 	return &status, nil
 }
 
-// Start sends a request to the bot's control API to initialize and start 
-// the WhatsApp socket connection. 
+// Start sends a request to the bot's control API to initialize and start
+// the WhatsApp socket connection.
 func (c *BotClient) Start(ctx context.Context) (*BotStatus, error) {
 	return c.doControlRequest(ctx, http.MethodPost, "/bot/start", nil)
 }
 
-// Stop sends a request to the bot's control API to gracefully disconnect 
-// the WhatsApp socket. The purgeData parameter determines whether the bot's 
+// Stop sends a request to the bot's control API to gracefully disconnect
+// the WhatsApp socket. The purgeData parameter determines whether the bot's
 // local session and authentication data should be deleted upon stopping.
 func (c *BotClient) Stop(ctx context.Context, purgeData bool) (*BotStatus, error) {
 	return c.doControlRequest(
@@ -146,7 +164,7 @@ func (c *BotClient) Stop(ctx context.Context, purgeData bool) (*BotStatus, error
 	)
 }
 
-// Status sends a request to the bot's control API to retrieve its current 
+// Status sends a request to the bot's control API to retrieve its current
 // operational state and active QR code (if applicable), without altering its lifecycle.
 func (c *BotClient) Status(ctx context.Context) (*BotStatus, error) {
 	return c.doControlRequest(ctx, http.MethodGet, "/bot/status", nil)

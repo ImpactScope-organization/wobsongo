@@ -215,6 +215,15 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, translateChunksWorker)
 
+		workerRAGService := service.NewRAGService(chunkRepo, atomicKnowledgeRepo, embeddingClient)
+		workerClaimService := service.NewClaimService(
+			claimAnalyzerClient,
+			judgeClient,
+			workerRAGService,
+		)
+		claimCheckWorker := worker.NewClaimCheckWorker(workerClaimService, botClient)
+		river.AddWorker(workers, claimCheckWorker)
+
 		// Initialize River client with the database pool and registered workers.
 		// Document ingestion and media processing get separate queues (see
 		// each job DTO's InsertOpts() in internal/queue) so a long-running

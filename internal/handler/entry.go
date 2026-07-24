@@ -59,6 +59,7 @@ func NewHandlers(repos *Repos) *Handlers {
 	config := internal.NewConfig()
 	// Initialize Apify services and handlers
 	videoService := service.NewVideoService(repos.VideoRepo)
+	
 	scheme := config.APISchemes()[0]
 	apifyService := service.NewApifyService(
 		repos.ApifyRepo,

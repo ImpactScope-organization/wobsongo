@@ -482,7 +482,7 @@ func NewConfig(envs ...string) *Config {
 	botExtractPSK := getEnv("BOT_EXTRACT_PSK", "")
 	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
 	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
-  
+
 	// Load Translation configuration (bilingual chunk/fact search text) — same reasoning as VLM.
 	translationConfig := loadTranslationConfigOrDefault(logger, envs...)
 

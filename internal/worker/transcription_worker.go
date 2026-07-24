@@ -156,8 +156,9 @@ func (w *TranscriptionWorker) Work(
 		job.Args.ExtractionID,
 		"completed",
 		"",
+		nil,
 	); notifyErr != nil {
-		log.Printf("[TranscriptionWorker] gagal notify bot: %v", notifyErr)
+		log.Printf("[TranscriptionWorker] Failed to notify the bot: %v", notifyErr)
 	}
 
 	return nil
@@ -173,6 +174,7 @@ func (w *TranscriptionWorker) notifyFailed(ctx context.Context, extractionID str
 		extractionID,
 		"failed",
 		cause.Error(),
+		nil,
 	); err != nil {
 		log.Printf("[TranscriptionWorker] failed to notify bot (failed case): %v", err)
 	}

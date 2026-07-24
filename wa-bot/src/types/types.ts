@@ -43,6 +43,7 @@ export interface ExtractRequest {
 // ExtractData contains the successfully extracted and transcribed media information.
 export interface ExtractData {
   transcript: string;
+  answer: string;
 }
 
 // ExtractResponse represents the response format returned by the Go backend
@@ -74,6 +75,9 @@ export interface ExtractDoneCallback {
 
   // The error message if the job failed.
   error?: string;
+
+  // The extraction result returned by the Go backend.
+  data?: ExtractData;
 }
 
 export interface PendingExtractJob {

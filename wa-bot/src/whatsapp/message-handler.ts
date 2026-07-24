@@ -33,23 +33,15 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
 
     // Attempt to extract a valid TikTok URL from the user's message.
     const tiktokUrl = trimmed.match(TIKTOK_URL_REGEX)?.[0];
-    if (!tiktokUrl) {
-      await sock.sendMessage(jid, {
-        text: 'Please send a valid TikTok video link, or type /start for help..',
-      });
-      return;
-    }
+    // If the status is 'processing' send a waiting message and store the job context.
+    const waitingMsg = await conversationService.sendMessage(jid, {
+      text: '⏳ Processing, please wait...',
+    });
 
     // Initiate the extraction process by calling the Go backend.
-    const result = await callGoExtract(tiktokUrl);
-
-    if (result.status === 'completed' && result.data) {
-      // If the data is already available. Reply immediately without sending a "wait" message.
-      await conversationService.sendMessage(jid, {
-        text: `📝 Transcription result:\n\n${result.data.transcript}`,
-      });
-      return;
-    }
+    const result = tiktokUrl
+      ? await callGoExtract({ url: tiktokUrl })
+      : await callGoExtract({ question: trimmed });
 
     if (result.status === 'failed') {
       await conversationService.sendMessage(jid, {
@@ -58,15 +50,10 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
       return;
     }
 
-    // If the status is 'processing' send a waiting message and store the job context.
-    const waitingMsg = await conversationService.sendMessage(jid, {
-      text: '⏳ Processing, please wait...',
-    });
-
     savePendingJob(result.jobId, {
       jid,
       waitingMessageId: waitingMsg.messageId,
-      url: tiktokUrl,
+      url: tiktokUrl ?? '',
     });
   } catch (err) {
     console.error('[message-handler] failed to call /extract:', err);

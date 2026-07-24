@@ -1245,10 +1245,11 @@ const docTemplate = `{
         },
         "dto.ExtractAPIRequest": {
             "type": "object",
-            "required": [
-                "url"
-            ],
             "properties": {
+                "question": {
+                    "description": "Question is a free-text question to search the knowledge base.",
+                    "type": "string"
+                },
                 "url": {
                     "description": "URL is the target media link provided by the bot.",
                     "type": "string"

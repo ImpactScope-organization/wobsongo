@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 )
 
 type videoRepo struct {
@@ -190,4 +191,41 @@ func (r *videoRepo) GetByVideoURL(ctx context.Context, videoURL string) (*model.
 		CreatedAt:         row.CreatedAt,
 		UpdatedAt:         row.UpdatedAt,
 	}, nil
+}
+
+// EnqueueClaimCheckJob adds a claim-check job to the River queue.
+// Idempotent per ExtractionID, a duplicate enqueue while a job is
+// already in flight is silently skipped.
+func (r *videoRepo) EnqueueClaimCheckJob(
+	ctx context.Context,
+	payload queue.ClaimCheckJob,
+) error {
+	opts := &river.InsertOpts{
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable,
+				rivertype.JobStatePending,
+				rivertype.JobStateRunning,
+				rivertype.JobStateRetryable,
+				rivertype.JobStateScheduled,
+			},
+		},
+	}
+
+	if r.tx != nil {
+		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, opts)
+		if err != nil {
+			return fmt.Errorf("failed to insert claim check job into river queue: %w", err)
+		}
+		return nil
+	}
+
+	err := r.WithTx(ctx, func(txRepo data.VideoRepoer) error {
+		return txRepo.EnqueueClaimCheckJob(ctx, payload)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to execute claim check job with tx: %w", err)
+	}
+	return nil
 }

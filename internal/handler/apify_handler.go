@@ -55,7 +55,7 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 		}
 	}
 
-	resp, err := h.service.TriggerExtraction(c.Request().Context(), req.URL)
+	resp, err := h.service.TriggerExtraction(c.Request().Context(), req.URL, req.Question)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,

@@ -142,7 +142,7 @@ func (s *S3Provider) GetPresignedPOSTURL(
 	}
 
 	// Set Content-Length Range (1KB to 5MB)
-	if err := policy.SetContentLengthRange(1024, 5*1024*1024); err != nil {
+	if err := policy.SetContentLengthRange(1024, 50*1024*1024); err != nil {
 		return nil, nil, err
 	}
 

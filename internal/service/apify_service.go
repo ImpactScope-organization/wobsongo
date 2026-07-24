@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
@@ -52,29 +53,36 @@ func NewApifyService(
 	}
 }
 
-// TriggerExtraction is the bot's entry point. Checks the cache first,
-// and only constructs an ExtractionRequest when the data is not found in the database.
+// TriggerExtraction handles two request shapes: a video URL (transcribe ->
+// claim-check the transcript once ready) or a free-text question
+// (claim-check directly).
 func (s *ApifyService) TriggerExtraction(
 	ctx context.Context,
 	targetURL string,
+	question string,
 ) (*dto.ExtractResponse, error) {
-	// 1. Cache check
+	if question != "" {
+		extractionID := uuid.New().String()
+		if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
+			ExtractionID: extractionID,
+			Text:         question,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
+		}
+		return &dto.ExtractResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
+	}
+
+	// Cache check
 	video, err := s.videoRepo.GetByVideoURL(ctx, targetURL)
 	if err != nil && !errors.Is(err, data.ErrNotFound) {
 		return nil, fmt.Errorf("failed to check existing video: %w", err)
 	}
-	// If a valid cache is found, return the completed status immediately.
+
 	if video != nil && video.TranscriptionText != nil && *video.TranscriptionText != "" {
-		return &dto.ExtractResponse{
-			Status: dto.StatusCompleted,
-			JobID:  video.ID.String(),
-			Data: &dto.ExtractData{
-				Transcript: *video.TranscriptionText,
-			},
-		}, nil
+		return s.handleCachedTranscript(ctx, video)
 	}
 
-	// 2. If Cache miss generate a new extraction ID and construct the ExtractionRequest.
+	// If Cache miss generate a new extraction ID and construct the ExtractionRequest.
 	extractionID := uuid.New().String()
 	webhookURL := fmt.Sprintf(
 		"%s/api/webhooks/apify?extractionId=%s",
@@ -82,26 +90,36 @@ func (s *ApifyService) TriggerExtraction(
 		extractionID,
 	)
 
-	internalReq := &dto.ExtractionRequest{
-		TargetURL:  targetURL,
-		WebhookURL: webhookURL,
-	}
-
 	// Enqueue the job for background processing.
 	args := queue.ExtractMediaDTO{
 		ExtractionID: extractionID,
-		TargetURL:    internalReq.TargetURL,
-		WebhookURL:   internalReq.WebhookURL,
+		TargetURL:    targetURL,
+		WebhookURL:   webhookURL,
 	}
-
 	if err := s.apifyRepo.EnqueueExtraction(ctx, args); err != nil {
 		return nil, fmt.Errorf("failed to enqueue extraction: %w", err)
 	}
 
-	return &dto.ExtractResponse{
-		Status: dto.StatusProcessing,
-		JobID:  extractionID,
-	}, nil
+	return &dto.ExtractResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
+}
+
+// handleCachedTranscript enqueues a ClaimCheckJob for an already-transcribed
+// video, the transcript becomes the text checked against the knowledge
+// base, same as a free-text question would be.
+func (s *ApifyService) handleCachedTranscript(
+	ctx context.Context,
+	video *model.Video,
+) (*dto.ExtractResponse, error) {
+	extractionID := video.ID.String()
+
+	if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
+		ExtractionID: extractionID,
+		Text:         *video.TranscriptionText,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
+	}
+
+	return &dto.ExtractResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
 }
 
 // ProcessWebhook processes the validation logic from the Apify webhook response.

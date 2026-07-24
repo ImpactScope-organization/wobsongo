@@ -38,6 +38,9 @@ const (
 	// document's text-bearing, not-yet-translated chunks into the other
 	// supported language, for cross-lingual full-text search.
 	JobTypeTranslateChunks BackgroundJobType = "translate_chunks"
+
+	// JobTypeClaimCheck represents a job type for running the claim-checking.
+	JobTypeClaimCheck BackgroundJobType = "claim_check"
 )
 
 // BackgroundJob represents a generic background job.

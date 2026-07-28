@@ -41,6 +41,10 @@ const (
 
 	// JobTypeClaimCheck represents a job type for running the claim-checking.
 	JobTypeClaimCheck BackgroundJobType = "claim_check"
+
+	// JobTypeAgentTurn represents a job type for running one agentic bot
+	// conversation turn.
+	JobTypeAgentTurn BackgroundJobType = "agent_turn"
 )
 
 // BackgroundJob represents a generic background job.

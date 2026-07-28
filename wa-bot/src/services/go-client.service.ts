@@ -32,3 +32,26 @@ export async function callGoExtract(payload: {
   const envelope = (await res.json()) as APIEnvelope<ExtractResponse>;
   return envelope.data;
 }
+
+export async function callGoAgentInbound(payload: {
+  jid: string;
+  text: string;
+}): Promise<ExtractResponse> {
+  const res = await fetch(`${env.goBackendUrl}/api/agent/inbound`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `PSK ${env.goExtractPsk}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw new Error(
+      `Go agent inbound API error: ${res.status} ${await res.text().catch(() => '')}`
+    );
+  }
+
+  const envelope = (await res.json()) as APIEnvelope<ExtractResponse>;
+  return envelope.data;
+}

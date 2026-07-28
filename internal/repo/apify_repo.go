@@ -11,19 +11,19 @@ import (
 
 // apifyRepo implements data.ApifyRepoer.
 type apifyRepo struct {
-	riverClient *river.Client[pgx.Tx]
+	riverClientFn func() *river.Client[pgx.Tx]
 }
 
 // NewApifyRepo creates a new repository for Apify tasks.
-func NewApifyRepo(client *river.Client[pgx.Tx]) data.ApifyRepoer {
+func NewApifyRepo(riverClientFn func() *river.Client[pgx.Tx]) data.ApifyRepoer {
 	return &apifyRepo{
-		riverClient: client,
+		riverClientFn: riverClientFn,
 	}
 }
 
 // EnqueueExtraction enqueues a media extraction job.
 func (r *apifyRepo) EnqueueExtraction(ctx context.Context, args queue.ExtractMediaDTO) error {
-	_, err := r.riverClient.Insert(ctx, args, nil)
+	_, err := r.riverClientFn().Insert(ctx, args, nil)
 	if err != nil {
 		return err
 	}

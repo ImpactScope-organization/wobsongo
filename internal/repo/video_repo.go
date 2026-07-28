@@ -18,21 +18,21 @@ import (
 )
 
 type videoRepo struct {
-	q           *db.Queries
-	pool        *pgxpool.Pool
-	tx          pgx.Tx
-	riverClient *river.Client[pgx.Tx]
+	q             *db.Queries
+	pool          *pgxpool.Pool
+	tx            pgx.Tx
+	riverClientFn func() *river.Client[pgx.Tx]
 }
 
 func NewVideoRepo(
 	q *db.Queries,
 	pool *pgxpool.Pool,
-	riverClient *river.Client[pgx.Tx],
+	riverClientFn func() *river.Client[pgx.Tx],
 ) data.VideoRepoer {
 	return &videoRepo{
-		q:           q,
-		pool:        pool,
-		riverClient: riverClient,
+		q:             q,
+		pool:          pool,
+		riverClientFn: riverClientFn,
 	}
 }
 
@@ -56,10 +56,10 @@ func (r *videoRepo) WithTx(
 	qtx := r.q.WithTx(tx)
 
 	repoWithTx := &videoRepo{
-		q:           qtx,
-		pool:        r.pool,
-		tx:          tx,
-		riverClient: r.riverClient,
+		q:             qtx,
+		pool:          r.pool,
+		tx:            tx,
+		riverClientFn: r.riverClientFn,
 	}
 
 	if err := fn(repoWithTx); err != nil {
@@ -121,7 +121,7 @@ func (r *videoRepo) EnqueueTranscriptionJob(
 	payload queue.TranscriptionJob,
 ) error {
 	if r.tx != nil {
-		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, nil)
+		_, err := r.riverClientFn().InsertTx(ctx, r.tx, payload, nil)
 		if err != nil {
 			return fmt.Errorf("failed to insert transcription job into river queue: %w", err)
 		}
@@ -214,7 +214,7 @@ func (r *videoRepo) EnqueueClaimCheckJob(
 	}
 
 	if r.tx != nil {
-		_, err := r.riverClient.InsertTx(ctx, r.tx, payload, opts)
+		_, err := r.riverClientFn().InsertTx(ctx, r.tx, payload, opts)
 		if err != nil {
 			return fmt.Errorf("failed to insert claim check job into river queue: %w", err)
 		}

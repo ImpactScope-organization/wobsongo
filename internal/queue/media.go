@@ -27,6 +27,7 @@ type TranscriptionJob struct {
 	ExtractionID string    `json:"extraction_id"`
 	VideoID      uuid.UUID `json:"video_id"`
 	DownloadURL  string    `json:"download_url"`
+	Jid          string    `json:"jid,omitempty"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.

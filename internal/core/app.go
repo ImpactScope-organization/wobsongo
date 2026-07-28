@@ -22,19 +22,20 @@ const (
 )
 
 type App struct {
-	config        *internal.Config
-	echoApp       *echo.Echo
-	apiGroup      *echo.Group
-	apifyRepo     data.ApifyRepoer
-	videoRepo     data.VideoRepoer
-	documentRepo  data.DocumentRepoer
-	mediaProvider data.MediaUploadProvider
-	chunkRepo     data.DocumentChunkRepoer
-	knowledgeRepo data.AtomicKnowledgeRepoer
-	embedder      data.Embedder
-	claimAnalyzer data.ClaimAnalyzer
-	claimJudge    data.ClaimJudge
-	userRepo      data.UserRepoer
+	config           *internal.Config
+	echoApp          *echo.Echo
+	apiGroup         *echo.Group
+	apifyRepo        data.ApifyRepoer
+	videoRepo        data.VideoRepoer
+	documentRepo     data.DocumentRepoer
+	mediaProvider    data.MediaUploadProvider
+	chunkRepo        data.DocumentChunkRepoer
+	knowledgeRepo    data.AtomicKnowledgeRepoer
+	embedder         data.Embedder
+	claimAnalyzer    data.ClaimAnalyzer
+	claimJudge       data.ClaimJudge
+	userRepo         data.UserRepoer
+	conversationRepo data.ConversationRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -132,6 +133,12 @@ func WithClaimJudge(judge data.ClaimJudge) AppOption {
 func WithUserRepo(repo data.UserRepoer) AppOption {
 	return func(a *App) {
 		a.userRepo = repo
+	}
+}
+
+func WithConversationRepo(repo data.ConversationRepoer) AppOption {
+	return func(a *App) {
+		a.conversationRepo = repo
 	}
 }
 

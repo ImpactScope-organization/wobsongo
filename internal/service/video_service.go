@@ -31,6 +31,7 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 	ctx context.Context,
 	items []dto.ApifyTikTokItem,
 	extractionID string,
+	jid string,
 ) error {
 	var errs []error
 
@@ -71,6 +72,7 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 					ExtractionID: extractionID,
 					VideoID:      videoData.ID,
 					DownloadURL:  item.MediaUrls[0],
+					Jid:          jid,
 				}
 				if err := txRepo.EnqueueTranscriptionJob(ctx, payload); err != nil {
 					return fmt.Errorf("failed to enqueue transcription job: %w", err)

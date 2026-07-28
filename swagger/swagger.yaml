@@ -1,4 +1,29 @@
 definitions:
+  dto.AgentInboundRequest:
+    properties:
+      jid:
+        description: Jid is the WhatsApp chat identifier this message came from.
+        type: string
+      text:
+        description: Text is the raw inbound message text.
+        type: string
+    required:
+    - jid
+    - text
+    type: object
+  dto.AgentInboundResponse:
+    properties:
+      jobId:
+        description: |-
+          JobID is the correlation ID the bot should register as a pending
+          job — the eventual /callback/extract-done call will carry this
+          same ID.
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/dto.ExtractStatus'
+        description: Status indicates the current state of the agent turn.
+    type: object
   dto.ApifyResource:
     properties:
       defaultDatasetId:
@@ -358,6 +383,65 @@ definitions:
 info:
   contact: {}
 paths:
+  /api/agent/inbound:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Single entry point for every inbound WhatsApp message. Applies a
+        deterministic fast path for bare TikTok URLs (straight to the existing
+        cache-check/Apify pipeline) and routes everything else through the
+        conversational agent (tool-calling over claim-checking and video
+        processing, with per-jid conversation history).
+      parameters:
+      - description: Inbound Message
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.AgentInboundRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AgentInboundResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Handle an inbound WhatsApp message
+      tags:
+      - agent
   /api/extract:
     post:
       consumes:

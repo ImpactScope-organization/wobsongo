@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"net/http"
 	"os"
 
 	"github.com/impactscope-organization/wobsongo/external"
@@ -141,6 +142,10 @@ var serveCmd = &cobra.Command{
 
 		workerVideoRepo := repo.NewVideoRepo(db.New(pool), pool, nil)
 		workerVideoService := service.NewVideoService(workerVideoRepo)
+		agentApifyRepo := repo.NewApifyRepo(riverClientFn)
+		agentVideoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
+		agentVideoService := service.NewVideoService(agentVideoRepo)
+		workerConversationRepo := repo.NewConversationRepo(db.New(pool), pool, riverClientFn)
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -159,6 +164,7 @@ var serveCmd = &cobra.Command{
 			config.ASRConfig.Model,
 			config.ASRConfig.SourceLang,
 			botClient,
+			workerConversationRepo,
 		)
 		river.AddWorker(workers, transcriptionWorker)
 
@@ -223,6 +229,44 @@ var serveCmd = &cobra.Command{
 		)
 		claimCheckWorker := worker.NewClaimCheckWorker(workerClaimService, botClient)
 		river.AddWorker(workers, claimCheckWorker)
+
+		agentApifyService := service.NewApifyService(
+			agentApifyRepo,
+			agentVideoRepo,
+			agentVideoService,
+			http.DefaultClient,
+			config.ApifyConfig.Token,
+			config.APISchemes()[0]+"://"+config.APIHost,
+		)
+
+		agentLLMConfig, err := internal.NewAgentLLMConfig()
+		if err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		agentLLMClient := external.NewAgentLLMClient(
+			agentLLMConfig.BaseURL,
+			agentLLMConfig.Model,
+			agentLLMConfig.APIKey,
+		)
+		agentService, err := service.NewAgentService(
+			workerConversationRepo,
+			agentApifyService,
+			workerClaimService,
+			agentLLMClient,
+			agentLLMConfig.Provider,
+			agentLLMConfig.Model,
+			agentLLMConfig.BaseURL,
+			agentLLMConfig.APIKey,
+		)
+		if err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
+		agentTurnWorker := worker.NewAgentTurnWorker(agentService, botClient)
+		river.AddWorker(workers, agentTurnWorker)
 
 		// Initialize River client with the database pool and registered workers.
 		// Document ingestion and media processing get separate queues (see

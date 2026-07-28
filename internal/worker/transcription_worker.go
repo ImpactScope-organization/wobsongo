@@ -24,12 +24,13 @@ const transcriptionJobTimeout = 5 * time.Minute
 // Modal ASR service and storing the resulting transcript in the database.
 type TranscriptionWorker struct {
 	river.WorkerDefaults[queue.TranscriptionJob]
-	videoService  *service.VideoService
-	modalURL      string
-	asrModel      string
-	asrSourceLang string
-	httpClient    data.HTTPClient
-	botClient     *external.BotClient
+	videoService     *service.VideoService
+	modalURL         string
+	asrModel         string
+	asrSourceLang    string
+	httpClient       data.HTTPClient
+	botClient        *external.BotClient
+	conversationRepo data.ConversationRepoer
 }
 
 // NewTranscriptionWorker creates a new TranscriptionWorker instance.
@@ -39,6 +40,7 @@ func NewTranscriptionWorker(
 	asrModel string,
 	asrSourceLang string,
 	botClient *external.BotClient,
+	conversationRepo data.ConversationRepoer,
 ) *TranscriptionWorker {
 	return &TranscriptionWorker{
 		videoService:  videoService,
@@ -48,7 +50,8 @@ func NewTranscriptionWorker(
 		httpClient: &http.Client{
 			Timeout: transcriptionJobTimeout,
 		},
-		botClient: botClient,
+		botClient:        botClient,
+		conversationRepo: conversationRepo,
 	}
 }
 
@@ -149,6 +152,19 @@ func (w *TranscriptionWorker) Work(
 		job.Args.VideoID,
 		modalResp.LanguageDetected,
 	)
+
+	if job.Args.Jid != "" {
+		note := "The video transcript is ready:\n\n" + modalResp.Transcript
+
+		if err := w.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
+			Jid:          job.Args.Jid,
+			ExtractionID: job.Args.ExtractionID,
+			SystemNote:   note,
+		}); err != nil {
+			log.Printf("[TranscriptionWorker] failed to enqueue agent turn continuation: %v", err)
+		}
+		return nil
+	}
 
 	// Notify the external bot that this specific extraction job has successfully completed.
 	if notifyErr := w.botClient.NotifyExtractDone(

@@ -179,6 +179,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.Embedder = app.embedder
 	repos.ClaimAnalyzer = app.claimAnalyzer
 	repos.ClaimJudge = app.claimJudge
+	repos.ConversationRepo = app.conversationRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

@@ -22,8 +22,6 @@ type AgentLLMClient struct {
 	httpClient *http.Client
 }
 
-// NewAgentLLMClient creates a new AgentLLMClient targeting the given base
-// URL/model. apiKey may be empty — self-hosted servers often need no auth.
 func NewAgentLLMClient(baseURL, model, apiKey string) *AgentLLMClient {
 	return &AgentLLMClient{
 		baseURL: baseURL,

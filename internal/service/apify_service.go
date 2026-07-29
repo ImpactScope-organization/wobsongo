@@ -61,6 +61,7 @@ func (s *ApifyService) TriggerExtraction(
 	targetURL string,
 	question string,
 	jid string,
+	viaAgent bool,
 ) (*dto.ExtractResponse, error) {
 	if question != "" {
 		extractionID := uuid.New().String()
@@ -93,6 +94,9 @@ func (s *ApifyService) TriggerExtraction(
 	)
 	if jid != "" {
 		webhookURL += "&jid=" + url.QueryEscape(jid)
+	}
+	if viaAgent {
+		webhookURL += "&viaAgent=true"
 	}
 
 	// Enqueue the job for background processing.
@@ -136,6 +140,7 @@ func (s *ApifyService) ProcessWebhook(
 	payload *dto.ApifyWebhookPayload,
 	extractionID string,
 	jid string,
+	viaAgent bool,
 ) (string, error) {
 	if payload.EventType != apifyEventRunSucceeded ||
 		payload.Resource.Status != apifyStatusSucceeded {
@@ -161,6 +166,7 @@ func (s *ApifyService) ProcessWebhook(
 		items,
 		extractionID,
 		jid,
+		viaAgent,
 	); err != nil {
 		return "", fmt.Errorf("failed to save items to database: %w", err)
 	}

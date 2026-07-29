@@ -8,6 +8,7 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/riverqueue/river"
@@ -15,20 +16,29 @@ import (
 
 const claimCheckJobTimeout = 3 * time.Minute
 
+// workerComponentClaimCheck is this worker's name for notifyBotFailed's log prefix.
+const workerComponentClaimCheck = "ClaimCheckWorker"
+
 // ClaimCheckWorker runs the full claim-check pipeline (analyze → retrieve →
 // judge) for a piece of text.
 type ClaimCheckWorker struct {
 	river.WorkerDefaults[queue.ClaimCheckJob]
-	claimService *service.ClaimService
-	botClient    *external.BotClient
+	claimService        *service.ClaimService
+	botClient           *external.BotClient
+	conversationService *service.ConversationService
 }
 
 // NewClaimCheckWorker creates a new ClaimCheckWorker.
 func NewClaimCheckWorker(
 	claimService *service.ClaimService,
 	botClient *external.BotClient,
+	conversationService *service.ConversationService,
 ) *ClaimCheckWorker {
-	return &ClaimCheckWorker{claimService: claimService, botClient: botClient}
+	return &ClaimCheckWorker{
+		claimService:        claimService,
+		botClient:           botClient,
+		conversationService: conversationService,
+	}
 }
 
 func (w *ClaimCheckWorker) Timeout(_ *river.Job[queue.ClaimCheckJob]) time.Duration {
@@ -45,7 +55,7 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.Args.Text})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -66,21 +76,16 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 		log.Printf("[ClaimCheckWorker] Failed to notify bot (answer will be lost): %v", notifyErr)
 	}
 
-	return nil
-}
+	if job.Args.Jid != "" {
+		if err := w.conversationService.AppendMessage(
+			ctx, job.Args.Jid, model.ConversationRoleAssistant, message,
+		); err != nil {
+			log.Printf(
+				"[ClaimCheckWorker] failed to log claim result to conversation history: %v",
+				err,
+			)
+		}
+	}
 
-// notifyFailed notifies the bot that the claim-check job has failed.
-func (w *ClaimCheckWorker) notifyFailed(ctx context.Context, extractionID string, cause error) {
-	if extractionID == "" {
-		return
-	}
-	if err := w.botClient.NotifyExtractDone(
-		ctx,
-		extractionID,
-		"failed",
-		cause.Error(),
-		nil,
-	); err != nil {
-		log.Printf("[ClaimCheckWorker] failed to notify bot (failed case): %v", err)
-	}
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -19,27 +20,26 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
-var bareURLRegex = regexp.MustCompile(`^\s*(https?://(www\.)?(vt\.)?tiktok\.com/\S+)\s*$`)
+var (
+	bareURLRegex     = regexp.MustCompile(`^\s*(https?://(www\.)?(vt\.)?tiktok\.com/\S+)\s*$`)
+	embeddedURLRegex = regexp.MustCompile(`https?://(www\.)?(vt\.)?tiktok\.com/\S+`)
+)
 
 const (
 	toolCheckHealthClaim = "check_health_claim"
-	toolTranscribeVideo  = "transcribe_video"
 
 	// conversationHistoryLimit bounds how many recent messages are fed to
 	// the LLM as context for each turn.
 	conversationHistoryLimit = 20
-
-	// agentBuilderTimeout is only used to satisfy v1beta's builder
-	// validation (it requires Timeout > 0) — the agent turn's real
-	// timeout is governed by AgentTurnWorker's River job Timeout.
+	
 	agentBuilderTimeout = 2 * time.Minute
 
-	agentSystemPrompt = `You are Wobsongo's assistant, helping WhatsApp users verify health claims and videos that are potentially hoaxes.
-If a user sends a TikTok link, use the transcribe_video tool.
-If a user presents a claim that needs verification (with or without a video), use the check_health_claim tool.
-You may call both tools simultaneously in a single turn if relevant.
-If the question can be answered based on the conversation history (e.g., the user asks for a re-explanation of a previous video), answer directly without using tools.
-For greetings or casual conversation, respond naturally and concisely, in keeping with the context of a health fact-checking platform.`
+	agentSystemPrompt = `You are Wobsongo's assistant, helping WhatsApp users verify claims about reproductive and sexual health (e.g. contraception, pregnancy, menstruation, STIs/STDs, fertility, sexual wellness, and related myths or misinformation circulating on social media).
+If the user presents a claim in this scope that needs verification, use the check_health_claim tool.
+If a claim clearly falls outside reproductive/sexual health (e.g. unrelated general health topics), say briefly that this is outside what you can verify, without using the tool.
+If the question can be answered from conversation history (e.g. re-explaining a previous result), answer directly without tools.
+For greetings or casual conversation, respond naturally and concisely.
+Because this topic can be sensitive or stigmatized, always respond factually, respectfully, and without judgment — never shame or lecture the user for asking.`
 )
 
 type agentTurnContextKey struct{}
@@ -103,6 +103,10 @@ func NewAgentService(
 	if err != nil {
 		return nil, fmt.Errorf("failed to build agentic workflow agent: %w", err)
 	}
+
+	// s.agent is built only to validate the AgenticGoKit configuration at
+	// startup. Runtime execution calls runHandler directly because Agent.Run()
+	// does not reliably return the handler's result.
 	s.agent = agent
 
 	return s, nil
@@ -115,24 +119,33 @@ func (s *AgentService) HandleInboundMessage(
 	jid, text string,
 ) (*dto.AgentInboundResponse, error) {
 	if err := s.conversationRepo.AppendMessage(
-		ctx, jid, model.ConversationRoleUser, text,
+		ctx,
+		jid,
+		model.ConversationRoleUser,
+		text,
 	); err != nil {
 		return nil, fmt.Errorf("failed to store inbound message: %w", err)
 	}
 
 	if match := bareURLRegex.FindStringSubmatch(text); match != nil {
-		resp, err := s.apifyService.TriggerExtraction(ctx, match[1], "", jid)
+		resp, err := s.apifyService.TriggerExtraction(ctx, match[1], "", jid, false)
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger fast-path extraction: %w", err)
 		}
 		return &dto.AgentInboundResponse{Status: resp.Status, JobID: resp.JobID}, nil
 	}
 
+	if url := embeddedURLRegex.FindString(text); url != "" {
+		resp, err := s.apifyService.TriggerExtraction(ctx, url, "", jid, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to trigger video extraction: %w", err)
+		}
+		return &dto.AgentInboundResponse{Status: resp.Status, JobID: resp.JobID}, nil
+	}
+
 	extractionID := uuid.New().String()
 	if err := s.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-		Jid:          jid,
-		ExtractionID: extractionID,
-		UserText:     text,
+		Jid: jid, ExtractionID: extractionID, UserText: text,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue agent turn: %w", err)
 	}
@@ -144,13 +157,62 @@ func (s *AgentService) HandleInboundMessage(
 // running the agent, and saving the assistant's response.
 func (s *AgentService) RunTurn(ctx context.Context, job queue.AgentTurnJob) (string, error) {
 	if job.SystemNote != "" {
-		if err := s.conversationRepo.AppendMessage(
-			ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote,
-		); err != nil {
-			return "", fmt.Errorf("failed to store system note: %w", err)
+		return s.runVideoContinuation(ctx, job)
+	}
+	return s.runConversationalTurn(ctx, job)
+}
+
+func (s *AgentService) runVideoContinuation(
+	ctx context.Context,
+	job queue.AgentTurnJob,
+) (string, error) {
+	if err := s.conversationRepo.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote,
+	); err != nil {
+		return "", fmt.Errorf("failed to store system note: %w", err)
+	}
+
+	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
+	if err != nil {
+		return "", fmt.Errorf("failed to load conversation history: %w", err)
+	}
+
+	originalClaim := ""
+	for _, msg := range slices.Backward(history) {
+		if msg.Role == model.ConversationRoleUser {
+			originalClaim = msg.Content
+			break
 		}
 	}
 
+	combinedText := job.SystemNote
+	if originalClaim != "" {
+		combinedText = originalClaim + "\n\n" + job.SystemNote
+	}
+
+	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: combinedText})
+	if err != nil {
+		return "", fmt.Errorf("claim check failed: %w", err)
+	}
+
+	content := result.FormattedMessage
+	if !result.InScope {
+		content = result.RefusalReason
+	}
+
+	if err := s.conversationRepo.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
+	); err != nil {
+		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
+	}
+
+	return content, nil
+}
+
+func (s *AgentService) runConversationalTurn(
+	ctx context.Context,
+	job queue.AgentTurnJob,
+) (string, error) {
 	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)
@@ -168,20 +230,19 @@ func (s *AgentService) RunTurn(ctx context.Context, job queue.AgentTurnJob) (str
 		)
 	}
 
-	runCtx := withAgentTurnContext(ctx, &agentTurnContext{jid: job.Jid, messages: messages})
-
-	result, err := s.agent.Run(runCtx, job.CurrentTurnInput())
+	turnCtx := &agentTurnContext{jid: job.Jid, messages: messages}
+	content, err := s.runHandler(withAgentTurnContext(ctx, turnCtx), job.CurrentTurnInput(), nil)
 	if err != nil {
-		return "", fmt.Errorf("agent run failed: %w", err)
+		return "", fmt.Errorf("agent handler failed: %w", err)
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, result.Content,
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}
 
-	return result.Content, nil
+	return content, nil
 }
 
 // runHandler executes the LLM tool-calling loop for a single agent turn.
@@ -198,7 +259,7 @@ func (s *AgentService) runHandler(
 	}
 
 	messages := turnCtx.messages
-	tools := []external.AgentToolDefinition{checkHealthClaimToolDef(), transcribeVideoToolDef()}
+	tools := []external.AgentToolDefinition{checkHealthClaimToolDef()}
 
 	first, err := s.llmClient.Complete(ctx, messages, tools)
 	if err != nil {
@@ -215,20 +276,11 @@ func (s *AgentService) runHandler(
 		ToolCalls: first.ToolCalls,
 	})
 
+	results := make([]string, 0, len(first.ToolCalls))
 	for _, tc := range first.ToolCalls {
-		messages = append(messages, external.AgentChatMessage{
-			Role:       "tool",
-			ToolCallID: tc.ID,
-			Content:    s.executeTool(ctx, turnCtx.jid, tc),
-		})
+		results = append(results, s.executeTool(ctx, turnCtx.jid, tc))
 	}
-
-	second, err := s.llmClient.Complete(ctx, messages, nil)
-	if err != nil {
-		return "", fmt.Errorf("follow-up LLM completion failed: %w", err)
-	}
-
-	return second.Content, nil
+	return strings.Join(results, "\n\n"), nil
 }
 
 // executeTool runs a tool call and returns its result. Tool errors are
@@ -241,8 +293,6 @@ func (s *AgentService) executeTool(
 	switch tc.Function.Name {
 	case toolCheckHealthClaim:
 		return s.executeCheckHealthClaim(ctx, tc)
-	case toolTranscribeVideo:
-		return s.executeTranscribeVideo(ctx, jid, tc)
 	default:
 		return fmt.Sprintf(`{"error": "unknown tool: %s"}`, tc.Function.Name)
 	}
@@ -271,30 +321,6 @@ func (s *AgentService) executeCheckHealthClaim(
 	return message
 }
 
-func (s *AgentService) executeTranscribeVideo(
-	ctx context.Context,
-	jid string,
-	tc external.AgentToolCall,
-) string {
-	var args struct {
-		URL string `json:"url"`
-	}
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		return fmt.Sprintf(`{"error": "invalid arguments: %s"}`, err.Error())
-	}
-
-	resp, err := s.apifyService.TriggerExtraction(ctx, strings.TrimSpace(args.URL), "", jid)
-	if err != nil {
-		return fmt.Sprintf(`{"error": "failed to start video processing: %s"}`, err.Error())
-	}
-
-	return fmt.Sprintf(
-		`{"status": "%s", "note": "video processing started in the background; `+
-			`a follow-up message with the result will be sent separately once it's ready"}`,
-		resp.Status,
-	)
-}
-
 func checkHealthClaimToolDef() external.AgentToolDefinition {
 	return external.AgentToolDefinition{
 		Type: "function",
@@ -311,27 +337,6 @@ func checkHealthClaimToolDef() external.AgentToolDefinition {
 					},
 				},
 				"required": []string{"claim_text"},
-			},
-		},
-	}
-}
-
-func transcribeVideoToolDef() external.AgentToolDefinition {
-	return external.AgentToolDefinition{
-		Type: "function",
-		Function: external.AgentToolFunctionDef{
-			Name: toolTranscribeVideo,
-			Description: "Start transcribing and fact-checking a TikTok video URL. Runs in the " +
-				"background; the result arrives as a separate follow-up message.",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"url": map[string]any{
-						"type":        "string",
-						"description": "The TikTok video URL mentioned by the user.",
-					},
-				},
-				"required": []string{"url"},
 			},
 		},
 	}

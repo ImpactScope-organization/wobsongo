@@ -20,17 +20,20 @@ import (
 
 const transcriptionJobTimeout = 5 * time.Minute
 
+// workerComponentTranscription is this worker's name for notifyBotFailed's log prefix.
+const workerComponentTranscription = "TranscriptionWorker"
+
 // TranscriptionWorker processes transcription jobs by sending media URLs to the
 // Modal ASR service and storing the resulting transcript in the database.
 type TranscriptionWorker struct {
 	river.WorkerDefaults[queue.TranscriptionJob]
-	videoService     *service.VideoService
-	modalURL         string
-	asrModel         string
-	asrSourceLang    string
-	httpClient       data.HTTPClient
-	botClient        *external.BotClient
-	conversationRepo data.ConversationRepoer
+	videoService        *service.VideoService
+	modalURL            string
+	asrModel            string
+	asrSourceLang       string
+	httpClient          data.HTTPClient
+	botClient           *external.BotClient
+	conversationService *service.ConversationService
 }
 
 // NewTranscriptionWorker creates a new TranscriptionWorker instance.
@@ -40,7 +43,7 @@ func NewTranscriptionWorker(
 	asrModel string,
 	asrSourceLang string,
 	botClient *external.BotClient,
-	conversationRepo data.ConversationRepoer,
+	conversationService *service.ConversationService,
 ) *TranscriptionWorker {
 	return &TranscriptionWorker{
 		videoService:  videoService,
@@ -50,8 +53,8 @@ func NewTranscriptionWorker(
 		httpClient: &http.Client{
 			Timeout: transcriptionJobTimeout,
 		},
-		botClient:        botClient,
-		conversationRepo: conversationRepo,
+		botClient:           botClient,
+		conversationService: conversationService,
 	}
 }
 
@@ -70,7 +73,7 @@ func (w *TranscriptionWorker) Work(
 	// Load the Modal API endpoint from the environment.
 	if w.modalURL == "" {
 		err := errors.New("transcription worker: modalURL is not configured")
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -85,7 +88,7 @@ func (w *TranscriptionWorker) Work(
 	body, err := json.Marshal(payload)
 	if err != nil {
 		err = fmt.Errorf("failed to marshal modal payload: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -93,7 +96,7 @@ func (w *TranscriptionWorker) Work(
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.modalURL, bytes.NewBuffer(body))
 	if err != nil {
 		err = fmt.Errorf("failed to create http request: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -101,7 +104,7 @@ func (w *TranscriptionWorker) Work(
 	resp, err := w.httpClient.Do(req)
 	if err != nil {
 		err = fmt.Errorf("failed to execute modal request: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 	defer func() {
@@ -110,7 +113,7 @@ func (w *TranscriptionWorker) Work(
 
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("modal API returned status %d", resp.StatusCode)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -123,13 +126,13 @@ func (w *TranscriptionWorker) Work(
 
 	if err := json.NewDecoder(resp.Body).Decode(&modalResp); err != nil {
 		err = fmt.Errorf("failed to decode modal response: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
 	if modalResp.Error != "" {
 		err := fmt.Errorf("modal application error: %s", modalResp.Error)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -143,7 +146,7 @@ func (w *TranscriptionWorker) Work(
 	err = w.videoService.UpdateVideoTranscription(ctx, dbText, job.Args.VideoID)
 	if err != nil {
 		err = fmt.Errorf("failed to save transcription to db: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -153,45 +156,31 @@ func (w *TranscriptionWorker) Work(
 		modalResp.LanguageDetected,
 	)
 
-	if job.Args.Jid != "" {
+	switch {
+	case job.Args.ViaAgent:
 		note := "The video transcript is ready:\n\n" + modalResp.Transcript
-
-		if err := w.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-			Jid:          job.Args.Jid,
-			ExtractionID: job.Args.ExtractionID,
-			SystemNote:   note,
+		if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
+			Jid: job.Args.Jid, ExtractionID: job.Args.ExtractionID, SystemNote: note,
 		}); err != nil {
 			log.Printf("[TranscriptionWorker] failed to enqueue agent turn continuation: %v", err)
 		}
-		return nil
-	}
 
-	// Notify the external bot that this specific extraction job has successfully completed.
-	if notifyErr := w.botClient.NotifyExtractDone(
-		ctx,
-		job.Args.ExtractionID,
-		"completed",
-		"",
-		nil,
-	); notifyErr != nil {
-		log.Printf("[TranscriptionWorker] Failed to notify the bot: %v", notifyErr)
+	case job.Args.Jid != "":
+		if err := w.videoService.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
+			ExtractionID: job.Args.ExtractionID,
+			Text:         modalResp.Transcript,
+			Jid:          job.Args.Jid,
+		}); err != nil {
+			log.Printf("[TranscriptionWorker] failed to enqueue claim check: %v", err)
+		}
+
+	default:
+		if notifyErr := w.botClient.NotifyExtractDone(
+			ctx, job.Args.ExtractionID, "completed", "", nil,
+		); notifyErr != nil {
+			log.Printf("[TranscriptionWorker] Failed to notify the bot: %v", notifyErr)
+		}
 	}
 
 	return nil
-}
-
-// notifyFailed is a helper to avoid writing repetitive if-err checks at every point of failure.
-func (w *TranscriptionWorker) notifyFailed(ctx context.Context, extractionID string, cause error) {
-	if extractionID == "" {
-		return
-	}
-	if err := w.botClient.NotifyExtractDone(
-		ctx,
-		extractionID,
-		"failed",
-		cause.Error(),
-		nil,
-	); err != nil {
-		log.Printf("[TranscriptionWorker] failed to notify bot (failed case): %v", err)
-	}
 }

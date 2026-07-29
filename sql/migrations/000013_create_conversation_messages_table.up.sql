@@ -8,8 +8,6 @@ CREATE TABLE conversation_messages (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Powers "last N messages for this jid" lookups (agent context window) —
--- always filtered by jid and ordered by recency.
 CREATE INDEX idx_conversation_messages_jid_created_at
     ON conversation_messages (jid, created_at DESC);
 

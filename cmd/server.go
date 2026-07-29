@@ -140,12 +140,13 @@ var serveCmd = &cobra.Command{
 
 		atomicKnowledgeRepo := repo.NewAtomicKnowledgeRepo(db.New(pool), pool)
 
-		workerVideoRepo := repo.NewVideoRepo(db.New(pool), pool, nil)
+		workerVideoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
 		workerVideoService := service.NewVideoService(workerVideoRepo)
 		agentApifyRepo := repo.NewApifyRepo(riverClientFn)
 		agentVideoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
 		agentVideoService := service.NewVideoService(agentVideoRepo)
 		workerConversationRepo := repo.NewConversationRepo(db.New(pool), pool, riverClientFn)
+		workerConversationService := service.NewConversationService(workerConversationRepo)
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -164,7 +165,7 @@ var serveCmd = &cobra.Command{
 			config.ASRConfig.Model,
 			config.ASRConfig.SourceLang,
 			botClient,
-			workerConversationRepo,
+			workerConversationService,
 		)
 		river.AddWorker(workers, transcriptionWorker)
 
@@ -227,7 +228,11 @@ var serveCmd = &cobra.Command{
 			judgeClient,
 			workerRAGService,
 		)
-		claimCheckWorker := worker.NewClaimCheckWorker(workerClaimService, botClient)
+		claimCheckWorker := worker.NewClaimCheckWorker(
+			workerClaimService,
+			botClient,
+			workerConversationService,
+		)
 		river.AddWorker(workers, claimCheckWorker)
 
 		agentApifyService := service.NewApifyService(
@@ -251,7 +256,7 @@ var serveCmd = &cobra.Command{
 			agentLLMConfig.APIKey,
 		)
 		agentService, err := service.NewAgentService(
-			workerConversationRepo,
+			workerConversationService,
 			agentApifyService,
 			workerClaimService,
 			agentLLMClient,

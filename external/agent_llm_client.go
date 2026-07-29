@@ -118,7 +118,7 @@ func (c *AgentLLMClient) Complete(
 	httpReq, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		c.baseURL+"/v1/chat/completions",
+		c.baseURL+"/chat/completions",
 		bytes.NewReader(body),
 	)
 	if err != nil {

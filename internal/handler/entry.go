@@ -100,8 +100,9 @@ func NewHandlers(repos *Repos) *Handlers {
 	agentLLMClient := external.NewAgentLLMClient(
 		agentLLMConfig.BaseURL, agentLLMConfig.Model, agentLLMConfig.APIKey,
 	)
+	conversationService := service.NewConversationService(repos.ConversationRepo)
 	agentService, err := service.NewAgentService(
-		repos.ConversationRepo,
+		conversationService,
 		apifyService,
 		claimService,
 		agentLLMClient,

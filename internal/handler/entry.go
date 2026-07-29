@@ -97,15 +97,21 @@ func NewHandlers(repos *Repos) *Handlers {
 	if err != nil {
 		panic(fmt.Errorf("failed to load agent LLM config: %w", err))
 	}
-	agentLLMClient := external.NewAgentLLMClient(
-		agentLLMConfig.BaseURL, agentLLMConfig.Model, agentLLMConfig.APIKey,
-	)
+	var agentLLMClient *external.AgentLLMClient
+	if agentLLMConfig.Enabled {
+		agentLLMClient = external.NewAgentLLMClient(
+			agentLLMConfig.BaseURL,
+			agentLLMConfig.Model,
+			agentLLMConfig.APIKey,
+		)
+	}
 	conversationService := service.NewConversationService(repos.ConversationRepo)
 	agentService, err := service.NewAgentService(
 		conversationService,
 		apifyService,
 		claimService,
 		agentLLMClient,
+		agentLLMConfig.Enabled,
 		agentLLMConfig.Provider,
 		agentLLMConfig.Model,
 		agentLLMConfig.BaseURL,

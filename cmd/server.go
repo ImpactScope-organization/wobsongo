@@ -260,6 +260,7 @@ var serveCmd = &cobra.Command{
 			agentApifyService,
 			workerClaimService,
 			agentLLMClient,
+			agentLLMConfig.Enabled,
 			agentLLMConfig.Provider,
 			agentLLMConfig.Model,
 			agentLLMConfig.BaseURL,

@@ -23,9 +23,9 @@ func (s *ConversationService) AppendMessage(
 	ctx context.Context,
 	jid string,
 	role model.ConversationRole,
-	content string,
+	content, phoneNumber, countryCode string,
 ) error {
-	return s.conversationRepo.AppendMessage(ctx, jid, role, content)
+	return s.conversationRepo.AppendMessage(ctx, jid, role, content, phoneNumber, countryCode)
 }
 
 // RecentMessages returns up to limit most-recent messages for the given

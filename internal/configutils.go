@@ -246,3 +246,17 @@ func loadEmailConfigOrDefault(logger *slog.Logger, envs ...string) *EmailConfig 
 	}
 	return emailConfig
 }
+
+// getEnvBool returns the boolean value of an environment variable.
+// If the variable is unset or cannot be parsed, defaultValue is returned.
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}

@@ -1,8 +1,8 @@
 -- name: InsertConversationMessage :one
 INSERT INTO conversation_messages (
-    jid, role, content
+    jid, role, content, phone_number, country_code
 ) VALUES (
-    $1, $2, $3
+    $1, $2, $3, $4, $5
 )
 RETURNING id, created_at;
 

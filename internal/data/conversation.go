@@ -16,7 +16,7 @@ type ConversationRepoer interface {
 		ctx context.Context,
 		jid string,
 		role model.ConversationRole,
-		content string,
+		content, phoneNumber, countryCode string,
 	) error
 
 	// RecentMessages returns up to limit most-recent messages for the

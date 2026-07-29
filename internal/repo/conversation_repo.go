@@ -10,6 +10,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 )
@@ -40,12 +41,14 @@ func (r *conversationRepo) AppendMessage(
 	ctx context.Context,
 	jid string,
 	role model.ConversationRole,
-	content string,
+	content, phoneNumber, countryCode string,
 ) error {
 	_, err := r.q.InsertConversationMessage(ctx, db.InsertConversationMessageParams{
-		Jid:     jid,
-		Role:    string(role),
-		Content: content,
+		Jid:         jid,
+		Role:        string(role),
+		Content:     content,
+		PhoneNumber: pgtype.Text{String: phoneNumber, Valid: phoneNumber != ""},
+		CountryCode: pgtype.Text{String: countryCode, Valid: countryCode != ""},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to insert conversation message: %w", mapPostgresError(err))
@@ -80,11 +83,13 @@ func (r *conversationRepo) RecentMessages(
 	messages := make([]model.ConversationMessage, len(rows))
 	for i, row := range rows {
 		messages[len(rows)-1-i] = model.ConversationMessage{
-			ID:        row.ID,
-			Jid:       row.Jid,
-			Role:      model.ConversationRole(row.Role),
-			Content:   row.Content,
-			CreatedAt: row.CreatedAt,
+			ID:          row.ID,
+			Jid:         row.Jid,
+			Role:        model.ConversationRole(row.Role),
+			Content:     row.Content,
+			PhoneNumber: row.PhoneNumber.String,
+			CountryCode: row.CountryCode.String,
+			CreatedAt:   row.CreatedAt,
 		}
 	}
 	return messages, nil

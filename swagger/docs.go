@@ -1192,8 +1192,16 @@ const docTemplate = `{
                 "text"
             ],
             "properties": {
+                "countryCode": {
+                    "description": "CountryCode is the sender's phone country code.",
+                    "type": "string"
+                },
                 "jid": {
                     "description": "Jid is the WhatsApp chat identifier this message came from.",
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "description": "PhoneNumber is the sender's phone number.",
                     "type": "string"
                 },
                 "text": {
@@ -1206,7 +1214,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "jobId": {
-                    "description": "JobID is the correlation ID the bot should register as a pending\njob — the eventual /callback/extract-done call will carry this\nsame ID.",
+                    "description": "JobID is the job identifier returned to the bot.",
                     "type": "string"
                 },
                 "status": {

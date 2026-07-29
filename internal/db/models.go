@@ -35,11 +35,13 @@ type AtomicKnowledge struct {
 }
 
 type ConversationMessage struct {
-	ID        uuid.UUID
-	Jid       string
-	Role      string
-	Content   string
-	CreatedAt time.Time
+	ID          uuid.UUID
+	Jid         string
+	Role        string
+	Content     string
+	PhoneNumber pgtype.Text
+	CountryCode pgtype.Text
+	CreatedAt   time.Time
 }
 
 type Document struct {

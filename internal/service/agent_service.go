@@ -31,7 +31,7 @@ const (
 	// conversationHistoryLimit bounds how many recent messages are fed to
 	// the LLM as context for each turn.
 	conversationHistoryLimit = 20
-	
+
 	agentBuilderTimeout = 2 * time.Minute
 
 	agentSystemPrompt = `You are Wobsongo's assistant, helping WhatsApp users verify claims about reproductive and sexual health (e.g. contraception, pregnancy, menstruation, STIs/STDs, fertility, sexual wellness, and related myths or misinformation circulating on social media).
@@ -63,27 +63,33 @@ func agentTurnFromContext(ctx context.Context) (*agentTurnContext, bool) {
 // AgentService handles bot conversation turns, routing requests to either
 // the direct extraction pipeline or the LLM agent, and persists conversation history.
 type AgentService struct {
-	conversationRepo data.ConversationRepoer
-	apifyService     *ApifyService
-	claimService     *ClaimService
-	llmClient        *external.AgentLLMClient
-	agent            agenticgokit.Agent
+	conversationService data.ConversationRepoer
+	apifyService        *ApifyService
+	claimService        *ClaimService
+	llmClient           *external.AgentLLMClient
+	agent               agenticgokit.Agent
+	agentEnabled        bool
 }
 
 // NewAgentService creates an AgentService and initializes the underlying
 // AgenticGoKit agent.
 func NewAgentService(
-	conversationRepo data.ConversationRepoer,
+	conversationService data.ConversationRepoer,
 	apifyService *ApifyService,
 	claimService *ClaimService,
 	llmClient *external.AgentLLMClient,
+	enabled bool,
 	llmProvider, llmModel, llmBaseURL, llmAPIKey string,
 ) (*AgentService, error) {
 	s := &AgentService{
-		conversationRepo: conversationRepo,
-		apifyService:     apifyService,
-		claimService:     claimService,
-		llmClient:        llmClient,
+		conversationService: conversationService,
+		apifyService:        apifyService,
+		claimService:        claimService,
+		llmClient:           llmClient,
+		agentEnabled:        enabled,
+	}
+	if !enabled {
+		return s, nil
 	}
 
 	agent, err := agenticgokit.NewBuilder("WobsongoAgent").
@@ -116,13 +122,15 @@ func NewAgentService(
 // TikTok URLs to the extraction pipeline and all other messages to the agent.
 func (s *AgentService) HandleInboundMessage(
 	ctx context.Context,
-	jid, text string,
+	jid, text, phoneNumber, countryCode string,
 ) (*dto.AgentInboundResponse, error) {
-	if err := s.conversationRepo.AppendMessage(
+	if err := s.conversationService.AppendMessage(
 		ctx,
 		jid,
 		model.ConversationRoleUser,
 		text,
+		phoneNumber,
+		countryCode,
 	); err != nil {
 		return nil, fmt.Errorf("failed to store inbound message: %w", err)
 	}
@@ -144,7 +152,7 @@ func (s *AgentService) HandleInboundMessage(
 	}
 
 	extractionID := uuid.New().String()
-	if err := s.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
+	if err := s.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
 		Jid: jid, ExtractionID: extractionID, UserText: text,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue agent turn: %w", err)
@@ -159,20 +167,37 @@ func (s *AgentService) RunTurn(ctx context.Context, job queue.AgentTurnJob) (str
 	if job.SystemNote != "" {
 		return s.runVideoContinuation(ctx, job)
 	}
+	if !s.agentEnabled {
+		return s.runFallbackReply(ctx, job)
+	}
 	return s.runConversationalTurn(ctx, job)
+}
+
+func (s *AgentService) runFallbackReply(
+	ctx context.Context,
+	job queue.AgentTurnJob,
+) (string, error) {
+	content := "For now I can only check TikTok video links directly. Please send a TikTok link to check a claim in it."
+
+	if err := s.conversationService.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
+	); err != nil {
+		log.Printf("[AgentService] failed to store fallback reply for jid=%s: %v", job.Jid, err)
+	}
+	return content, nil
 }
 
 func (s *AgentService) runVideoContinuation(
 	ctx context.Context,
 	job queue.AgentTurnJob,
 ) (string, error) {
-	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote,
+	if err := s.conversationService.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote, "", "",
 	); err != nil {
 		return "", fmt.Errorf("failed to store system note: %w", err)
 	}
 
-	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
+	history, err := s.conversationService.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)
 	}
@@ -200,8 +225,8 @@ func (s *AgentService) runVideoContinuation(
 		content = result.RefusalReason
 	}
 
-	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content,
+	if err := s.conversationService.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}
@@ -213,7 +238,7 @@ func (s *AgentService) runConversationalTurn(
 	ctx context.Context,
 	job queue.AgentTurnJob,
 ) (string, error) {
-	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
+	history, err := s.conversationService.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)
 	}
@@ -236,8 +261,8 @@ func (s *AgentService) runConversationalTurn(
 		return "", fmt.Errorf("agent handler failed: %w", err)
 	}
 
-	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content,
+	if err := s.conversationService.AppendMessage(
+		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}

@@ -36,6 +36,8 @@ export async function callGoExtract(payload: {
 export async function callGoAgentInbound(payload: {
   jid: string;
   text: string;
+  phoneNumber: string;
+  countryCode: string;
 }): Promise<ExtractResponse> {
   const res = await fetch(`${env.goBackendUrl}/api/agent/inbound`, {
     method: 'POST',

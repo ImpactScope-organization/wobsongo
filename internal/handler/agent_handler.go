@@ -55,7 +55,13 @@ func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 		}
 	}
 
-	resp, err := h.service.HandleInboundMessage(c.Request().Context(), req.Jid, req.Text)
+	resp, err := h.service.HandleInboundMessage(
+		c.Request().Context(),
+		req.Jid,
+		req.Text,
+		req.PhoneNumber,
+		req.CountryCode,
+	)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,

@@ -7,6 +7,12 @@ type AgentInboundRequest struct {
 
 	// Text is the raw inbound message text.
 	Text string `json:"text" validate:"required"`
+
+	// PhoneNumber is the sender's phone number.
+	PhoneNumber string `json:"phoneNumber,omitempty"`
+
+	// CountryCode is the sender's phone country code.
+	CountryCode string `json:"countryCode,omitempty"`
 }
 
 // AgentInboundResponse mirrors ExtractResponse's shape so
@@ -15,8 +21,6 @@ type AgentInboundResponse struct {
 	// Status indicates the current state of the agent turn.
 	Status ExtractStatus `json:"status"`
 
-	// JobID is the correlation ID the bot should register as a pending
-	// job — the eventual /callback/extract-done call will carry this
-	// same ID.
+	// JobID is the job identifier returned to the bot.
 	JobID string `json:"jobId"`
 }

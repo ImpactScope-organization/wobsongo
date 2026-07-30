@@ -11,6 +11,9 @@ const (
 
 	// StatusFailed indicates that the extraction job encountered an error and could not complete.
 	StatusFailed ExtractStatus = "failed"
+
+	// StatusRejected indicates that the request was rejected and was not processed.
+	StatusRejected ExtractStatus = "rejected"
 )
 
 // ExtractionRequest represents the payload required to trigger a media extraction.

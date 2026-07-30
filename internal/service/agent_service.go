@@ -23,6 +23,7 @@ import (
 var (
 	bareURLRegex     = regexp.MustCompile(`^\s*(https?://(www\.)?(vt\.)?tiktok\.com/\S+)\s*$`)
 	embeddedURLRegex = regexp.MustCompile(`https?://(www\.)?(vt\.)?tiktok\.com/\S+`)
+	anyURLRegex      = regexp.MustCompile(`https?://\S+`)
 )
 
 const (
@@ -151,6 +152,19 @@ func (s *AgentService) HandleInboundMessage(
 		return &dto.AgentInboundResponse{Status: resp.Status, JobID: resp.JobID}, nil
 	}
 
+	if anyURLRegex.MatchString(text) {
+		rejectMsg := "Sorry, I can currently only process TikTok video links. Please send a TikTok link if you'd like the video checked."
+		if err := s.conversationRepo.AppendMessage(
+			ctx, jid, model.ConversationRoleAssistant, rejectMsg, "", "",
+		); err != nil {
+			log.Printf("[AgentService] failed to store rejection reply for jid=%s: %v", jid, err)
+		}
+		return &dto.AgentInboundResponse{
+			Status:  dto.StatusRejected,
+			Message: rejectMsg,
+		}, nil // BARU
+	}
+
 	extractionID := uuid.New().String()
 	if err := s.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
 		Jid: jid, ExtractionID: extractionID, UserText: text,
@@ -177,7 +191,15 @@ func (s *AgentService) runFallbackReply(
 	ctx context.Context,
 	job queue.AgentTurnJob,
 ) (string, error) {
-	content := "For now I can only check TikTok video links directly. Please send a TikTok link to check a claim in it."
+	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.UserText})
+	if err != nil {
+		return "", fmt.Errorf("claim check failed: %w", err)
+	}
+
+	content := result.FormattedMessage
+	if !result.InScope {
+		content = result.RefusalReason
+	}
 
 	if err := s.conversationRepo.AppendMessage(
 		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",

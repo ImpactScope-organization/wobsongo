@@ -22,6 +22,8 @@ definitions:
       jobId:
         description: JobID is the job identifier returned to the bot.
         type: string
+      message:
+        type: string
       status:
         allOf:
         - $ref: '#/definitions/dto.ExtractStatus'
@@ -200,11 +202,13 @@ definitions:
     - processing
     - completed
     - failed
+    - rejected
     type: string
     x-enum-varnames:
     - StatusProcessing
     - StatusCompleted
     - StatusFailed
+    - StatusRejected
   dto.PaginationResults-model_Document:
     properties:
       items:

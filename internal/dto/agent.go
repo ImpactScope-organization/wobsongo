@@ -23,4 +23,7 @@ type AgentInboundResponse struct {
 
 	// JobID is the job identifier returned to the bot.
 	JobID string `json:"jobId"`
+
+	// Message contains the agent's response when the turn completes.
+	Message string `json:"message,omitempty"`
 }

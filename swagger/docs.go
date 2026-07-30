@@ -1217,6 +1217,9 @@ const docTemplate = `{
                     "description": "JobID is the job identifier returned to the bot.",
                     "type": "string"
                 },
+                "message": {
+                    "type": "string"
+                },
                 "status": {
                     "description": "Status indicates the current state of the agent turn.",
                     "allOf": [
@@ -1441,12 +1444,14 @@ const docTemplate = `{
             "enum": [
                 "processing",
                 "completed",
-                "failed"
+                "failed",
+                "rejected"
             ],
             "x-enum-varnames": [
                 "StatusProcessing",
                 "StatusCompleted",
-                "StatusFailed"
+                "StatusFailed",
+                "StatusRejected"
             ]
         },
         "dto.PaginationResults-model_Document": {

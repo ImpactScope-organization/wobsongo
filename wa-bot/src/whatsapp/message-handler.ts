@@ -13,12 +13,21 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
   const { phoneNumber, countryCode } = extractPhoneAndCountry(jid);
 
   try {
+    await sock.sendPresenceUpdate('composing', jid);
+
     const result = await callGoAgentInbound({
       jid,
       text: text.trim(),
       phoneNumber: phoneNumber ?? '',
       countryCode: countryCode ?? '',
     });
+
+    if (result.status === 'rejected') {
+      await sock.sendMessage(jid, { text: result.message ?? 'Sorry, I cannot process that.' });
+      return;
+    }
+
+    await sock.sendMessage(jid, { text: "⏳ Please wait, I'm checking this for you..." });
     savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '' });
   } catch (err) {
     console.error('[message-handler] failed to call /agent/inbound:', err);

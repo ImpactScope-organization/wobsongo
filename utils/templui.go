@@ -12,10 +12,9 @@ import (
 	"strings"
 	"time"
 
+	twmerge "github.com/Oudwins/tailwind-merge-go"
 	"github.com/a-h/templ"
 	"github.com/templui/templui/components"
-
-	twmerge "github.com/Oudwins/tailwind-merge-go"
 )
 
 // TwMerge combines Tailwind classes and resolves conflicts.

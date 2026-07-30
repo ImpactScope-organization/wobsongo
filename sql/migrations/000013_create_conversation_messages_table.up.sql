@@ -5,8 +5,6 @@ CREATE TABLE conversation_messages (
     jid VARCHAR(64) NOT NULL,
     role VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
-    phone_number VARCHAR(20),
-    country_code VARCHAR(5),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

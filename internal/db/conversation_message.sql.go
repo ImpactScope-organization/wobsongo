@@ -10,11 +10,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getRecentConversationMessages = `-- name: GetRecentConversationMessages :many
-SELECT id, jid, role, content, phone_number, country_code, created_at FROM conversation_messages
+SELECT id, jid, role, content, created_at FROM conversation_messages
 WHERE jid = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -39,8 +38,6 @@ func (q *Queries) GetRecentConversationMessages(ctx context.Context, arg GetRece
 			&i.Jid,
 			&i.Role,
 			&i.Content,
-			&i.PhoneNumber,
-			&i.CountryCode,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -55,19 +52,17 @@ func (q *Queries) GetRecentConversationMessages(ctx context.Context, arg GetRece
 
 const insertConversationMessage = `-- name: InsertConversationMessage :one
 INSERT INTO conversation_messages (
-    jid, role, content, phone_number, country_code
+    jid, role, content
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3
 )
 RETURNING id, created_at
 `
 
 type InsertConversationMessageParams struct {
-	Jid         string
-	Role        string
-	Content     string
-	PhoneNumber pgtype.Text
-	CountryCode pgtype.Text
+	Jid     string
+	Role    string
+	Content string
 }
 
 type InsertConversationMessageRow struct {
@@ -76,13 +71,7 @@ type InsertConversationMessageRow struct {
 }
 
 func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConversationMessageParams) (InsertConversationMessageRow, error) {
-	row := q.db.QueryRow(ctx, insertConversationMessage,
-		arg.Jid,
-		arg.Role,
-		arg.Content,
-		arg.PhoneNumber,
-		arg.CountryCode,
-	)
+	row := q.db.QueryRow(ctx, insertConversationMessage, arg.Jid, arg.Role, arg.Content)
 	var i InsertConversationMessageRow
 	err := row.Scan(&i.ID, &i.CreatedAt)
 	return i, err

@@ -37,12 +37,6 @@ type ConversationMessage struct {
 	// Content is the message text.
 	Content string `db:"content" json:"content"`
 
-	// PhoneNumber is the sender's phone number.
-	PhoneNumber string `db:"phone_number" json:"phoneNumber,omitempty"`
-
-	// CountryCode is the sender's country code.
-	CountryCode string `db:"country_code" json:"countryCode,omitempty"`
-
 	// CreatedAt is the timestamp when the message was stored.
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }

@@ -1192,16 +1192,8 @@ const docTemplate = `{
                 "text"
             ],
             "properties": {
-                "countryCode": {
-                    "description": "CountryCode is the sender's phone country code.",
-                    "type": "string"
-                },
                 "jid": {
                     "description": "Jid is the WhatsApp chat identifier this message came from.",
-                    "type": "string"
-                },
-                "phoneNumber": {
-                    "description": "PhoneNumber is the sender's phone number.",
                     "type": "string"
                 },
                 "text": {
@@ -1218,6 +1210,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "message": {
+                    "description": "Message contains the agent's response when the turn completes.",
                     "type": "string"
                 },
                 "status": {

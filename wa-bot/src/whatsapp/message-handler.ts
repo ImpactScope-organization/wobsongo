@@ -1,7 +1,6 @@
 import type { WASocket, WAMessage } from 'baileys';
 import { callGoAgentInbound } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
-import { extractPhoneAndCountry } from '../utils/phone.js';
 
 export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<void> {
   if (msg.key.fromMe || !msg.key.remoteJid) return;
@@ -10,16 +9,12 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
   const text = msg.message?.conversation ?? msg.message?.extendedTextMessage?.text;
   if (!text) return;
 
-  const { phoneNumber, countryCode } = extractPhoneAndCountry(jid);
-
   try {
     await sock.sendPresenceUpdate('composing', jid);
 
     const result = await callGoAgentInbound({
       jid,
-      text: text.trim(),
-      phoneNumber: phoneNumber ?? '',
-      countryCode: countryCode ?? '',
+      text: text.trim()
     });
 
     if (result.status === 'rejected') {

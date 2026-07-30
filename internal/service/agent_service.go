@@ -123,15 +123,13 @@ func NewAgentService(
 // TikTok URLs to the extraction pipeline and all other messages to the agent.
 func (s *AgentService) HandleInboundMessage(
 	ctx context.Context,
-	jid, text, phoneNumber, countryCode string,
+	jid, text string,
 ) (*dto.AgentInboundResponse, error) {
 	if err := s.conversationRepo.AppendMessage(
 		ctx,
 		jid,
 		model.ConversationRoleUser,
 		text,
-		phoneNumber,
-		countryCode,
 	); err != nil {
 		return nil, fmt.Errorf("failed to store inbound message: %w", err)
 	}
@@ -155,7 +153,7 @@ func (s *AgentService) HandleInboundMessage(
 	if anyURLRegex.MatchString(text) {
 		rejectMsg := "Sorry, I can currently only process TikTok video links. Please send a TikTok link if you'd like the video checked."
 		if err := s.conversationRepo.AppendMessage(
-			ctx, jid, model.ConversationRoleAssistant, rejectMsg, "", "",
+			ctx, jid, model.ConversationRoleAssistant, rejectMsg,
 		); err != nil {
 			log.Printf("[AgentService] failed to store rejection reply for jid=%s: %v", jid, err)
 		}
@@ -202,7 +200,7 @@ func (s *AgentService) runFallbackReply(
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
 	); err != nil {
 		log.Printf("[AgentService] failed to store fallback reply for jid=%s: %v", job.Jid, err)
 	}
@@ -214,7 +212,7 @@ func (s *AgentService) runVideoContinuation(
 	job queue.AgentTurnJob,
 ) (string, error) {
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote, "", "",
+		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote,
 	); err != nil {
 		return "", fmt.Errorf("failed to store system note: %w", err)
 	}
@@ -248,7 +246,7 @@ func (s *AgentService) runVideoContinuation(
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}
@@ -284,7 +282,7 @@ func (s *AgentService) runConversationalTurn(
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content, "", "",
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}

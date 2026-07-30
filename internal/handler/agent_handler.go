@@ -59,8 +59,6 @@ func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 		c.Request().Context(),
 		req.Jid,
 		req.Text,
-		req.PhoneNumber,
-		req.CountryCode,
 	)
 	if err != nil {
 		return &model.APIError{

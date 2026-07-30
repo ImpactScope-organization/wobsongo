@@ -7,12 +7,6 @@ type AgentInboundRequest struct {
 
 	// Text is the raw inbound message text.
 	Text string `json:"text" validate:"required"`
-
-	// PhoneNumber is the sender's phone number.
-	PhoneNumber string `json:"phoneNumber,omitempty"`
-
-	// CountryCode is the sender's phone country code.
-	CountryCode string `json:"countryCode,omitempty"`
 }
 
 // AgentInboundResponse mirrors ExtractResponse's shape so

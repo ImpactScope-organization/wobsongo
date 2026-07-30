@@ -1,14 +1,8 @@
 definitions:
   dto.AgentInboundRequest:
     properties:
-      countryCode:
-        description: CountryCode is the sender's phone country code.
-        type: string
       jid:
         description: Jid is the WhatsApp chat identifier this message came from.
-        type: string
-      phoneNumber:
-        description: PhoneNumber is the sender's phone number.
         type: string
       text:
         description: Text is the raw inbound message text.
@@ -23,6 +17,7 @@ definitions:
         description: JobID is the job identifier returned to the bot.
         type: string
       message:
+        description: Message contains the agent's response when the turn completes.
         type: string
       status:
         allOf:

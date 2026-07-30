@@ -322,6 +322,17 @@ var claimsCheckedLabelTemplates = map[model.Language]struct{ one, many string }{
 	model.LanguageFrench:  {one: "affirmation vérifiée", many: "affirmations vérifiées"},
 }
 
+// insufficientEvidenceExplainerTemplates is shown in place of
+// BriefReasoning/Reasoning whenever a sub-claim's verdict is
+// VerdictInsufficientEvidence — deterministic rather than LLM-authored,
+// since the zero-hits short-circuit in checkSubClaim never calls the judge
+// (leaving Reasoning/BriefReasoning empty) and the judge's own freeform text
+// for this case (external/judge_client.go) has no fixed wording.
+var insufficientEvidenceExplainerTemplates = map[model.Language]string{
+	model.LanguageEnglish: "We couldn't find reliable information on this in our knowledge base. Please consult a health professional for guidance.",
+	model.LanguageFrench:  "Nous n'avons pas trouvé d'informations fiables à ce sujet dans notre base de connaissances. Veuillez consulter un professionnel de santé.",
+}
+
 // formatClaimMessage renders results and overallSummary into a human-facing,
 // color-coded (emoji-per-verdict) plain-text message meant to be displayed
 // as-is by a chat client — mirrors wobsongo-verify's Telegram bot output,
@@ -363,6 +374,9 @@ func formatClaimMessage(
 		explainer := r.BriefReasoning
 		if isLong {
 			explainer = r.Reasoning
+		}
+		if r.Verdict == model.VerdictInsufficientEvidence {
+			explainer = insufficientEvidenceExplainerTemplates[language]
 		}
 		if explainer != "" {
 			b.WriteString("\n")

@@ -155,6 +155,10 @@ func TestClaimService_CheckClaim_ZeroEvidenceNeverReachesJudge(t *testing.T) {
 	if judge.callCount() != 0 {
 		t.Errorf("expected judge never called, got %d calls", judge.callCount())
 	}
+	wantExplainer := insufficientEvidenceExplainerTemplates[model.LanguageEnglish]
+	if !strings.Contains(result.FormattedMessage, wantExplainer) {
+		t.Errorf("expected FormattedMessage to contain health-expert referral %q, got %q", wantExplainer, result.FormattedMessage)
+	}
 }
 
 func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregated(t *testing.T) {

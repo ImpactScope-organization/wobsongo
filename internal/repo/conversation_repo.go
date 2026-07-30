@@ -79,7 +79,8 @@ func (r *conversationRepo) RecentMessages(
 	}
 
 	messages := make([]model.ConversationMessage, len(rows))
-	for i, row := range rows {
+	for i := range rows {
+		row := &rows[i]
 		messages[len(rows)-1-i] = model.ConversationMessage{
 			ID:          row.ID,
 			Jid:         row.Jid,

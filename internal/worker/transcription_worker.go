@@ -78,73 +78,17 @@ func (w *TranscriptionWorker) Work(
 	}
 
 	// Build the request payload for the Modal ASR service
-	payload := map[string]string{
-		"model":        w.asrModel,
-		"audio_url":    job.Args.DownloadURL,
-		"source_lang":  w.asrSourceLang,
-		"audio_format": "mp4",
-	}
-
-	body, err := json.Marshal(payload)
+	modalResp, err := w.callModalASR(ctx, job.Args.DownloadURL)
 	if err != nil {
-		err = fmt.Errorf("failed to marshal modal payload: %w", err)
 		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
 	}
 
-	// Send the transcription request to Modal.
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.modalURL, bytes.NewBuffer(body))
-	if err != nil {
-		err = fmt.Errorf("failed to create http request: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := w.httpClient.Do(req)
-	if err != nil {
-		err = fmt.Errorf("failed to execute modal request: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
-		return err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("modal API returned status %d", resp.StatusCode)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
-		return err
-	}
-
-	// Decode the transcription response from Modal.
-	var modalResp struct {
-		Transcript       string `json:"transcript"`
-		LanguageDetected string `json:"language_detected"`
-		Error            string `json:"error"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&modalResp); err != nil {
-		err = fmt.Errorf("failed to decode modal response: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
-		return err
-	}
-
-	if modalResp.Error != "" {
-		err := fmt.Errorf("modal application error: %s", modalResp.Error)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
-		return err
-	}
-
-	// Convert the transcript into pgtype.Text for database storage.
-	dbText := pgtype.Text{
-		String: modalResp.Transcript,
-		Valid:  modalResp.Transcript != "",
-	}
-
-	// Persist the transcription result.
-	err = w.videoService.UpdateVideoTranscription(ctx, dbText, job.Args.VideoID)
-	if err != nil {
+	if err := w.videoService.UpdateVideoTranscription(
+		ctx,
+		pgtype.Text{String: modalResp.Transcript, Valid: modalResp.Transcript != ""},
+		job.Args.VideoID,
+	); err != nil {
 		err = fmt.Errorf("failed to save transcription to db: %w", err)
 		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
 		return err
@@ -152,47 +96,98 @@ func (w *TranscriptionWorker) Work(
 
 	log.Printf(
 		"[TranscriptionWorker] Successfully processed VideoID %s | Language: %s",
-		job.Args.VideoID,
-		modalResp.LanguageDetected,
+		job.Args.VideoID, modalResp.LanguageDetected,
 	)
 
+	return w.dispatchFollowUp(ctx, job.Args, modalResp.Transcript)
+}
+
+// modalASRResponse is the decoded response body from the Modal ASR service.
+type modalASRResponse struct {
+	Transcript       string `json:"transcript"`
+	LanguageDetected string `json:"language_detected"`
+	Error            string `json:"error"`
+}
+
+// callModalASR builds and sends the transcription request to the Modal ASR
+// service and returns the parsed response.
+func (w *TranscriptionWorker) callModalASR(
+	ctx context.Context,
+	downloadURL string,
+) (*modalASRResponse, error) {
+	payload := map[string]string{
+		"model":        w.asrModel,
+		"audio_url":    downloadURL,
+		"source_lang":  w.asrSourceLang,
+		"audio_format": "mp4",
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal modal payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, w.modalURL, bytes.NewBuffer(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := w.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute modal request: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("modal API returned status %d", resp.StatusCode)
+	}
+
+	var modalResp modalASRResponse
+	if err := json.NewDecoder(resp.Body).Decode(&modalResp); err != nil {
+		return nil, fmt.Errorf("failed to decode modal response: %w", err)
+	}
+	if modalResp.Error != "" {
+		return nil, fmt.Errorf("modal application error: %s", modalResp.Error)
+	}
+
+	return &modalResp, nil
+}
+
+// dispatchFollowUp enqueues the appropriate next step (agent turn, claim
+// check, or a direct bot notification) once a transcript is ready.
+func (w *TranscriptionWorker) dispatchFollowUp(
+	ctx context.Context,
+	args queue.TranscriptionJob,
+	transcript string,
+) error {
 	switch {
-	case job.Args.ViaAgent:
-		note := "The video transcript is ready:\n\n" + modalResp.Transcript
+	case args.ViaAgent:
+		note := "The video transcript is ready:\n\n" + transcript
 		if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-			Jid: job.Args.Jid, ExtractionID: job.Args.ExtractionID, SystemNote: note,
+			Jid: args.Jid, ExtractionID: args.ExtractionID, SystemNote: note,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue agent turn continuation: %w", err)
-			notifyBotFailed(
-				ctx,
-				w.botClient,
-				workerComponentTranscription,
-				job.Args.ExtractionID,
-				err,
-			)
+			notifyBotFailed(ctx, w.botClient, workerComponentTranscription, args.ExtractionID, err)
 			return err
 		}
 
-	case job.Args.Jid != "":
+	case args.Jid != "":
 		if err := w.videoService.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
-			ExtractionID: job.Args.ExtractionID,
-			Text:         modalResp.Transcript,
-			Jid:          job.Args.Jid,
+			ExtractionID: args.ExtractionID,
+			Text:         transcript,
+			Jid:          args.Jid,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue claim check: %w", err)
-			notifyBotFailed(
-				ctx,
-				w.botClient,
-				workerComponentTranscription,
-				job.Args.ExtractionID,
-				err,
-			)
+			notifyBotFailed(ctx, w.botClient, workerComponentTranscription, args.ExtractionID, err)
 			return err
 		}
 
 	default:
 		if notifyErr := w.botClient.NotifyExtractDone(
-			ctx, job.Args.ExtractionID, "completed", "", nil,
+			ctx, args.ExtractionID, "completed", "", nil,
 		); notifyErr != nil {
 			log.Printf("[TranscriptionWorker] Failed to notify the bot: %v", notifyErr)
 		}

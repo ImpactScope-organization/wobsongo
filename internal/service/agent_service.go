@@ -295,12 +295,6 @@ func (s *AgentService) runHandler(
 		return first.Content, nil
 	}
 
-	messages = append(messages, external.AgentChatMessage{
-		Role:      "assistant",
-		Content:   first.Content,
-		ToolCalls: first.ToolCalls,
-	})
-
 	results := make([]string, 0, len(first.ToolCalls))
 	for _, tc := range first.ToolCalls {
 		results = append(results, s.executeTool(ctx, turnCtx.jid, tc))
@@ -312,7 +306,7 @@ func (s *AgentService) runHandler(
 // returned as JSON so the LLM can handle them in its response.
 func (s *AgentService) executeTool(
 	ctx context.Context,
-	jid string,
+	_ string,
 	tc external.AgentToolCall,
 ) string {
 	switch tc.Function.Name {

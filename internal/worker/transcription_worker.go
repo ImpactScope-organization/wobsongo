@@ -162,7 +162,15 @@ func (w *TranscriptionWorker) Work(
 		if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
 			Jid: job.Args.Jid, ExtractionID: job.Args.ExtractionID, SystemNote: note,
 		}); err != nil {
-			log.Printf("[TranscriptionWorker] failed to enqueue agent turn continuation: %v", err)
+			err = fmt.Errorf("failed to enqueue agent turn continuation: %w", err)
+			notifyBotFailed(
+				ctx,
+				w.botClient,
+				workerComponentTranscription,
+				job.Args.ExtractionID,
+				err,
+			)
+			return err
 		}
 
 	case job.Args.Jid != "":
@@ -171,7 +179,15 @@ func (w *TranscriptionWorker) Work(
 			Text:         modalResp.Transcript,
 			Jid:          job.Args.Jid,
 		}); err != nil {
-			log.Printf("[TranscriptionWorker] failed to enqueue claim check: %v", err)
+			err = fmt.Errorf("failed to enqueue claim check: %w", err)
+			notifyBotFailed(
+				ctx,
+				w.botClient,
+				workerComponentTranscription,
+				job.Args.ExtractionID,
+				err,
+			)
+			return err
 		}
 
 	default:

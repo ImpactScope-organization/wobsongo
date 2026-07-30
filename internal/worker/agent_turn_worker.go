@@ -15,6 +15,9 @@ import (
 // agentTurnJobTimeout is the maximum time allowed for a single agent turn.
 const agentTurnJobTimeout = 3 * time.Minute
 
+// workerComponentAgentTurn is this worker's name for notifyBotFailed's log prefix.
+const workerComponentAgentTurn = "AgentTurnWorker"
+
 // AgentTurnWorker processes a single agent conversation turn and sends
 // the final reply using the standard bot callback.
 type AgentTurnWorker struct {
@@ -45,7 +48,7 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 	answer, err := w.agentService.RunTurn(ctx, job.Args)
 	if err != nil {
 		err = fmt.Errorf("agent turn failed: %w", err)
-		w.notifyFailed(ctx, job.Args.ExtractionID, err)
+		notifyBotFailed(ctx, w.botClient, workerComponentAgentTurn, job.Args.ExtractionID, err)
 		return err
 	}
 
@@ -65,20 +68,4 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 	}
 
 	return nil
-}
-
-// notifyFailed notifies the bot that the agent turn has failed.
-func (w *AgentTurnWorker) notifyFailed(ctx context.Context, extractionID string, cause error) {
-	if extractionID == "" {
-		return
-	}
-	if err := w.botClient.NotifyExtractDone(
-		ctx,
-		extractionID,
-		"failed",
-		cause.Error(),
-		nil,
-	); err != nil {
-		log.Printf("[AgentTurnWorker] failed to notify bot (failed case): %v", err)
-	}
 }

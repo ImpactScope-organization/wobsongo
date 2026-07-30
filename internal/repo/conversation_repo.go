@@ -78,8 +78,6 @@ func (r *conversationRepo) RecentMessages(
 		)
 	}
 
-	// rows come back newest-first (see the ORDER BY in the query); reverse
-	// here so callers get chronological order without needing to know that.
 	messages := make([]model.ConversationMessage, len(rows))
 	for i, row := range rows {
 		messages[len(rows)-1-i] = model.ConversationMessage{

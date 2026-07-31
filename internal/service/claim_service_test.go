@@ -103,7 +103,10 @@ func ragServiceWithAnyHit() *RAGService {
 	) ([]data.ScoredResult[model.DocumentChunk], error) {
 		return []data.ScoredResult[model.DocumentChunk]{
 			{
-				Item:  model.DocumentChunk{ID: uuid.New(), ParsedChunk: model.ParsedChunk{Text: "some evidence"}},
+				Item: model.DocumentChunk{
+					ID:          uuid.New(),
+					ParsedChunk: model.ParsedChunk{Text: "some evidence"},
+				},
 				Score: 0.9,
 			},
 		}, nil
@@ -198,7 +201,11 @@ func TestClaimService_CheckClaim_ZeroEvidenceNeverReachesJudge(t *testing.T) {
 	}
 	wantExplainer := insufficientEvidenceExplainerTemplates[model.LanguageEnglish]
 	if !strings.Contains(result.FormattedMessage, wantExplainer) {
-		t.Errorf("expected FormattedMessage to contain health-expert referral %q, got %q", wantExplainer, result.FormattedMessage)
+		t.Errorf(
+			"expected FormattedMessage to contain health-expert referral %q, got %q",
+			wantExplainer,
+			result.FormattedMessage,
+		)
 	}
 }
 
@@ -515,7 +522,10 @@ func TestClaimService_CheckClaim_HighRiskOverrideBeatsFavorableJudgeVerdict(t *t
 	}
 	s := NewClaimService(analyzer, judge, ragServiceWithAnyHit())
 
-	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "l'alcool augmente la fertilité"})
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "l'alcool augmente la fertilité"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -526,10 +536,16 @@ func TestClaimService_CheckClaim_HighRiskOverrideBeatsFavorableJudgeVerdict(t *t
 
 	wantCaution := highRiskCautionTemplates[model.LanguageEnglish]
 	if !strings.Contains(result.FormattedMessage, wantCaution) {
-		t.Errorf("expected FormattedMessage to contain caution template, got %q", result.FormattedMessage)
+		t.Errorf(
+			"expected FormattedMessage to contain caution template, got %q",
+			result.FormattedMessage,
+		)
 	}
 	if strings.Contains(result.FormattedMessage, "the judge's own") {
-		t.Errorf("expected FormattedMessage to omit the judge's own reasoning, got %q", result.FormattedMessage)
+		t.Errorf(
+			"expected FormattedMessage to omit the judge's own reasoning, got %q",
+			result.FormattedMessage,
+		)
 	}
 }
 
@@ -581,7 +597,10 @@ func TestClaimService_CheckClaim_HighRiskOverrideOnAlreadyContradictedVerdict(t 
 	}
 	s := NewClaimService(analyzer, judge, ragServiceWithAnyHit())
 
-	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "drinking alcohol increases fertility"})
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "drinking alcohol increases fertility"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -592,8 +611,14 @@ func TestClaimService_CheckClaim_HighRiskOverrideOnAlreadyContradictedVerdict(t 
 	if sc.Severity != model.SeverityEmergency {
 		t.Errorf("expected Severity to stay Emergency, got %s", sc.Severity)
 	}
-	if strings.Count(result.FormattedMessage, highRiskCautionTemplates[model.LanguageEnglish]) != 1 {
-		t.Errorf("expected caution template to appear exactly once, got %q", result.FormattedMessage)
+	if strings.Count(
+		result.FormattedMessage,
+		highRiskCautionTemplates[model.LanguageEnglish],
+	) != 1 {
+		t.Errorf(
+			"expected caution template to appear exactly once, got %q",
+			result.FormattedMessage,
+		)
 	}
 }
 
@@ -672,7 +697,10 @@ func TestClaimService_CheckClaim_HighRiskKeywordOverrideBilingual(t *testing.T) 
 			}
 			judge := &stubClaimJudge{
 				judgeFunc: func(*data.JudgeRequest) (*data.JudgeVerdict, error) {
-					return &data.JudgeVerdict{Verdict: model.VerdictSupported, CitedEvidence: []int{0}}, nil
+					return &data.JudgeVerdict{
+						Verdict:       model.VerdictSupported,
+						CitedEvidence: []int{0},
+					}, nil
 				},
 			}
 			s := NewClaimService(analyzer, judge, ragServiceWithAnyHit())
@@ -705,19 +733,29 @@ func TestClaimService_CheckClaim_HighRiskOverridePartialAcrossSubClaims(t *testi
 	}
 	s := NewClaimService(analyzer, judge, ragServiceWithAnyHit())
 
-	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "claim A and l'alcool augmente la fertilité"})
+	result, err := s.CheckClaim(
+		t.Context(),
+		&dto.CheckClaimDTO{Text: "claim A and l'alcool augmente la fertilité"},
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(result.SubClaims) != 2 {
 		t.Fatalf("expected 2 sub-claims, got %d", len(result.SubClaims))
 	}
-	if result.SubClaims[0].Verdict != model.VerdictSupported || result.SubClaims[0].HighRiskCaution {
-		t.Errorf("expected sub-claim 0 to keep its own Supported verdict, got %+v", result.SubClaims[0])
+	if result.SubClaims[0].Verdict != model.VerdictSupported ||
+		result.SubClaims[0].HighRiskCaution {
+		t.Errorf(
+			"expected sub-claim 0 to keep its own Supported verdict, got %+v",
+			result.SubClaims[0],
+		)
 	}
 	assertHighRiskOverrideApplied(t, result.SubClaims[1])
 	if overallVerdictKey(result.SubClaims) != overallKeyHighRisk {
-		t.Errorf("expected overall rollup to report high-risk as top priority, got %q", overallVerdictKey(result.SubClaims))
+		t.Errorf(
+			"expected overall rollup to report high-risk as top priority, got %q",
+			overallVerdictKey(result.SubClaims),
+		)
 	}
 }
 

@@ -62,7 +62,10 @@ func TestClaimAnalyzerClient_Analyze_ParsesHighRiskFlag(t *testing.T) {
 	defer server.Close()
 
 	client := external.NewClaimAnalyzerClient(server.URL, "test-model", "test-api-key")
-	analysis, err := client.Analyze(t.Context(), "l'alcool augmente la fertilité et le folate prévient les anomalies")
+	analysis, err := client.Analyze(
+		t.Context(),
+		"l'alcool augmente la fertilité et le folate prévient les anomalies",
+	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -99,7 +102,9 @@ func TestClaimAnalyzerClient_Analyze_MissingHighRiskDefaultsFalse(t *testing.T) 
 		t.Fatalf("expected 1 sub-claim, got %d", len(analysis.SubClaims))
 	}
 	if analysis.SubClaims[0].HighRisk {
-		t.Error("expected HighRisk to default false when the field is missing from the wire response")
+		t.Error(
+			"expected HighRisk to default false when the field is missing from the wire response",
+		)
 	}
 }
 
@@ -140,8 +145,13 @@ func TestClaimAnalyzerClient_Analyze_CapsSubClaimsAtMax(t *testing.T) {
 		_, _ = w.Write(fakeAnalysisResponseBody(t, map[string]any{
 			"in_scope": true,
 			"sub_claims": []map[string]any{
-				{"text": "a"}, {"text": "b"}, {"text": "c"}, {"text": "d"},
-				{"text": "e"}, {"text": "f"}, {"text": "g"},
+				{"text": "a"},
+				{"text": "b"},
+				{"text": "c"},
+				{"text": "d"},
+				{"text": "e"},
+				{"text": "f"},
+				{"text": "g"},
 			},
 		}))
 	}))

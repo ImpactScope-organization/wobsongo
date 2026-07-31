@@ -43,9 +43,9 @@ func (r *conversationRepo) AppendMessage(
 	content string,
 ) error {
 	_, err := r.q.InsertConversationMessage(ctx, db.InsertConversationMessageParams{
-		Jid:         jid,
-		Role:        string(role),
-		Content:     content,
+		Jid:     jid,
+		Role:    string(role),
+		Content: content,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to insert conversation message: %w", mapPostgresError(err))
@@ -79,11 +79,11 @@ func (r *conversationRepo) RecentMessages(
 	for i := range rows {
 		row := &rows[i]
 		messages[len(rows)-1-i] = model.ConversationMessage{
-			ID:          row.ID,
-			Jid:         row.Jid,
-			Role:        model.ConversationRole(row.Role),
-			Content:     row.Content,
-			CreatedAt:   row.CreatedAt,
+			ID:        row.ID,
+			Jid:       row.Jid,
+			Role:      model.ConversationRole(row.Role),
+			Content:   row.Content,
+			CreatedAt: row.CreatedAt,
 		}
 	}
 	return messages, nil

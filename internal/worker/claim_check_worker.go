@@ -52,6 +52,9 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 		job.Args.ExtractionID,
 	)
 
+	notifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
+		"🔍 Checking the claim...")
+
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.Args.Text})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)

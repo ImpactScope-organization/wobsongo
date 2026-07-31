@@ -70,6 +70,9 @@ func (w *TranscriptionWorker) Work(
 ) error {
 	log.Printf("[TranscriptionWorker] Starting transcription for VideoID: %s", job.Args.VideoID)
 
+	notifyBotProgress(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID,
+		"📝 The video is being transcribed....")
+
 	// Load the Modal API endpoint from the environment.
 	if w.modalURL == "" {
 		err := errors.New("transcription worker: modalURL is not configured")

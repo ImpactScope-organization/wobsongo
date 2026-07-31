@@ -65,7 +65,7 @@ export interface ExtractResponse {
 }
 
 // ExtractCallbackStatus indicates the final result of an extraction job as reported by the backend webhook.
-export type ExtractCallbackStatus = 'completed' | 'failed';
+export type ExtractCallbackStatus = 'completed' | 'failed' | 'processing';
 
 // ExtractDoneCallback represents the webhook payload sent by the Go backend
 // when an extraction job asynchronously completes or fails.

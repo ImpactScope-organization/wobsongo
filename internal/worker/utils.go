@@ -26,6 +26,28 @@ func notifyBotFailed(
 		cause.Error(),
 		nil,
 	); err != nil {
-		log.Printf("[%s] failed to notify bot (failed case): %v", component, err)
+		log.Printf("[%s] failed to notify bot (fait-doneled case): %v", component, err)
+	}
+}
+
+// notifyBotProgress sends an interim status update to the bot.
+func notifyBotProgress(
+	ctx context.Context,
+	botClient *external.BotClient,
+	component string,
+	extractionID string,
+	message string,
+) {
+	if extractionID == "" {
+		return
+	}
+	if err := botClient.NotifyExtractDone(
+		ctx,
+		extractionID,
+		"processing",
+		"",
+		&external.ExtractCallbackData{Answer: message},
+	); err != nil {
+		log.Printf("[%s] failed to notify progress: %v", component, err)
 	}
 }

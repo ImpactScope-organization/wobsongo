@@ -160,7 +160,7 @@ func (s *AgentService) HandleInboundMessage(
 		return &dto.AgentInboundResponse{
 			Status:  dto.StatusRejected,
 			Message: rejectMsg,
-		}, nil // BARU
+		}, nil
 	}
 
 	extractionID := uuid.New().String()

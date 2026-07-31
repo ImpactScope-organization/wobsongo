@@ -32,7 +32,7 @@ export interface SendMessageResponse {
 }
 
 // ExtractStatus indicates the current lifecycle state of a media extraction job.
-export type ExtractStatus = 'processing' | 'completed' | 'failed';
+export type ExtractStatus = 'processing' | 'completed' | 'failed' | 'rejected';
 
 // ExtractRequest represents the payload sent to the Go backend to initiate a media extraction
 export interface ExtractRequest {
@@ -59,10 +59,13 @@ export interface ExtractResponse {
 
   // An error message, populated if the extraction fails.
   error?: string;
+
+  // The response message returned by the agent.
+  message?: string;
 }
 
 // ExtractCallbackStatus indicates the final result of an extraction job as reported by the backend webhook.
-export type ExtractCallbackStatus = 'completed' | 'failed';
+export type ExtractCallbackStatus = 'completed' | 'failed' | 'processing';
 
 // ExtractDoneCallback represents the webhook payload sent by the Go backend
 // when an extraction job asynchronously completes or fails.

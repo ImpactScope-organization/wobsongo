@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -17,6 +19,7 @@ type Handlers struct {
 	mediaHandler    *MediaHandler
 	botExtractPSK   string
 	claimHandler    *ClaimHandler
+	agentHandler    *AgentHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -24,6 +27,11 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	// apify Webhooks (legacy, unversioned)
 	api.POST("/webhooks/apify", h.apifyHandler.webhookHandler)
 	api.POST("/extract", h.apifyHandler.extractMediaHandler, PSKAuthMiddleware(h.botExtractPSK))
+	api.POST(
+		"/agent/inbound",
+		h.agentHandler.inboundMessageHandler,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
 
 	// Versioned resource routes use /api/v1/{resource_name_plural}.
 	v1 := api.Group("/v1")
@@ -41,15 +49,16 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo     data.ApifyRepoer
-	VideoRepo     data.VideoRepoer
-	DocumentRepo  data.DocumentRepoer
-	MediaProvider data.MediaUploadProvider
-	ChunkRepo     data.DocumentChunkRepoer
-	KnowledgeRepo data.AtomicKnowledgeRepoer
-	Embedder      data.Embedder
-	ClaimAnalyzer data.ClaimAnalyzer
-	ClaimJudge    data.ClaimJudge
+	ApifyRepo        data.ApifyRepoer
+	VideoRepo        data.VideoRepoer
+	DocumentRepo     data.DocumentRepoer
+	MediaProvider    data.MediaUploadProvider
+	ChunkRepo        data.DocumentChunkRepoer
+	KnowledgeRepo    data.AtomicKnowledgeRepoer
+	Embedder         data.Embedder
+	ClaimAnalyzer    data.ClaimAnalyzer
+	ClaimJudge       data.ClaimJudge
+	ConversationRepo data.ConversationRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -84,12 +93,42 @@ func NewHandlers(repos *Repos) *Handlers {
 	claimService := service.NewClaimService(repos.ClaimAnalyzer, repos.ClaimJudge, ragService)
 	claimHandler := NewClaimHandler(claimService)
 
+	agentLLMConfig, err := internal.NewAgentLLMConfig()
+	if err != nil {
+		panic(fmt.Errorf("failed to load agent LLM config: %w", err))
+	}
+	var agentLLMClient *external.AgentLLMClient
+	if agentLLMConfig.Enabled {
+		agentLLMClient = external.NewAgentLLMClient(
+			agentLLMConfig.BaseURL,
+			agentLLMConfig.Model,
+			agentLLMConfig.APIKey,
+		)
+	}
+	conversationService := service.NewConversationService(repos.ConversationRepo)
+	agentService, err := service.NewAgentService(
+		conversationService,
+		apifyService,
+		claimService,
+		agentLLMClient,
+		agentLLMConfig.Enabled,
+		agentLLMConfig.Provider,
+		agentLLMConfig.Model,
+		agentLLMConfig.BaseURL,
+		agentLLMConfig.APIKey,
+	)
+	if err != nil {
+		panic(fmt.Errorf("failed to build agent service: %w", err))
+	}
+	agentHandler := NewAgentHandler(agentService)
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
 		mediaHandler:    mediaHandler,
 		botExtractPSK:   config.BotExtractPSK,
 		claimHandler:    claimHandler,
+		agentHandler:    agentHandler,
 	}
 }
 

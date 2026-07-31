@@ -177,6 +177,38 @@ type ASRConfig struct {
 	SourceLang string `json:"source_lang"`
 }
 
+// AgentLLMConfig holds the configuration for the agentic bot's tool-calling
+type AgentLLMConfig struct {
+	Enabled  bool
+	Provider string `json:"provider"`
+	BaseURL  string `json:"base_url"`
+	Model    string `json:"model"`
+	APIKey   string `json:"-"`
+}
+
+// NewAgentLLMConfig creates a new AgentLLMConfig from environment variables.
+func NewAgentLLMConfig() (*AgentLLMConfig, error) {
+	enabled := getEnvBool("AGENT_ENABLED", true)
+	if !enabled {
+		return &AgentLLMConfig{Enabled: false}, nil
+	}
+	baseURL := getEnv("AGENT_LLM_BASE_URL", "")
+	if baseURL == "" {
+		return nil, errors.New("AGENT_LLM_BASE_URL is not set")
+	}
+	model := getEnv("AGENT_LLM_MODEL", "")
+	if model == "" {
+		return nil, errors.New("AGENT_LLM_MODEL is not set")
+	}
+	return &AgentLLMConfig{
+		Enabled:  true,
+		Provider: getEnv("AGENT_LLM_PROVIDER", "openai"),
+		BaseURL:  baseURL,
+		Model:    model,
+		APIKey:   getEnv("AGENT_LLM_API_KEY", ""),
+	}, nil
+}
+
 type Config struct {
 	Logger             *slog.Logger       `json:"-"`                    // Never included in JSON (not serializable)
 	LogLevel           slog.Level         `json:"log_level"`            // Log level (debug, info, warn, error)

@@ -60,12 +60,15 @@ func (s *ApifyService) TriggerExtraction(
 	ctx context.Context,
 	targetURL string,
 	question string,
+	jid string,
+	viaAgent bool,
 ) (*dto.ExtractResponse, error) {
 	if question != "" {
 		extractionID := uuid.New().String()
 		if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
 			ExtractionID: extractionID,
 			Text:         question,
+			Jid:          jid,
 		}); err != nil {
 			return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 		}
@@ -79,7 +82,7 @@ func (s *ApifyService) TriggerExtraction(
 	}
 
 	if video != nil && video.TranscriptionText != nil && *video.TranscriptionText != "" {
-		return s.handleCachedTranscript(ctx, video)
+		return s.handleCachedTranscript(ctx, video, jid)
 	}
 
 	// If Cache miss generate a new extraction ID and construct the ExtractionRequest.
@@ -89,6 +92,12 @@ func (s *ApifyService) TriggerExtraction(
 		strings.TrimSuffix(s.baseWebhookURL, "/"),
 		extractionID,
 	)
+	if jid != "" {
+		webhookURL += "&jid=" + url.QueryEscape(jid)
+	}
+	if viaAgent {
+		webhookURL += "&viaAgent=true"
+	}
 
 	// Enqueue the job for background processing.
 	args := queue.ExtractMediaDTO{
@@ -109,12 +118,14 @@ func (s *ApifyService) TriggerExtraction(
 func (s *ApifyService) handleCachedTranscript(
 	ctx context.Context,
 	video *model.Video,
+	jid string,
 ) (*dto.ExtractResponse, error) {
 	extractionID := video.ID.String()
 
 	if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
 		ExtractionID: extractionID,
 		Text:         *video.TranscriptionText,
+		Jid:          jid,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 	}
@@ -128,6 +139,8 @@ func (s *ApifyService) ProcessWebhook(
 	ctx context.Context,
 	payload *dto.ApifyWebhookPayload,
 	extractionID string,
+	jid string,
+	viaAgent bool,
 ) (string, error) {
 	if payload.EventType != apifyEventRunSucceeded ||
 		payload.Resource.Status != apifyStatusSucceeded {
@@ -152,6 +165,8 @@ func (s *ApifyService) ProcessWebhook(
 		ctx,
 		items,
 		extractionID,
+		jid,
+		viaAgent,
 	); err != nil {
 		return "", fmt.Errorf("failed to save items to database: %w", err)
 	}

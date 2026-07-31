@@ -34,6 +34,14 @@ type AtomicKnowledge struct {
 	FtsFr                interface{}
 }
 
+type ConversationMessage struct {
+	ID        uuid.UUID
+	Jid       string
+	Role      string
+	Content   string
+	CreatedAt time.Time
+}
+
 type Document struct {
 	ID              uuid.UUID
 	CreatedAt       time.Time

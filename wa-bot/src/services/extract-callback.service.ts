@@ -24,6 +24,13 @@ export async function handleExtractDone(
     return;
   }
 
+   if (status === 'processing') {
+    if (data?.answer) {
+      await conversationService.sendMessage(pending.jid, { text: data.answer });
+    }
+    return;
+  }
+
   try {
     if (data) {
       // The callback already includes the final result.

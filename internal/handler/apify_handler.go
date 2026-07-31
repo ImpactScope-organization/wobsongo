@@ -55,7 +55,13 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 		}
 	}
 
-	resp, err := h.service.TriggerExtraction(c.Request().Context(), req.URL, req.Question)
+	resp, err := h.service.TriggerExtraction(
+		c.Request().Context(),
+		req.URL,
+		req.Question,
+		"",
+		false,
+	)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,
@@ -84,6 +90,8 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 // @Router		/api/webhooks/apify [post]
 func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 	extractionID := c.QueryParam("extractionId")
+	jid := c.QueryParam("jid")
+	viaAgent := c.QueryParam("viaAgent") == "true"
 
 	payload := new(dto.ApifyWebhookPayload)
 	if err := c.Bind(payload); err != nil {
@@ -101,7 +109,13 @@ func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 		}
 	}
 
-	datasetID, err := h.service.ProcessWebhook(c.Request().Context(), payload, extractionID)
+	datasetID, err := h.service.ProcessWebhook(
+		c.Request().Context(),
+		payload,
+		extractionID,
+		jid,
+		viaAgent,
+	)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,

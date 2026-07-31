@@ -22,19 +22,20 @@ const (
 )
 
 type App struct {
-	config        *internal.Config
-	echoApp       *echo.Echo
-	apiGroup      *echo.Group
-	apifyRepo     data.ApifyRepoer
-	videoRepo     data.VideoRepoer
-	documentRepo  data.DocumentRepoer
-	mediaProvider data.MediaUploadProvider
-	chunkRepo     data.DocumentChunkRepoer
-	knowledgeRepo data.AtomicKnowledgeRepoer
-	embedder      data.Embedder
-	claimAnalyzer data.ClaimAnalyzer
-	claimJudge    data.ClaimJudge
-	userRepo      data.UserRepoer
+	config           *internal.Config
+	echoApp          *echo.Echo
+	apiGroup         *echo.Group
+	apifyRepo        data.ApifyRepoer
+	videoRepo        data.VideoRepoer
+	documentRepo     data.DocumentRepoer
+	mediaProvider    data.MediaUploadProvider
+	chunkRepo        data.DocumentChunkRepoer
+	knowledgeRepo    data.AtomicKnowledgeRepoer
+	embedder         data.Embedder
+	claimAnalyzer    data.ClaimAnalyzer
+	claimJudge       data.ClaimJudge
+	userRepo         data.UserRepoer
+	conversationRepo data.ConversationRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -135,6 +136,12 @@ func WithUserRepo(repo data.UserRepoer) AppOption {
 	}
 }
 
+func WithConversationRepo(repo data.ConversationRepoer) AppOption {
+	return func(a *App) {
+		a.conversationRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -172,6 +179,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.Embedder = app.embedder
 	repos.ClaimAnalyzer = app.claimAnalyzer
 	repos.ClaimJudge = app.claimJudge
+	repos.ConversationRepo = app.conversationRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

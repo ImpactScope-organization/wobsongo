@@ -31,6 +31,8 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 	ctx context.Context,
 	items []dto.ApifyTikTokItem,
 	extractionID string,
+	jid string,
+	viaAgent bool,
 ) error {
 	var errs []error
 
@@ -71,6 +73,8 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 					ExtractionID: extractionID,
 					VideoID:      videoData.ID,
 					DownloadURL:  item.MediaUrls[0],
+					Jid:          jid,
+					ViaAgent:     viaAgent,
 				}
 				if err := txRepo.EnqueueTranscriptionJob(ctx, payload); err != nil {
 					return fmt.Errorf("failed to enqueue transcription job: %w", err)
@@ -102,4 +106,15 @@ func (s *VideoService) UpdateVideoTranscription(
 	id uuid.UUID,
 ) error {
 	return s.videoRepo.UpdateVideoTranscription(ctx, text, id)
+}
+
+// EnqueueClaimCheckJob queues a claim-check job for an already-transcribed video.
+func (s *VideoService) EnqueueClaimCheckJob(
+	ctx context.Context,
+	payload queue.ClaimCheckJob,
+) error {
+	if err := s.videoRepo.EnqueueClaimCheckJob(ctx, payload); err != nil {
+		return fmt.Errorf("failed to enqueue claim check job: %w", err)
+	}
+	return nil
 }

@@ -15,6 +15,106 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/api/agent/inbound": {
+            "post": {
+                "description": "Single entry point for every inbound WhatsApp message. Applies a\ndeterministic fast path for bare TikTok URLs (straight to the existing\ncache-check/Apify pipeline) and routes everything else through the\nconversational agent (tool-calling over claim-checking and video\nprocessing, with per-jid conversation history).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Handle an inbound WhatsApp message",
+                "parameters": [
+                    {
+                        "description": "Inbound Message",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AgentInboundRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AgentInboundResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/extract": {
             "post": {
                 "description": "Enqueues a job to extract media from a target URL using Apify.",
@@ -1085,6 +1185,44 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "dto.AgentInboundRequest": {
+            "type": "object",
+            "required": [
+                "jid",
+                "text"
+            ],
+            "properties": {
+                "jid": {
+                    "description": "Jid is the WhatsApp chat identifier this message came from.",
+                    "type": "string"
+                },
+                "text": {
+                    "description": "Text is the raw inbound message text.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.AgentInboundResponse": {
+            "type": "object",
+            "properties": {
+                "jobId": {
+                    "description": "JobID is the job identifier returned to the bot.",
+                    "type": "string"
+                },
+                "message": {
+                    "description": "Message contains the agent's response when the turn completes.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status indicates the current state of the agent turn.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/dto.ExtractStatus"
+                        }
+                    ]
+                }
+            }
+        },
         "dto.ApifyResource": {
             "type": "object",
             "required": [
@@ -1299,12 +1437,14 @@ const docTemplate = `{
             "enum": [
                 "processing",
                 "completed",
-                "failed"
+                "failed",
+                "rejected"
             ],
             "x-enum-varnames": [
                 "StatusProcessing",
                 "StatusCompleted",
-                "StatusFailed"
+                "StatusFailed",
+                "StatusRejected"
             ]
         },
         "dto.PaginationResults-model_Document": {

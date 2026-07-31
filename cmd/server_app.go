@@ -35,15 +35,17 @@ func buildApp(
 	claimCheck buildAppClaimCheckDeps,
 ) *core.App {
 	queries := db.New(pool)
+	riverClientFn := func() *river.Client[pgx.Tx] { return riverClient }
 
-	apifyRepo := repo.NewApifyRepo(riverClient)
+	apifyRepo := repo.NewApifyRepo(riverClientFn)
 	videoRepo := repo.NewVideoRepo(
 		queries,
 		pool,
-		riverClient,
+		riverClientFn,
 	)
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 	userRepo := repo.NewUserRepo(queries, pool)
+	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
 
 	return core.NewApp(
 		echo.New(),
@@ -58,5 +60,6 @@ func buildApp(
 		core.WithClaimAnalyzer(claimCheck.claimAnalyzer),
 		core.WithClaimJudge(claimCheck.claimJudge),
 		core.WithUserRepo(userRepo),
+		core.WithConversationRepo(conversationRepo),
 	)
 }

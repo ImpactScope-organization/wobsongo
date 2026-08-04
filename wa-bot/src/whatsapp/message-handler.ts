@@ -22,7 +22,7 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
       return;
     }
 
-    await sock.sendMessage(jid, { text: "⏳ Please wait, I'm checking this for you..." });
+    // await sock.sendMessage(jid, { text: "⏳ Please wait, I'm checking this for you..." });
     savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '' });
   } catch (err) {
     console.error('[message-handler] failed to call /agent/inbound:', err);

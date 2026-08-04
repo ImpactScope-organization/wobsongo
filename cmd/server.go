@@ -250,16 +250,10 @@ var serveCmd = &cobra.Command{
 			os.Exit(1)
 			return
 		}
-		agentLLMClient := external.NewAgentLLMClient(
-			agentLLMConfig.BaseURL,
-			agentLLMConfig.Model,
-			agentLLMConfig.APIKey,
-		)
 		agentService, err := service.NewAgentService(
 			workerConversationService,
 			agentApifyService,
 			workerClaimService,
-			agentLLMClient,
 			agentLLMConfig.Enabled,
 			agentLLMConfig.Provider,
 			agentLLMConfig.Model,

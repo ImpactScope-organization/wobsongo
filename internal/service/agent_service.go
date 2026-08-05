@@ -49,7 +49,13 @@ const (
 		`3. Claims clearly outside reproductive/sexual health, say briefly it's outside what you can ` +
 		`verify. When in doubt whether something counts as a claim needing verification, ALWAYS call the ` +
 		`tool. Because this topic can be sensitive or stigmatized, always respond factually, respectfully, ` +
-		`and without judgment.`
+		`and without judgment. ` +
+		`LANGUAGE AND TONE — apply to every reply you write directly (not to the check_health_claim ` +
+		`tool's own output, which already follows these rules): always reply in French, never in English ` +
+		`or any other language, regardless of what language the user wrote in. Use the informal "tu" ` +
+		`register consistently (e.g. "tu", "ta", "parles-en") — never "vous". Never say "consulte un ` +
+		`professionnel de santé" or similar writer's-language phrasing — say "va au centre de santé" ` +
+		`(or "au CSPS") instead, since that's the phrase the audience actually uses.`
 
 	agentClaimExtractionPrompt = `Read the conversation transcript. If the user's latest message ` +
 		`states, asks about, or implies a reproductive/sexual health claim that needs verification ` +
@@ -168,7 +174,7 @@ func (s *AgentService) runAgentHandler(
 	}
 
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, turnData.ExtractionID,
-		"🔍 Checking the claim...")
+		internal.MsgCheckingClaim)
 
 	res, err := agenticgokit.ExecuteToolByName(ctx, toolCheckHealthClaim, map[string]any{
 		"claim": extracted,
@@ -220,7 +226,7 @@ func (s *AgentService) HandleInboundMessage(
 	}
 
 	if anyURLRegex.MatchString(text) {
-		rejectMsg := "Sorry, I can currently only process TikTok video links. Please send a TikTok link if you'd like the video checked."
+		rejectMsg := "Désolé, je peux seulement traiter des liens vidéo TikTok pour l'instant. Envoie-moi un lien TikTok si tu veux que je vérifie la vidéo."
 		if err := s.conversationRepo.AppendMessage(
 			ctx, jid, model.ConversationRoleAssistant, rejectMsg,
 		); err != nil {
@@ -259,7 +265,7 @@ func (s *AgentService) runFallbackReply(
 	job queue.AgentTurnJob,
 ) (string, error) {
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
-		"🔍 Checking the claim...")
+		internal.MsgCheckingClaim)
 
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.UserText})
 	if err != nil {
@@ -305,7 +311,7 @@ func (s *AgentService) runVideoContinuation(
 	originalClaim = strings.TrimSpace(embeddedURLRegex.ReplaceAllString(originalClaim, ""))
 
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
-		"🔍 Checking the claim...")
+		internal.MsgCheckingClaim)
 
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.SystemNote})
 	if err != nil {
@@ -317,7 +323,7 @@ func (s *AgentService) runVideoContinuation(
 		content = result.RefusalReason
 	} else if originalClaim != "" {
 		content = fmt.Sprintf(
-			"Here's what I found regarding your question — %q:\n\n%s",
+			"Voici ce que j'ai trouvé pour ta question — %q :\n\n%s",
 			originalClaim,
 			content,
 		)
@@ -340,7 +346,7 @@ func (s *AgentService) runConversationalTurn(
 	job queue.AgentTurnJob,
 ) (string, error) {
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
-		"💬 Thinking...")
+		internal.MsgThinking)
 	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)

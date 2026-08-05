@@ -55,6 +55,7 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 			workerComponentAgentTurn,
 			job.Args.ExtractionID,
 			err,
+			"Une erreur est survenue pendant la conversation. Réessaie plus tard.",
 		)
 		return err
 	}

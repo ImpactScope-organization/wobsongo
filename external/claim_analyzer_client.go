@@ -211,12 +211,15 @@ func buildAnalyzerPrompt(message string) string {
 		"otherwise use \"\". sub_claims is only used when in_scope is true; otherwise use [].\n",
 	)
 	b.WriteString(
-		"Write each sub-claim's text and refusal_reason in the SAME language you detected the ",
+		"Always write each sub-claim's text and refusal_reason in French, regardless of what ",
 	)
 	b.WriteString(
-		"input message to be written in (the \"language\" field) — never translate them, even ",
+		"language you detected the input message to be written in (the \"language\" field is for ",
 	)
-	b.WriteString("if you expect the knowledge base evidence to be in a different language.\n\n")
+	b.WriteString(
+		"detection only) — the system currently only replies in French, even if you expect the ",
+	)
+	b.WriteString("knowledge base evidence to be in a different language.\n\n")
 	b.WriteString("Message:\n\"\"\"\n")
 	b.WriteString(message)
 	b.WriteString("\n\"\"\"\n")

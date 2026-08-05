@@ -45,7 +45,7 @@ func (w *ExtractMediaWorker) Work(
 		job.ID, job.Args.TargetURL)
 
 	internal.NotifyBotProgress(ctx, w.botClient, workerComponentExtractMedia, job.Args.ExtractionID,
-		"⏳ Please wait, I'm checking this for you...")
+		internal.MsgCheckingVideo)
 
 	// Constructing the DTO for the media extraction request based on the queue payload.
 	req := dto.ExtractionRequest{
@@ -62,6 +62,7 @@ func (w *ExtractMediaWorker) Work(
 			workerComponentExtractMedia,
 			job.Args.ExtractionID,
 			err,
+			"Une erreur est survenue pendant le traitement de la vidéo. Réessaie plus tard.",
 		)
 		return err
 	}

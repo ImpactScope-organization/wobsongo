@@ -199,7 +199,7 @@ func TestClaimService_CheckClaim_ZeroEvidenceNeverReachesJudge(t *testing.T) {
 	if judge.callCount() != 0 {
 		t.Errorf("expected judge never called, got %d calls", judge.callCount())
 	}
-	wantExplainer := insufficientEvidenceExplainerTemplates[model.LanguageEnglish]
+	wantExplainer := insufficientEvidenceExplainerTemplates[model.LanguageFrench]
 	if !strings.Contains(result.FormattedMessage, wantExplainer) {
 		t.Errorf(
 			"expected FormattedMessage to contain health-expert referral %q, got %q",
@@ -327,14 +327,14 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 		result.SubClaims[1].Verdict != model.VerdictContradicted {
 		t.Errorf("expected sub-claim 1 = claim B/Contradicted, got %+v", result.SubClaims[1])
 	}
-	if result.OverallSummary != "contains inaccuracies" {
+	if result.OverallSummary != "contient des inexactitudes" {
 		t.Errorf(
 			"expected overall summary to reflect the contradiction, got %q",
 			result.OverallSummary,
 		)
 	}
 
-	wantMessage := "❌ contains inaccuracies — 2 claims checked\n\n" +
+	wantMessage := "❌ contient des inexactitudes — 2 affirmations vérifiées\n\n" +
 		"✅ 1. claim A\n\n" +
 		"❌ 2. claim B"
 	if result.FormattedMessage != wantMessage {
@@ -534,7 +534,7 @@ func TestClaimService_CheckClaim_HighRiskOverrideBeatsFavorableJudgeVerdict(t *t
 	}
 	assertHighRiskOverrideApplied(t, result.SubClaims[0])
 
-	wantCaution := highRiskCautionTemplates[model.LanguageEnglish]
+	wantCaution := highRiskCautionTemplates[model.LanguageFrench]
 	if !strings.Contains(result.FormattedMessage, wantCaution) {
 		t.Errorf(
 			"expected FormattedMessage to contain caution template, got %q",
@@ -613,7 +613,7 @@ func TestClaimService_CheckClaim_HighRiskOverrideOnAlreadyContradictedVerdict(t 
 	}
 	if strings.Count(
 		result.FormattedMessage,
-		highRiskCautionTemplates[model.LanguageEnglish],
+		highRiskCautionTemplates[model.LanguageFrench],
 	) != 1 {
 		t.Errorf(
 			"expected caution template to appear exactly once, got %q",

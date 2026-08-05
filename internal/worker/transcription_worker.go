@@ -24,6 +24,11 @@ const transcriptionJobTimeout = 5 * time.Minute
 // workerComponentTranscription is this worker's name for notifyBotFailed's log prefix.
 const workerComponentTranscription = "TranscriptionWorker"
 
+// transcriptionFailureMessage is the fixed French message shown to the user
+// for any failure in this worker — the real cause is logged server-side by
+// NotifyBotFailed, never forwarded to the user.
+const transcriptionFailureMessage = "Une erreur est survenue pendant la transcription de la vidéo. Réessaie plus tard."
+
 // TranscriptionWorker processes transcription jobs by sending media URLs to the
 // Modal ASR service and storing the resulting transcript in the database.
 type TranscriptionWorker struct {
@@ -76,7 +81,7 @@ func (w *TranscriptionWorker) Work(
 		w.botClient,
 		workerComponentTranscription,
 		job.Args.ExtractionID,
-		"📝 The video is being transcribed....",
+		internal.MsgTranscribing,
 	)
 
 	// Load the Modal API endpoint from the environment.
@@ -88,6 +93,7 @@ func (w *TranscriptionWorker) Work(
 			workerComponentTranscription,
 			job.Args.ExtractionID,
 			err,
+			transcriptionFailureMessage,
 		)
 		return err
 	}
@@ -101,6 +107,7 @@ func (w *TranscriptionWorker) Work(
 			workerComponentTranscription,
 			job.Args.ExtractionID,
 			err,
+			transcriptionFailureMessage,
 		)
 		return err
 	}
@@ -117,6 +124,7 @@ func (w *TranscriptionWorker) Work(
 			workerComponentTranscription,
 			job.Args.ExtractionID,
 			err,
+			transcriptionFailureMessage,
 		)
 		return err
 	}
@@ -203,6 +211,7 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 				workerComponentTranscription,
 				args.ExtractionID,
 				err,
+				transcriptionFailureMessage,
 			)
 			return err
 		}
@@ -220,6 +229,7 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 				workerComponentTranscription,
 				args.ExtractionID,
 				err,
+				transcriptionFailureMessage,
 			)
 			return err
 		}

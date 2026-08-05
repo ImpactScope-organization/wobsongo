@@ -17,8 +17,10 @@ export async function handleExtractDone(
   }
 
   if (status === 'failed') {
+    // errorMsg is now always a complete, friendly French sentence supplied by
+    // the Go side (internal.NotifyBotFailed) — never raw internal error text.
     await conversationService.sendMessage(pending.jid, {
-      text: `❌ Failed to process video. ${errorMsg ?? ''}`.trim(),
+      text: `❌ ${errorMsg || 'Une erreur est survenue. Réessaie plus tard.'}`.trim(),
     });
     deletePendingJob(jobId);
     return;
@@ -50,7 +52,7 @@ export async function handleExtractDone(
   } catch (err) {
     console.error('[extract-callback] failed re-fetch /extract:', err);
     await conversationService.sendMessage(pending.jid, {
-      text: '❌ An error occurred while fetching the transcription result.',
+      text: '❌ Une erreur est survenue lors de la récupération du résultat de la transcription. Réessaie plus tard.',
     });
     deletePendingJob(jobId);
   }

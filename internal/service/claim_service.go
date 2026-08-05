@@ -131,6 +131,13 @@ func (s *ClaimService) CheckClaim(
 		subClaims = []data.SubClaim{{Text: message}}
 	}
 
+	// replyLanguage is hardcoded to French regardless of analysis.Language
+	// (the detected input language) — WobSongo_Response_Logic_Heuristics_v2.md
+	// §5/§9: all user-facing bot output must be French, no exceptions.
+	// analysis.Language is kept on ClaimCheckResult below as detected-language
+	// metadata only; it no longer selects reply text/templates.
+	const replyLanguage = model.LanguageFrench
+
 	results := make([]SubClaimResult, len(subClaims))
 	// errgroup.WithContext, not a plain group: this is a synchronous,
 	// user-facing request — a partial result (some sub-claims judged, one
@@ -141,7 +148,7 @@ func (s *ClaimService) CheckClaim(
 	for i, sc := range subClaims {
 		highRisk := sc.HighRisk || isHighRiskSubstanceMention(sc.Text)
 		g.Go(func() error {
-			result, err := s.checkSubClaim(gctx, sc.Text, analysis.Language, highRisk)
+			result, err := s.checkSubClaim(gctx, sc.Text, replyLanguage, highRisk)
 			if err != nil {
 				return err
 			}
@@ -153,14 +160,14 @@ func (s *ClaimService) CheckClaim(
 		return nil, fmt.Errorf("failed to check sub-claims: %w", err)
 	}
 
-	overallSummary := summarizeVerdicts(results, analysis.Language)
+	overallSummary := summarizeVerdicts(results, replyLanguage)
 	return &ClaimCheckResult{
 		InScope:        true,
 		OverallSummary: overallSummary,
 		FormattedMessage: formatClaimMessage(
 			results,
 			overallSummary,
-			analysis.Language,
+			replyLanguage,
 			req.IsLong,
 		),
 		SubClaims: results,
@@ -384,7 +391,7 @@ var claimsCheckedLabelTemplates = map[model.Language]struct{ one, many string }{
 // for this case (external/judge_client.go) has no fixed wording.
 var insufficientEvidenceExplainerTemplates = map[model.Language]string{
 	model.LanguageEnglish: "This information isn't confirmed by our validated health sources. When in doubt, talk to a health professional.",
-	model.LanguageFrench:  "Cette information n'est pas confirmée par nos sources de santé validées. Dans le doute, parles-en à un professionnel de santé.",
+	model.LanguageFrench:  "Cette information n'est pas confirmée par nos sources de santé. Dans le doute, va au centre de santé.",
 }
 
 // highRiskCautionTemplates is shown in place of BriefReasoning/Reasoning
@@ -393,7 +400,7 @@ var insufficientEvidenceExplainerTemplates = map[model.Language]string{
 // that must read the same regardless of what evidence was or wasn't found.
 var highRiskCautionTemplates = map[model.Language]string{
 	model.LanguageEnglish: "Warning: this product or practice hasn't been validated and may pose risks to your health. Please consult a health professional.",
-	model.LanguageFrench:  "Attention : ce produit ou cette pratique n'est pas validé(e) et peut présenter des risques pour ta santé. Consulte un professionnel de santé.",
+	model.LanguageFrench:  "Attention : ce produit ou cette pratique n'est pas validé(e) et peut présenter des risques pour ta santé. Va au centre de santé.",
 }
 
 // formatClaimMessage renders results and overallSummary into a human-facing,

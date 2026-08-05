@@ -18,16 +18,16 @@ export async function handleMessage(sock: WASocket, msg: WAMessage): Promise<voi
     });
 
     if (result.status === 'rejected') {
-      await sock.sendMessage(jid, { text: result.message ?? 'Sorry, I cannot process that.' });
+      await sock.sendMessage(jid, { text: result.message ?? 'Désolé, je ne peux pas traiter cette demande.' });
       return;
     }
 
-    // await sock.sendMessage(jid, { text: "⏳ Please wait, I'm checking this for you..." });
+    // await sock.sendMessage(jid, { text: "Un instant, je vérifie ça pour toi..." });
     savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '' });
   } catch (err) {
     console.error('[message-handler] failed to call /agent/inbound:', err);
     await sock.sendMessage(jid, {
-      text: '❌ An error occurred while contacting the server. Please try again later.',
+      text: '❌ Une erreur est survenue. Réessaie plus tard.',
     });
   }
 }

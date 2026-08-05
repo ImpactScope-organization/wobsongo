@@ -54,7 +54,7 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	)
 
 	internal.NotifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
-		"🔍 Checking the claim...")
+		internal.MsgCheckingClaim)
 
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.Args.Text})
 	if err != nil {
@@ -65,6 +65,7 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 			workerComponentClaimCheck,
 			job.Args.ExtractionID,
 			err,
+			"Une erreur est survenue pendant la vérification. Réessaie plus tard.",
 		)
 		return err
 	}

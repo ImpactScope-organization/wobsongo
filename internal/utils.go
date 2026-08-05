@@ -1,4 +1,4 @@
-package worker
+package internal
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 // notifyBotFailed sends a failed NotifyExtractDone callback to the bot.
 // Missing extraction IDs and callback failures are logged but not returned.
-func notifyBotFailed(
+func NotifyBotFailed(
 	ctx context.Context,
 	botClient *external.BotClient,
 	component string,
@@ -31,7 +31,7 @@ func notifyBotFailed(
 }
 
 // notifyBotProgress sends an interim status update to the bot.
-func notifyBotProgress(
+func NotifyBotProgress(
 	ctx context.Context,
 	botClient *external.BotClient,
 	component string,

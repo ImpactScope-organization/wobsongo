@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/external"
+	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/riverqueue/river"
@@ -48,7 +49,13 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 	answer, err := w.agentService.RunTurn(ctx, job.Args)
 	if err != nil {
 		err = fmt.Errorf("agent turn failed: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentAgentTurn, job.Args.ExtractionID, err)
+		internal.NotifyBotFailed(
+			ctx,
+			w.botClient,
+			workerComponentAgentTurn,
+			job.Args.ExtractionID,
+			err,
+		)
 		return err
 	}
 

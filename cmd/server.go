@@ -46,6 +46,12 @@ var serveCmd = &cobra.Command{
 			config.ApifyConfig.IGActorID,
 		)
 
+		botClient := external.NewBotClient(
+			config.BotBaseURL,
+			config.BotCallbackPSK,
+			config.BotExtractPSK,
+		)
+
 		// The media provider is constructed here (not inside buildApp) so it
 		// can be shared with River workers, which must be registered before
 		// the river.Client (and therefore before buildApp) exists.
@@ -151,13 +157,8 @@ var serveCmd = &cobra.Command{
 		workers := river.NewWorkers()
 
 		// register ExtractMediaWorker with River
-		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher)
+		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher, botClient)
 		river.AddWorker(workers, mediaWorker)
-		botClient := external.NewBotClient(
-			config.BotBaseURL,
-			config.BotCallbackPSK,
-			config.BotExtractPSK,
-		)
 
 		transcriptionWorker := worker.NewTranscriptionWorker(
 			workerVideoService,
@@ -250,16 +251,11 @@ var serveCmd = &cobra.Command{
 			os.Exit(1)
 			return
 		}
-		agentLLMClient := external.NewAgentLLMClient(
-			agentLLMConfig.BaseURL,
-			agentLLMConfig.Model,
-			agentLLMConfig.APIKey,
-		)
 		agentService, err := service.NewAgentService(
 			workerConversationService,
 			agentApifyService,
 			workerClaimService,
-			agentLLMClient,
+			botClient,
 			agentLLMConfig.Enabled,
 			agentLLMConfig.Provider,
 			agentLLMConfig.Model,

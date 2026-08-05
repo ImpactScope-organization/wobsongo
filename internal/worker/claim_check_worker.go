@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/external"
+	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
@@ -52,13 +53,19 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 		job.Args.ExtractionID,
 	)
 
-	notifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
+	internal.NotifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
 		"🔍 Checking the claim...")
 
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.Args.Text})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID, err)
+		internal.NotifyBotFailed(
+			ctx,
+			w.botClient,
+			workerComponentClaimCheck,
+			job.Args.ExtractionID,
+			err,
+		)
 		return err
 	}
 

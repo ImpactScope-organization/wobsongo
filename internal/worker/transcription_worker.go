@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/external"
+	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -70,20 +71,37 @@ func (w *TranscriptionWorker) Work(
 ) error {
 	log.Printf("[TranscriptionWorker] Starting transcription for VideoID: %s", job.Args.VideoID)
 
-	notifyBotProgress(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID,
-		"📝 The video is being transcribed....")
+	internal.NotifyBotProgress(
+		ctx,
+		w.botClient,
+		workerComponentTranscription,
+		job.Args.ExtractionID,
+		"📝 The video is being transcribed....",
+	)
 
 	// Load the Modal API endpoint from the environment.
 	if w.modalURL == "" {
 		err := errors.New("transcription worker: modalURL is not configured")
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
+		internal.NotifyBotFailed(
+			ctx,
+			w.botClient,
+			workerComponentTranscription,
+			job.Args.ExtractionID,
+			err,
+		)
 		return err
 	}
 
 	// Build the request payload for the Modal ASR service
 	modalResp, err := w.callModalASR(ctx, job.Args.DownloadURL)
 	if err != nil {
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
+		internal.NotifyBotFailed(
+			ctx,
+			w.botClient,
+			workerComponentTranscription,
+			job.Args.ExtractionID,
+			err,
+		)
 		return err
 	}
 
@@ -93,7 +111,13 @@ func (w *TranscriptionWorker) Work(
 		job.Args.VideoID,
 	); err != nil {
 		err = fmt.Errorf("failed to save transcription to db: %w", err)
-		notifyBotFailed(ctx, w.botClient, workerComponentTranscription, job.Args.ExtractionID, err)
+		internal.NotifyBotFailed(
+			ctx,
+			w.botClient,
+			workerComponentTranscription,
+			job.Args.ExtractionID,
+			err,
+		)
 		return err
 	}
 
@@ -173,7 +197,13 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 			Jid: args.Jid, ExtractionID: args.ExtractionID, SystemNote: note,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue agent turn continuation: %w", err)
-			notifyBotFailed(ctx, w.botClient, workerComponentTranscription, args.ExtractionID, err)
+			internal.NotifyBotFailed(
+				ctx,
+				w.botClient,
+				workerComponentTranscription,
+				args.ExtractionID,
+				err,
+			)
 			return err
 		}
 
@@ -184,7 +214,13 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 			Jid:          args.Jid,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue claim check: %w", err)
-			notifyBotFailed(ctx, w.botClient, workerComponentTranscription, args.ExtractionID, err)
+			internal.NotifyBotFailed(
+				ctx,
+				w.botClient,
+				workerComponentTranscription,
+				args.ExtractionID,
+				err,
+			)
 			return err
 		}
 

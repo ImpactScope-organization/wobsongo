@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -96,11 +97,17 @@ func NewHandlers(repos *Repos) *Handlers {
 	if err != nil {
 		panic(fmt.Errorf("failed to load agent LLM config: %w", err))
 	}
+	botClient := external.NewBotClient(
+		config.BotBaseURL,
+		config.BotCallbackPSK,
+		config.BotExtractPSK,
+	)
 	conversationService := service.NewConversationService(repos.ConversationRepo)
 	agentService, err := service.NewAgentService(
 		conversationService,
 		apifyService,
 		claimService,
+		botClient,
 		agentLLMConfig.Enabled,
 		agentLLMConfig.Provider,
 		agentLLMConfig.Model,

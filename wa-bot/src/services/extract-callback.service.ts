@@ -26,7 +26,7 @@ export async function handleExtractDone(
     return;
   }
 
-   if (status === 'processing') {
+  if (status === 'processing') {
     if (data?.answer) {
       await conversationService.sendMessage(pending.jid, { text: data.answer });
     }

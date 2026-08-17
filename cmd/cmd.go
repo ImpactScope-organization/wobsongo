@@ -38,7 +38,6 @@ func Execute() {
 	rootCmd.AddCommand(evalRetrievalBilingualCmd)
 	rootCmd.AddCommand(backfillTranslationsCmd)
 	rootCmd.AddCommand(claimCheckCmd)
-	rootCmd.AddCommand(botCmd)
 	rootCmd.AddCommand(createSuperadminCmd)
 
 	if err := rootCmd.Execute(); err != nil {

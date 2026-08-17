@@ -4,7 +4,7 @@
   "description": "",
   "main": "dist/index.js",
   "scripts": {
-    "dev": "tsx watch --ignore 'auth_info_baileys/**' --ignore 'auth_info_baileys' src/server.ts",
+    "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -25,20 +25,18 @@
   },
   "type": "module",
   "dependencies": {
-    "@hapi/boom": "^10.0.1",
-    "baileys": "7.0.0-rc13",
+    "@sentry/node": "^10.70.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "pino": "^10.3.1",
-    "qrcode-terminal": "^0.12.0"
+    "twilio": "^6.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^26.1.1",
-    "@types/qrcode-terminal": "^0.12.2",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-promise": "^7.3.0",

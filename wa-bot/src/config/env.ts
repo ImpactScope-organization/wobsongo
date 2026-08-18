@@ -23,6 +23,9 @@ export const env = {
   twilioAuthToken: required('TWILIO_AUTH_TOKEN'),
   twilioPhoneNumber: required('TWILIO_PHONE_NUMBER'),
 
+  // Telegram bot token
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
+
   // Sentry DSN for error tracking
   sentryDsn: process.env.SENTRY_DSN,
 };

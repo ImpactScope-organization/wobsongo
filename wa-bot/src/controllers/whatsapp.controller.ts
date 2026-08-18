@@ -18,7 +18,10 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
   const rawFrom = body.From;
   const text = body.Body;
 
-  if (!rawFrom || !text) return;
+  if (!rawFrom || !text) {
+    console.warn('[whatsapp.controller] ignoring payload without From/Body:', JSON.stringify(body));
+    return;
+  }
 
   const jid = rawFrom.replace('whatsapp:+', '');
 
@@ -32,7 +35,7 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
       return;
     }
 
-    savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '' });
+    savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '', platform: 'whatsapp' });
   } catch (err) {
     console.error('[whatsapp.controller] failed to process inbound message:', err);
     await safeSendMessage(jid, { text: '❌ Une erreur est survenue. Réessaie plus tard.' });

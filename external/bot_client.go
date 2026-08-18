@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"time"
 )
@@ -17,11 +16,6 @@ type BotClient struct {
 	callbackPSK string
 	controlPSK  string
 	httpClient  *http.Client
-}
-
-type BotStatus struct {
-	Status string `json:"status"`
-	QR     string `json:"qr,omitempty"`
 }
 
 // NewBotClient creates and returns a new instance of BotClient.
@@ -98,74 +92,4 @@ func (c *BotClient) NotifyExtractDone(
 		return fmt.Errorf("bot callback returned status %d", resp.StatusCode)
 	}
 	return nil
-}
-
-// doControlRequest is an internal helper function that constructs and executes an HTTP request
-// to the bot control API endpoint.
-
-func (c *BotClient) doControlRequest(
-	ctx context.Context,
-	method, path string,
-	body any,
-) (*BotStatus, error) {
-	var reqBody bytes.Buffer
-	if body != nil {
-		if err := json.NewEncoder(&reqBody).Encode(body); err != nil {
-			return nil, err
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, &reqBody)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "PSK "+c.controlPSK)
-
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to execute control request: %w", err)
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf(
-			"bot control API returned status %d: %s",
-			resp.StatusCode,
-			string(respBody),
-		)
-	}
-
-	var status BotStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
-		return nil, err
-	}
-	return &status, nil
-}
-
-// Start sends a request to the bot's control API to initialize and start
-// the WhatsApp socket connection.
-func (c *BotClient) Start(ctx context.Context) (*BotStatus, error) {
-	return c.doControlRequest(ctx, http.MethodPost, "/bot/start", nil)
-}
-
-// Stop sends a request to the bot's control API to gracefully disconnect
-// the WhatsApp socket. The purgeData parameter determines whether the bot's
-// local session and authentication data should be deleted upon stopping.
-func (c *BotClient) Stop(ctx context.Context, purgeData bool) (*BotStatus, error) {
-	return c.doControlRequest(
-		ctx,
-		http.MethodPost,
-		"/bot/stop",
-		map[string]bool{"purgeData": purgeData},
-	)
-}
-
-// Status sends a request to the bot's control API to retrieve its current
-// operational state and active QR code (if applicable), without altering its lifecycle.
-func (c *BotClient) Status(ctx context.Context) (*BotStatus, error) {
-	return c.doControlRequest(ctx, http.MethodGet, "/bot/status", nil)
 }

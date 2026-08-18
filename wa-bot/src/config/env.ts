@@ -17,4 +17,15 @@ export const env = {
 
   // The base URL of the Go backend service
   goBackendUrl: required('GO_BACKEND_URL'),
+
+  // Twilio config
+  twilioAccountSid: required('TWILIO_ACCOUNT_SID'),
+  twilioAuthToken: required('TWILIO_AUTH_TOKEN'),
+  twilioPhoneNumber: required('TWILIO_PHONE_NUMBER'),
+
+  // Telegram bot token
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
+
+  // Sentry DSN for error tracking
+  sentryDsn: process.env.SENTRY_DSN,
 };

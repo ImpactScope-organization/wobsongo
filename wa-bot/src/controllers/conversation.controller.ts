@@ -23,16 +23,3 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
   const result = await conversationService.sendMessage(jid, body);
   res.json(result);
 }
-
-// deleteMessage handles the HTTP request to delete a specific message.
-export async function deleteMessage(req: Request, res: Response): Promise<void> {
-  const jid = getParam(req.params.jid);
-  const messageId = getParam(req.params.messageId);
-  if (!jid || !messageId) {
-    res.status(400).json({ error: 'jid and messageId are required in the path.' });
-    return;
-  }
-
-  await conversationService.deleteMessage(jid, messageId);
-  res.sendStatus(204);
-}

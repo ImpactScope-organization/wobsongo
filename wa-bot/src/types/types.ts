@@ -92,4 +92,7 @@ export interface PendingExtractJob {
 
   // The target media URL that is being processed.
   url: string;
+
+  // The platform from which the extraction request originated.
+  platform: 'whatsapp' | 'telegram';
 }

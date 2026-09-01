@@ -58,13 +58,15 @@ const (
 		`(or "au CSPS") instead, since that's the phrase the audience actually uses.`
 
 	agentClaimExtractionPrompt = `Read the conversation transcript. If the user's latest message ` +
-		`states, asks about, or implies a reproductive/sexual health claim that needs verification ` +
-		`(and it was not already checked earlier in this conversation), rewrite it as ONE ` +
-		`self-contained claim statement in English — resolve any references like "it", "that", or ` +
-		`"also" using the earlier messages, so the claim makes sense on its own without the ` +
-		`conversation history. Reply with ONLY that claim statement, nothing else. If no claim-check ` +
-		`is needed (greeting, small talk, already-answered follow-up, or clearly out of scope), ` +
-		`reply with exactly "none".`
+		`states, asks about, or implies any claim, fact, or question that could be verified against ` +
+		`health information (and it was not already checked earlier in this conversation), rewrite ` +
+		`it as ONE self-contained claim statement in English — resolve any references like "it", ` +
+		`"that", or "also" using the earlier messages, so the claim makes sense on its own without ` +
+		`the conversation history. Reply with ONLY that claim statement, nothing else. Reply with ` +
+		`exactly "none" ONLY if the latest message is a greeting, thanks, or other pure small talk ` +
+		`with no factual question or claim in it at all. Do not judge whether the topic is in scope ` +
+		`— that determination happens downstream. If you're unsure whether something counts as a ` +
+		`claim needing verification, extract it rather than replying "none".`
 )
 
 type agentTurnContextKey struct{}
@@ -169,8 +171,11 @@ func (s *AgentService) runAgentHandler(
 		return "", fmt.Errorf("claim extraction call failed: %w", err)
 	}
 	extracted = strings.TrimSpace(extracted)
+	log.Printf("[AgentService] claim extraction result: %q", extracted)
 	if strings.EqualFold(extracted, "none") {
-		return caps.LLM(agentSystemPrompt, transcript)
+		result, err := caps.LLM(agentSystemPrompt, transcript)
+		log.Printf("[AgentService] direct LLM fallback result: %q (err=%v)", result, err)
+		return result, err
 	}
 
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, turnData.ExtractionID,

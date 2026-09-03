@@ -81,6 +81,48 @@ type DocumentChunk struct {
 	TextFtsFr            interface{}
 }
 
+type Influencer struct {
+	ID                     uuid.UUID
+	Platform               string
+	Username               string
+	ProfileUrl             string
+	Nickname               string
+	Bio                    string
+	AvatarUrl              string
+	Verified               bool
+	FollowersCount         int64
+	FollowingCount         int64
+	HeartsCount            int64
+	ReportedVideoCount     int64
+	TrackedVideoCount      int64
+	Source                 string
+	DiscoveredViaKeyword   pgtype.Text
+	DiscoveredFromVideoUrl pgtype.Text
+	FirstVideoAt           pgtype.Timestamptz
+	LastVideoAt            pgtype.Timestamptz
+	AvgUploadIntervalHours pgtype.Float8
+	LastCheckedAt          pgtype.Timestamptz
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+}
+
+type InfluencerVideo struct {
+	ID             uuid.UUID
+	InfluencerID   uuid.UUID
+	TiktokVideoID  string
+	VideoUrl       string
+	Caption        string
+	LikeCount      int64
+	CommentCount   int64
+	ShareCount     int64
+	PlayCount      int64
+	CollectCount   int64
+	Hashtags       []string
+	VideoCreatedAt time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

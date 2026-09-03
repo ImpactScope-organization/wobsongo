@@ -165,6 +165,59 @@ type ApifyConfig struct {
 	IGActorID string `json:"ig_actor_id"`
 }
 
+// InfluencerMonitorConfig holds the configuration for the influencer
+// monitoring/discovery influencers.
+type InfluencerMonitorConfig struct {
+	// SeedUsernames is the fallback list of TikTok usernames used by
+	// `influencer-monitor` when no influencer is tracked yet and no
+	// --usernames flag is given.
+	SeedUsernames []string `json:"seed_usernames"`
+
+	// DiscoveryKeywords is the default search-term list used by
+	// `influencer-discover` when run without --keywords.
+	DiscoveryKeywords []string `json:"discovery_keywords"`
+
+	// ResultsPerProfile caps how many recent videos are fetched per
+	// influencer per monitor run.
+	ResultsPerProfile int `json:"results_per_profile"`
+
+	// ResultsPerKeyword caps how many videos are fetched per keyword per
+	// discovery run.
+	ResultsPerKeyword int `json:"results_per_keyword"`
+}
+
+// NewInfluencerMonitorConfig creates an InfluencerMonitorConfig from
+// environment variables, falling back to defaults.
+func NewInfluencerMonitorConfig() *InfluencerMonitorConfig {
+	return &InfluencerMonitorConfig{
+		SeedUsernames: getEnvSlice("INFLUENCER_SEED_USERNAMES", []string{
+			"favouruju01",
+			"princy_digit0",
+			"healthesn",
+		}),
+		DiscoveryKeywords: getEnvSlice("INFLUENCER_DISCOVERY_KEYWORDS", []string{
+			"santé reproductive",
+			"santé sexuelle",
+			"éducation sexuelle",
+			"contraception",
+		}),
+		ResultsPerProfile: getEnvInt("INFLUENCER_RESULTS_PER_PROFILE", 20),
+		ResultsPerKeyword: getEnvInt("INFLUENCER_RESULTS_PER_KEYWORD", 20),
+	}
+}
+
+// IsInfluencerMonitorOK validates that Apify is configured for the TikTok
+// scraper actor used by the influencer monitoring/discovery commands.
+func IsInfluencerMonitorOK(c *ApifyConfig) error {
+	if c == nil || c.Token == "" {
+		return errors.New("APIFY_API_TOKEN is not set")
+	}
+	if c.TikTokActorID == "" {
+		return errors.New("APIFY_TIKTOK_ACTOR_ID is not set")
+	}
+	return nil
+}
+
 // ASRConfig holds the configuration for the Modal ASR (Audio Transcription) service.
 type ASRConfig struct {
 	// Endpoint is the Modal ASR API endpoint used for audio transcription requests.
@@ -238,10 +291,11 @@ type Config struct {
 	GoogleClientID string `json:"-"`
 
 	// SentryDSN is the Data Source Name for Sentry error tracking.
-	SentryDSN      string `json:"-"`
-	BotExtractPSK  string `json:"-"`            // BotExtractPSK is the Pre-Shared Key used to validate incoming extraction requests from the bot.
-	BotCallbackPSK string `json:"-"`            // BotCallbackPSK is the Pre-Shared Key used to authenticate outbound callback requests sent to the bot.
-	BotBaseURL     string `json:"bot_base_url"` // BotBaseURL is the base URL of the external bot service used for callbacks.
+	SentryDSN               string                   `json:"-"`
+	BotExtractPSK           string                   `json:"-"`                         // BotExtractPSK is the Pre-Shared Key used to validate incoming extraction requests from the bot.
+	BotCallbackPSK          string                   `json:"-"`                         // BotCallbackPSK is the Pre-Shared Key used to authenticate outbound callback requests sent to the bot.
+	BotBaseURL              string                   `json:"bot_base_url"`              // BotBaseURL is the base URL of the external bot service used for callbacks.
+	InfluencerMonitorConfig *InfluencerMonitorConfig `json:"influencer_monitor_config"` // InfluencerMonitorConfig contains the influencer monitoring settings.
 }
 
 // IsS3OK checks if the S3 configuration is valid.
@@ -515,6 +569,9 @@ func NewConfig(envs ...string) *Config {
 	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
 	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
 
+	// Load InfluencerMonitor configuration
+	influencerMonitorConfig := NewInfluencerMonitorConfig()
+
 	// Load Translation configuration (bilingual chunk/fact search text) — same reasoning as VLM.
 	translationConfig := loadTranslationConfigOrDefault(logger, envs...)
 
@@ -522,33 +579,34 @@ func NewConfig(envs ...string) *Config {
 	claimCheckConfig := loadClaimCheckConfigOrDefault(logger, envs...)
 
 	defaultConfig = &Config{
-		Logger:             logger,
-		LogLevel:           logLevel,
-		Env:                appEnv,
-		JWTSecret:          appJwtSecret,
-		JWTExpiryHours:     jwtExpiryHours,
-		PostgresURI:        appDBURI,
-		APIHost:            apiHost,
-		FrontendHost:       frontendHost,
-		Port:               port,
-		CORSAllowedOrigins: strings.Split(corsAllowedOriginsStr, ","),
-		CORSAllowedMethods: allowedMethods,
-		S3Config:           s3Config,
-		EmailConfig:        emailConfig,
-		GoogleClientID:     googleClientID,
-		SentryDSN:          sentryDSN,
-		StorageProvider:    storageProvider,
-		ApifyConfig:        apifyConfig,
-		ASRConfig:          asrConfig,
-		DoclingBaseURL:     doclingBaseURL,
-		VLMConfig:          vlmConfig,
-		EmbeddingConfig:    embeddingConfig,
-		ExtractionConfig:   extractionConfig,
-		BotExtractPSK:      botExtractPSK,
-		BotCallbackPSK:     botCallbackPSK,
-		BotBaseURL:         botBaseURL,
-		TranslationConfig:  translationConfig,
-		ClaimCheckConfig:   claimCheckConfig,
+		Logger:                  logger,
+		LogLevel:                logLevel,
+		Env:                     appEnv,
+		JWTSecret:               appJwtSecret,
+		JWTExpiryHours:          jwtExpiryHours,
+		PostgresURI:             appDBURI,
+		APIHost:                 apiHost,
+		FrontendHost:            frontendHost,
+		Port:                    port,
+		CORSAllowedOrigins:      strings.Split(corsAllowedOriginsStr, ","),
+		CORSAllowedMethods:      allowedMethods,
+		S3Config:                s3Config,
+		EmailConfig:             emailConfig,
+		GoogleClientID:          googleClientID,
+		SentryDSN:               sentryDSN,
+		StorageProvider:         storageProvider,
+		ApifyConfig:             apifyConfig,
+		ASRConfig:               asrConfig,
+		DoclingBaseURL:          doclingBaseURL,
+		VLMConfig:               vlmConfig,
+		EmbeddingConfig:         embeddingConfig,
+		ExtractionConfig:        extractionConfig,
+		BotExtractPSK:           botExtractPSK,
+		BotCallbackPSK:          botCallbackPSK,
+		BotBaseURL:              botBaseURL,
+		TranslationConfig:       translationConfig,
+		ClaimCheckConfig:        claimCheckConfig,
+		InfluencerMonitorConfig: influencerMonitorConfig,
 	}
 	return defaultConfig
 }

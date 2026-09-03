@@ -260,3 +260,38 @@ func getEnvBool(key string, defaultValue bool) bool {
 	}
 	return parsed
 }
+
+// getEnvInt returns the integer value of an environment variable.
+// If the variable is unset or cannot be parsed, defaultValue is returned.
+func getEnvInt(key string, defaultValue int) int {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}
+
+// getEnvSlice reads a comma-separated environment variable into a string
+// slice, trimming whitespace and dropping empty entries. Returns
+// defaultValue if the variable is unset or ends up empty.
+func getEnvSlice(key string, defaultValue []string) []string {
+	raw := getEnv(key, "")
+	if raw == "" {
+		return defaultValue
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return defaultValue
+	}
+	return out
+}

@@ -39,6 +39,8 @@ func Execute() {
 	rootCmd.AddCommand(backfillTranslationsCmd)
 	rootCmd.AddCommand(claimCheckCmd)
 	rootCmd.AddCommand(createSuperadminCmd)
+	rootCmd.AddCommand(influencerMonitorCmd)
+	rootCmd.AddCommand(influencerDiscoverCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

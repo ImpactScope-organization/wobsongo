@@ -90,8 +90,6 @@ type UpsertInfluencerVideoRow struct {
 	IsNew     bool
 }
 
-// trik postgres: xmax = 0 hanya true kalau baris ini baru saja di-INSERT,
-// bukan hasil UPDATE dari ON CONFLICT -> dipakai untuk deteksi "video baru".
 func (q *Queries) UpsertInfluencerVideo(ctx context.Context, arg UpsertInfluencerVideoParams) (UpsertInfluencerVideoRow, error) {
 	row := q.db.QueryRow(ctx, upsertInfluencerVideo,
 		arg.InfluencerID,

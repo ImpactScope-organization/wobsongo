@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -146,7 +147,14 @@ func (s *ClaimService) CheckClaim(
 	// where one chunk's failure shouldn't cancel its siblings.
 	g, gctx := errgroup.WithContext(ctx)
 	for i, sc := range subClaims {
-		highRisk := sc.HighRisk || isHighRiskSubstanceMention(sc.Text)
+		keywordHit := isHighRiskSubstanceMention(sc.Text)
+		highRisk := sc.HighRisk || keywordHit
+		if highRisk {
+			log.Printf(
+				"[ClaimService] high-risk override: analyzer=%t keyword=%t reason=%q claim=%q",
+				sc.HighRisk, keywordHit, sc.HighRiskReason, sc.Text,
+			)
+		}
 		g.Go(func() error {
 			result, err := s.checkSubClaim(gctx, sc.Text, replyLanguage, highRisk)
 			if err != nil {

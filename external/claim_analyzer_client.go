@@ -66,8 +66,9 @@ type claimAnalysisJSON struct {
 
 // subClaimJSON is one sub_claims entry's wire shape.
 type subClaimJSON struct {
-	Text     string `json:"text"`
-	HighRisk bool   `json:"high_risk"`
+	Text           string `json:"text"`
+	HighRisk       bool   `json:"high_risk"`
+	HighRiskReason string `json:"high_risk_reason"`
 }
 
 // Analyze implements data.ClaimAnalyzer.
@@ -140,7 +141,11 @@ func (c *ClaimAnalyzerClient) Analyze(
 	}
 	subClaims := make([]data.SubClaim, len(rawSubClaims))
 	for i, sc := range rawSubClaims {
-		subClaims[i] = data.SubClaim{Text: sc.Text, HighRisk: sc.HighRisk}
+		subClaims[i] = data.SubClaim{
+			Text:           sc.Text,
+			HighRisk:       sc.HighRisk,
+			HighRiskReason: sc.HighRiskReason,
+		}
 	}
 
 	language, err := model.ParseLanguage(raw.Language)
@@ -184,27 +189,46 @@ func buildAnalyzerPrompt(message string) string {
 		"3. What language is the input message written in — exactly one of \"en\" or \"fr\".\n",
 	)
 	b.WriteString(
-		"4. For each sub-claim, does it promote or ask about: tobacco, alcohol, or a ",
+		"4. For each sub-claim, set high_risk to true ONLY if it promotes or asks about: ",
 	)
 	b.WriteString(
-		"recreational or illicit drug; an unregulated homemade mixture or potion to ingest or ",
+		"tobacco, alcohol, or a recreational or illicit drug; an unregulated homemade ",
 	)
 	b.WriteString(
-		"apply; or self-medication (e.g. antibiotics or hormones without a prescription) or ",
+		"mixture or potion to ingest or apply; or self-medication with a prescription-only ",
 	)
 	b.WriteString(
-		"anything else that could delay proper medical care? Set high_risk to true if so — this ",
+		"medication (e.g. antibiotics, hormones, strong corticosteroids) including when a ",
 	)
 	b.WriteString(
-		"never depends on whether the claim turns out to be true or false, only on the subject ",
+		"specific medication is named and is known to require a prescription. ",
 	)
-	b.WriteString("matter itself.\n\n")
+	b.WriteString(
+		"Do NOT set high_risk for ordinary over-the-counter products used for common, ",
+	)
+	b.WriteString(
+		"non-urgent complaints (e.g. a cream or ointment for itching, paracetamol for mild ",
+	)
+	b.WriteString(
+		"pain), nor when no specific prescription-only medication is named. If the matter ",
+	)
+	b.WriteString(
+		"is routine and not life-threatening, set high_risk to false. This never depends on ",
+	)
+	b.WriteString(
+		"whether the claim turns out to be true or false, only on the subject matter itself. ",
+	)
+	b.WriteString(
+		"When high_risk is true, set high_risk_reason to one short sentence in French saying ",
+	)
+	b.WriteString("which of the above criteria applies; otherwise use \"\".\n\n")
 	b.WriteString(
 		"Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n",
 	)
 	b.WriteString(
 		`{"in_scope": true/false, "refusal_reason": "...", ` +
-			`"sub_claims": [{"text": "...", "high_risk": true/false}], "language": "en"}` + "\n\n",
+			`"sub_claims": [{"text": "...", "high_risk": true/false, ` +
+			`"high_risk_reason": "..."}], "language": "en"}` + "\n\n",
 	)
 	b.WriteString("refusal_reason is only used when in_scope is false (briefly explain why); ")
 	b.WriteString(

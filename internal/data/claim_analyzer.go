@@ -38,8 +38,9 @@ type ClaimAnalysis struct {
 // illicit drugs are instead caught deterministically by a keyword fail-safe,
 // see internal/service/high_risk_keywords.go, independent of this flag).
 type SubClaim struct {
-	Text     string
-	HighRisk bool
+	Text           string
+	HighRisk       bool
+	HighRiskReason string
 }
 
 // ClaimAnalyzer scopes and decomposes a raw input message before retrieval:

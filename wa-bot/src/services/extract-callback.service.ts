@@ -4,6 +4,8 @@ import * as conversationService from './conversation.service.js';
 import * as telegramService from './telegram.service.js';
 import type { ExtractCallbackStatus, ExtractData } from '../types/types.js';
 
+const GENERIC_ERROR = '❌ Une erreur est survenue. Réessaie plus tard.';
+
 async function sendToUser(platform: 'whatsapp' | 'telegram', jid: string, text: string) {
   if (platform === 'telegram') {
     await telegramService.sendMessage(jid, text);
@@ -38,9 +40,12 @@ export async function handleExtractDone(
     return;
   }
 
-  try {
+    try {
     if (data) {
-      const text = data.answer ?? data.transcript ?? '';
+      const text = (data.answer ?? data.transcript ?? '').trim();
+      if (!text) {
+        throw new Error(`empty answer from backend for jobId=${jobId}`);
+      }
       await sendToUser(pending.platform, pending.jid, text);
       deletePendingJob(jobId);
       return;
@@ -55,11 +60,12 @@ export async function handleExtractDone(
     });
   } catch (err) {
     console.error('[extract-callback] failed to notify user or re-fetch result:', err);
-    await sendToUser(
-      pending.platform,
-      pending.jid,
-      '❌ Une erreur est survenue lors de la récupération du résultat de la transcription. Réessaie plus tard.'
-    );
-    deletePendingJob(jobId);
+    try {
+      await sendToUser(pending.platform, pending.jid, GENERIC_ERROR);
+    } catch (sendErr) {
+      console.error('[extract-callback] failed to send error message:', sendErr);
+    } finally {
+      deletePendingJob(jobId);
+    }
   }
 }

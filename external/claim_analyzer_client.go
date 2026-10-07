@@ -58,7 +58,7 @@ func NewClaimAnalyzerClient(baseURL, model, apiKey string) *ClaimAnalyzerClient 
 
 // claimAnalysisJSON is the wire shape the LLM is instructed to respond with.
 type claimAnalysisJSON struct {
-	InScope       bool           `json:"in_scope"`
+	InScope       *bool          `json:"in_scope"`
 	RefusalReason string         `json:"refusal_reason"`
 	SubClaims     []subClaimJSON `json:"sub_claims"`
 	Language      string         `json:"language"`
@@ -130,9 +130,17 @@ func (c *ClaimAnalyzerClient) Analyze(
 	}
 
 	content := stripJSONCodeFence(parsed.Choices[0].Message.Content)
+	log.Printf("[ClaimAnalyzerClient] raw analyzer output: %s", content)
 	var raw claimAnalysisJSON
 	if err := json.Unmarshal([]byte(content), &raw); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal claim analysis JSON: %w: %s", err, content)
+	}
+
+	if raw.InScope == nil {
+		return nil, fmt.Errorf("analyzer JSON missing in_scope: %s", content)
+	}
+	if !*raw.InScope && strings.TrimSpace(raw.RefusalReason) == "" {
+		raw.RefusalReason = "Désolé, je ne peux pas traiter cette demande."
 	}
 
 	rawSubClaims := raw.SubClaims
@@ -161,7 +169,7 @@ func (c *ClaimAnalyzerClient) Analyze(
 	}
 
 	return &data.ClaimAnalysis{
-		InScope:       raw.InScope,
+		InScope:       *raw.InScope,
 		RefusalReason: raw.RefusalReason,
 		SubClaims:     subClaims,
 		Language:      language,

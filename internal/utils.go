@@ -14,6 +14,7 @@ const (
 	MsgThinking      = "💬 Je réfléchis..."
 	MsgCheckingVideo = "⏳ Un instant, je vérifie ça pour toi..."
 	MsgTranscribing  = "📝 La vidéo est en cours de transcription..."
+	MsgEmptyAnswer   = "Désolé, je n'ai pas pu vérifier cela pour le moment. Peux-tu reformuler ta question ?"
 )
 
 // notifyBotFailed sends a failed NotifyExtractDone callback to the bot.

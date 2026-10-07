@@ -196,6 +196,11 @@ func (s *AgentService) runAgentHandler(
 		return "", fmt.Errorf("unexpected tool result content type: %T", res.Content)
 	}
 
+	if strings.TrimSpace(content) == "" {
+		log.Printf("[AgentService] empty tool content for claim=%q", extracted)
+		return internal.MsgEmptyAnswer, nil
+	}
+
 	return content, nil
 }
 
@@ -281,6 +286,10 @@ func (s *AgentService) runFallbackReply(
 	if !result.InScope {
 		content = result.RefusalReason
 	}
+	if strings.TrimSpace(content) == "" {
+		log.Printf("[AgentService] empty fallback reply for jid=%s", job.Jid)
+	}
+	content = orFallback(content)
 
 	if err := s.conversationRepo.AppendMessage(
 		ctx, job.Jid, model.ConversationRoleAssistant, content,
@@ -326,7 +335,13 @@ func (s *AgentService) runVideoContinuation(
 	content := result.FormattedMessage
 	if !result.InScope {
 		content = result.RefusalReason
-	} else if originalClaim != "" {
+	}
+	if strings.TrimSpace(content) == "" {
+		log.Printf("[AgentService] empty video continuation reply for jid=%s", job.Jid)
+	}
+	content = orFallback(content)
+
+	if result.InScope && originalClaim != "" {
 		content = fmt.Sprintf(
 			"Voici ce que j'ai trouvé pour ta question — %q :\n\n%s",
 			originalClaim,
@@ -376,13 +391,19 @@ func (s *AgentService) runConversationalTurn(
 		return "", fmt.Errorf("agent run failed: %w", err)
 	}
 
+	content := res.Content
+	if strings.TrimSpace(content) == "" {
+		log.Printf("[AgentService] empty agent reply for jid=%s", job.Jid)
+		content = internal.MsgEmptyAnswer
+	}
+
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, res.Content,
+		ctx, job.Jid, model.ConversationRoleAssistant, content,
 	); err != nil {
 		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
 	}
 
-	return res.Content, nil
+	return content, nil
 }
 
 // formatConversationTranscript renders recent history plus the current
@@ -393,4 +414,13 @@ func formatConversationTranscript(history []model.ConversationMessage) string {
 		fmt.Fprintf(&b, "%s: %s\n", m.Role, m.Content)
 	}
 	return strings.TrimSpace(b.String())
+}
+
+// orFallback returns the input string s, or the static fallback message when string s is blank.
+// Never let an empty reply reach the bot or the conversation history.
+func orFallback(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return internal.MsgEmptyAnswer
+	}
+	return s
 }

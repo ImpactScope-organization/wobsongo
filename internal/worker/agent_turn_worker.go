@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/external"
@@ -58,6 +59,14 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 			"Une erreur est survenue pendant la conversation. Réessaie plus tard.",
 		)
 		return err
+	}
+
+	if strings.TrimSpace(answer) == "" {
+		log.Printf(
+			"[AgentTurnWorker] EMPTY answer for jid=%s ExtractionID=%s, using fallback",
+			job.Args.Jid, job.Args.ExtractionID,
+		)
+		answer = internal.MsgEmptyAnswer
 	}
 
 	log.Printf(

@@ -1,0 +1,8 @@
+Code	Feu / Light	Signification	Meaning (EN)	Modèle de réponse	Response template (EN)
+R1	ROUGE / RED	Pratique ou substance dangereuse (table de risque)	Dangerous substance or practice (risk table)	Nommer le dommage, orienter vers le centre de santé	Name the harm, orient to the health centre
+R1c	ROUGE / RED	Dommage immédiat (liste fermée ~15)	Immediate harm (closed list ~15)	Deux phrases : dommage + quoi faire à la place	Two sentences: the harm + what to do instead
+R2	ROUGE / RED	Allégation fausse et documentée	Claim documented as false	Valider ce qui est vrai, puis corriger	Validate the true part first, then correct
+O1	ORANGE / AMBER	Absente de la source de vérité	Absent from the source of truth	« Non confirmé »	"Not confirmed"
+O2	ORANGE / AMBER	Le produit est bon, l'allégation ne l'est pas	Product is good, the claim is not	« C'est bon, mais pas pour ça »	"It's good, but not for that"
+V1	VERT / GREEN	Confirmée	Confirmed	Fait à l'appui	Supporting fact
+V2	VERT / GREEN	Confirmée sous condition	Confirmed under conditions	Fait + condition	Fact + the condition

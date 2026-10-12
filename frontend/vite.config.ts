@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import adapter from '@sveltejs/adapter-node';
 import { sveltekit } from '@sveltejs/kit/vite';
+import path from 'node:path';
+import { storybookTest } from '@storybook/addon-vitest/vitest-plugin';
 
 export default defineConfig({
 	plugins: [
@@ -20,26 +22,26 @@ export default defineConfig({
 		expect: { requireAssertions: true },
 		projects: [
 			{
-				extends: './vite.config.ts',
-				test: {
-					name: 'client',
-					browser: {
-						enabled: true,
-						provider: playwright(),
-						instances: [{ browser: 'chromium', headless: true }]
-					},
-					include: ['src/**/*.svelte.{test,spec}.{js,ts}'],
-					exclude: ['src/lib/server/**']
-				}
-			},
-
-			{
+				// Logic tests and SSR component tests (`render` from `svelte/server`).
 				extends: './vite.config.ts',
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}'],
-					exclude: ['src/**/*.svelte.{test,spec}.{js,ts}']
+					include: ['src/**/*.{test,spec}.{js,ts}']
+				}
+			},
+			{
+				// Every story is a smoke test; `play` functions are interaction tests.
+				extends: true,
+				plugins: [storybookTest({ configDir: path.join(import.meta.dirname, '.storybook') })],
+				test: {
+					name: 'storybook',
+					browser: {
+						enabled: true,
+						headless: true,
+						provider: playwright(),
+						instances: [{ browser: 'chromium' }]
+					}
 				}
 			}
 		]

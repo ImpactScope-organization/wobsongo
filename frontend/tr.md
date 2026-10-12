@@ -12,6 +12,12 @@ WobSongo is a fact-checking system powered by AI in the domain of Sexual and Rep
 
 We use standard Svelte components with TypeScript. Components should be reusable and isolated, with clear and intuitive APIs. Components should be designed to be responsive and accessible, following best practices for web development. Components do not perform business logic nor data fetching. They only receive props and emit events. Components should be tested using unit tests and integration tests to ensure they work as expected. Every components should have Storybook stories for documentation and testing purposes.
 
+Generally, we try to limit the number of JavaScript in components, especially data-fetching and business logic. If something requires JavaScript, we use callbacks and events, without overusing them. Data generally flows from each route's `+page.server.ts` file to every page's `+page.svelte` file, and then to the components. Components should not fetch data directly from the server or perform any business logic. Instead, they should receive data as props and emit events to notify the parent component of any user interactions or changes in state.
+
+Form submissions should generally be done using the standard HTML form submission mechanism, with the form data being sent to the server for processing. Of course we allow progressive enhancement using JavaScript (SvelteKit's form enhance), but we should not rely on it for basic functionality. This ensures that the application is accessible and usable even for users with limited or no JavaScript support.
+
+The same is true for everything else. First we try to use standard web technologies, then we use JavaScript to enhance the user experience. This ensures that the application is accessible and usable for all users, regardless of their device or browser capabilities. We consider this because the target audience is in low-resource settings, and we want to ensure that the application is usable for all users, regardless of their device or internet connection.
+
 ### Styling
 
 We use TailwindCSS for styling. We follow a consistent design system and use utility classes to style components. We avoid using inline styles and prefer to use CSS classes for styling. We also use CSS variables for theming and customization. The main CSS file is layout.css

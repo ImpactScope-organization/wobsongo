@@ -1,82 +1,153 @@
 @import 'tailwindcss';
-@import "tw-animate-css";
-@import "shadcn-svelte/tailwind.css";
-@import "@fontsource-variable/inter";
+@import 'tw-animate-css';
+@import 'shadcn-svelte/tailwind.css';
+@import '@fontsource-variable/schibsted-grotesk';
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
 
 @custom-variant dark (&:is(.dark *));
 @plugin '@tailwindcss/typography';
 
+/*
+ * Palette from the "Infodemic Dashboard" design: warm paper, ink, and a rust
+ * signal colour for anything that needs attention. shadcn tokens first, then
+ * WobSongo's domain tokens (verdicts, review status, platforms, inverse panels).
+ */
 :root {
-	--background: oklch(1 0 0);
-	--foreground: oklch(0.145 0 0);
-	--card: oklch(1 0 0);
-	--card-foreground: oklch(0.145 0 0);
-	--popover: oklch(1 0 0);
-	--popover-foreground: oklch(0.145 0 0);
-	--primary: oklch(0.205 0 0);
-	--primary-foreground: oklch(0.985 0 0);
-	--secondary: oklch(0.97 0 0);
-	--secondary-foreground: oklch(0.205 0 0);
-	--muted: oklch(0.97 0 0);
-	--muted-foreground: oklch(0.556 0 0);
-	--accent: oklch(0.97 0 0);
-	--accent-foreground: oklch(0.205 0 0);
-	--destructive: oklch(0.577 0.245 27.325);
-	--border: oklch(0.922 0 0);
-	--input: oklch(0.922 0 0);
-	--ring: oklch(0.708 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
+	--background: #f4f1ea;
+	--foreground: #1c1b18;
+	--card: #fffdf8;
+	--card-foreground: #1c1b18;
+	--popover: #fffdf8;
+	--popover-foreground: #1c1b18;
+	--primary: #1c1b18;
+	--primary-foreground: #f4f1ea;
+	--secondary: #ece7dc;
+	--secondary-foreground: #1c1b18;
+	--muted: #f7f3ea;
+	--muted-foreground: #6b665c;
+	--accent: #f7f3ea;
+	--accent-foreground: #1c1b18;
+	--destructive: #8e1f18;
+	--border: #d9d3c5;
+	--input: #d9d3c5;
+	--ring: #b4441c;
 	--radius: 0.625rem;
-	--sidebar: oklch(0.985 0 0);
-	--sidebar-foreground: oklch(0.145 0 0);
-	--sidebar-primary: oklch(0.205 0 0);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.97 0 0);
-	--sidebar-accent-foreground: oklch(0.205 0 0);
-	--sidebar-border: oklch(0.922 0 0);
-	--sidebar-ring: oklch(0.708 0 0);
+
+	/* Charts default to the platform palette, the most common categorical series. */
+	--chart-1: var(--platform-whatsapp);
+	--chart-2: var(--platform-facebook);
+	--chart-3: var(--platform-tiktok);
+	--chart-4: var(--platform-x);
+	--chart-5: var(--platform-other);
+
+	--sidebar: #fffdf8;
+	--sidebar-foreground: #1c1b18;
+	--sidebar-primary: #1c1b18;
+	--sidebar-primary-foreground: #f4f1ea;
+	--sidebar-accent: #f7f3ea;
+	--sidebar-accent-foreground: #1c1b18;
+	--sidebar-border: #d9d3c5;
+	--sidebar-ring: #b4441c;
+
+	/* Attention: spikes, anomalies, high harm. */
+	--signal: #b4441c;
+	--signal-foreground: #ffffff;
+	--signal-soft: #e8b9a5;
+	/* Hairline dividers inside cards, lighter than --border. */
+	--rule: #ece7dc;
+	/* Tertiary text: ranks, axis labels, de-emphasised values. */
+	--faint-foreground: #8c877c;
+
+	--verdict-false: #f6deda;
+	--verdict-false-foreground: #8e1f18;
+	--verdict-misleading: #f5e6c8;
+	--verdict-misleading-foreground: #7a5414;
+	--verdict-unverified: #e7e3da;
+	--verdict-unverified-foreground: #4f4b43;
+	/* Saturated versions for bars and meters. */
+	--verdict-false-strong: #a8261e;
+	--verdict-misleading-strong: #c08a2e;
+	--verdict-unverified-strong: #bdb6a6;
+	--verdict-accurate-strong: #3e7354;
+
+	--status-verified: #ddebe2;
+	--status-verified-foreground: #2c5b40;
+
+	--platform-whatsapp: #3e7354;
+	--platform-facebook: #3b5b8c;
+	--platform-tiktok: #1c1b18;
+	--platform-x: #8c877c;
+	--platform-other: #cfc8b8;
+
+	/* Dark panels on the light page: app header, high-harm card. */
+	--inverse: #1c1b18;
+	--inverse-raised: #262521;
+	--inverse-border: #3a3833;
+	--inverse-foreground: #f4f1ea;
+	--inverse-muted-foreground: #bdb6a6;
+	--inverse-signal: #f08a5d;
 }
 
 .dark {
-	--background: oklch(0.145 0 0);
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
-	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
-	--popover-foreground: oklch(0.985 0 0);
-	--primary: oklch(0.922 0 0);
-	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
-	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
-	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
-	--accent-foreground: oklch(0.985 0 0);
-	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
-	--ring: oklch(0.556 0 0);
-	--chart-1: oklch(0.87 0 0);
-	--chart-2: oklch(0.556 0 0);
-	--chart-3: oklch(0.439 0 0);
-	--chart-4: oklch(0.371 0 0);
-	--chart-5: oklch(0.269 0 0);
-	--sidebar: oklch(0.205 0 0);
-	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: oklch(0.488 0.243 264.376);
-	--sidebar-primary-foreground: oklch(0.985 0 0);
-	--sidebar-accent: oklch(0.269 0 0);
-	--sidebar-accent-foreground: oklch(0.985 0 0);
-	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: oklch(0.556 0 0);
+	--background: #141311;
+	--foreground: #f4f1ea;
+	--card: #1c1b18;
+	--card-foreground: #f4f1ea;
+	--popover: #1c1b18;
+	--popover-foreground: #f4f1ea;
+	--primary: #f4f1ea;
+	--primary-foreground: #1c1b18;
+	--secondary: #2e2c27;
+	--secondary-foreground: #f4f1ea;
+	--muted: #262521;
+	--muted-foreground: #bdb6a6;
+	--accent: #262521;
+	--accent-foreground: #f4f1ea;
+	--destructive: #f08a5d;
+	--border: #3a3833;
+	--input: #3a3833;
+	--ring: #f08a5d;
+	--sidebar: #1c1b18;
+	--sidebar-foreground: #f4f1ea;
+	--sidebar-primary: #f4f1ea;
+	--sidebar-primary-foreground: #1c1b18;
+	--sidebar-accent: #262521;
+	--sidebar-accent-foreground: #f4f1ea;
+	--sidebar-border: #3a3833;
+	--sidebar-ring: #f08a5d;
+
+	--signal: #f08a5d;
+	--signal-foreground: #1c1b18;
+	--signal-soft: #6b3a24;
+	--rule: #2e2c27;
+	--faint-foreground: #8c877c;
+
+	--verdict-false: #4a1d19;
+	--verdict-false-foreground: #f6deda;
+	--verdict-misleading: #4a3a1a;
+	--verdict-misleading-foreground: #f5e6c8;
+	--verdict-unverified: #2e2c27;
+	--verdict-unverified-foreground: #e7e3da;
+
+	--status-verified: #1f3a2a;
+	--status-verified-foreground: #ddebe2;
+
+	--platform-tiktok: #e7e3da;
+
+	--inverse: #262521;
+	--inverse-raised: #2e2c27;
 }
 
 @theme inline {
-	--font-sans: 'Inter Variable', sans-serif;
+	--font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--font-heading: 'Schibsted Grotesk Variable', 'IBM Plex Sans', system-ui, sans-serif;
+
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -108,6 +179,36 @@
 	--color-card: var(--card);
 	--color-foreground: var(--foreground);
 	--color-background: var(--background);
+
+	--color-signal: var(--signal);
+	--color-signal-foreground: var(--signal-foreground);
+	--color-signal-soft: var(--signal-soft);
+	--color-rule: var(--rule);
+	--color-faint-foreground: var(--faint-foreground);
+	--color-verdict-false: var(--verdict-false);
+	--color-verdict-false-foreground: var(--verdict-false-foreground);
+	--color-verdict-misleading: var(--verdict-misleading);
+	--color-verdict-misleading-foreground: var(--verdict-misleading-foreground);
+	--color-verdict-unverified: var(--verdict-unverified);
+	--color-verdict-unverified-foreground: var(--verdict-unverified-foreground);
+	--color-verdict-false-strong: var(--verdict-false-strong);
+	--color-verdict-misleading-strong: var(--verdict-misleading-strong);
+	--color-verdict-unverified-strong: var(--verdict-unverified-strong);
+	--color-verdict-accurate-strong: var(--verdict-accurate-strong);
+	--color-status-verified: var(--status-verified);
+	--color-status-verified-foreground: var(--status-verified-foreground);
+	--color-platform-whatsapp: var(--platform-whatsapp);
+	--color-platform-facebook: var(--platform-facebook);
+	--color-platform-tiktok: var(--platform-tiktok);
+	--color-platform-x: var(--platform-x);
+	--color-platform-other: var(--platform-other);
+	--color-inverse: var(--inverse);
+	--color-inverse-raised: var(--inverse-raised);
+	--color-inverse-border: var(--inverse-border);
+	--color-inverse-foreground: var(--inverse-foreground);
+	--color-inverse-muted-foreground: var(--inverse-muted-foreground);
+	--color-inverse-signal: var(--inverse-signal);
+
 	--radius-sm: calc(var(--radius) * 0.6);
 	--radius-md: calc(var(--radius) * 0.8);
 	--radius-lg: var(--radius);
@@ -122,9 +223,21 @@
 		@apply border-border outline-ring/50;
 	}
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-foreground antialiased;
 	}
 	html {
 		@apply font-sans;
+	}
+	h1,
+	h2,
+	h3 {
+		@apply font-heading;
+	}
+}
+
+@layer utilities {
+	/* Small uppercase mono label used for eyebrows, tags and badges. */
+	.text-eyebrow {
+		@apply font-mono text-[0.6875rem] font-medium tracking-[0.06em] uppercase;
 	}
 }

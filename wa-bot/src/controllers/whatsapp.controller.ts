@@ -1,13 +1,12 @@
 import type { Request, Response } from 'express';
-import { callGoAgentInbound } from '../services/go-client.service.js';
+import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as conversationService from '../services/conversation.service.js';
 import { downloadTwilioMedia } from '../services/audio-download.service.js';
-import { transcribeAudio } from '../services/modal-asr.service.js';
 import { VOICE_MESSAGES } from '../utils/voice-messages.js';
 import { env } from '../config/env.js';
 import { SendMessageRequest } from '../types/types.js';
-import type { InputType } from '../types/types.js';
+import type { ExtractResponse, InputType } from '../types/types.js';
 
 interface TwilioInboundBody {
   From?: string;
@@ -46,19 +45,15 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
   const msgs = VOICE_MESSAGES[env.voiceReplyLangWhatsapp];
 
   try {
-    let text = (body.Body ?? '').trim();
+    let result: ExtractResponse;
 
     if (isVoice && mediaUrl) {
       await safeSendMessage(jid, { text: msgs.received });
       const audio = await downloadTwilioMedia(mediaUrl, mediaType);
-      text = await transcribeAudio(audio.buffer, audio.format);
-      if (!text) {
-        await safeSendMessage(jid, { text: msgs.unclear });
-        return;
-      }
+      result = await callGoAgentInboundVoice({ jid, audio: audio.buffer, format: audio.format });
+    } else {
+      result = await callGoAgentInbound({ jid, text: (body.Body ?? '').trim() });
     }
-
-    const result = await callGoAgentInbound({ jid, text });
 
     if (result.status === 'rejected') {
       await safeSendMessage(jid, {

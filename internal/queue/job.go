@@ -49,6 +49,9 @@ const (
 	// JobTypeSynthesizeSpeech represents a job type for turning a bot reply
 	// into a spoken (voice message) reply.
 	JobTypeSynthesizeSpeech BackgroundJobType = "synthesize_speech"
+
+	// JobTypeTranscribeVoice represents a job type for transcribing a voice.
+	JobTypeTranscribeVoice BackgroundJobType = "transcribe_voice"
 )
 
 // BackgroundJob represents a generic background job.

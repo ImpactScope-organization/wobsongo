@@ -15,13 +15,19 @@ import (
 )
 
 const (
-	// ttsHTTPTimeout bounds a single synthesis call.
+	// bytesPerMB is the number of bytes in a megabyte (1024 * 1024).
+	bytesPerMB = 1024 * 1024
+
+	// ttsHTTPTimeout is the maximum time allowed for a synthesis request,
+	// including cold starts.
 	ttsHTTPTimeout = 10 * time.Minute
 
-	// ttsMaxAudioBytes caps how much audio we read back from the endpoint.
-	ttsMaxAudioBytes = 64 << 20
+	// ttsMaxAudioBytes caps how much audio we read back from the endpoint
+	// (16 MB). WhatsApp rejects audio files larger than 16 MB when they are
+	// sent as regular audio, so anything bigger could not be delivered.
+	ttsMaxAudioBytes = 16 * bytesPerMB
 
-	// ttsErrorSnippetBytes caps how much of an error response body is quoted.
+	// ttsErrorSnippetBytes is the maximum error response snippet size (512 bytes).
 	ttsErrorSnippetBytes = 512
 )
 
@@ -90,9 +96,12 @@ func (c *TTSClient) Synthesize(ctx context.Context, text, language string) ([]by
 		return nil, ttsStatusError(resp)
 	}
 
-	audio, err := io.ReadAll(io.LimitReader(resp.Body, ttsMaxAudioBytes))
+	audio, err := io.ReadAll(io.LimitReader(resp.Body, ttsMaxAudioBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read tts audio: %w", err)
+	}
+	if len(audio) > ttsMaxAudioBytes {
+		return nil, fmt.Errorf("tts audio exceeds the %d MB limit", ttsMaxAudioBytes/bytesPerMB)
 	}
 	if len(audio) == 0 {
 		return nil, errors.New("tts endpoint returned empty audio")

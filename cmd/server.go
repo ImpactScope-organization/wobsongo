@@ -160,15 +160,27 @@ var serveCmd = &cobra.Command{
 		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher, botClient)
 		river.AddWorker(workers, mediaWorker)
 
-		transcriptionWorker := worker.NewTranscriptionWorker(
-			workerVideoService,
+		// One ASR client shared by the video and voice-message workers.
+		asrClient := external.NewASRClient(
 			config.ASRConfig.Endpoint,
 			config.ASRConfig.Model,
 			config.ASRConfig.SourceLang,
+		)
+
+		transcriptionWorker := worker.NewTranscriptionWorker(
+			workerVideoService,
+			asrClient,
 			botClient,
 			workerConversationService,
 		)
 		river.AddWorker(workers, transcriptionWorker)
+
+		voiceWorker := worker.NewVoiceTranscriptionWorker(
+			asrClient,
+			workerConversationService,
+			botClient,
+		)
+		river.AddWorker(workers, voiceWorker)
 
 		// register ParseDocumentWorker with River
 		parseDocumentWorker := worker.NewParseDocumentWorker(
@@ -279,6 +291,9 @@ var serveCmd = &cobra.Command{
 				return
 			}
 			speechSynthesizer = ttsClient
+		} else {
+			config.Logger.Warn("MODAL_TTS_ENDPOINT is not set, using mock TTS client")
+			speechSynthesizer = external.NewMockTTSClient()
 		}
 		workerSpeechService := service.NewSpeechService(
 			translationClient,

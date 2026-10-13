@@ -1,12 +1,11 @@
 import type { Request, Response } from 'express';
-import { callGoAgentInbound } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as telegramService from '../services/telegram.service.js';
 import { downloadTelegramFile } from '../services/audio-download.service.js';
-import { transcribeAudio } from '../services/modal-asr.service.js';
 import { VOICE_MESSAGES } from '../utils/voice-messages.js';
 import { env } from '../config/env.js';
-import type { InputType } from '../types/types.js';
+import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
+import type { ExtractResponse, InputType } from '../types/types.js';
 
 interface TelegramAudioPayload {
   file_id: string;
@@ -39,19 +38,19 @@ export async function handleTelegramWebhook(req: Request, res: Response): Promis
   const msgs = VOICE_MESSAGES[env.voiceReplyLangTelegram];
 
   try {
-    let text = (message.text ?? '').trim();
+    let result: ExtractResponse;
 
     if (voice) {
       await telegramService.sendMessage(chatId, msgs.received);
       const audio = await downloadTelegramFile(voice.file_id);
-      text = await transcribeAudio(audio.buffer, audio.format);
-      if (!text) {
-        await telegramService.sendMessage(chatId, msgs.unclear);
-        return;
-      }
+      result = await callGoAgentInboundVoice({
+        jid: chatId,
+        audio: audio.buffer,
+        format: audio.format,
+      });
+    } else {
+      result = await callGoAgentInbound({ jid: chatId, text: (message.text ?? '').trim() });
     }
-
-    const result = await callGoAgentInbound({ jid: chatId, text });
 
     if (result.status === 'rejected') {
       await telegramService.sendMessage(

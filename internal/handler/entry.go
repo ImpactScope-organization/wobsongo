@@ -34,6 +34,11 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 		PSKAuthMiddleware(h.botExtractPSK),
 	)
 	api.POST(
+		"/agent/inbound-voice",
+		h.agentHandler.inboundVoiceHandler,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
+	api.POST(
 		"/tts",
 		h.ttsHandler.synthesizeHandler,
 		PSKAuthMiddleware(h.botExtractPSK),

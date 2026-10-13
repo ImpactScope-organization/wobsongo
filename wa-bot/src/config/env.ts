@@ -38,12 +38,6 @@ export const env = {
   // Public base URL of this bot. Twilio fetches reply audio from it.
   publicBaseUrl: required('PUBLIC_BASE_URL').replace(/\/+$/, ''),
 
-  // Modal ASR (voice message transcription)
-  modalAsrEndpoint: required('MODAL_ASR_ENDPOINT'),
-  modalAsrModel: process.env.MODAL_ASR_MODEL || 'Whisper Small (Untrained)',
-  modalAsrSourceLang: process.env.MODAL_ASR_SOURCE_LANG || 'auto',
-  modalAsrTimeoutMs: Number(process.env.MODAL_ASR_TIMEOUT_MS) || 5 * 60 * 1000,
-
   // Voice reply (TTS goes through the Go backend)
   voiceReplyWaitMs: Number(process.env.VOICE_REPLY_WAIT_MS) || 5 * 60 * 1000,
   voiceReplyLangWhatsapp: replyLang('VOICE_REPLY_LANG_WHATSAPP', 'fr'),

@@ -502,6 +502,81 @@ paths:
       summary: Handle an inbound WhatsApp message
       tags:
       - agent
+  /api/agent/inbound-voice:
+    post:
+      consumes:
+      - multipart/form-data
+      description: |-
+        Receives a voice message, transcribes it in the
+        background and routes the transcript through the conversational
+        agent. The answer is delivered through the same callback as /agent/inbound.
+      parameters:
+      - description: Chat identifier
+        in: formData
+        name: jid
+        required: true
+        type: string
+      - description: Audio format hint (e.g. ogg)
+        in: formData
+        name: format
+        required: true
+        type: string
+      - description: Voice message audio
+        in: formData
+        name: audio
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.AgentInboundResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "413":
+          description: Request Entity Too Large
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Handle an inbound voice message
+      tags:
+      - agent
   /api/extract:
     post:
       consumes:

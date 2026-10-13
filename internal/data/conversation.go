@@ -28,4 +28,7 @@ type ConversationRepoer interface {
 	// used both for a fresh user message and for a system-triggered
 	// continuation turn (e.g. once a video transcript is ready).
 	EnqueueAgentTurn(ctx context.Context, payload queue.AgentTurnJob) error
+
+	// EnqueueVoiceTranscription adds a new voice-transcription job to the River queue.
+	EnqueueVoiceTranscription(ctx context.Context, payload queue.VoiceTranscriptionJob) error
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -59,7 +60,8 @@ func (h *TTSHandler) synthesizeHandler(c echo.Context) error {
 	if err != nil {
 		code := http.StatusInternalServerError
 		switch {
-		case errors.Is(err, service.ErrSpeechNotConfigured):
+		case errors.Is(err, service.ErrSpeechNotConfigured),
+			errors.Is(err, data.ErrQueueFull):
 			code = http.StatusServiceUnavailable
 		case errors.Is(err, service.ErrSpeechEmptyText):
 			code = http.StatusUnprocessableEntity

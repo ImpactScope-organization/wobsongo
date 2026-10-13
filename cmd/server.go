@@ -283,7 +283,7 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, agentTurnWorker)
 
 		var speechSynthesizer data.SpeechSynthesizer
-		if config.TTSConfig != nil && config.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
+		if config.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
 			ttsClient, err := external.NewTTSClient(config.TTSConfig.ModalMeloTTSConfig.Endpoint)
 			if err != nil {
 				cmd.PrintErrf("Config error: %s\n", err.Error())
@@ -295,10 +295,11 @@ var serveCmd = &cobra.Command{
 			config.Logger.Warn("MODAL_TTS_ENDPOINT is not set, using mock TTS client")
 			speechSynthesizer = external.NewMockTTSClient()
 		}
+
 		workerSpeechService := service.NewSpeechService(
 			translationClient,
 			speechSynthesizer,
-			repo.NewSpeechRepo(riverClientFn),
+			repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs),
 		)
 		speechWorker := worker.NewSpeechWorker(workerSpeechService, botClient)
 		river.AddWorker(workers, speechWorker)
@@ -313,7 +314,7 @@ var serveCmd = &cobra.Command{
 			Queues: map[string]river.QueueConfig{
 				queue.QueueDocumentIngestion: {MaxWorkers: 10},
 				queue.QueueMediaProcessing:   {MaxWorkers: 10},
-				queue.QueueSpeechSynthesis:   {MaxWorkers: 4},
+				queue.QueueSpeechSynthesis:   {MaxWorkers: config.TTSConfig.MaxWorkers},
 			},
 			Workers: workers,
 		})

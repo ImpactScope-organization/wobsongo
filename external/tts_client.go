@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
+
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 const (
@@ -20,7 +21,7 @@ const (
 
 	// ttsHTTPTimeout is the maximum time allowed for a synthesis request,
 	// including cold starts.
-	ttsHTTPTimeout = 10 * time.Minute
+	ttsHTTPTimeout = queue.SpeechJobTTL
 
 	// ttsMaxAudioBytes caps how much audio we read back from the endpoint
 	// (16 MB). WhatsApp rejects audio files larger than 16 MB when they are
@@ -28,6 +29,8 @@ const (
 	ttsMaxAudioBytes = 16 * bytesPerMB
 
 	// ttsErrorSnippetBytes is the maximum error response snippet size (512 bytes).
+	// enough to see the reason in the logs without flooding them
+	// when the endpoint returns a large HTML error page.
 	ttsErrorSnippetBytes = 512
 )
 

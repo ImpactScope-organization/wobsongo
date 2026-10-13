@@ -1,12 +1,33 @@
 package queue
 
-import "github.com/riverqueue/river"
+import (
+	"time"
 
-// speechJobMaxAttempts is how many times River runs a SpeechJob. A single
-// attempt keeps the worst-case wait deterministic: wa-bot sends the text
-// answer when the audio takes longer than its own wait, so a late retry
-// would only produce audio nobody uses.
-const speechJobMaxAttempts = 1
+	"github.com/riverqueue/river"
+)
+
+const (
+	// speechJobMaxAttempts is how many times River runs a SpeechJob. A single
+	// attempt keeps the worst-case wait deterministic: wa-bot sends the text
+	// answer when the audio takes longer than its own wait, so a late retry
+	// would only produce audio nobody uses.
+	speechJobMaxAttempts = 1
+
+	// DefaultSpeechMaxWorkers is the default number of speech jobs one server
+	// process synthesizes at the same time.
+	DefaultSpeechMaxWorkers = 4
+
+	// DefaultSpeechMaxPendingJobs is the default maximum number of SpeechJobs
+	// allowed to wait in the queue
+	DefaultSpeechMaxPendingJobs = 50
+
+	// SpeechJobTTL is how long a speech job stays useful. A job older than this
+	// is dropped without synthesizing, and a running one is canceled at this age.
+	SpeechJobTTL = 4 * time.Minute
+
+	// SpeechNotifyTimeout bounds the callback that delivers the result to wa-bot.
+	SpeechNotifyTimeout = 30 * time.Second
+)
 
 // SpeechJob turns one bot reply into a voice message: the text is cleaned,
 // translated to English when Language is "en", synthesized, and the resulting

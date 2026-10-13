@@ -56,7 +56,7 @@ func buildApp(
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 	userRepo := repo.NewUserRepo(queries, pool)
 	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
-	speechRepo := repo.NewSpeechRepo(riverClientFn)
+	speechRepo := repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs)
 
 	return core.NewApp(
 		echo.New(),

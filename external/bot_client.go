@@ -17,6 +17,7 @@ type BotClient struct {
 	callbackPSK string
 	controlPSK  string
 	httpClient  *http.Client
+	audioClient *http.Client
 }
 
 // NewBotClient creates and returns a new instance of BotClient.
@@ -28,6 +29,7 @@ func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 		callbackPSK: callbackPSK,
 		controlPSK:  controlPSK,
 		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		audioClient: &http.Client{},
 	}
 }
 
@@ -116,7 +118,7 @@ func (c *BotClient) NotifyTTSDone(
 	req.Header.Set("X-Job-Id", jobID)
 	req.Header.Set("X-Tts-Status", status)
 
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.audioClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to execute tts callback request: %w", err)
 	}

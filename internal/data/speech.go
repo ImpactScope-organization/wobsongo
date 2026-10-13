@@ -14,13 +14,14 @@ type SpeechSynthesizer interface {
 
 // SpeechRepoer enqueues background speech-synthesis jobs.
 type SpeechRepoer interface {
-	// EnqueueSpeech adds a speech job to the River queue.
+	// EnqueueSpeech adds a speech job to the River queue. It returns
+	// ErrQueueFull when too many speech jobs are already waiting.
 	EnqueueSpeech(ctx context.Context, payload queue.SpeechJob) error
 }
 
 // SpeechTranscriber converts spoken audio into text.
 type SpeechTranscriber interface {
-	// Transcribe returns the transcript of audio 
+	// Transcribe returns the transcript of audio
 	// The transcript is empty when no speech was recognized.
 	Transcribe(ctx context.Context, audio []byte, format string) (string, error)
 

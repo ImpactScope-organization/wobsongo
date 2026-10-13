@@ -13,12 +13,6 @@ import (
 )
 
 const (
-	// speechJobTimeout bounds one synthesis attempt (translation + TTS).
-	speechJobTimeout = 4 * time.Minute
-
-	// speechNotifyTimeout bounds the callback that delivers the result to the bot.
-	speechNotifyTimeout = 30 * time.Second
-
 	// Statuses understood by wa-bot's /callback/tts-done endpoint.
 	ttsStatusCompleted = "completed"
 	ttsStatusFailed    = "failed"
@@ -41,7 +35,7 @@ func NewSpeechWorker(
 }
 
 func (w *SpeechWorker) Timeout(_ *river.Job[queue.SpeechJob]) time.Duration {
-	return speechJobTimeout
+	return queue.SpeechJobTTL
 }
 
 // Work synthesizes the audio and notifies the bot with the result.
@@ -50,7 +44,7 @@ func (w *SpeechWorker) Work(ctx context.Context, job *river.Job[queue.SpeechJob]
 
 	// A job that waited too long in the queue is useless: wa-bot has given up or
 	// is about to. Skip it without touching the GPU.
-	deadline := job.CreatedAt.Add(speechJobTimeout)
+	deadline := job.CreatedAt.Add(queue.SpeechJobTTL)
 	if !time.Now().Before(deadline) {
 		err := fmt.Errorf(
 			"speech job expired after waiting %s in the queue",
@@ -96,7 +90,7 @@ func (w *SpeechWorker) notifyBot(
 	jobID, status string,
 	audio []byte,
 ) error {
-	notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), speechNotifyTimeout)
+	notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), queue.SpeechNotifyTimeout)
 	defer cancel()
 
 	return w.botClient.NotifyTTSDone(notifyCtx, jobID, status, audio)

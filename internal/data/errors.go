@@ -18,4 +18,8 @@ var (
 
 	// ErrInternal indicates an unexpected internal failure.
 	ErrInternal = errors.New("internal error")
+
+	// ErrQueueFull indicates a background queue has reached its maximum
+	// number of waiting jobs and is not accepting new ones right now.
+	ErrQueueFull = errors.New("queue is full")
 )

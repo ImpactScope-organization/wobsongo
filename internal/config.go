@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/joho/godotenv"
 )
 
@@ -241,6 +242,14 @@ type ModalMeloTTSConfig struct {
 type TTSConfig struct {
 	// ModalMeloTTSConfig is the config for MeloTTS deployed in Modal.
 	ModalMeloTTSConfig ModalMeloTTSConfig `json:"modal_melotts_config"`
+
+	// MaxPendingJobs is the maximum number of speech jobs allowed to wait in the
+	// queue.
+	MaxPendingJobs int `json:"max_pending_jobs"`
+
+	// MaxWorkers is the number of speech jobs synthesized at the same time by one
+	// server process.
+	MaxWorkers int `json:"max_workers"`
 }
 
 // AgentLLMConfig holds the configuration for the agentic bot's tool-calling
@@ -417,7 +426,16 @@ func (c *Config) IsOK() error {
 	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
 		return err
 	}
-	if c.TTSConfig != nil && c.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
+	if n := c.TTSConfig.MaxWorkers; n < 1 {
+		return fmt.Errorf(
+			"TTS_MAX_WORKERS must be between 1 and %d",
+			n,
+		)
+	}
+	if n := c.TTSConfig.MaxPendingJobs; n < 1 {
+		return fmt.Errorf("TTS_MAX_PENDING_JOBS must be at least 1, got %d", n)
+	}
+	if c.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
 		if err := validateModalEndpoint(
 			"MODAL_TTS_ENDPOINT",
 			c.TTSConfig.ModalMeloTTSConfig.Endpoint,
@@ -592,6 +610,8 @@ func NewConfig(envs ...string) *Config {
 		ModalMeloTTSConfig: ModalMeloTTSConfig{
 			Endpoint: getEnv("MODAL_TTS_ENDPOINT", ""),
 		},
+		MaxWorkers:     getEnvInt("TTS_MAX_WORKERS", queue.DefaultSpeechMaxWorkers),
+		MaxPendingJobs: getEnvInt("TTS_MAX_PENDING_JOBS", queue.DefaultSpeechMaxPendingJobs),
 	}
 
 	// Parse Docling configuration

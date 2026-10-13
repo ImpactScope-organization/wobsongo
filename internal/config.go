@@ -238,7 +238,7 @@ type ModalMeloTTSConfig struct {
 	Endpoint string `json:"endpoint"`
 }
 
-// TTSConfig groups the configuration of the supported text-to-speech
+// TTSConfig groups the configuration of the supported text-to-speech providers.
 type TTSConfig struct {
 	// ModalMeloTTSConfig is the config for MeloTTS deployed in Modal.
 	ModalMeloTTSConfig ModalMeloTTSConfig `json:"modal_melotts_config"`
@@ -427,10 +427,7 @@ func (c *Config) IsOK() error {
 		return err
 	}
 	if n := c.TTSConfig.MaxWorkers; n < 1 {
-		return fmt.Errorf(
-			"TTS_MAX_WORKERS must be between 1 and %d",
-			n,
-		)
+		return fmt.Errorf("TTS_MAX_WORKERS must be at least 1, got %d", n)
 	}
 	if n := c.TTSConfig.MaxPendingJobs; n < 1 {
 		return fmt.Errorf("TTS_MAX_PENDING_JOBS must be at least 1, got %d", n)

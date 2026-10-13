@@ -39,7 +39,9 @@ func NewSpeechRepo(
 }
 
 // EnqueueSpeech adds a speech job to the River queue. It returns
-// data.ErrQueueFull when queue.SpeechMaxPendingJobs jobs are already waiting.
+// data.ErrQueueFull when maxPendingJobs jobs are already waiting. The limit
+// comes from config.TTSConfig.MaxPendingJobs (TTS_MAX_PENDING_JOBS, default
+// queue.DefaultSpeechMaxPendingJobs).
 // The limit is a soft one: the check and the insert are not atomic, so a burst
 // of concurrent requests can overshoot it by a few jobs. That is acceptable
 // here, the goal is to stop unbounded growth, not to enforce an exact size.

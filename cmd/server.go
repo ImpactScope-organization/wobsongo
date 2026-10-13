@@ -282,18 +282,11 @@ var serveCmd = &cobra.Command{
 		agentTurnWorker := worker.NewAgentTurnWorker(agentService, botClient)
 		river.AddWorker(workers, agentTurnWorker)
 
-		var speechSynthesizer data.SpeechSynthesizer
-		if config.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
-			ttsClient, err := external.NewTTSClient(config.TTSConfig.ModalMeloTTSConfig.Endpoint)
-			if err != nil {
-				cmd.PrintErrf("Config error: %s\n", err.Error())
-				os.Exit(1)
-				return
-			}
-			speechSynthesizer = ttsClient
-		} else {
-			config.Logger.Warn("MODAL_TTS_ENDPOINT is not set, using mock TTS client")
-			speechSynthesizer = external.NewMockTTSClient()
+		speechSynthesizer, err := newSpeechSynthesizer(config)
+		if err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
 		}
 
 		workerSpeechService := service.NewSpeechService(
@@ -367,4 +360,21 @@ func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
 		return external.NewModalBGEClient(cfg.BaseURL, cfg.APIKey)
 	}
 	return external.NewEmbeddingClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
+}
+
+// newSpeechSynthesizer returns the TTS client for the configured endpoint, or
+// the mock client when no endpoint is set. It returns an error when the
+// endpoint is set but invalid.
+func newSpeechSynthesizer(config *internal.Config) (data.SpeechSynthesizer, error) {
+	endpoint := config.TTSConfig.ModalMeloTTSConfig.Endpoint
+	if endpoint == "" {
+		config.Logger.Warn("MODAL_TTS_ENDPOINT is not set, using mock TTS client")
+		return external.NewMockTTSClient(), nil
+	}
+
+	client, err := external.NewTTSClient(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }

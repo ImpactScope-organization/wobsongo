@@ -292,6 +292,36 @@ definitions:
           — only that the knowledge base had nothing relevant to check it against.
         type: string
     type: object
+  dto.TTSRequest:
+    properties:
+      jobId:
+        description: |-
+          JobID is the bot's correlation ID (its pending job). The finished audio
+          is reported back to the bot under this ID.
+        type: string
+      language:
+        description: 'Language is the language the audio is spoken in: "fr" or "en".'
+        enum:
+        - fr
+        - en
+        type: string
+      text:
+        description: |-
+          Text is the bot reply to speak. It is French. For Language "en" it is
+          translated before synthesis.
+        type: string
+    required:
+    - jobId
+    - language
+    - text
+    type: object
+  dto.TTSResponse:
+    properties:
+      jobId:
+        type: string
+      status:
+        type: string
+    type: object
   dto.UpdateDocumentDTO:
     properties:
       publication_year:
@@ -526,6 +556,64 @@ paths:
       summary: Trigger media extraction
       tags:
       - media
+  /api/tts:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Returns 202 immediately. In the background the text is cleaned
+        (emoji, markdown, citations), translated to English when language is
+        "en", and synthesized; the OGG/Opus audio is then delivered to wa-bot
+        through its /callback/tts-done endpoint under the given jobId.
+      parameters:
+      - description: Text to speak
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.TTSRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TTSResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Start synthesizing a bot reply as a voice message
+      tags:
+      - agent
   /api/v1/claims/check:
     post:
       consumes:

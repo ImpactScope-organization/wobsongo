@@ -1,5 +1,5 @@
 import { env } from '../config/env.js';
-import type { ExtractResponse } from '../types/types.js';
+import type { ExtractResponse, ReplyLang } from '../types/types.js';
 
 // APIEnvelope mirrors the standard response format returned by the Go backend.
 interface APIEnvelope<T> {
@@ -54,4 +54,27 @@ export async function callGoAgentInbound(payload: {
 
   const envelope = (await res.json()) as APIEnvelope<ExtractResponse>;
   return envelope.data;
+}
+
+// callGoTTS asks the Go backend to start synthesizing a reply. It returns as
+// soon as the backend accepts the job (202). The audio arrives later through
+// the /callback/tts-done endpoint.
+export async function callGoTTS(payload: {
+  jobId: string;
+  text: string;
+  language: ReplyLang;
+}): Promise<void> {
+  const res = await fetch(`${env.goBackendUrl}/api/tts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `PSK ${env.goExtractPsk}`,
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Go TTS API error: ${res.status} ${await res.text().catch(() => '')}`);
+  }
 }

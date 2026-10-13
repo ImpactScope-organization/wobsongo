@@ -20,6 +20,7 @@ type Handlers struct {
 	botExtractPSK   string
 	claimHandler    *ClaimHandler
 	agentHandler    *AgentHandler
+	ttsHandler      *TTSHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -30,6 +31,11 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	api.POST(
 		"/agent/inbound",
 		h.agentHandler.inboundMessageHandler,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
+	api.POST(
+		"/tts",
+		h.ttsHandler.synthesizeHandler,
 		PSKAuthMiddleware(h.botExtractPSK),
 	)
 
@@ -119,10 +125,23 @@ func NewHandlers(repos *Repos) *Handlers {
 	}
 	agentHandler := NewAgentHandler(agentService)
 
+	// Initialize speech (TTS) service and handler.
+	var translator data.Translator
+	if tc := config.TranslationConfig; tc != nil && tc.BaseURL != "" && tc.Model != "" {
+		translator = external.NewTranslationClient(tc.BaseURL, tc.Model, tc.APIKey)
+	}
+	var synthesizer data.SpeechSynthesizer
+	if config.TTSConfig != nil && config.TTSConfig.Endpoint != "" {
+		synthesizer = external.NewTTSClient(config.TTSConfig.Endpoint)
+	}
+	speechService := service.NewSpeechService(translator, synthesizer, botClient)
+	ttsHandler := NewTTSHandler(speechService)
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
 		mediaHandler:    mediaHandler,
+		ttsHandler:      ttsHandler,
 		botExtractPSK:   config.BotExtractPSK,
 		claimHandler:    claimHandler,
 		agentHandler:    agentHandler,

@@ -230,6 +230,12 @@ type ASRConfig struct {
 	SourceLang string `json:"source_lang"`
 }
 
+// TTSConfig holds the configuration for the Modal MeloTTS (text-to-speech) service.
+type TTSConfig struct {
+	// Endpoint is the Modal MeloTTS API endpoint used for speech synthesis requests.
+	Endpoint string `json:"endpoint"`
+}
+
 // AgentLLMConfig holds the configuration for the agentic bot's tool-calling
 type AgentLLMConfig struct {
 	Enabled  bool
@@ -279,6 +285,7 @@ type Config struct {
 	EmailConfig        *EmailConfig       `json:"email_config"`         // Email configuration
 	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
 	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
+	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the Modal MeloTTS speech synthesis service
 	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
 	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
@@ -403,6 +410,11 @@ func (c *Config) IsOK() error {
 	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
 		return err
 	}
+	if c.TTSConfig != nil && c.TTSConfig.Endpoint != "" {
+		if err := validateModalEndpoint("MODAL_TTS_ENDPOINT", c.TTSConfig.Endpoint); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -422,6 +434,20 @@ func validateModalASREndpoint(rawURL string) error {
 			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
 			u.Hostname(),
 		)
+	}
+	return nil
+}
+
+func validateModalEndpoint(name, rawURL string) error {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return fmt.Errorf("%s is not a valid URL: %w", name, err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("%s must use https", name)
+	}
+	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
+		return fmt.Errorf("%s host %q is not an allowed modal.run domain", name, u.Hostname())
 	}
 	return nil
 }
@@ -551,6 +577,11 @@ func NewConfig(envs ...string) *Config {
 		SourceLang: getEnv("MODAL_ASR_SOURCE_LANG", "auto"),
 	}
 
+	// Parse TTS configuration
+	ttsConfig := &TTSConfig{
+		Endpoint: getEnv("MODAL_TTS_ENDPOINT", ""),
+	}
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -597,6 +628,7 @@ func NewConfig(envs ...string) *Config {
 		StorageProvider:         storageProvider,
 		ApifyConfig:             apifyConfig,
 		ASRConfig:               asrConfig,
+		TTSConfig:               ttsConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,
 		EmbeddingConfig:         embeddingConfig,

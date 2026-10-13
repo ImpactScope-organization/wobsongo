@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -90,6 +91,43 @@ func (c *BotClient) NotifyExtractDone(
 
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("bot callback returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// NotifyTTSDone sends a POST request to the bot's /callback/tts-done endpoint
+// to deliver the result of a speech synthesis job.
+func (c *BotClient) NotifyTTSDone(
+	ctx context.Context,
+	jobID, status string,
+	audio []byte,
+) error {
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/callback/tts-done",
+		bytes.NewReader(audio),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create tts callback request: %w", err)
+	}
+	req.Header.Set("Content-Type", "audio/ogg")
+	req.Header.Set("Authorization", "PSK "+c.callbackPSK)
+	req.Header.Set("X-Job-Id", jobID)
+	req.Header.Set("X-Tts-Status", status)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute tts callback request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("[BotClient] failed to close tts callback response body: %v", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("bot tts callback returned status %d", resp.StatusCode)
 	}
 	return nil
 }

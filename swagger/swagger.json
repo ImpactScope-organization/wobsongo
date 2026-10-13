@@ -204,6 +204,106 @@
                 }
             }
         },
+        "/api/tts": {
+            "post": {
+                "description": "Returns 202 immediately. In the background the text is cleaned\n(emoji, markdown, citations), translated to English when language is\n\"en\", and synthesized; the OGG/Opus audio is then delivered to wa-bot\nthrough its /callback/tts-done endpoint under the given jobId.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Start synthesizing a bot reply as a voice message",
+                "parameters": [
+                    {
+                        "description": "Text to speak",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.TTSRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TTSResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/claims/check": {
             "post": {
                 "description": "Checks a claim (e.g. from a video transcript) against the knowledge base and returns a cited verdict. Out-of-scope input (not health-related) is a normal 200 response with in_scope=false, not an error.",
@@ -1521,6 +1621,43 @@
                 },
                 "verdict": {
                     "description": "Verdict is one of: supported, contradicted, partially_supported, mixed, insufficient_evidence.\ninsufficient_evidence never implies the claim itself is right or wrong\n— only that the knowledge base had nothing relevant to check it against.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TTSRequest": {
+            "type": "object",
+            "required": [
+                "jobId",
+                "language",
+                "text"
+            ],
+            "properties": {
+                "jobId": {
+                    "description": "JobID is the bot's correlation ID (its pending job). The finished audio\nis reported back to the bot under this ID.",
+                    "type": "string"
+                },
+                "language": {
+                    "description": "Language is the language the audio is spoken in: \"fr\" or \"en\".",
+                    "type": "string",
+                    "enum": [
+                        "fr",
+                        "en"
+                    ]
+                },
+                "text": {
+                    "description": "Text is the bot reply to speak. It is French. For Language \"en\" it is\ntranslated before synthesis.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TTSResponse": {
+            "type": "object",
+            "properties": {
+                "jobId": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }

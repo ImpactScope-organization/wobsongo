@@ -36,6 +36,7 @@ type App struct {
 	claimJudge       data.ClaimJudge
 	userRepo         data.UserRepoer
 	conversationRepo data.ConversationRepoer
+	speechRepo       data.SpeechRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -142,6 +143,13 @@ func WithConversationRepo(repo data.ConversationRepoer) AppOption {
 	}
 }
 
+// WithSpeechRepo sets the speech-synthesis job repository for the application.
+func WithSpeechRepo(repo data.SpeechRepoer) AppOption {
+	return func(a *App) {
+		a.speechRepo = repo
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -180,6 +188,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.ClaimAnalyzer = app.claimAnalyzer
 	repos.ClaimJudge = app.claimJudge
 	repos.ConversationRepo = app.conversationRepo
+	repos.SpeechRepo = app.speechRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

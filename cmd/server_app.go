@@ -46,6 +46,7 @@ func buildApp(
 	documentRepo := repo.NewDocumentRepo(db.New(pool), pool, riverClient)
 	userRepo := repo.NewUserRepo(queries, pool)
 	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
+	speechRepo := repo.NewSpeechRepo(riverClientFn)
 
 	return core.NewApp(
 		echo.New(),
@@ -61,5 +62,6 @@ func buildApp(
 		core.WithClaimJudge(claimCheck.claimJudge),
 		core.WithUserRepo(userRepo),
 		core.WithConversationRepo(conversationRepo),
+		core.WithSpeechRepo(speechRepo),
 	)
 }

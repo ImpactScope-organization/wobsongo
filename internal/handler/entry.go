@@ -65,6 +65,7 @@ type Repos struct {
 	ClaimAnalyzer    data.ClaimAnalyzer
 	ClaimJudge       data.ClaimJudge
 	ConversationRepo data.ConversationRepoer
+	SpeechRepo       data.SpeechRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -134,7 +135,7 @@ func NewHandlers(repos *Repos) *Handlers {
 	if config.TTSConfig != nil && config.TTSConfig.Endpoint != "" {
 		synthesizer = external.NewTTSClient(config.TTSConfig.Endpoint)
 	}
-	speechService := service.NewSpeechService(translator, synthesizer, botClient)
+	speechService := service.NewSpeechService(translator, synthesizer, repos.SpeechRepo)
 	ttsHandler := NewTTSHandler(speechService)
 
 	return &Handlers{

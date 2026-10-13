@@ -4,29 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/model"
-)
-
-const (
-	// maxConcurrentSpeechJobs bounds how many syntheses run at once, so a burst
-	// of voice messages cannot pile unlimited requests onto the GPU endpoint.
-	maxConcurrentSpeechJobs = 4
-
-	// speechJobTimeout bounds one background synthesis (translation + TTS).
-	speechJobTimeout = 10 * time.Minute
-
-	// speechNotifyTimeout bounds the callback that delivers the result to the bot.
-	speechNotifyTimeout = 30 * time.Second
-
-	speechStatusCompleted = "completed"
-	speechStatusFailed    = "failed"
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 var (
@@ -37,35 +21,35 @@ var (
 	ErrSpeechEmptyText = errors.New("nothing to speak after cleaning the text")
 )
 
-// SpeechNotifier reports the result of a background speech job to the bot.
-type SpeechNotifier interface {
-	NotifyTTSDone(ctx context.Context, jobID, status string, audio []byte) error
-}
-
+// SpeechService turns bot replies into speech: it enqueues the background
+// job (EnqueueSpeech) and does the actual work when the job runs (Synthesize).
 type SpeechService struct {
 	translator  data.Translator
 	synthesizer data.SpeechSynthesizer
-	notifier    SpeechNotifier
-	slots       chan struct{}
+	speechRepo  data.SpeechRepoer
 }
 
+// NewSpeechService creates a SpeechService. translator and synthesizer may be
+// nil when their services are not configured.
 func NewSpeechService(
 	translator data.Translator,
 	synthesizer data.SpeechSynthesizer,
-	notifier SpeechNotifier,
+	speechRepo data.SpeechRepoer,
 ) *SpeechService {
 	return &SpeechService{
 		translator:  translator,
 		synthesizer: synthesizer,
-		notifier:    notifier,
-		slots:       make(chan struct{}, maxConcurrentSpeechJobs),
+		speechRepo:  speechRepo,
 	}
 }
 
-// SynthesizeAsync starts synthesizing text in the background and returns
-// immediately. When the job finishes (or fails) the bot is notified through
-// SpeechNotifier under jobID.
-func (s *SpeechService) SynthesizeAsync(jobID, text, language string) error {
+// EnqueueSpeech validates the request and enqueues a background speech job,
+// returning as soon as the job is stored. When the job runs (see
+// worker.SpeechWorker) the bot is notified of the result under jobID.
+func (s *SpeechService) EnqueueSpeech(
+	ctx context.Context,
+	jobID, text, language string,
+) error {
 	if s.synthesizer == nil {
 		return ErrSpeechNotConfigured
 	}
@@ -73,46 +57,11 @@ func (s *SpeechService) SynthesizeAsync(jobID, text, language string) error {
 		return ErrSpeechEmptyText
 	}
 
-	go s.runSpeechJob(jobID, text, language)
-	return nil
-}
-
-func (s *SpeechService) runSpeechJob(jobID, text, language string) {
-	s.slots <- struct{}{}
-	defer func() { <-s.slots }()
-
-	audio, err := s.synthesizeSafely(text, language)
-	if err != nil {
-		log.Printf("[SpeechService] job %s failed: %v", jobID, err)
-		s.notifyBot(jobID, speechStatusFailed, nil)
-		return
-	}
-
-	log.Printf("[SpeechService] job %s completed (%d bytes)", jobID, len(audio))
-	s.notifyBot(jobID, speechStatusCompleted, audio)
-}
-
-// notifyBot reports the job result to the bot.
-func (s *SpeechService) notifyBot(jobID, status string, audio []byte) {
-	ctx, cancel := context.WithTimeout(context.Background(), speechNotifyTimeout)
-	defer cancel()
-
-	if err := s.notifier.NotifyTTSDone(ctx, jobID, status, audio); err != nil {
-		log.Printf("[SpeechService] failed to notify bot for job %s: %v", jobID, err)
-	}
-}
-
-// synthesizeSafely runs Synthesize with a timeout and turns a panic into an error.
-func (s *SpeechService) synthesizeSafely(text, language string) (audio []byte, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("panic during speech synthesis: %v", r)
-		}
-	}()
-
-	ctx, cancel := context.WithTimeout(context.Background(), speechJobTimeout)
-	defer cancel()
-	return s.Synthesize(ctx, text, language)
+	return s.speechRepo.EnqueueSpeech(ctx, queue.SpeechJob{
+		JobID:    jobID,
+		Text:     text,
+		Language: language,
+	})
 }
 
 // Synthesize speaks text in language ("fr" or "en"). text is expected to be

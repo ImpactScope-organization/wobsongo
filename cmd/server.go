@@ -270,6 +270,18 @@ var serveCmd = &cobra.Command{
 		agentTurnWorker := worker.NewAgentTurnWorker(agentService, botClient)
 		river.AddWorker(workers, agentTurnWorker)
 
+		var speechSynthesizer data.SpeechSynthesizer
+		if config.TTSConfig != nil && config.TTSConfig.Endpoint != "" {
+			speechSynthesizer = external.NewTTSClient(config.TTSConfig.Endpoint)
+		}
+		workerSpeechService := service.NewSpeechService(
+			translationClient,
+			speechSynthesizer,
+			repo.NewSpeechRepo(riverClientFn),
+		)
+		speechWorker := worker.NewSpeechWorker(workerSpeechService, botClient)
+		river.AddWorker(workers, speechWorker)
+
 		// Initialize River client with the database pool and registered workers.
 		// Document ingestion and media processing get separate queues (see
 		// each job DTO's InsertOpts() in internal/queue) so a long-running
@@ -280,6 +292,7 @@ var serveCmd = &cobra.Command{
 			Queues: map[string]river.QueueConfig{
 				queue.QueueDocumentIngestion: {MaxWorkers: 10},
 				queue.QueueMediaProcessing:   {MaxWorkers: 10},
+				queue.QueueSpeechSynthesis:   {MaxWorkers: 4},
 			},
 			Workers: workers,
 		})

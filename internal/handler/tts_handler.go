@@ -53,7 +53,10 @@ func (h *TTSHandler) synthesizeHandler(c echo.Context) error {
 		}
 	}
 
-	if err := h.service.SynthesizeAsync(req.JobID, req.Text, req.Language); err != nil {
+	err := h.service.EnqueueSpeech(
+		c.Request().Context(), req.JobID, req.Text, req.Language,
+	)
+	if err != nil {
 		code := http.StatusInternalServerError
 		switch {
 		case errors.Is(err, service.ErrSpeechNotConfigured):

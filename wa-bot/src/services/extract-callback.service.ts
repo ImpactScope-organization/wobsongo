@@ -47,7 +47,7 @@ export async function handleExtractDone(
     return;
   }
 
-  try {
+    try {
     if (data) {
       const text = (data.answer ?? data.transcript ?? '').trim();
       if (!text) {

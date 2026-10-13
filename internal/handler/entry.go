@@ -55,17 +55,19 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo        data.ApifyRepoer
-	VideoRepo        data.VideoRepoer
-	DocumentRepo     data.DocumentRepoer
-	MediaProvider    data.MediaUploadProvider
-	ChunkRepo        data.DocumentChunkRepoer
-	KnowledgeRepo    data.AtomicKnowledgeRepoer
-	Embedder         data.Embedder
-	ClaimAnalyzer    data.ClaimAnalyzer
-	ClaimJudge       data.ClaimJudge
-	ConversationRepo data.ConversationRepoer
-	SpeechRepo       data.SpeechRepoer
+	ApifyRepo         data.ApifyRepoer
+	VideoRepo         data.VideoRepoer
+	DocumentRepo      data.DocumentRepoer
+	MediaProvider     data.MediaUploadProvider
+	ChunkRepo         data.DocumentChunkRepoer
+	KnowledgeRepo     data.AtomicKnowledgeRepoer
+	Embedder          data.Embedder
+	ClaimAnalyzer     data.ClaimAnalyzer
+	ClaimJudge        data.ClaimJudge
+	ConversationRepo  data.ConversationRepoer
+	SpeechRepo        data.SpeechRepoer
+	Translator        data.Translator
+	SpeechSynthesizer data.SpeechSynthesizer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -127,15 +129,11 @@ func NewHandlers(repos *Repos) *Handlers {
 	agentHandler := NewAgentHandler(agentService)
 
 	// Initialize speech (TTS) service and handler.
-	var translator data.Translator
-	if tc := config.TranslationConfig; tc != nil && tc.BaseURL != "" && tc.Model != "" {
-		translator = external.NewTranslationClient(tc.BaseURL, tc.Model, tc.APIKey)
-	}
-	var synthesizer data.SpeechSynthesizer
-	if config.TTSConfig != nil && config.TTSConfig.Endpoint != "" {
-		synthesizer = external.NewTTSClient(config.TTSConfig.Endpoint)
-	}
-	speechService := service.NewSpeechService(translator, synthesizer, repos.SpeechRepo)
+	speechService := service.NewSpeechService(
+		repos.Translator,
+		repos.SpeechSynthesizer,
+		repos.SpeechRepo,
+	)
 	ttsHandler := NewTTSHandler(speechService)
 
 	return &Handlers{

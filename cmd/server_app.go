@@ -24,6 +24,15 @@ type buildAppClaimCheckDeps struct {
 	claimJudge    data.ClaimJudge
 }
 
+// buildAppSpeechDeps bundles the speech (voice reply) feature's dependencies
+// for buildApp — both are already constructed in cmd/server.go for the
+// SpeechWorker and are reused here as-is. synthesizer is nil when
+// MODAL_TTS_ENDPOINT is not configured.
+type buildAppSpeechDeps struct {
+	translator  data.Translator
+	synthesizer data.SpeechSynthesizer
+}
+
 // buildApp initializes all API-facing repositories and returns a configured core.App.
 // mediaProvider is constructed by the caller (cmd/server.go), shared with any
 // River workers that also need it, rather than built again here.
@@ -33,6 +42,7 @@ func buildApp(
 	riverClient *river.Client[pgx.Tx],
 	mediaProvider data.MediaUploadProvider,
 	claimCheck buildAppClaimCheckDeps,
+	speech buildAppSpeechDeps,
 ) *core.App {
 	queries := db.New(pool)
 	riverClientFn := func() *river.Client[pgx.Tx] { return riverClient }
@@ -63,5 +73,7 @@ func buildApp(
 		core.WithUserRepo(userRepo),
 		core.WithConversationRepo(conversationRepo),
 		core.WithSpeechRepo(speechRepo),
+		core.WithTranslator(speech.translator),
+		core.WithSpeechSynthesizer(speech.synthesizer),
 	)
 }

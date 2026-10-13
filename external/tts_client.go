@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -30,13 +31,26 @@ type TTSClient struct {
 	httpClient *http.Client
 }
 
-// NewTTSClient creates a TTSClient. An empty endpoint is allowed; Synthesize
-// then returns an error instead of calling out.
-func NewTTSClient(endpoint string) *TTSClient {
+// NewTTSClient creates a TTSClient. It returns an error when endpoint is empty
+// or is not an absolute http(s) URL, so a misconfigured endpoint fails at
+// startup instead of on the first synthesis request.
+func NewTTSClient(endpoint string) (*TTSClient, error) {
+	if endpoint == "" {
+		return nil, errors.New("tts endpoint is empty")
+	}
+
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("tts endpoint is not a valid URL: %w", err)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("tts endpoint %q must be an absolute http(s) URL", endpoint)
+	}
+
 	return &TTSClient{
 		endpoint:   endpoint,
 		httpClient: &http.Client{Timeout: ttsHTTPTimeout},
-	}
+	}, nil
 }
 
 type ttsRequest struct {
@@ -47,10 +61,6 @@ type ttsRequest struct {
 
 // Synthesize implements data.SpeechSynthesizer. It returns OGG/Opus audio.
 func (c *TTSClient) Synthesize(ctx context.Context, text, language string) ([]byte, error) {
-	if c.endpoint == "" {
-		return nil, errors.New("MODAL_TTS_ENDPOINT is not set")
-	}
-
 	body, err := json.Marshal(ttsRequest{
 		Text:     text,
 		Language: strings.ToUpper(language),

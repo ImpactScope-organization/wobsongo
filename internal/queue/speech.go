@@ -2,8 +2,11 @@ package queue
 
 import "github.com/riverqueue/river"
 
-// speechJobMaxAttempts is how many times River runs a SpeechJob before giving up.
-const speechJobMaxAttempts = 2
+// speechJobMaxAttempts is how many times River runs a SpeechJob. A single
+// attempt keeps the worst-case wait deterministic: wa-bot sends the text
+// answer when the audio takes longer than its own wait, so a late retry
+// would only produce audio nobody uses.
+const speechJobMaxAttempts = 1
 
 // SpeechJob turns one bot reply into a voice message: the text is cleaned,
 // translated to English when Language is "en", synthesized, and the resulting

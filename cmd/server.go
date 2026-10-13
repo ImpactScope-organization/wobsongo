@@ -271,8 +271,14 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, agentTurnWorker)
 
 		var speechSynthesizer data.SpeechSynthesizer
-		if config.TTSConfig != nil && config.TTSConfig.Endpoint != "" {
-			speechSynthesizer = external.NewTTSClient(config.TTSConfig.Endpoint)
+		if config.TTSConfig != nil && config.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
+			ttsClient, err := external.NewTTSClient(config.TTSConfig.ModalMeloTTSConfig.Endpoint)
+			if err != nil {
+				cmd.PrintErrf("Config error: %s\n", err.Error())
+				os.Exit(1)
+				return
+			}
+			speechSynthesizer = ttsClient
 		}
 		workerSpeechService := service.NewSpeechService(
 			translationClient,
@@ -322,6 +328,9 @@ var serveCmd = &cobra.Command{
 			embedder:      embeddingClient,
 			claimAnalyzer: claimAnalyzerClient,
 			claimJudge:    judgeClient,
+		}, buildAppSpeechDeps{
+			translator:  translationClient,
+			synthesizer: speechSynthesizer,
 		})
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)

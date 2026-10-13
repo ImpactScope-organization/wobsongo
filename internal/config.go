@@ -230,10 +230,17 @@ type ASRConfig struct {
 	SourceLang string `json:"source_lang"`
 }
 
-// TTSConfig holds the configuration for the Modal MeloTTS (text-to-speech) service.
-type TTSConfig struct {
-	// Endpoint is the Modal MeloTTS API endpoint used for speech synthesis requests.
+// ModalMeloTTSConfig holds the configuration for MeloTTS (text-to-speech)
+// deployed on Modal.
+type ModalMeloTTSConfig struct {
+	// Endpoint is the Modal MeloTTS web endpoint used for speech synthesis requests.
 	Endpoint string `json:"endpoint"`
+}
+
+// TTSConfig groups the configuration of the supported text-to-speech
+type TTSConfig struct {
+	// ModalMeloTTSConfig is the config for MeloTTS deployed in Modal.
+	ModalMeloTTSConfig ModalMeloTTSConfig `json:"modal_melotts_config"`
 }
 
 // AgentLLMConfig holds the configuration for the agentic bot's tool-calling
@@ -285,7 +292,7 @@ type Config struct {
 	EmailConfig        *EmailConfig       `json:"email_config"`         // Email configuration
 	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
 	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
-	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the Modal MeloTTS speech synthesis service
+	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the text-to-speech providers
 	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
 	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
@@ -410,8 +417,11 @@ func (c *Config) IsOK() error {
 	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
 		return err
 	}
-	if c.TTSConfig != nil && c.TTSConfig.Endpoint != "" {
-		if err := validateModalEndpoint("MODAL_TTS_ENDPOINT", c.TTSConfig.Endpoint); err != nil {
+	if c.TTSConfig != nil && c.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
+		if err := validateModalEndpoint(
+			"MODAL_TTS_ENDPOINT",
+			c.TTSConfig.ModalMeloTTSConfig.Endpoint,
+		); err != nil {
 			return err
 		}
 	}
@@ -579,7 +589,9 @@ func NewConfig(envs ...string) *Config {
 
 	// Parse TTS configuration
 	ttsConfig := &TTSConfig{
-		Endpoint: getEnv("MODAL_TTS_ENDPOINT", ""),
+		ModalMeloTTSConfig: ModalMeloTTSConfig{
+			Endpoint: getEnv("MODAL_TTS_ENDPOINT", ""),
+		},
 	}
 
 	// Parse Docling configuration

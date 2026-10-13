@@ -2,7 +2,6 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -15,7 +14,7 @@ import (
 
 const (
 	// speechJobTimeout bounds one synthesis attempt (translation + TTS).
-	speechJobTimeout = 10 * time.Minute
+	speechJobTimeout = 4 * time.Minute
 
 	// speechNotifyTimeout bounds the callback that delivers the result to the bot.
 	speechNotifyTimeout = 30 * time.Second
@@ -49,9 +48,25 @@ func (w *SpeechWorker) Timeout(_ *river.Job[queue.SpeechJob]) time.Duration {
 func (w *SpeechWorker) Work(ctx context.Context, job *river.Job[queue.SpeechJob]) error {
 	log.Printf("[SpeechWorker] Starting speech synthesis for JobID=%s", job.Args.JobID)
 
+	// A job that waited too long in the queue is useless: wa-bot has given up or
+	// is about to. Skip it without touching the GPU.
+	deadline := job.CreatedAt.Add(speechJobTimeout)
+	if !time.Now().Before(deadline) {
+		err := fmt.Errorf(
+			"speech job expired after waiting %s in the queue",
+			time.Since(job.CreatedAt).Round(time.Second),
+		)
+		w.reportFailure(ctx, job.Args.JobID, err)
+		return river.JobCancel(err)
+	}
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
 	audio, err := w.speechService.Synthesize(ctx, job.Args.Text, job.Args.Language)
 	if err != nil {
-		return w.handleFailure(ctx, job, err)
+		err = fmt.Errorf("speech synthesis failed: %w", err)
+		w.reportFailure(ctx, job.Args.JobID, err)
+		return err
 	}
 
 	log.Printf(
@@ -66,36 +81,13 @@ func (w *SpeechWorker) Work(ctx context.Context, job *river.Job[queue.SpeechJob]
 	return nil
 }
 
-// handleFailure decides what to do with a failed attempt.
-func (w *SpeechWorker) handleFailure(
-	ctx context.Context,
-	job *river.Job[queue.SpeechJob],
-	cause error,
-) error {
-	err := fmt.Errorf("speech synthesis failed: %w", cause)
-
-	permanent := errors.Is(cause, service.ErrSpeechNotConfigured) ||
-		errors.Is(cause, service.ErrSpeechEmptyText)
-	lastAttempt := job.Attempt >= job.MaxAttempts
-
-	if !permanent && !lastAttempt {
-		log.Printf(
-			"[SpeechWorker] attempt %d/%d failed for JobID=%s, will retry: %v",
-			job.Attempt, job.MaxAttempts, job.Args.JobID, err,
-		)
-		return err
+// reportFailure logs a failed job and tells the bot, so it can send the text
+// answer right away instead of waiting for its own timer.
+func (w *SpeechWorker) reportFailure(ctx context.Context, jobID string, cause error) {
+	log.Printf("[SpeechWorker] failure for JobID=%s: %v", jobID, cause)
+	if err := w.notifyBot(ctx, jobID, ttsStatusFailed, nil); err != nil {
+		log.Printf("[SpeechWorker] Failed to notify bot of failure: %v", err)
 	}
-
-	log.Printf("[SpeechWorker] failure for JobID=%s: %v", job.Args.JobID, err)
-	if notifyErr := w.notifyBot(ctx, job.Args.JobID, ttsStatusFailed, nil); notifyErr != nil {
-		log.Printf("[SpeechWorker] Failed to notify bot of failure: %v", notifyErr)
-	}
-
-	if permanent {
-		// Retrying cannot fix a missing configuration or an empty text.
-		return river.JobCancel(err)
-	}
-	return err
 }
 
 // notifyBot reports the job result to the bot.

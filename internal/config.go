@@ -426,6 +426,9 @@ func (c *Config) IsOK() error {
 	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
 		return err
 	}
+	if c.TTSConfig == nil {
+		return errors.New("TTSConfig is not set")
+	}
 	if n := c.TTSConfig.MaxWorkers; n < 1 {
 		return fmt.Errorf("TTS_MAX_WORKERS must be at least 1, got %d", n)
 	}

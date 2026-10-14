@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 
@@ -96,4 +97,11 @@ func (r *conversationRepo) EnqueueAgentTurn(ctx context.Context, payload queue.A
 		return fmt.Errorf("failed to insert agent turn job into river queue: %w", err)
 	}
 	return nil
+}
+
+// EnqueueVoiceTranscription is implemented in PR 3.
+func (r *conversationRepo) EnqueueVoiceTranscription(
+	context.Context, *queue.VoiceTranscriptionJob,
+) error {
+	return errors.New("voice transcription is not implemented yet")
 }

@@ -68,7 +68,7 @@ func (s *ApifyService) TriggerExtraction(
 		if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
 			ExtractionID: extractionID,
 			Text:         question,
-			Jid:          jid,
+			JID:          jid,
 		}); err != nil {
 			return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 		}
@@ -125,7 +125,7 @@ func (s *ApifyService) handleCachedTranscript(
 	if err := s.videoRepo.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
 		ExtractionID: extractionID,
 		Text:         *video.TranscriptionText,
-		Jid:          jid,
+		JID:          jid,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 	}

@@ -87,9 +87,9 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 		log.Printf("[ClaimCheckWorker] Failed to notify bot (answer will be lost): %v", notifyErr)
 	}
 
-	if job.Args.Jid != "" {
+	if job.Args.JID != "" {
 		if err := w.conversationService.AppendMessage(
-			ctx, job.Args.Jid, model.ConversationRoleAssistant, message,
+			ctx, job.Args.JID, model.ConversationRoleAssistant, message,
 		); err != nil {
 			log.Printf(
 				"[ClaimCheckWorker] failed to log claim result to conversation history: %v",

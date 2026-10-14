@@ -22,7 +22,12 @@ import (
 
 const documentsBasePath = "/api/v1/documents"
 
-func newDocumentTestApp(repo data.DocumentRepoer) *echo.Echo {
+func newDocumentTestApp(t *testing.T, repo data.DocumentRepoer) *echo.Echo {
+	t.Helper()
+	// The agent is enabled by default and then needs an LLM endpoint to be
+	// built. It is not under test here.
+	t.Setenv("AGENT_ENABLED", "false")
+
 	app := core.NewApp(testhelpers.NewEcho(), internal.NewConfig(), core.WithDocumentRepo(repo))
 	return app.Echo()
 }
@@ -57,7 +62,7 @@ func TestCreateDocumentHandler(t *testing.T) {
 		}
 		repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return nil }
 		repo.EnqueueFunc = func(_ context.Context, _ queue.BackgroundJob) error { return nil }
-		app := newDocumentTestApp(repo)
+		app := newDocumentTestApp(t, repo)
 
 		body, err := json.Marshal(validCreateDocumentBody())
 		if err != nil {
@@ -91,7 +96,7 @@ func TestCreateDocumentHandler(t *testing.T) {
 	})
 
 	t.Run("MalformedJSON", func(t *testing.T) {
-		app := newDocumentTestApp(&mockrepo.DocumentRepoerMock{})
+		app := newDocumentTestApp(t, &mockrepo.DocumentRepoerMock{})
 
 		req := httptest.NewRequest(
 			http.MethodPost,
@@ -113,7 +118,7 @@ func TestCreateDocumentHandler(t *testing.T) {
 	})
 
 	t.Run("ValidationFailure_MissingTitle", func(t *testing.T) {
-		app := newDocumentTestApp(&mockrepo.DocumentRepoerMock{})
+		app := newDocumentTestApp(t, &mockrepo.DocumentRepoerMock{})
 
 		form := validCreateDocumentBody()
 		form.Title = ""
@@ -138,7 +143,7 @@ func TestCreateDocumentHandler(t *testing.T) {
 	})
 
 	t.Run("ValidationFailure_InvalidFileKey", func(t *testing.T) {
-		app := newDocumentTestApp(&mockrepo.DocumentRepoerMock{})
+		app := newDocumentTestApp(t, &mockrepo.DocumentRepoerMock{})
 
 		form := validCreateDocumentBody()
 		form.FileKey = "docs/not-a-valid-key.pdf"
@@ -171,7 +176,7 @@ func TestCreateDocumentHandler(t *testing.T) {
 			return fn(repo)
 		}
 		repo.CreateFunc = func(_ context.Context, _ *model.Document) error { return data.ErrInternal }
-		app := newDocumentTestApp(repo)
+		app := newDocumentTestApp(t, repo)
 
 		body, err := json.Marshal(validCreateDocumentBody())
 		if err != nil {
@@ -203,7 +208,7 @@ func TestGetDocumentHandler(t *testing.T) {
 			return &model.Document{ID: id, Title: "Found Document"}, nil
 		},
 	}
-	app := newDocumentTestApp(repo)
+	app := newDocumentTestApp(t, repo)
 
 	cases := []struct {
 		name           string
@@ -269,7 +274,7 @@ func TestListDocumentsHandler(t *testing.T) {
 			}, nil
 		},
 	}
-	app := newDocumentTestApp(repo)
+	app := newDocumentTestApp(t, repo)
 
 	req := httptest.NewRequest(http.MethodGet, documentsBasePath+"?page=2&per_page=5", nil)
 	rec := httptest.NewRecorder()
@@ -303,7 +308,7 @@ func TestUpdateDocumentHandler(t *testing.T) {
 			return testhelpers.ErrorForUUID(entity.ID)
 		},
 	}
-	app := newDocumentTestApp(repo)
+	app := newDocumentTestApp(t, repo)
 
 	cases := []struct {
 		name           string
@@ -390,7 +395,7 @@ func TestDeleteDocumentHandler(t *testing.T) {
 			return testhelpers.ErrorForUUID(id)
 		},
 	}
-	app := newDocumentTestApp(repo)
+	app := newDocumentTestApp(t, repo)
 
 	cases := []struct {
 		name           string

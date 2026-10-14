@@ -49,11 +49,17 @@ func (s *stubJudge) Judge(context.Context, *data.JudgeRequest) (*data.JudgeVerdi
 }
 
 func newClaimTestApp(
+	t *testing.T,
 	chunkRepo data.DocumentChunkRepoer,
 	knowledgeRepo data.AtomicKnowledgeRepoer,
 	analyzer data.ClaimAnalyzer,
 	judge data.ClaimJudge,
 ) *echo.Echo {
+	t.Helper()
+	// The agent is enabled by default and then needs an LLM endpoint to be
+	// built. It is not under test here.
+	t.Setenv("AGENT_ENABLED", "false")
+
 	app := core.NewApp(
 		testhelpers.NewEcho(),
 		internal.NewConfig(),
@@ -73,7 +79,7 @@ func TestCheckClaimHandler_OutOfScope(t *testing.T) {
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
 
-	app := newClaimTestApp(chunkRepo, knowledgeRepo, analyzer, &stubJudge{})
+	app := newClaimTestApp(t, chunkRepo, knowledgeRepo, analyzer, &stubJudge{})
 
 	body, err := json.Marshal(dto.CheckClaimDTO{Text: "what's the capital of France?"})
 	if err != nil {
@@ -159,7 +165,7 @@ func TestCheckClaimHandler_Success(t *testing.T) {
 		return nil, nil
 	}
 
-	app := newClaimTestApp(chunkRepo, knowledgeRepo, analyzer, judge)
+	app := newClaimTestApp(t, chunkRepo, knowledgeRepo, analyzer, judge)
 
 	body, err := json.Marshal(dto.CheckClaimDTO{Text: "vitamin C prevents colds"})
 	if err != nil {
@@ -197,7 +203,7 @@ func TestCheckClaimHandler_Success(t *testing.T) {
 	// IsLong wasn't set on the request — default is short, so
 	// FormattedMessage uses BriefReasoning, not the full Reasoning, and
 	// carries no citations.
-	wantMessage := "✅ supported — 1 claim checked\n\n" +
+	wantMessage := "✅ confirmé — 1 affirmation vérifiée\n\n" +
 		"✅ 1. vitamin C prevents colds\n" +
 		"supported by the evidence"
 	if resp.Data.FormattedMessage != wantMessage {
@@ -260,7 +266,7 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 		return nil, nil
 	}
 
-	app := newClaimTestApp(chunkRepo, knowledgeRepo, analyzer, judge)
+	app := newClaimTestApp(t, chunkRepo, knowledgeRepo, analyzer, judge)
 
 	body, err := json.Marshal(dto.CheckClaimDTO{Text: "vitamin C prevents colds", IsLong: true})
 	if err != nil {
@@ -282,7 +288,7 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 
 	// IsLong was true — FormattedMessage uses the full Reasoning and appends
 	// the cited evidence, unlike the short-mode test above.
-	wantMessage := "✅ supported — 1 claim checked\n\n" +
+	wantMessage := "✅ confirmé — 1 affirmation vérifiée\n\n" +
 		"✅ 1. vitamin C prevents colds\n" +
 		"the cited chunk backs this\n" +
 		"  [0] (chunk) relevant passage"
@@ -303,6 +309,7 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 
 func TestCheckClaimHandler_MissingText(t *testing.T) {
 	app := newClaimTestApp(
+		t,
 		&mockrepo.DocumentChunkRepoerMock{},
 		&mockrepo.AtomicKnowledgeRepoerMock{},
 		&stubAnalyzer{},

@@ -9,7 +9,7 @@ import "github.com/riverqueue/river"
 // BotClient.NotifyExtractDone callback
 type AgentTurnJob struct {
 	// Jid is the WhatsApp chat identifier this turn belongs to.
-	Jid string `json:"jid"`
+	JID string `json:"jid"`
 
 	// ExtractionID is the correlation ID used by the bot to wait for
 	// NotifyExtractDone. For continuation turns, a new ID is generated

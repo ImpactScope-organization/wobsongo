@@ -103,4 +103,4 @@ testrace:
 	go test -race ./...
 
 fecheck:
-	cd frontend && pnpm run format && pnpm run check && pnpm run lint && pnpm run test
+	cd frontend && pnpm run check && pnpm run lint && pnpm run test

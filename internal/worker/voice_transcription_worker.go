@@ -141,7 +141,7 @@ func (w *VoiceTranscriptionWorker) Work(
 	}
 
 	if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-		Jid: args.JID, ExtractionID: args.ExtractionID, UserText: transcript,
+		JID: args.JID, ExtractionID: args.ExtractionID, UserText: transcript,
 	}); err != nil {
 		err = fmt.Errorf("failed to enqueue agent turn: %w", err)
 		w.fail(ctx, args.ExtractionID, err, voiceFailureMessage)

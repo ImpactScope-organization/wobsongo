@@ -3,7 +3,6 @@ package external
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -48,7 +47,6 @@ type asrRequest struct {
 	Model       string `json:"model"`
 	SourceLang  string `json:"source_lang"`
 	AudioURL    string `json:"audio_url,omitempty"`
-	AudioBase64 string `json:"audio_base64,omitempty"`
 	AudioFormat string `json:"audio_format"`
 }
 
@@ -57,17 +55,9 @@ type asrResponse struct {
 	Error      string `json:"error"`
 }
 
-// Transcribe implements data.SpeechTranscriber. The audio is sent inline as
-// base64 (voice messages uploaded by the bot).
-func (c *ASRClient) Transcribe(ctx context.Context, audio []byte, format string) (string, error) {
-	return c.do(ctx, &asrRequest{
-		AudioBase64: base64.StdEncoding.EncodeToString(audio),
-		AudioFormat: format,
-	})
-}
-
 // TranscribeURL implements data.SpeechTranscriber. The ASR service downloads
-// the audio itself from audioURL (extracted TikTok videos).
+// the audio itself from audioURL (extracted TikTok videos and voice notes
+// stored in S3).
 func (c *ASRClient) TranscribeURL(ctx context.Context, audioURL, format string) (string, error) {
 	return c.do(ctx, &asrRequest{
 		AudioURL:    audioURL,

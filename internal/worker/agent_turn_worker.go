@@ -44,7 +44,7 @@ func (w *AgentTurnWorker) Timeout(_ *river.Job[queue.AgentTurnJob]) time.Duratio
 func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTurnJob]) error {
 	log.Printf(
 		"[AgentTurnWorker] Starting agent turn for jid=%s ExtractionID=%s",
-		job.Args.Jid, job.Args.ExtractionID,
+		job.Args.JID, job.Args.ExtractionID,
 	)
 
 	answer, err := w.agentService.RunTurn(ctx, job.Args)
@@ -64,14 +64,14 @@ func (w *AgentTurnWorker) Work(ctx context.Context, job *river.Job[queue.AgentTu
 	if strings.TrimSpace(answer) == "" {
 		log.Printf(
 			"[AgentTurnWorker] EMPTY answer for jid=%s ExtractionID=%s, using fallback",
-			job.Args.Jid, job.Args.ExtractionID,
+			job.Args.JID, job.Args.ExtractionID,
 		)
 		answer = internal.MsgEmptyAnswer
 	}
 
 	log.Printf(
 		"[AgentTurnWorker] Successfully processed agent turn for jid=%s ExtractionID=%s",
-		job.Args.Jid, job.Args.ExtractionID,
+		job.Args.JID, job.Args.ExtractionID,
 	)
 
 	if notifyErr := w.botClient.NotifyExtractDone(

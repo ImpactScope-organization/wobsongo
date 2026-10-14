@@ -3,7 +3,7 @@ package dto
 // AgentInboundRequest is the payload wa-bot sends for every inbound WhatsApp message
 type AgentInboundRequest struct {
 	// Jid is the WhatsApp chat identifier this message came from.
-	Jid string `json:"jid" validate:"required"`
+	JID string `json:"jid" validate:"required"`
 
 	// Text is the raw inbound message text.
 	Text string `json:"text" validate:"required"`

@@ -80,7 +80,7 @@ func (r *conversationRepo) RecentMessages(
 		row := &rows[i]
 		messages[len(rows)-1-i] = model.ConversationMessage{
 			ID:        row.ID,
-			Jid:       row.Jid,
+			JID:       row.Jid,
 			Role:      model.ConversationRole(row.Role),
 			Content:   row.Content,
 			CreatedAt: row.CreatedAt,

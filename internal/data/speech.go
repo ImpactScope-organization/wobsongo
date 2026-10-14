@@ -21,10 +21,6 @@ type SpeechRepoer interface {
 
 // SpeechTranscriber converts spoken audio into text.
 type SpeechTranscriber interface {
-	// Transcribe returns the transcript of audio
-	// The transcript is empty when no speech was recognized.
-	Transcribe(ctx context.Context, audio []byte, format string) (string, error)
-
 	// TranscribeURL does the same for audio the ASR service downloads itself from audioURL.
 	TranscribeURL(ctx context.Context, audioURL, format string) (string, error)
 }

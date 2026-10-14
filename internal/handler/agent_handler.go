@@ -63,7 +63,7 @@ func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 
 	resp, err := h.service.HandleInboundMessage(
 		c.Request().Context(),
-		req.Jid,
+		req.JID,
 		req.Text,
 	)
 	if err != nil {

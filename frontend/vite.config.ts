@@ -23,7 +23,7 @@ export default defineConfig({
 		projects: [
 			{
 				// Logic tests and SSR component tests (`render` from `svelte/server`).
-				extends: './vite.config.ts',
+				extends: true,
 				test: {
 					name: 'server',
 					environment: 'node',

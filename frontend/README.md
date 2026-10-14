@@ -1,47 +1,46 @@
-# sv
+# WobSongo frontend
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+The WobSongo infodemic dashboard: SvelteKit (Svelte 5), Tailwind CSS v4,
+shadcn-svelte and LayerChart, rendered on the server.
 
-## Creating a project
+**Read [`tr.md`](./tr.md) first.** It is the spec for architecture, testing,
+forms, accessibility and auth.
 
-If you're seeing this, you've probably already done this step. Congrats!
+## Setup
 
-```sh
-# create a new project
-npx sv create my-app
-```
-
-## Adding features
-
-Add features to your project with `sv add`:
+Tools come from devbox at the repo root (Node, pnpm). From `frontend/`:
 
 ```sh
-npx sv add
+pnpm install
+pnpm exec playwright install chromium   # once; the Storybook tests run in it
 ```
 
-For example, to add Tailwind CSS:
+## Commands
 
-```sh
-npx sv add tailwindcss
-```
+| Command          | What it does                                                   |
+| ---------------- | -------------------------------------------------------------- |
+| `pnpm dev`       | Dev server                                                     |
+| `pnpm storybook` | Component workshop on port 6006                                |
+| `pnpm test`      | Unit tests (server render) and Storybook play tests (Chromium) |
+| `pnpm check`     | Svelte and TypeScript checks                                   |
+| `pnpm lint`      | Prettier and ESLint                                            |
+| `pnpm format`    | Rewrite files with Prettier                                    |
+| `pnpm build`     | Production build (Node adapter); `pnpm preview` to run it      |
 
-## Developing
+`make fecheck` at the repo root runs check, lint and test, like CI.
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+## Running the build
 
-```sh
-npm run dev
+`node build` serves the app. SvelteKit refuses form posts whose `Origin` doesn't
+match the site, and adapter-node assumes `https`. Behind a TLS proxy, set
+`PROTOCOL_HEADER=x-forwarded-proto` (and `HOST_HEADER=x-forwarded-host` if the
+proxy rewrites the host). Over plain `http` locally, use `pnpm preview` instead.
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+## Layout
 
-## Building
-
-To create a production version of your app:
-
-```sh
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
+- `src/lib/domain`: types and business rules, framework-free
+- `src/lib/components`: presentational components by view, each with a
+  `*.test.ts` (rendered with `svelte/server`) and `*.stories.svelte`
+- `src/lib/components/ui`: shadcn-svelte components, added with its CLI
+- `src/lib/fixtures`: sample data for stories, tests and stubs
+- `src/routes`: pages, loaders and form actions

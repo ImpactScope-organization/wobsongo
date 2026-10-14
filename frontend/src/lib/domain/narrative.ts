@@ -10,6 +10,9 @@ export type Verdict = 'false' | 'misleading' | 'unverified';
 
 export const VERDICTS: readonly Verdict[] = ['false', 'misleading', 'unverified'];
 
+/** Outcome of rating a claim. Narratives are never accurate; rated claims can be. */
+export type RatingOutcome = Verdict | 'accurate';
+
 /** Where a narrative sits in the review workflow. */
 export type ReviewStatus = 'needs-check' | 'auto-checked' | 'expert-verified' | 'not-in-kb';
 

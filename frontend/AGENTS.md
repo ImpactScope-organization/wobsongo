@@ -1,3 +1,9 @@
+# Agent instructions
+
+Follow [`tr.md`](./tr.md): it is the project's spec. In particular, agents have
+read-only access to git; only people commit, push and merge. After every change,
+run `pnpm check`, `pnpm lint` and `pnpm test`.
+
 You are able to use the Svelte MCP server, where you have access to comprehensive Svelte 5 and SvelteKit documentation. Here's how to use the available tools effectively:
 
 ## Available Svelte MCP Tools:

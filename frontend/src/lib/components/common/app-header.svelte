@@ -10,6 +10,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { cn } from '#lib/utils.js';
+	import AccountAvatar from './account-avatar.svelte';
 
 	interface Props {
 		productName?: string;
@@ -20,6 +21,8 @@
 		currentHref: string;
 		/** Right-hand controls, e.g. an export link. */
 		actions?: Snippet;
+		/** The signed-in person; shows their avatar linking to settings. */
+		account?: { name: string; href: string };
 		class?: string;
 	}
 
@@ -29,6 +32,7 @@
 		items,
 		currentHref,
 		actions,
+		account,
 		class: className
 	}: Props = $props();
 </script>
@@ -79,8 +83,21 @@
 			</ul>
 		</nav>
 
-		{#if actions}
-			<div class="ml-auto flex items-center gap-2.5 sm:ml-0">{@render actions()}</div>
+		{#if actions || account}
+			<div class="ml-auto flex items-center gap-2.5 sm:ml-0">
+				{@render actions?.()}
+				{#if account}
+					<a
+						href={account.href}
+						aria-current={account.href === currentHref ? 'page' : undefined}
+						title="Settings"
+						class="rounded-full border-2 border-transparent outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal aria-[current=page]:border-inverse-foreground"
+					>
+						<AccountAvatar name={account.name} />
+						<span class="sr-only">Settings for {account.name}</span>
+					</a>
+				{/if}
+			</div>
 		{/if}
 	</div>
 </header>

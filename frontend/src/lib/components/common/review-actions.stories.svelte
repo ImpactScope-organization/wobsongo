@@ -23,6 +23,7 @@
 			itemId: 'c2',
 			itemLabel: 'Contraceptive injections cause cancer',
 			action: '?/review',
+			overrideHref: '/ops/checks/c2/override',
 			state: { kind: 'pending' }
 		}
 	});
@@ -40,6 +41,10 @@
 		await userEvent.click(canvas.getByRole('button', { name: 'Approve' }));
 		await expect(posted.data?.get('id')).toBe('c2');
 		await expect(posted.data?.get('decision')).toBe('approve');
+		await expect(canvas.getByRole('link', { name: 'Override…' })).toHaveAttribute(
+			'href',
+			'/ops/checks/c2/override'
+		);
 	}}
 />
 

@@ -61,6 +61,18 @@ describe('PlatformBreakdown', () => {
 		expect(shares).toEqual([46, 27, 19, 5, 3]);
 	});
 
+	it('colours the table swatches with the platform colours', () => {
+		const { body } = render(PlatformBreakdown, { props: { counts: platformCounts } });
+		// The --color-* variables only exist inside the chart container, not the table.
+		expect(body).toContain('background: var(--platform-whatsapp)');
+		expect(body).not.toContain('var(--color-');
+	});
+
+	it('describes an empty chart without a dangling colon', () => {
+		const { body } = render(PlatformBreakdown, { props: { counts: [] } });
+		expect(body).toContain('aria-label="No claims by platform yet"');
+	});
+
 	it('describes the chart for screen readers', () => {
 		const { body } = render(PlatformBreakdown, { props: { counts: platformCounts } });
 		expect(body).toContain('aria-label="Claims by platform: WhatsApp (bot) 46%, Facebook 27%');

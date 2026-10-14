@@ -29,7 +29,7 @@
 		counts.map((item, index) => ({
 			...item,
 			share: shares[index],
-			color: `var(--color-${item.platform})`
+			color: config[item.platform].color
 		}))
 	);
 	const description = $derived(
@@ -43,7 +43,7 @@
 		class="relative aspect-square shrink-0"
 		style="width: {size}px; height: {size}px"
 		role="img"
-		aria-label="Claims by platform: {description}"
+		aria-label={total > 0 ? `Claims by platform: ${description}` : 'No claims by platform yet'}
 	>
 		{#if total > 0}
 			<!-- Built from primitives: PieChart's Layer wrapper crashes when rendered on the server. -->

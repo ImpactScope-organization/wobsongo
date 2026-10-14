@@ -103,12 +103,23 @@ describe('ReviewActions', () => {
 		expect(body).toContain('Review “Breastfeeding always prevents pregnancy”');
 	});
 
-	it('offers each pending decision as a submit button', () => {
-		const { body } = render(ReviewActions, { props: { ...base, state: { kind: 'pending' } } });
-		for (const decision of ['approve', 'override', 'dismiss']) {
+	it('offers each pending decision as a submit button, and override as a link', () => {
+		const { body } = render(ReviewActions, {
+			props: { ...base, state: { kind: 'pending' }, overrideHref: '/review/c1/override' }
+		});
+		for (const decision of ['approve', 'dismiss']) {
 			expect(body).toMatch(new RegExp(`type="submit" name="decision" value="${decision}"`));
 		}
+		// Overriding needs a new verdict and reply, so it can't be a one-click post.
+		expect(body).not.toContain('value="override"');
+		expect(body).toMatch(/<a href="\/review\/c1\/override"[^>]*>\s*Override…/);
 		expect(body).not.toContain('value="undo"');
+	});
+
+	it('hides override when there is no editor page to link to', () => {
+		const { body } = render(ReviewActions, { props: { ...base, state: { kind: 'pending' } } });
+		expect(body).not.toContain('Override…');
+		expect(body).toContain('value="approve"');
 	});
 
 	it('lets callers choose the decisions', () => {

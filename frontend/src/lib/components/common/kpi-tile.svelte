@@ -16,6 +16,10 @@
 		aside?: Snippet;
 		/** Visual under the value, in place of a caption, e.g. a meter. */
 		children?: Snippet;
+		/** `sm` for secondary metric strips, e.g. on detail pages. */
+		size?: 'default' | 'sm';
+		/** `signal` colours the value itself, e.g. a spiking growth figure. */
+		valueTone?: 'default' | 'signal';
 		class?: string;
 	}
 
@@ -27,15 +31,26 @@
 		captionTone = 'muted',
 		aside,
 		children,
+		size = 'default',
+		valueTone = 'default',
 		class: className
 	}: Props = $props();
 </script>
 
 <!-- Must sit inside a <dl> (KpiGroup). -->
-<div class={cn('flex flex-col gap-2.5 bg-card px-5 py-[1.125rem]', className)}>
+<div
+	data-size={size}
+	class={cn(
+		'group/kpi flex flex-col gap-2.5 bg-card px-5 py-[1.125rem] data-[size=sm]:gap-2 data-[size=sm]:px-[1.125rem] data-[size=sm]:py-4',
+		className
+	)}
+>
 	<dt class="text-xs font-medium text-muted-foreground">{label}</dt>
 	<dd class="flex items-end justify-between gap-2.5">
-		<span class="font-mono text-[2rem] leading-none font-semibold tracking-[-0.03em]">
+		<span
+			data-tone={valueTone}
+			class="font-mono text-[2rem] leading-none font-semibold tracking-[-0.03em] group-data-[size=sm]/kpi:text-[1.625rem] group-data-[size=sm]/kpi:tracking-normal data-[tone=signal]:text-signal"
+		>
 			{value}{#if suffix}<span class="text-base text-muted-foreground">&nbsp;{suffix}</span>{/if}
 		</span>
 		{#if aside}{@render aside()}{/if}

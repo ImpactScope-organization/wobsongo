@@ -132,7 +132,7 @@ func (h *AgentHandler) inboundVoiceHandler(c echo.Context) error {
 		}
 	}
 
-	resp, err := h.service.HandleInboundVoice(c.Request().Context(), req.Jid, req.Format, audio)
+	resp, err := h.service.HandleInboundVoice(c.Request().Context(), req.JID, req.Format, audio)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,

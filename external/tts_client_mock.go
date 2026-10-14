@@ -5,7 +5,8 @@ import (
 	"log"
 )
 
-// MockTTSClient is a stub data.SpeechSynthesizer used when no TTS endpoint is configured
+// MockTTSClient is a stub data.SpeechSynthesizer used when MODAL_TTS_ENDPOINT
+// starts with mock:// (local development and tests only).
 type MockTTSClient struct{}
 
 // NewMockTTSClient creates a MockTTSClient.

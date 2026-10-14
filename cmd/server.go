@@ -282,16 +282,9 @@ var serveCmd = &cobra.Command{
 		agentTurnWorker := worker.NewAgentTurnWorker(agentService, botClient)
 		river.AddWorker(workers, agentTurnWorker)
 
-		speechSynthesizer, err := newSpeechSynthesizer(config)
-		if err != nil {
-			cmd.PrintErrf("Config error: %s\n", err.Error())
-			os.Exit(1)
-			return
-		}
-
 		workerSpeechService := service.NewSpeechService(
 			translationClient,
-			speechSynthesizer,
+			newSpeechSynthesizer(config),
 			repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs),
 		)
 		speechWorker := worker.NewSpeechWorker(workerSpeechService, botClient)
@@ -339,7 +332,7 @@ var serveCmd = &cobra.Command{
 			claimJudge:    judgeClient,
 		}, buildAppSpeechDeps{
 			translator:  translationClient,
-			synthesizer: speechSynthesizer,
+			synthesizer: newSpeechSynthesizer(config),
 		})
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
@@ -365,16 +358,13 @@ func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
 // newSpeechSynthesizer returns the TTS client for the configured endpoint, or
 // the mock client when no endpoint is set. It returns an error when the
 // endpoint is set but invalid.
-func newSpeechSynthesizer(config *internal.Config) (data.SpeechSynthesizer, error) {
-	endpoint := config.TTSConfig.ModalMeloTTSConfig.Endpoint
-	if endpoint == "" {
-		config.Logger.Warn("MODAL_TTS_ENDPOINT is not set, using mock TTS client")
-		return external.NewMockTTSClient(), nil
+func newSpeechSynthesizer(config *internal.Config) data.SpeechSynthesizer {
+	tts := config.TTSConfig.ModalMeloTTSConfig
+	if tts.UseMock() {
+		config.Logger.Warn(
+			"MODAL_TTS_ENDPOINT selects the mock TTS client, voice replies will not be playable audio",
+		)
+		return external.NewMockTTSClient()
 	}
-
-	client, err := external.NewTTSClient(endpoint)
-	if err != nil {
-		return nil, err
-	}
-	return client, nil
+	return external.NewTTSClient(tts.Endpoint)
 }

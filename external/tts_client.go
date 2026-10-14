@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/impactscope-organization/wobsongo/internal/queue"
@@ -40,26 +39,12 @@ type TTSClient struct {
 	httpClient *http.Client
 }
 
-// NewTTSClient creates a TTSClient. It returns an error when endpoint is empty
-// or is not an absolute http(s) URL, so a misconfigured endpoint fails at
-// startup instead of on the first synthesis request.
-func NewTTSClient(endpoint string) (*TTSClient, error) {
-	if endpoint == "" {
-		return nil, errors.New("tts endpoint is empty")
-	}
-
-	u, err := url.Parse(endpoint)
-	if err != nil {
-		return nil, fmt.Errorf("tts endpoint is not a valid URL: %w", err)
-	}
-	if (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return nil, fmt.Errorf("tts endpoint %q must be an absolute http(s) URL", endpoint)
-	}
-
+// NewTTSClient creates a TTSClient for the given endpoint.
+func NewTTSClient(endpoint string) *TTSClient {
 	return &TTSClient{
 		endpoint:   endpoint,
 		httpClient: &http.Client{Timeout: ttsHTTPTimeout},
-	}, nil
+	}
 }
 
 type ttsRequest struct {

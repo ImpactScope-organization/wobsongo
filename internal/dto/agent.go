@@ -25,8 +25,8 @@ type AgentInboundResponse struct {
 // AgentInboundVoiceRequest holds the form fields wa-bot sends along with the
 // uploaded audio file (multipart field "audio").
 type AgentInboundVoiceRequest struct {
-	// Jid is the chat identifier this voice message came from.
-	Jid string `form:"jid" validate:"required"`
+	// JID is the chat identifier this voice message came from.
+	JID string `form:"jid" validate:"required"`
 
 	// Format is the audio format hint.
 	Format string `form:"format" validate:"required,alphanum,max=8"`

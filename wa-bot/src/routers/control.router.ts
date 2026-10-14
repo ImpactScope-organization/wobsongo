@@ -22,7 +22,7 @@ callbackRouter.post(
 callbackRouter.post(
   '/callback/tts-done',
   pskAuth(env.botCallbackPsk),
-  express.raw({ type: () => true, limit: '50mb' }),
+  express.raw({ type: () => true, limit: '16mb' }),
   ttsCallbackController.ttsDone
 );
 

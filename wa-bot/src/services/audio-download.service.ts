@@ -1,7 +1,7 @@
 import { env } from '../config/env.js';
 import { formatFromMime, formatFromPath } from '../utils/audio-format.js';
 
-const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 
 export interface DownloadedAudio {

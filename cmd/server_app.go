@@ -26,8 +26,8 @@ type buildAppClaimCheckDeps struct {
 
 // buildAppSpeechDeps bundles the speech (voice reply) feature's dependencies
 // for buildApp — both are already constructed in cmd/server.go for the
-// SpeechWorker and are reused here as-is. synthesizer is nil when
-// MODAL_TTS_ENDPOINT is not configured.
+// SpeechWorker and are reused here as-is. synthesizer is the mock one when
+// MODAL_TTS_ENDPOINT starts with mock://.
 type buildAppSpeechDeps struct {
 	translator  data.Translator
 	synthesizer data.SpeechSynthesizer

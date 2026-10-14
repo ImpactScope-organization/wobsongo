@@ -252,6 +252,15 @@ type TTSConfig struct {
 	MaxWorkers int `json:"max_workers"`
 }
 
+// MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
+// mock synthesizer instead of the real Modal endpoint
+const MockTTSEndpointPrefix = "mock://"
+
+// UseMock reports whether the mock synthesizer was explicitly selected.
+func (c ModalMeloTTSConfig) UseMock() bool {
+	return strings.HasPrefix(c.Endpoint, MockTTSEndpointPrefix)
+}
+
 // AgentLLMConfig holds the configuration for the agentic bot's tool-calling
 type AgentLLMConfig struct {
 	Enabled  bool
@@ -435,11 +444,14 @@ func (c *Config) IsOK() error {
 	if n := c.TTSConfig.MaxPendingJobs; n < 1 {
 		return fmt.Errorf("TTS_MAX_PENDING_JOBS must be at least 1, got %d", n)
 	}
-	if c.TTSConfig.ModalMeloTTSConfig.Endpoint != "" {
-		if err := validateModalEndpoint(
-			"MODAL_TTS_ENDPOINT",
-			c.TTSConfig.ModalMeloTTSConfig.Endpoint,
-		); err != nil {
+	if tts := c.TTSConfig.ModalMeloTTSConfig; !tts.UseMock() {
+		if tts.Endpoint == "" {
+			return fmt.Errorf(
+				"MODAL_TTS_ENDPOINT is not set (use %s to run with the mock synthesizer)",
+				MockTTSEndpointPrefix,
+			)
+		}
+		if err := validateModalEndpoint("MODAL_TTS_ENDPOINT", tts.Endpoint); err != nil {
 			return err
 		}
 	}

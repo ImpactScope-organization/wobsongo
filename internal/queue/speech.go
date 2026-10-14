@@ -19,11 +19,11 @@ const (
 
 	// DefaultSpeechMaxPendingJobs is the default maximum number of SpeechJobs
 	// allowed to wait in the queue
-	DefaultSpeechMaxPendingJobs = 50
+	DefaultSpeechMaxPendingJobs = 18
 
 	// SpeechJobTTL is how long a speech job stays useful. A job older than this
 	// is dropped without synthesizing, and a running one is canceled at this age.
-	SpeechJobTTL = 4 * time.Minute
+	SpeechJobTTL = 90 * time.Second
 
 	// SpeechNotifyTimeout bounds the callback that delivers the result to wa-bot.
 	SpeechNotifyTimeout = 30 * time.Second

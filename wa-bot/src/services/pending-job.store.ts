@@ -31,6 +31,16 @@ export function deletePendingJob(jobId: string): void {
   pendingJobs.delete(jobId);
 }
 
+// markAwaitingVoice records the text answer as a fallback and extends the job's
+// lifetime while the voice reply is generated in the background.
+export function markAwaitingVoice(jobId: string, fallbackText: string, ttlMs: number): boolean {
+  const job = pendingJobs.get(jobId);
+  if (!job) return false;
+  job.fallbackText = fallbackText;
+  job.expiresAt = Date.now() + ttlMs;
+  return true;
+}
+
 // Clean up unused jobs so the map doesn't become too heavy.
 setInterval(() => {
   const now = Date.now();

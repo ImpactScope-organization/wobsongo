@@ -14,19 +14,19 @@
     "tailwindcss_4@4.3.2"
   ],
   "shell": {
-    "init_hook": ["echo '🚀 Initializing environment...'"],
+    "init_hook": ["unset DEVELOPER_DIR"],
     "scripts": {
-      "check":        "make fmt check",
+      "check": "make fmt check",
       "install-docs": "uv pip install 'mkdocs==1.6.1' 'mkdocs-material==9.7.0'  && npm install -g log4brains --prefix .devbox/node_modules",
-      "docs":         "uv run mkdocs serve -a localhost:8001",
-      "adr":          "log4brains adr new",
-      "adr:preview":  "log4brains preview",
-      "adr:build":    "log4brains build"
+      "docs": "uv run mkdocs serve -a localhost:8001",
+      "adr": "log4brains adr new",
+      "adr:preview": "log4brains preview",
+      "adr:build": "log4brains build"
     }
   },
   "env": {
-    "UV_CACHE_DIR":  ".devbox/.uv_cache",
+    "UV_CACHE_DIR": ".devbox/.uv_cache",
     "UV_VENV_CLEAR": "0",
-    "PATH":          "$PWD/.devbox/node_modules/bin:$PATH"
+    "PATH": "$PWD/.devbox/node_modules/bin:$PATH"
   }
 }

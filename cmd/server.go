@@ -309,6 +309,9 @@ var serveCmd = &cobra.Command{
 			embedder:      embeddingClient,
 			claimAnalyzer: claimAnalyzerClient,
 			claimJudge:    judgeClient,
+		}, buildAppSpeechDeps{
+			translator:  translationClient,
+			synthesizer: newSpeechSynthesizer(config),
 		})
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
@@ -329,4 +332,17 @@ func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
 		return external.NewModalBGEClient(cfg.BaseURL, cfg.APIKey)
 	}
 	return external.NewEmbeddingClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
+}
+
+// newSpeechSynthesizer returns the TTS client for the configured endpoint
+func newSpeechSynthesizer(config *internal.Config) data.SpeechSynthesizer {
+	tts := config.TTSConfig.ModalMeloTTSConfig
+	if tts.UseMock() {
+		config.Logger.Warn(
+			"MODAL_TTS_ENDPOINT selects the mock TTS client, voice replies will not be playable audio",
+		)
+		return external.NewMockTTSClient()
+	}
+	// real Modal client lands in PR 3; until then /api/tts answers 503
+	return nil
 }

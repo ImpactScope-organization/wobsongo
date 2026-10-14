@@ -45,6 +45,13 @@ const (
 	// JobTypeAgentTurn represents a job type for running one agentic bot
 	// conversation turn.
 	JobTypeAgentTurn BackgroundJobType = "agent_turn"
+
+	// JobTypeSynthesizeSpeech represents a job type for turning a bot reply
+	// into a spoken (voice message) reply.
+	JobTypeSynthesizeSpeech BackgroundJobType = "synthesize_speech"
+
+	// JobTypeTranscribeVoice represents a job type for transcribing a voice.
+	JobTypeTranscribeVoice BackgroundJobType = "transcribe_voice"
 )
 
 // BackgroundJob represents a generic background job.
@@ -71,4 +78,7 @@ const (
 	// QueueMediaProcessing is used by the media/video pipeline:
 	// ExtractMediaDTO, TranscriptionJob.
 	QueueMediaProcessing = "media_processing"
+
+	// QueueSpeechSynthesis is used by SpeechJob.
+	QueueSpeechSynthesis = "speech_synthesis"
 )

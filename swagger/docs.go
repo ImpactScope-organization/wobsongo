@@ -115,6 +115,124 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/agent/inbound-voice": {
+            "post": {
+                "description": "Receives a reference to a voice message (a Twilio media URL or a\nTelegram file_id), not the audio itself. The audio is downloaded,\ntranscribed in the background and the transcript is routed through the\nconversational agent. The answer is delivered through the same\ncallback as /agent/inbound.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Handle an inbound voice message",
+                "parameters": [
+                    {
+                        "description": "Inbound voice message",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AgentInboundVoiceRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.AgentInboundResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "415": {
+                        "description": "Unsupported Media Type",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/extract": {
             "post": {
                 "description": "Enqueues a job to extract media from a target URL using Apify.",
@@ -196,6 +314,106 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/tts": {
+            "post": {
+                "description": "Returns 202 immediately. In the background the text is cleaned\n(emoji, markdown, citations), translated to English when language is\n\"en\", and synthesized; the OGG/Opus audio is then delivered to wa-bot\nthrough its /callback/tts-done endpoint under the given jobId.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "agent"
+                ],
+                "summary": "Start synthesizing a bot reply as a voice message",
+                "parameters": [
+                    {
+                        "description": "Text to speak",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.TTSRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.TTSResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
                         "schema": {
                             "allOf": [
                                 {
@@ -1223,6 +1441,39 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.AgentInboundVoiceRequest": {
+            "type": "object",
+            "required": [
+                "channel",
+                "jid",
+                "mediaRef",
+                "mimeType"
+            ],
+            "properties": {
+                "channel": {
+                    "description": "Channel is the messaging platform the message came from.",
+                    "type": "string",
+                    "enum": [
+                        "whatsapp",
+                        "telegram"
+                    ]
+                },
+                "jid": {
+                    "description": "JID is the chat identifier this voice message came from.",
+                    "type": "string"
+                },
+                "mediaRef": {
+                    "description": "MediaRef is a Twilio media URL (whatsapp) or a file_id (telegram).",
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "mimeType": {
+                    "description": "MimeType is the audio MIME type reported by the platform.",
+                    "type": "string",
+                    "maxLength": 100
+                }
+            }
+        },
         "dto.ApifyResource": {
             "type": "object",
             "required": [
@@ -1532,6 +1783,43 @@ const docTemplate = `{
                 },
                 "verdict": {
                     "description": "Verdict is one of: supported, contradicted, partially_supported, mixed, insufficient_evidence.\ninsufficient_evidence never implies the claim itself is right or wrong\n— only that the knowledge base had nothing relevant to check it against.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TTSRequest": {
+            "type": "object",
+            "required": [
+                "jobId",
+                "language",
+                "text"
+            ],
+            "properties": {
+                "jobId": {
+                    "description": "JobID is the bot's correlation ID (its pending job). The finished audio\nis reported back to the bot under this ID.",
+                    "type": "string"
+                },
+                "language": {
+                    "description": "Language is the language the audio is spoken in: \"fr\" or \"en\".",
+                    "type": "string",
+                    "enum": [
+                        "fr",
+                        "en"
+                    ]
+                },
+                "text": {
+                    "description": "Text is the bot reply to speak. It is French. For Language \"en\" it is\ntranslated before synthesis.",
+                    "type": "string"
+                }
+            }
+        },
+        "dto.TTSResponse": {
+            "type": "object",
+            "properties": {
+                "jobId": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }

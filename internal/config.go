@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/joho/godotenv"
 )
 
@@ -230,6 +231,36 @@ type ASRConfig struct {
 	SourceLang string `json:"source_lang"`
 }
 
+// ModalMeloTTSConfig holds the configuration for MeloTTS (text-to-speech)
+// deployed on Modal.
+type ModalMeloTTSConfig struct {
+	// Endpoint is the Modal MeloTTS web endpoint used for speech synthesis requests.
+	Endpoint string `json:"endpoint"`
+}
+
+// TTSConfig groups the configuration of the supported text-to-speech providers.
+type TTSConfig struct {
+	// ModalMeloTTSConfig is the config for MeloTTS deployed in Modal.
+	ModalMeloTTSConfig ModalMeloTTSConfig `json:"modal_melotts_config"`
+
+	// MaxPendingJobs is the maximum number of speech jobs allowed to wait in the
+	// queue.
+	MaxPendingJobs int `json:"max_pending_jobs"`
+
+	// MaxWorkers is the number of speech jobs synthesized at the same time by one
+	// server process.
+	MaxWorkers int `json:"max_workers"`
+}
+
+// MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
+// mock synthesizer instead of the real Modal endpoint
+const MockTTSEndpointPrefix = "mock://"
+
+// UseMock reports whether the mock synthesizer was explicitly selected.
+func (c ModalMeloTTSConfig) UseMock() bool {
+	return strings.HasPrefix(c.Endpoint, MockTTSEndpointPrefix)
+}
+
 // AgentLLMConfig holds the configuration for the agentic bot's tool-calling
 type AgentLLMConfig struct {
 	Enabled  bool
@@ -279,6 +310,7 @@ type Config struct {
 	EmailConfig        *EmailConfig       `json:"email_config"`         // Email configuration
 	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
 	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
+	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the text-to-speech providers
 	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
 	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
@@ -391,37 +423,63 @@ func (c *Config) IsOK() error {
 	if c.ApifyConfig == nil || c.ApifyConfig.Token == "" {
 		return errors.New("APIFY_API_TOKEN is not set")
 	}
+	if err := c.asrOK(); err != nil {
+		return err
+	}
+	return c.ttsOK()
+}
+
+// asrOK checks the Modal ASR configuration.
+func (c *Config) asrOK() error {
 	if c.ASRConfig == nil {
 		return errors.New("MODAL_ASR_ENDPOINT config is not set")
 	}
-	if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
+	if err := validateModalEndpoint("MODAL_ASR_ENDPOINT", c.ASRConfig.Endpoint); err != nil {
 		return err
 	}
 	if err := validateASRModel(c.ASRConfig.Model); err != nil {
 		return err
 	}
-	if err := validateASRSourceLang(c.ASRConfig.SourceLang); err != nil {
-		return err
-	}
-	return nil
+	return validateASRSourceLang(c.ASRConfig.SourceLang)
 }
 
-func validateModalASREndpoint(rawURL string) error {
+// ttsOK checks the text-to-speech configuration.
+func (c *Config) ttsOK() error {
+	if c.TTSConfig == nil {
+		return errors.New("TTSConfig is not set")
+	}
+	if n := c.TTSConfig.MaxWorkers; n < 1 {
+		return fmt.Errorf("TTS_MAX_WORKERS must be at least 1, got %d", n)
+	}
+	if n := c.TTSConfig.MaxPendingJobs; n < 1 {
+		return fmt.Errorf("TTS_MAX_PENDING_JOBS must be at least 1, got %d", n)
+	}
+	tts := c.TTSConfig.ModalMeloTTSConfig
+	if tts.UseMock() {
+		return nil
+	}
+	if tts.Endpoint == "" {
+		return fmt.Errorf(
+			"MODAL_TTS_ENDPOINT is not set (use %s to run with the mock synthesizer)",
+			MockTTSEndpointPrefix,
+		)
+	}
+	return validateModalEndpoint("MODAL_TTS_ENDPOINT", tts.Endpoint)
+}
+
+func validateModalEndpoint(name, rawURL string) error {
 	if rawURL == "" {
-		return errors.New("MODAL_ASR_ENDPOINT is not set")
+		return fmt.Errorf("%s is not set", name)
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("MODAL_ASR_ENDPOINT is not a valid URL: %w", err)
+		return fmt.Errorf("%s is not a valid URL: %w", name, err)
 	}
 	if u.Scheme != "https" {
-		return errors.New("MODAL_ASR_ENDPOINT must use https")
+		return fmt.Errorf("%s must use https", name)
 	}
 	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
-		return fmt.Errorf(
-			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
-			u.Hostname(),
-		)
+		return fmt.Errorf("%s host %q is not an allowed modal.run domain", name, u.Hostname())
 	}
 	return nil
 }
@@ -551,6 +609,15 @@ func NewConfig(envs ...string) *Config {
 		SourceLang: getEnv("MODAL_ASR_SOURCE_LANG", "auto"),
 	}
 
+	// Parse TTS configuration
+	ttsConfig := &TTSConfig{
+		ModalMeloTTSConfig: ModalMeloTTSConfig{
+			Endpoint: getEnv("MODAL_TTS_ENDPOINT", ""),
+		},
+		MaxWorkers:     getEnvInt("TTS_MAX_WORKERS", queue.DefaultSpeechMaxWorkers),
+		MaxPendingJobs: getEnvInt("TTS_MAX_PENDING_JOBS", queue.DefaultSpeechMaxPendingJobs),
+	}
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -597,6 +664,7 @@ func NewConfig(envs ...string) *Config {
 		StorageProvider:         storageProvider,
 		ApifyConfig:             apifyConfig,
 		ASRConfig:               asrConfig,
+		TTSConfig:               ttsConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,
 		EmbeddingConfig:         embeddingConfig,

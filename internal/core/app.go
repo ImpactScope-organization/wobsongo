@@ -22,20 +22,23 @@ const (
 )
 
 type App struct {
-	config           *internal.Config
-	echoApp          *echo.Echo
-	apiGroup         *echo.Group
-	apifyRepo        data.ApifyRepoer
-	videoRepo        data.VideoRepoer
-	documentRepo     data.DocumentRepoer
-	mediaProvider    data.MediaUploadProvider
-	chunkRepo        data.DocumentChunkRepoer
-	knowledgeRepo    data.AtomicKnowledgeRepoer
-	embedder         data.Embedder
-	claimAnalyzer    data.ClaimAnalyzer
-	claimJudge       data.ClaimJudge
-	userRepo         data.UserRepoer
-	conversationRepo data.ConversationRepoer
+	config            *internal.Config
+	echoApp           *echo.Echo
+	apiGroup          *echo.Group
+	apifyRepo         data.ApifyRepoer
+	videoRepo         data.VideoRepoer
+	documentRepo      data.DocumentRepoer
+	mediaProvider     data.MediaUploadProvider
+	chunkRepo         data.DocumentChunkRepoer
+	knowledgeRepo     data.AtomicKnowledgeRepoer
+	embedder          data.Embedder
+	claimAnalyzer     data.ClaimAnalyzer
+	claimJudge        data.ClaimJudge
+	userRepo          data.UserRepoer
+	conversationRepo  data.ConversationRepoer
+	speechRepo        data.SpeechRepoer
+	translator        data.Translator
+	speechSynthesizer data.SpeechSynthesizer
 }
 
 // Echo returns the Echo instance of the application.
@@ -142,6 +145,28 @@ func WithConversationRepo(repo data.ConversationRepoer) AppOption {
 	}
 }
 
+// WithSpeechRepo sets the speech-synthesis job repository for the application.
+func WithSpeechRepo(repo data.SpeechRepoer) AppOption {
+	return func(a *App) {
+		a.speechRepo = repo
+	}
+}
+
+// WithTranslator sets the translation client used to translate bot replies
+// before they are spoken.
+func WithTranslator(translator data.Translator) AppOption {
+	return func(a *App) {
+		a.translator = translator
+	}
+}
+
+// WithSpeechSynthesizer sets the text-to-speech client for the application.
+func WithSpeechSynthesizer(synthesizer data.SpeechSynthesizer) AppOption {
+	return func(a *App) {
+		a.speechSynthesizer = synthesizer
+	}
+}
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -180,6 +205,9 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.ClaimAnalyzer = app.claimAnalyzer
 	repos.ClaimJudge = app.claimJudge
 	repos.ConversationRepo = app.conversationRepo
+	repos.SpeechRepo = app.speechRepo
+	repos.Translator = app.translator
+	repos.SpeechSynthesizer = app.speechSynthesizer
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

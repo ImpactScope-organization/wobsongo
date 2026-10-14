@@ -20,6 +20,7 @@ type Handlers struct {
 	botExtractPSK   string
 	claimHandler    *ClaimHandler
 	agentHandler    *AgentHandler
+	ttsHandler      *TTSHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -30,6 +31,16 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	api.POST(
 		"/agent/inbound",
 		h.agentHandler.inboundMessageHandler,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
+	api.POST(
+		"/agent/inbound-voice",
+		h.agentHandler.inboundVoiceHandler,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
+	api.POST(
+		"/tts",
+		h.ttsHandler.synthesizeHandler,
 		PSKAuthMiddleware(h.botExtractPSK),
 	)
 
@@ -49,16 +60,19 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo        data.ApifyRepoer
-	VideoRepo        data.VideoRepoer
-	DocumentRepo     data.DocumentRepoer
-	MediaProvider    data.MediaUploadProvider
-	ChunkRepo        data.DocumentChunkRepoer
-	KnowledgeRepo    data.AtomicKnowledgeRepoer
-	Embedder         data.Embedder
-	ClaimAnalyzer    data.ClaimAnalyzer
-	ClaimJudge       data.ClaimJudge
-	ConversationRepo data.ConversationRepoer
+	ApifyRepo         data.ApifyRepoer
+	VideoRepo         data.VideoRepoer
+	DocumentRepo      data.DocumentRepoer
+	MediaProvider     data.MediaUploadProvider
+	ChunkRepo         data.DocumentChunkRepoer
+	KnowledgeRepo     data.AtomicKnowledgeRepoer
+	Embedder          data.Embedder
+	ClaimAnalyzer     data.ClaimAnalyzer
+	ClaimJudge        data.ClaimJudge
+	ConversationRepo  data.ConversationRepoer
+	SpeechRepo        data.SpeechRepoer
+	Translator        data.Translator
+	SpeechSynthesizer data.SpeechSynthesizer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -119,10 +133,19 @@ func NewHandlers(repos *Repos) *Handlers {
 	}
 	agentHandler := NewAgentHandler(agentService)
 
+	// Initialize speech (TTS) service and handler.
+	speechService := service.NewSpeechService(
+		repos.Translator,
+		repos.SpeechSynthesizer,
+		repos.SpeechRepo,
+	)
+	ttsHandler := NewTTSHandler(speechService)
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
 		mediaHandler:    mediaHandler,
+		ttsHandler:      ttsHandler,
 		botExtractPSK:   config.BotExtractPSK,
 		claimHandler:    claimHandler,
 		agentHandler:    agentHandler,

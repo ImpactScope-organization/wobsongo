@@ -250,7 +250,7 @@ func (s *AgentService) HandleInboundMessage(
 
 	extractionID := uuid.New().String()
 	if err := s.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-		Jid: jid, ExtractionID: extractionID, UserText: text,
+		JID: jid, ExtractionID: extractionID, UserText: text,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue agent turn: %w", err)
 	}
@@ -287,14 +287,14 @@ func (s *AgentService) runFallbackReply(
 		content = result.RefusalReason
 	}
 	if strings.TrimSpace(content) == "" {
-		log.Printf("[AgentService] empty fallback reply for jid=%s", job.Jid)
+		log.Printf("[AgentService] empty fallback reply for JID=%s", job.JID)
 	}
 	content = orFallback(content)
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content,
+		ctx, job.JID, model.ConversationRoleAssistant, content,
 	); err != nil {
-		log.Printf("[AgentService] failed to store fallback reply for jid=%s: %v", job.Jid, err)
+		log.Printf("[AgentService] failed to store fallback reply for JID=%s: %v", job.JID, err)
 	}
 
 	return content, nil
@@ -305,12 +305,12 @@ func (s *AgentService) runVideoContinuation(
 	job queue.AgentTurnJob,
 ) (string, error) {
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleSystem, job.SystemNote,
+		ctx, job.JID, model.ConversationRoleSystem, job.SystemNote,
 	); err != nil {
 		return "", fmt.Errorf("failed to store system note: %w", err)
 	}
 
-	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
+	history, err := s.conversationRepo.RecentMessages(ctx, job.JID, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)
 	}
@@ -337,7 +337,7 @@ func (s *AgentService) runVideoContinuation(
 		content = result.RefusalReason
 	}
 	if strings.TrimSpace(content) == "" {
-		log.Printf("[AgentService] empty video continuation reply for jid=%s", job.Jid)
+		log.Printf("[AgentService] empty video continuation reply for JID=%s", job.JID)
 	}
 	content = orFallback(content)
 
@@ -350,9 +350,9 @@ func (s *AgentService) runVideoContinuation(
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content,
+		ctx, job.JID, model.ConversationRoleAssistant, content,
 	); err != nil {
-		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
+		log.Printf("[AgentService] failed to store assistant reply for JID=%s: %v", job.JID, err)
 	}
 
 	return content, nil
@@ -367,7 +367,7 @@ func (s *AgentService) runConversationalTurn(
 ) (string, error) {
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
 		internal.MsgThinking)
-	history, err := s.conversationRepo.RecentMessages(ctx, job.Jid, conversationHistoryLimit)
+	history, err := s.conversationRepo.RecentMessages(ctx, job.JID, conversationHistoryLimit)
 	if err != nil {
 		return "", fmt.Errorf("failed to load conversation history: %w", err)
 	}
@@ -393,14 +393,14 @@ func (s *AgentService) runConversationalTurn(
 
 	content := res.Content
 	if strings.TrimSpace(content) == "" {
-		log.Printf("[AgentService] empty agent reply for jid=%s", job.Jid)
+		log.Printf("[AgentService] empty agent reply for JID=%s", job.JID)
 		content = internal.MsgEmptyAnswer
 	}
 
 	if err := s.conversationRepo.AppendMessage(
-		ctx, job.Jid, model.ConversationRoleAssistant, content,
+		ctx, job.JID, model.ConversationRoleAssistant, content,
 	); err != nil {
-		log.Printf("[AgentService] failed to store assistant reply for jid=%s: %v", job.Jid, err)
+		log.Printf("[AgentService] failed to store assistant reply for JID=%s: %v", job.JID, err)
 	}
 
 	return content, nil
@@ -423,4 +423,27 @@ func orFallback(s string) string {
 		return internal.MsgEmptyAnswer
 	}
 	return s
+}
+
+// HandleInboundVoice enqueues the transcription of a voice message. The job
+// carries only a reference to the media; the worker downloads it. The
+// transcript is turned into an agent turn by the worker, under the returned
+// JobID, so wa-bot waits for the answer the same way as for text messages.
+func (s *AgentService) HandleInboundVoice(
+	ctx context.Context,
+	jid string,
+	channel data.VoiceChannel,
+	mediaRef, mimeType string,
+) (*dto.AgentInboundResponse, error) {
+	extractionID := uuid.New().String()
+	if err := s.conversationRepo.EnqueueVoiceTranscription(ctx, &queue.VoiceTranscriptionJob{
+		ExtractionID: extractionID,
+		JID:          jid,
+		Channel:      string(channel),
+		MediaRef:     mediaRef,
+		MimeType:     mimeType,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to enqueue voice transcription: %w", err)
+	}
+	return &dto.AgentInboundResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
 }

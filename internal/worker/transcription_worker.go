@@ -202,7 +202,7 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 	case args.ViaAgent:
 		note := "The video transcript is ready:\n\n" + transcript
 		if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-			Jid: args.Jid, ExtractionID: args.ExtractionID, SystemNote: note,
+			JID: args.Jid, ExtractionID: args.ExtractionID, SystemNote: note,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue agent turn continuation: %w", err)
 			internal.NotifyBotFailed(
@@ -220,7 +220,7 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 		if err := w.videoService.EnqueueClaimCheckJob(ctx, queue.ClaimCheckJob{
 			ExtractionID: args.ExtractionID,
 			Text:         transcript,
-			Jid:          args.Jid,
+			JID:          args.Jid,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue claim check: %w", err)
 			internal.NotifyBotFailed(

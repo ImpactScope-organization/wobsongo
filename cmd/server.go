@@ -175,7 +175,18 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, transcriptionWorker)
 
+		// The voice worker downloads the media itself (the bot only forwards a
+		// reference), parks it in S3 and lets the ASR service fetch it by
+		// presigned URL. There is deliberately no mock fallback here.
+		voiceMediaClient := external.NewVoiceMediaClient(
+			config.VoiceMediaConfig.TwilioAccountSID,
+			config.VoiceMediaConfig.TwilioAuthToken,
+			config.VoiceMediaConfig.TelegramBotToken,
+		)
 		voiceWorker := worker.NewVoiceTranscriptionWorker(
+			voiceMediaClient,
+			mediaProvider,
+			mediaService,
 			asrClient,
 			workerConversationService,
 			botClient,
@@ -287,7 +298,12 @@ var serveCmd = &cobra.Command{
 			newSpeechSynthesizer(config),
 			repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs),
 		)
-		speechWorker := worker.NewSpeechWorker(workerSpeechService, botClient)
+		speechWorker := worker.NewSpeechWorker(
+			workerSpeechService,
+			botClient,
+			mediaProvider,
+			mediaService,
+		)
 		river.AddWorker(workers, speechWorker)
 
 		// Initialize River client with the database pool and registered workers.

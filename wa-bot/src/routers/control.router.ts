@@ -7,7 +7,6 @@ import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/async-handler.js';
 import * as whatsappController from '../controllers/whatsapp.controller.js';
 import * as telegramController from '../controllers/telegram.controller.js';
-import * as mediaController from '../controllers/media.controller.js';
 
 export const controlRouter: Router = Router();
 
@@ -22,7 +21,7 @@ callbackRouter.post(
 callbackRouter.post(
   '/callback/tts-done',
   pskAuth(env.botCallbackPsk),
-  express.raw({ type: () => true, limit: '16mb' }),
+  express.raw({ type: () => true, limit: '10mb' }),
   ttsCallbackController.ttsDone
 );
 
@@ -35,6 +34,3 @@ controlRouter.post(
 
 // Telegram webhook endpoint for incoming messages
 controlRouter.post('/telegram-webhook', asyncHandler(telegramController.handleTelegramWebhook));
-
-// Short-lived reply audio that Twilio fetches by URL
-controlRouter.get('/media/:file', mediaController.serveTempMedia);

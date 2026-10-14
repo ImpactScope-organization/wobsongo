@@ -98,9 +98,10 @@ func (r *conversationRepo) EnqueueAgentTurn(ctx context.Context, payload queue.A
 	return nil
 }
 
+// EnqueueVoiceTranscription adds a new voice-transcription job to the River queue.
 func (r *conversationRepo) EnqueueVoiceTranscription(
 	ctx context.Context,
-	payload queue.VoiceTranscriptionJob,
+	payload *queue.VoiceTranscriptionJob,
 ) error {
 	if _, err := r.riverClientFn().Insert(ctx, payload, nil); err != nil {
 		return fmt.Errorf("failed to insert voice transcription job: %w", err)

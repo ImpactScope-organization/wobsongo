@@ -1,7 +1,6 @@
 import type { Request, Response } from 'express';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as telegramService from '../services/telegram.service.js';
-import { downloadTelegramFile } from '../services/audio-download.service.js';
 import { VOICE_MESSAGES } from '../utils/voice-messages.js';
 import { env } from '../config/env.js';
 import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
@@ -42,11 +41,11 @@ export async function handleTelegramWebhook(req: Request, res: Response): Promis
 
     if (voice) {
       await telegramService.sendMessage(chatId, msgs.received);
-      const audio = await downloadTelegramFile(voice.file_id);
       result = await callGoAgentInboundVoice({
         jid: chatId,
-        audio: audio.buffer,
-        format: audio.format,
+        channel: 'telegram',
+        mediaRef: voice.file_id,
+        mimeType: voice.mime_type ?? 'audio/ogg',
       });
     } else {
       result = await callGoAgentInbound({ jid: chatId, text: (message.text ?? '').trim() });

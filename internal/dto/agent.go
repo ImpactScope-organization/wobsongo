@@ -22,12 +22,18 @@ type AgentInboundResponse struct {
 	Message string `json:"message,omitempty"`
 }
 
-// AgentInboundVoiceRequest holds the form fields wa-bot sends along with the
-// uploaded audio file (multipart field "audio").
+// AgentInboundVoiceRequest is the payload wa-bot sends for an inbound voice
+// message. It carries a reference to the media, not the audio itself.
 type AgentInboundVoiceRequest struct {
 	// JID is the chat identifier this voice message came from.
-	JID string `form:"jid" validate:"required"`
+	JID string `json:"jid" validate:"required"`
 
-	// Format is the audio format hint.
-	Format string `form:"format" validate:"required,alphanum,max=8"`
+	// Channel is the messaging platform the message came from.
+	Channel string `json:"channel" validate:"required,oneof=whatsapp telegram"`
+
+	// MediaRef is a Twilio media URL (whatsapp) or a file_id (telegram).
+	MediaRef string `json:"mediaRef" validate:"required,max=2048"`
+
+	// MimeType is the audio MIME type reported by the platform.
+	MimeType string `json:"mimeType" validate:"required,max=100"`
 }

@@ -17,7 +17,6 @@ type BotClient struct {
 	callbackPSK string
 	controlPSK  string
 	httpClient  *http.Client
-	audioClient *http.Client
 }
 
 // NewBotClient creates and returns a new instance of BotClient.
@@ -29,7 +28,6 @@ func NewBotClient(baseURL, callbackPSK, controlPSK string) *BotClient {
 		callbackPSK: callbackPSK,
 		controlPSK:  controlPSK,
 		httpClient:  &http.Client{Timeout: 10 * time.Second},
-		audioClient: &http.Client{},
 	}
 }
 
@@ -47,6 +45,15 @@ type extractDoneCallback struct {
 	Status string               `json:"status"`
 	Error  string               `json:"error,omitempty"`
 	Data   *ExtractCallbackData `json:"data,omitempty"`
+}
+
+// ttsDoneCallback is the JSON payload sent to the bot to report the result of
+// a speech synthesis job. The audio itself stays in S3: AudioURL is a
+// presigned GET URL the platform (Twilio/Telegram) fetches directly.
+type ttsDoneCallback struct {
+	JobID    string `json:"jobId"`
+	Status   string `json:"status"`
+	AudioURL string `json:"audioUrl,omitempty"`
 }
 
 // NotifyExtractDone sends a POST request to the bot service callback endpoint
@@ -98,27 +105,30 @@ func (c *BotClient) NotifyExtractDone(
 }
 
 // NotifyTTSDone sends a POST request to the bot's /callback/tts-done endpoint
-// to deliver the result of a speech synthesis job.
+// to deliver the result of a speech synthesis job. audioURL is empty when the
+// job failed.
 func (c *BotClient) NotifyTTSDone(
 	ctx context.Context,
-	jobID, status string,
-	audio []byte,
+	jobID, status, audioURL string,
 ) error {
+	body, err := json.Marshal(ttsDoneCallback{JobID: jobID, Status: status, AudioURL: audioURL})
+	if err != nil {
+		return fmt.Errorf("failed to marshal tts callback payload: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
 		c.baseURL+"/callback/tts-done",
-		bytes.NewReader(audio),
+		bytes.NewReader(body),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create tts callback request: %w", err)
 	}
-	req.Header.Set("Content-Type", "audio/ogg")
+	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "PSK "+c.callbackPSK)
-	req.Header.Set("X-Job-Id", jobID)
-	req.Header.Set("X-Tts-Status", status)
 
-	resp, err := c.audioClient.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to execute tts callback request: %w", err)
 	}

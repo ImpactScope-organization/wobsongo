@@ -96,12 +96,12 @@ async function startVoiceReply(
 
   const requested = await requestVoiceReply(jobId, platform, text);
   if (!requested) {
-    await handleTtsDone(jobId, 'failed', Buffer.alloc(0));
+    await handleTtsDone(jobId, 'failed', '');
     return;
   }
 
   setTimeout(() => {
-    handleTtsDone(jobId, 'failed', Buffer.alloc(0)).catch((err) => {
+    handleTtsDone(jobId, 'failed', '').catch((err) => {
       console.error('[extract-callback] voice fallback timer failed:', err);
     });
   }, env.voiceReplyWaitMs).unref();
@@ -112,7 +112,7 @@ async function startVoiceReply(
 export async function handleTtsDone(
   jobId: string,
   status: 'completed' | 'failed',
-  audio: Buffer
+  audioUrl: string
 ): Promise<void> {
   const pending = getPendingJob(jobId);
   if (!pending) {
@@ -122,9 +122,9 @@ export async function handleTtsDone(
   // Claim the job first so the callback and the fallback timer never both send.
   deletePendingJob(jobId);
 
-  if (status === 'completed' && audio.length > 0) {
+  if (status === 'completed' && audioUrl) {
     try {
-      await deliverVoiceReply(pending.platform, pending.jid, audio);
+      await deliverVoiceReply(pending.platform, pending.jid, audioUrl);
       return;
     } catch (err) {
       console.error('[extract-callback] failed to deliver voice reply, sending text:', err);

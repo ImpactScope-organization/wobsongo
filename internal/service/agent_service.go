@@ -425,17 +425,23 @@ func orFallback(s string) string {
 	return s
 }
 
-// HandleInboundVoice enqueues the transcription of a voice message. The
+// HandleInboundVoice enqueues the transcription of a voice message. The job
+// carries only a reference to the media; the worker downloads it. The
 // transcript is turned into an agent turn by the worker, under the returned
 // JobID, so wa-bot waits for the answer the same way as for text messages.
 func (s *AgentService) HandleInboundVoice(
 	ctx context.Context,
-	jid, format string,
-	audio []byte,
+	jid string,
+	channel data.VoiceChannel,
+	mediaRef, mimeType string,
 ) (*dto.AgentInboundResponse, error) {
 	extractionID := uuid.New().String()
-	if err := s.conversationRepo.EnqueueVoiceTranscription(ctx, queue.VoiceTranscriptionJob{
-		ExtractionID: extractionID, Jid: jid, Format: format, Audio: audio,
+	if err := s.conversationRepo.EnqueueVoiceTranscription(ctx, &queue.VoiceTranscriptionJob{
+		ExtractionID: extractionID,
+		JID:          jid,
+		Channel:      string(channel),
+		MediaRef:     mediaRef,
+		MimeType:     mimeType,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue voice transcription: %w", err)
 	}

@@ -2,7 +2,6 @@ import type { Request, Response } from 'express';
 import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as conversationService from '../services/conversation.service.js';
-import { downloadTwilioMedia } from '../services/audio-download.service.js';
 import { VOICE_MESSAGES } from '../utils/voice-messages.js';
 import { env } from '../config/env.js';
 import { SendMessageRequest } from '../types/types.js';
@@ -49,8 +48,12 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
 
     if (isVoice && mediaUrl) {
       await safeSendMessage(jid, { text: msgs.received });
-      const audio = await downloadTwilioMedia(mediaUrl, mediaType);
-      result = await callGoAgentInboundVoice({ jid, audio: audio.buffer, format: audio.format });
+      result = await callGoAgentInboundVoice({
+        jid,
+        channel: 'whatsapp',
+        mediaRef: mediaUrl,
+        mimeType: mediaType,
+      });
     } else {
       result = await callGoAgentInbound({ jid, text: (body.Body ?? '').trim() });
     }

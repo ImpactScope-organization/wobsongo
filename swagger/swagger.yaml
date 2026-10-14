@@ -24,6 +24,31 @@ definitions:
         - $ref: '#/definitions/dto.ExtractStatus'
         description: Status indicates the current state of the agent turn.
     type: object
+  dto.AgentInboundVoiceRequest:
+    properties:
+      channel:
+        description: Channel is the messaging platform the message came from.
+        enum:
+        - whatsapp
+        - telegram
+        type: string
+      jid:
+        description: JID is the chat identifier this voice message came from.
+        type: string
+      mediaRef:
+        description: MediaRef is a Twilio media URL (whatsapp) or a file_id (telegram).
+        maxLength: 2048
+        type: string
+      mimeType:
+        description: MimeType is the audio MIME type reported by the platform.
+        maxLength: 100
+        type: string
+    required:
+    - channel
+    - jid
+    - mediaRef
+    - mimeType
+    type: object
   dto.ApifyResource:
     properties:
       defaultDatasetId:
@@ -505,27 +530,20 @@ paths:
   /api/agent/inbound-voice:
     post:
       consumes:
-      - multipart/form-data
+      - application/json
       description: |-
-        Receives a voice message, transcribes it in the
-        background and routes the transcript through the conversational
-        agent. The answer is delivered through the same callback as /agent/inbound.
+        Receives a reference to a voice message (a Twilio media URL or a
+        Telegram file_id), not the audio itself. The audio is downloaded,
+        transcribed in the background and the transcript is routed through the
+        conversational agent. The answer is delivered through the same
+        callback as /agent/inbound.
       parameters:
-      - description: Chat identifier
-        in: formData
-        name: jid
+      - description: Inbound voice message
+        in: body
+        name: form
         required: true
-        type: string
-      - description: Audio format hint (e.g. ogg)
-        in: formData
-        name: format
-        required: true
-        type: string
-      - description: Voice message audio
-        in: formData
-        name: audio
-        required: true
-        type: file
+        schema:
+          $ref: '#/definitions/dto.AgentInboundVoiceRequest'
       produces:
       - application/json
       responses:
@@ -547,8 +565,8 @@ paths:
                 error:
                   type: string
               type: object
-        "413":
-          description: Request Entity Too Large
+        "415":
+          description: Unsupported Media Type
           schema:
             allOf:
             - $ref: '#/definitions/model.APIResponse'

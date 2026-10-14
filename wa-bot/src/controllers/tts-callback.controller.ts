@@ -1,23 +1,40 @@
 import type { Request, Response } from 'express';
 import { handleTtsDone } from '../services/extract-callback.service.js';
 
+interface TtsDoneBody {
+  jobId?: string;
+  status?: string;
+  audioUrl?: string;
+}
+
+function isHttpsUrl(value: string | undefined): value is string {
+  if (!value) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // ttsDone handles the backend's callback with the result of a speech job. The
-// result is in headers and the body is the raw OGG/Opus audio (empty on failure).
+// audio stays in S3: a completed job carries a presigned URL the platform
+// (Twilio/Telegram) fetches itself.
 export function ttsDone(req: Request, res: Response): void {
-  const jobId = req.header('X-Job-Id');
-  const status = req.header('X-Tts-Status');
+  const { jobId, status, audioUrl } = (req.body ?? {}) as TtsDoneBody;
 
   if (!jobId || (status !== 'completed' && status !== 'failed')) {
-    res.status(400).json({ error: 'X-Job-Id and a valid X-Tts-Status are required' });
+    res.status(400).json({ error: 'jobId and a valid status are required' });
     return;
   }
-
-  const audio: Buffer = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+  if (status === 'completed' && !isHttpsUrl(audioUrl)) {
+    res.status(400).json({ error: 'a completed job needs an https audioUrl' });
+    return;
+  }
 
   // Answer right away so the backend does not wait on delivery to the user.
   res.sendStatus(204);
 
-  handleTtsDone(jobId, status, audio).catch((err) => {
+  handleTtsDone(jobId, status, audioUrl ?? '').catch((err) => {
     console.error('[tts-callback.controller] background processing error:', err);
   });
 }

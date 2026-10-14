@@ -79,23 +79,23 @@ export async function callGoTTS(payload: {
   }
 }
 
-// callGoAgentInboundVoice uploads a voice message to the Go backend, which
-// transcribes it and runs the agent turn.
+// callGoAgentInboundVoice forwards a reference to a voice message to the Go
+// backend. The backend downloads the media itself, transcribes it and runs the
+// agent turn, so the audio never passes through this service.
 export async function callGoAgentInboundVoice(payload: {
   jid: string;
-  audio: Buffer;
-  format: string;
+  channel: 'whatsapp' | 'telegram';
+  mediaRef: string;
+  mimeType: string;
 }): Promise<ExtractResponse> {
-  const form = new FormData();
-  form.append('jid', payload.jid);
-  form.append('format', payload.format);
-  form.append('audio', new Blob([new Uint8Array(payload.audio)]), `voice.${payload.format}`);
-
   const res = await fetch(`${env.goBackendUrl}/api/agent/inbound-voice`, {
     method: 'POST',
-    headers: { Authorization: `PSK ${env.goExtractPsk}` },
-    body: form,
-    signal: AbortSignal.timeout(30_000),
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `PSK ${env.goExtractPsk}`,
+    },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!res.ok) {

@@ -30,5 +30,5 @@ type ConversationRepoer interface {
 	EnqueueAgentTurn(ctx context.Context, payload queue.AgentTurnJob) error
 
 	// EnqueueVoiceTranscription adds a new voice-transcription job to the River queue.
-	EnqueueVoiceTranscription(ctx context.Context, payload queue.VoiceTranscriptionJob) error
+	EnqueueVoiceTranscription(ctx context.Context, payload *queue.VoiceTranscriptionJob) error
 }

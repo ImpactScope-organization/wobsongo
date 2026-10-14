@@ -2,7 +2,6 @@ import { env } from '../config/env.js';
 import { callGoTTS } from './go-client.service.js';
 import * as conversationService from './conversation.service.js';
 import * as telegramService from './telegram.service.js';
-import { saveTempMedia } from './temp-media.store.js';
 
 // requestVoiceReply asks the backend to synthesize the answer in the background.
 // Returns true if the backend accepted the job.
@@ -23,17 +22,18 @@ export async function requestVoiceReply(
   }
 }
 
-// deliverVoiceReply sends finished OGG/Opus audio to the user.
+// deliverVoiceReply sends the finished OGG/Opus reply to the user. audioUrl is a
+// presigned URL: Twilio and Telegram fetch the file themselves, so the audio
+// never passes through this service.
 export async function deliverVoiceReply(
   platform: 'whatsapp' | 'telegram',
   jid: string,
-  audio: Buffer
+  audioUrl: string
 ): Promise<void> {
   if (platform === 'telegram') {
-    await telegramService.sendVoice(jid, audio);
+    await telegramService.sendVoice(jid, audioUrl);
     return;
   }
 
-  const token = saveTempMedia(audio, 'audio/ogg');
-  await conversationService.sendMedia(jid, `${env.publicBaseUrl}/media/${token}.ogg`);
+  await conversationService.sendMedia(jid, audioUrl);
 }

@@ -117,9 +117,9 @@ const docTemplate = `{
         },
         "/api/agent/inbound-voice": {
             "post": {
-                "description": "Receives a voice message, transcribes it in the\nbackground and routes the transcript through the conversational\nagent. The answer is delivered through the same callback as /agent/inbound.",
+                "description": "Receives a reference to a voice message (a Twilio media URL or a\nTelegram file_id), not the audio itself. The audio is downloaded,\ntranscribed in the background and the transcript is routed through the\nconversational agent. The answer is delivered through the same\ncallback as /agent/inbound.",
                 "consumes": [
-                    "multipart/form-data"
+                    "application/json"
                 ],
                 "produces": [
                     "application/json"
@@ -130,25 +130,13 @@ const docTemplate = `{
                 "summary": "Handle an inbound voice message",
                 "parameters": [
                     {
-                        "type": "string",
-                        "description": "Chat identifier",
-                        "name": "jid",
-                        "in": "formData",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Audio format hint (e.g. ogg)",
-                        "name": "format",
-                        "in": "formData",
-                        "required": true
-                    },
-                    {
-                        "type": "file",
-                        "description": "Voice message audio",
-                        "name": "audio",
-                        "in": "formData",
-                        "required": true
+                        "description": "Inbound voice message",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.AgentInboundVoiceRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -188,8 +176,8 @@ const docTemplate = `{
                             ]
                         }
                     },
-                    "413": {
-                        "description": "Request Entity Too Large",
+                    "415": {
+                        "description": "Unsupported Media Type",
                         "schema": {
                             "allOf": [
                                 {
@@ -1450,6 +1438,39 @@ const docTemplate = `{
                             "$ref": "#/definitions/dto.ExtractStatus"
                         }
                     ]
+                }
+            }
+        },
+        "dto.AgentInboundVoiceRequest": {
+            "type": "object",
+            "required": [
+                "channel",
+                "jid",
+                "mediaRef",
+                "mimeType"
+            ],
+            "properties": {
+                "channel": {
+                    "description": "Channel is the messaging platform the message came from.",
+                    "type": "string",
+                    "enum": [
+                        "whatsapp",
+                        "telegram"
+                    ]
+                },
+                "jid": {
+                    "description": "JID is the chat identifier this voice message came from.",
+                    "type": "string"
+                },
+                "mediaRef": {
+                    "description": "MediaRef is a Twilio media URL (whatsapp) or a file_id (telegram).",
+                    "type": "string",
+                    "maxLength": 2048
+                },
+                "mimeType": {
+                    "description": "MimeType is the audio MIME type reported by the platform.",
+                    "type": "string",
+                    "maxLength": 100
                 }
             }
         },

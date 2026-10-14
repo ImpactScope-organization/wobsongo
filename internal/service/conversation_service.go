@@ -49,7 +49,7 @@ func (s *ConversationService) EnqueueAgentTurn(
 // EnqueueVoiceTranscription adds a voice-transcription job to the River queue.
 func (s *ConversationService) EnqueueVoiceTranscription(
 	ctx context.Context,
-	payload queue.VoiceTranscriptionJob,
+	payload *queue.VoiceTranscriptionJob,
 ) error {
 	return s.conversationRepo.EnqueueVoiceTranscription(ctx, payload)
 }

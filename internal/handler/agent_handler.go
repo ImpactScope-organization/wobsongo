@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"errors"
-	"io"
+	"fmt"
 	"net/http"
 
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -14,9 +14,7 @@ import (
 const (
 	msgAgentInboundFailed      = "failed to process inbound message"
 	msgAgentInboundVoiceFailed = "failed to process inbound voice message"
-
-	// maxVoiceUploadBytes caps an uploaded voice message (16 MB).
-	maxVoiceUploadBytes = 16 * 1024 * 1024
+	msgUnsupportedVoiceType    = "unsupported voice message type"
 )
 
 // AgentHandler handles HTTP requests for the agentic bot workflow
@@ -80,27 +78,29 @@ func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 }
 
 // @Summary		Handle an inbound voice message
-// @Description	Receives a voice message, transcribes it in the
-// @Description	background and routes the transcript through the conversational
-// @Description	agent. The answer is delivered through the same callback as /agent/inbound.
+// @Description	Receives a reference to a voice message (a Twilio media URL or a
+// @Description	Telegram file_id), not the audio itself. The audio is downloaded,
+// @Description	transcribed in the background and the transcript is routed through the
+// @Description	conversational agent. The answer is delivered through the same
+// @Description	callback as /agent/inbound.
 // @Tags			agent
-// @Accept			mpfd
+// @Accept			json
 // @Produce		json
-// @Param			jid		formData	string	true	"Chat identifier"
-// @Param			format	formData	string	true	"Audio format hint (e.g. ogg)"
-// @Param			audio	formData	file	true	"Voice message audio"
+// @Param			form	body		dto.AgentInboundVoiceRequest	true	"Inbound voice message"
 // @Success		202		{object}	model.APIResponse{data=dto.AgentInboundResponse}
 // @Failure		400		{object}	model.APIResponse{error=string}
-// @Failure		413		{object}	model.APIResponse{error=string}
+// @Failure		415		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
 // @Router			/api/agent/inbound-voice [post]
 func (h *AgentHandler) inboundVoiceHandler(c echo.Context) error {
-	c.Request().Body = http.MaxBytesReader(c.Response(), c.Request().Body, maxVoiceUploadBytes)
-
 	req := new(dto.AgentInboundVoiceRequest)
 	if err := c.Bind(req); err != nil {
-		return voiceUploadError(err)
+		return &model.APIError{
+			Code:     http.StatusBadRequest,
+			Internal: err,
+			Public:   msgInvalidRequestBody,
+		}
 	}
 	if err := c.Validate(req); err != nil {
 		return &model.APIError{
@@ -110,29 +110,25 @@ func (h *AgentHandler) inboundVoiceHandler(c echo.Context) error {
 		}
 	}
 
-	fileHeader, err := c.FormFile("audio")
-	if err != nil {
-		return voiceUploadError(err)
-	}
-	file, err := fileHeader.Open()
-	if err != nil {
-		return voiceUploadError(err)
-	}
-	defer func() { _ = file.Close() }()
-
-	audio, err := io.ReadAll(file)
-	if err != nil {
-		return voiceUploadError(err)
-	}
-	if len(audio) == 0 {
+	channel := data.VoiceChannel(req.Channel)
+	if err := data.ValidateVoiceMediaRef(channel, req.MediaRef); err != nil {
 		return &model.APIError{
 			Code:     http.StatusUnprocessableEntity,
-			Internal: errors.New("empty audio"),
+			Internal: err,
 			Public:   msgValidationFailed,
 		}
 	}
+	if _, ok := data.VoiceFormatFromMime(req.MimeType); !ok {
+		return &model.APIError{
+			Code:     http.StatusUnsupportedMediaType,
+			Internal: fmt.Errorf("unsupported voice mime type %q", req.MimeType),
+			Public:   msgUnsupportedVoiceType,
+		}
+	}
 
-	resp, err := h.service.HandleInboundVoice(c.Request().Context(), req.JID, req.Format, audio)
+	resp, err := h.service.HandleInboundVoice(
+		c.Request().Context(), req.JID, channel, req.MediaRef, req.MimeType,
+	)
 	if err != nil {
 		return &model.APIError{
 			Code:     http.StatusInternalServerError,
@@ -141,21 +137,4 @@ func (h *AgentHandler) inboundVoiceHandler(c echo.Context) error {
 		}
 	}
 	return writeJSON(c, http.StatusAccepted, resp)
-}
-
-// voiceUploadError maps an upload read/parse error to 413 (too large) or 400.
-func voiceUploadError(err error) error {
-	var tooLarge *http.MaxBytesError
-	if errors.As(err, &tooLarge) {
-		return &model.APIError{
-			Code:     http.StatusRequestEntityTooLarge,
-			Internal: err,
-			Public:   "voice message is too large",
-		}
-	}
-	return &model.APIError{
-		Code:     http.StatusBadRequest,
-		Internal: err,
-		Public:   msgInvalidRequestBody,
-	}
 }

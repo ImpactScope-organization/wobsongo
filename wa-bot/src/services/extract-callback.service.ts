@@ -1,7 +1,14 @@
-import { getPendingJob, deletePendingJob, savePendingJob } from './pending-job.store.js';
+import {
+  getPendingJob,
+  deletePendingJob,
+  savePendingJob,
+  markAwaitingVoice,
+} from './pending-job.store.js';
 import { callGoExtract } from './go-client.service.js';
 import * as conversationService from './conversation.service.js';
 import * as telegramService from './telegram.service.js';
+import { requestVoiceReply, deliverVoiceReply } from './voice-reply.service.js';
+import { env } from '../config/env.js';
 import type { ExtractCallbackStatus, ExtractData } from '../types/types.js';
 
 const GENERIC_ERROR = '❌ Une erreur est survenue. Réessaie plus tard.';
@@ -40,12 +47,19 @@ export async function handleExtractDone(
     return;
   }
 
-    try {
+  try {
     if (data) {
       const text = (data.answer ?? data.transcript ?? '').trim();
       if (!text) {
         throw new Error(`empty answer from backend for jobId=${jobId}`);
       }
+
+      if (pending.inputType === 'voice') {
+        // The pending job stays alive until /callback/tts-done (or the fallback timer).
+        await startVoiceReply(jobId, pending.platform, text);
+        return;
+      }
+
       await sendToUser(pending.platform, pending.jid, text);
       deletePendingJob(jobId);
       return;
@@ -57,6 +71,7 @@ export async function handleExtractDone(
       waitingMessageId: pending.waitingMessageId,
       url: pending.url,
       platform: pending.platform,
+      inputType: pending.inputType,
     });
   } catch (err) {
     console.error('[extract-callback] failed to notify user or re-fetch result:', err);
@@ -67,5 +82,57 @@ export async function handleExtractDone(
     } finally {
       deletePendingJob(jobId);
     }
+  }
+}
+
+// startVoiceReply asks the backend to synthesize the answer in the background.
+async function startVoiceReply(
+  jobId: string,
+  platform: 'whatsapp' | 'telegram',
+  text: string
+): Promise<void> {
+  // Store the fallback and extend the job before asking.
+  markAwaitingVoice(jobId, text, env.voiceReplyWaitMs + 60_000);
+
+  const requested = await requestVoiceReply(jobId, platform, text);
+  if (!requested) {
+    await handleTtsDone(jobId, 'failed', '');
+    return;
+  }
+
+  setTimeout(() => {
+    handleTtsDone(jobId, 'failed', '').catch((err) => {
+      console.error('[extract-callback] voice fallback timer failed:', err);
+    });
+  }, env.voiceReplyWaitMs).unref();
+}
+
+// handleTtsDone finishes a voice reply: it sends the audio when synthesis
+// succeeded, and the text answer otherwise.
+export async function handleTtsDone(
+  jobId: string,
+  status: 'completed' | 'failed',
+  audioUrl: string
+): Promise<void> {
+  const pending = getPendingJob(jobId);
+  if (!pending) {
+    return;
+  }
+
+  // Claim the job first so the callback and the fallback timer never both send.
+  deletePendingJob(jobId);
+
+  if (status === 'completed' && audioUrl) {
+    try {
+      await deliverVoiceReply(pending.platform, pending.jid, audioUrl);
+      return;
+    } catch (err) {
+      console.error('[extract-callback] failed to deliver voice reply, sending text:', err);
+    }
+  }
+
+  const fallback = pending.fallbackText?.trim();
+  if (fallback) {
+    await sendToUser(pending.platform, pending.jid, fallback);
   }
 }

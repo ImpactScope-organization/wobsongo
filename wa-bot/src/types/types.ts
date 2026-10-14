@@ -95,4 +95,18 @@ export interface PendingExtractJob {
 
   // The platform from which the extraction request originated.
   platform: 'whatsapp' | 'telegram';
+
+  // Whether the user typed the message or sent a voice message.
+  // Voice messages get a voice reply in addition to the text answer.
+  inputType: InputType;
+
+  // The text answer, kept while the voice reply is generated in the background.
+  // Sent instead if the voice reply cannot be delivered.
+  fallbackText?: string;
 }
+
+// ReplyLang is the language a voice reply is spoken in.
+export type ReplyLang = 'fr' | 'en';
+
+// InputType records how the user's message arrived.
+export type InputType = 'text' | 'voice';

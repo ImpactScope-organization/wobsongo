@@ -1,12 +1,18 @@
 import type { Request, Response } from 'express';
-import { callGoAgentInbound } from '../services/go-client.service.js';
+import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as conversationService from '../services/conversation.service.js';
+import { VOICE_MESSAGES } from '../utils/voice-messages.js';
+import { env } from '../config/env.js';
 import { SendMessageRequest } from '../types/types.js';
+import type { ExtractResponse, InputType } from '../types/types.js';
 
 interface TwilioInboundBody {
   From?: string;
   Body?: string;
+  NumMedia?: string;
+  MediaUrl0?: string;
+  MediaContentType0?: string;
   [key: string]: unknown;
 }
 
@@ -16,17 +22,41 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
 
   const body = req.body as TwilioInboundBody;
   const rawFrom = body.From;
-  const text = body.Body;
+  if (!rawFrom) {
+    console.warn('[whatsapp.controller] ignoring payload without From:', JSON.stringify(body));
+    return;
+  }
 
-  if (!rawFrom || !text) {
-    console.warn('[whatsapp.controller] ignoring payload without From/Body:', JSON.stringify(body));
+  const mediaUrl = body.MediaUrl0;
+  const mediaType = body.MediaContentType0 ?? '';
+  const isVoice = Number(body.NumMedia ?? 0) > 0 && !!mediaUrl && mediaType.startsWith('audio/');
+
+  if (!isVoice && !body.Body) {
+    console.warn(
+      '[whatsapp.controller] ignoring payload without Body/audio:',
+      JSON.stringify(body)
+    );
     return;
   }
 
   const jid = rawFrom.replace('whatsapp:+', '');
+  const inputType: InputType = isVoice ? 'voice' : 'text';
+  const msgs = VOICE_MESSAGES[env.voiceReplyLangWhatsapp];
 
   try {
-    const result = await callGoAgentInbound({ jid, text: text.trim() });
+    let result: ExtractResponse;
+
+    if (isVoice && mediaUrl) {
+      await safeSendMessage(jid, { text: msgs.received });
+      result = await callGoAgentInboundVoice({
+        jid,
+        channel: 'whatsapp',
+        mediaRef: mediaUrl,
+        mimeType: mediaType,
+      });
+    } else {
+      result = await callGoAgentInbound({ jid, text: (body.Body ?? '').trim() });
+    }
 
     if (result.status === 'rejected') {
       await safeSendMessage(jid, {
@@ -35,10 +65,18 @@ export async function handleIncomingMessage(req: Request, res: Response): Promis
       return;
     }
 
-    savePendingJob(result.jobId, { jid, waitingMessageId: '', url: '', platform: 'whatsapp' });
+    savePendingJob(result.jobId, {
+      jid,
+      waitingMessageId: '',
+      url: '',
+      platform: 'whatsapp',
+      inputType,
+    });
   } catch (err) {
     console.error('[whatsapp.controller] failed to process inbound message:', err);
-    await safeSendMessage(jid, { text: '❌ Une erreur est survenue. Réessaie plus tard.' });
+    await safeSendMessage(jid, {
+      text: isVoice ? msgs.error : '❌ Une erreur est survenue. Réessaie plus tard.',
+    });
   }
 }
 

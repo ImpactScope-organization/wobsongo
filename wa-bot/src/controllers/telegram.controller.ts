@@ -1,31 +1,55 @@
 import type { Request, Response } from 'express';
-import { callGoAgentInbound } from '../services/go-client.service.js';
 import { savePendingJob } from '../services/pending-job.store.js';
 import * as telegramService from '../services/telegram.service.js';
+import { VOICE_MESSAGES } from '../utils/voice-messages.js';
+import { env } from '../config/env.js';
+import { callGoAgentInbound, callGoAgentInboundVoice } from '../services/go-client.service.js';
+import type { ExtractResponse, InputType } from '../types/types.js';
+
+interface TelegramAudioPayload {
+  file_id: string;
+  duration?: number;
+  mime_type?: string;
+}
 
 interface TelegramUpdate {
   message?: {
     text?: string;
     chat?: { id: number | string };
+    voice?: TelegramAudioPayload;
+    audio?: TelegramAudioPayload;
   };
 }
 
 export async function handleTelegramWebhook(req: Request, res: Response): Promise<void> {
   res.sendStatus(200);
 
-  const body = req.body as TelegramUpdate;
-  const message = body.message;
+  const message = (req.body as TelegramUpdate).message;
+  const chatId = message?.chat?.id?.toString();
+  const voice = message?.voice ?? message?.audio;
 
-  if (!message || !message.text || !message.chat?.id) {
-    console.warn('[telegram.controller] ignoring non-text update:', JSON.stringify(req.body));
+  if (!message || !chatId || (!message.text && !voice)) {
+    console.warn('[telegram.controller] ignoring unsupported update:', JSON.stringify(req.body));
     return;
   }
 
-  const chatId = message.chat.id.toString();
-  const text = message.text;
+  const inputType: InputType = voice ? 'voice' : 'text';
+  const msgs = VOICE_MESSAGES[env.voiceReplyLangTelegram];
 
   try {
-    const result = await callGoAgentInbound({ jid: chatId, text: text.trim() });
+    let result: ExtractResponse;
+
+    if (voice) {
+      await telegramService.sendMessage(chatId, msgs.received);
+      result = await callGoAgentInboundVoice({
+        jid: chatId,
+        channel: 'telegram',
+        mediaRef: voice.file_id,
+        mimeType: voice.mime_type ?? 'audio/ogg',
+      });
+    } else {
+      result = await callGoAgentInbound({ jid: chatId, text: (message.text ?? '').trim() });
+    }
 
     if (result.status === 'rejected') {
       await telegramService.sendMessage(
@@ -40,9 +64,13 @@ export async function handleTelegramWebhook(req: Request, res: Response): Promis
       waitingMessageId: '',
       url: '',
       platform: 'telegram',
+      inputType,
     });
   } catch (err) {
     console.error('[telegram.controller] failed to process inbound message:', err);
-    await telegramService.sendMessage(chatId, '❌ Une erreur est survenue. Réessaie plus tard.');
+    await telegramService.sendMessage(
+      chatId,
+      voice ? msgs.error : '❌ Une erreur est survenue. Réessaie plus tard.'
+    );
   }
 }

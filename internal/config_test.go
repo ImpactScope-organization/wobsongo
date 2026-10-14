@@ -44,18 +44,23 @@ func validASRConfig() *ASRConfig {
 	}
 }
 
+func validVoiceMediaConfig() *VoiceMediaConfig {
+	return &VoiceMediaConfig{TelegramBotToken: "telegram-token"}
+}
+
 // validConfig returns a Config that passes IsOK. Tests break one field at a
 // time to prove the server refuses to start.
 func validConfig() *Config {
 	return &Config{
-		PostgresURI:    "postgres://localhost/test",
-		JWTSecret:      "secret",
-		JWTExpiryHours: 1,
-		Port:           8000,
-		EmailConfig:    &EmailConfig{},
-		ApifyConfig:    &ApifyConfig{Token: "apify-token"},
-		ASRConfig:      validASRConfig(),
-		TTSConfig:      validTTSConfig(),
+		PostgresURI:      "postgres://localhost/test",
+		JWTSecret:        "secret",
+		JWTExpiryHours:   1,
+		Port:             8000,
+		EmailConfig:      &EmailConfig{},
+		ApifyConfig:      &ApifyConfig{Token: "apify-token"},
+		ASRConfig:        validASRConfig(),
+		TTSConfig:        validTTSConfig(),
+		VoiceMediaConfig: validVoiceMediaConfig(),
 	}
 }
 
@@ -205,6 +210,95 @@ func TestConfig_asrOK(t *testing.T) {
 			c := validConfig()
 			tt.mutate(c)
 			requireErrContains(t, c.asrOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestVoiceMediaConfig_IsOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     VoiceMediaConfig
+		wantErr string
+	}{
+		{"telegram only", VoiceMediaConfig{TelegramBotToken: "t"}, ""},
+		{"twilio only", VoiceMediaConfig{TwilioAccountSID: "AC1", TwilioAuthToken: "tok"}, ""},
+		{
+			"both platforms",
+			VoiceMediaConfig{
+				TwilioAccountSID: "AC1",
+				TwilioAuthToken:  "tok",
+				TelegramBotToken: "t",
+			},
+			"",
+		},
+		{"nothing set", VoiceMediaConfig{}, "to download voice messages"},
+		{
+			"sid without token",
+			VoiceMediaConfig{TwilioAccountSID: "AC1", TelegramBotToken: "t"},
+			"must be set together",
+		},
+		{
+			"token without sid",
+			VoiceMediaConfig{TwilioAuthToken: "tok", TelegramBotToken: "t"},
+			"must be set together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			requireErrContains(t, tt.cfg.IsOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestConfig_voiceMediaOK_NilConfig(t *testing.T) {
+	c := validConfig()
+	c.VoiceMediaConfig = nil
+
+	requireErrContains(t, c.voiceMediaOK(), "VoiceMediaConfig is not set")
+}
+
+// IsOK is what `serve` runs before anything else, and os.Exit(1)s on error.
+// These cases prove an invalid voice configuration stops the app from starting.
+func TestConfig_IsOK_VoiceSettings(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"fully valid config", func(*Config) {}, ""},
+		{
+			"mock TTS endpoint is accepted",
+			func(c *Config) { c.TTSConfig.ModalMeloTTSConfig.Endpoint = "mock://tts" },
+			"",
+		},
+		{
+			"empty TTS endpoint",
+			func(c *Config) { c.TTSConfig.ModalMeloTTSConfig.Endpoint = "" },
+			"MODAL_TTS_ENDPOINT is not set",
+		},
+		{
+			"invalid TTS endpoint",
+			func(c *Config) { c.TTSConfig.ModalMeloTTSConfig.Endpoint = "https://example.com" },
+			"MODAL_TTS_ENDPOINT",
+		},
+		{
+			"invalid ASR endpoint",
+			func(c *Config) { c.ASRConfig.Endpoint = "http://x.modal.run" },
+			"MODAL_ASR_ENDPOINT",
+		},
+		{
+			"missing voice download credentials",
+			func(c *Config) { c.VoiceMediaConfig = &VoiceMediaConfig{} },
+			"to download voice messages",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.IsOK(), tt.wantErr)
 		})
 	}
 }

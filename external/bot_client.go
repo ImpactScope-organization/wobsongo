@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -44,6 +45,15 @@ type extractDoneCallback struct {
 	Status string               `json:"status"`
 	Error  string               `json:"error,omitempty"`
 	Data   *ExtractCallbackData `json:"data,omitempty"`
+}
+
+// ttsDoneCallback is the JSON payload sent to the bot to report the result of
+// a speech synthesis job. The audio itself stays in S3: AudioURL is a
+// presigned GET URL the platform (Twilio/Telegram) fetches directly.
+type ttsDoneCallback struct {
+	JobID    string `json:"jobId"`
+	Status   string `json:"status"`
+	AudioURL string `json:"audioUrl,omitempty"`
 }
 
 // NotifyExtractDone sends a POST request to the bot service callback endpoint
@@ -90,6 +100,46 @@ func (c *BotClient) NotifyExtractDone(
 
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("bot callback returned status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// NotifyTTSDone sends a POST request to the bot's /callback/tts-done endpoint
+// to deliver the result of a speech synthesis job. audioURL is empty when the
+// job failed.
+func (c *BotClient) NotifyTTSDone(
+	ctx context.Context,
+	jobID, status, audioURL string,
+) error {
+	body, err := json.Marshal(ttsDoneCallback{JobID: jobID, Status: status, AudioURL: audioURL})
+	if err != nil {
+		return fmt.Errorf("failed to marshal tts callback payload: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		c.baseURL+"/callback/tts-done",
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create tts callback request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "PSK "+c.callbackPSK)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to execute tts callback request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			log.Printf("[BotClient] failed to close tts callback response body: %v", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("bot tts callback returned status %d", resp.StatusCode)
 	}
 	return nil
 }

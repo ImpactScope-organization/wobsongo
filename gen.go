@@ -2,6 +2,8 @@
 //go:generate go tool moq -out internal/mockrepo/document_chunk.go -pkg mockrepo internal/data DocumentChunkRepoer
 //go:generate go tool moq -out internal/mockrepo/atomic_knowledge.go -pkg mockrepo internal/data AtomicKnowledgeRepoer
 //go:generate go tool moq -out internal/mockrepo/user.go -pkg mockrepo internal/data UserRepoer
+//go:generate go tool moq -out internal/mockrepo/conversation.go -pkg mockrepo internal/data ConversationRepoer
+//go:generate go tool moq -out internal/mockrepo/speech.go -pkg mockrepo internal/data SpeechRepoer
 //go:generate go tool sqlc generate
 
 package main

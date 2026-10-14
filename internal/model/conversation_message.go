@@ -28,8 +28,8 @@ type ConversationMessage struct {
 	// ID is the unique identifier for the message record.
 	ID uuid.UUID `json:"id" format:"uuid"`
 
-	// Jid is the WhatsApp chat identifier this message belongs to.
-	Jid string `db:"jid" json:"jid"`
+	// JID is the WhatsApp chat identifier this message belongs to.
+	JID string `db:"jid" json:"jid"`
 
 	// Role identifies who authored the message.
 	Role ConversationRole `db:"role" json:"role"`

@@ -33,7 +33,7 @@ type SpeechWorker struct {
 	speechService *service.SpeechService
 	botClient     *external.BotClient
 	store         data.RawObjectStore
-	presigner     ObjectPresigner
+	presigner     data.ObjectPresigner
 }
 
 // NewSpeechWorker creates a new SpeechWorker.
@@ -41,7 +41,7 @@ func NewSpeechWorker(
 	speechService *service.SpeechService,
 	botClient *external.BotClient,
 	store data.RawObjectStore,
-	presigner ObjectPresigner,
+	presigner data.ObjectPresigner,
 ) *SpeechWorker {
 	return &SpeechWorker{
 		speechService: speechService,
@@ -137,7 +137,6 @@ func (w *SpeechWorker) notifyBot(
 }
 
 // ttsObjectKey returns the S3 key of a synthesized reply.
-// A lifecycle rule on tts_audios/ removes these after a day.
 func ttsObjectKey(jobID string) string {
 	sum := sha256.Sum256([]byte(jobID))
 	return data.ObjectPrefixForIntent(

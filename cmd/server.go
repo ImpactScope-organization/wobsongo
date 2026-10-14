@@ -371,9 +371,7 @@ func newEmbeddingClient(cfg *internal.EmbeddingConfig) data.Embedder {
 	return external.NewEmbeddingClient(cfg.BaseURL, cfg.Model, cfg.APIKey)
 }
 
-// newSpeechSynthesizer returns the TTS client for the configured endpoint, or
-// the mock client when no endpoint is set. It returns an error when the
-// endpoint is set but invalid.
+// newSpeechSynthesizer returns the TTS client for the configured endpoint
 func newSpeechSynthesizer(config *internal.Config) data.SpeechSynthesizer {
 	tts := config.TTSConfig.ModalMeloTTSConfig
 	if tts.UseMock() {

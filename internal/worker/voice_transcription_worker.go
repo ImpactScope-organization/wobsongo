@@ -38,11 +38,6 @@ const (
 	voiceTooLargeMessage = "Ce message vocal est trop long. Envoie un message plus court ou écris-moi."
 )
 
-// ObjectPresigner turns an S3 key into a presigned GET URL.
-type ObjectPresigner interface {
-	GetPresignedGETURL(ctx context.Context, s3Key string, ttl int64) (string, error)
-}
-
 // VoiceTranscriptionWorker downloads an inbound voice message, has the ASR
 // service transcribe it from a presigned S3 URL and starts an agent turn with
 // the transcript.
@@ -50,7 +45,7 @@ type VoiceTranscriptionWorker struct {
 	river.WorkerDefaults[queue.VoiceTranscriptionJob]
 	downloader          data.VoiceMediaDownloader
 	store               data.VoiceObjectStore
-	presigner           ObjectPresigner
+	presigner           data.ObjectPresigner
 	transcriber         data.SpeechTranscriber
 	conversationService *service.ConversationService
 	botClient           *external.BotClient
@@ -60,7 +55,7 @@ type VoiceTranscriptionWorker struct {
 func NewVoiceTranscriptionWorker(
 	downloader data.VoiceMediaDownloader,
 	store data.VoiceObjectStore,
-	presigner ObjectPresigner,
+	presigner data.ObjectPresigner,
 	transcriber data.SpeechTranscriber,
 	conversationService *service.ConversationService,
 	botClient *external.BotClient,
@@ -151,8 +146,8 @@ func (w *VoiceTranscriptionWorker) Work(
 }
 
 // deleteObject removes the temporary audio, detached from ctx so cleanup still
-// runs when the job's own deadline has passed. A failure is only logged: the
-// bucket's lifecycle rule on voice_notes/ is the safety net.
+// runs when the job's own deadline has passed. A failure is only logged, the
+// transcript is already done at this point.
 func (w *VoiceTranscriptionWorker) deleteObject(ctx context.Context, key string) {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), voiceCleanupTimeout)
 	defer cancel()

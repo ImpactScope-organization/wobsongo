@@ -39,7 +39,7 @@ export const env = {
   publicBaseUrl: required('PUBLIC_BASE_URL').replace(/\/+$/, ''),
 
   // Voice reply (TTS goes through the Go backend)
-  voiceReplyWaitMs: Number(process.env.VOICE_REPLY_WAIT_MS) || 5 * 60 * 1000,
+  voiceReplyWaitMs: Number(process.env.VOICE_REPLY_WAIT_MS) || 100 * 1000,
   voiceReplyLangWhatsapp: replyLang('VOICE_REPLY_LANG_WHATSAPP', 'fr'),
   voiceReplyLangTelegram: replyLang('VOICE_REPLY_LANG_TELEGRAM', 'en'),
 

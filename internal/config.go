@@ -462,7 +462,7 @@ func (c *Config) asrOK() error {
 	if c.ASRConfig == nil {
 		return errors.New("MODAL_ASR_ENDPOINT config is not set")
 	}
-	if err := validateModalASREndpoint(c.ASRConfig.Endpoint); err != nil {
+	if err := validateModalEndpoint("MODAL_ASR_ENDPOINT", c.ASRConfig.Endpoint); err != nil {
 		return err
 	}
 	if err := validateASRModel(c.ASRConfig.Model); err != nil {
@@ -503,27 +503,10 @@ func (c *Config) ttsOK() error {
 	return validateModalEndpoint("MODAL_TTS_ENDPOINT", tts.Endpoint)
 }
 
-func validateModalASREndpoint(rawURL string) error {
-	if rawURL == "" {
-		return errors.New("MODAL_ASR_ENDPOINT is not set")
-	}
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return fmt.Errorf("MODAL_ASR_ENDPOINT is not a valid URL: %w", err)
-	}
-	if u.Scheme != "https" {
-		return errors.New("MODAL_ASR_ENDPOINT must use https")
-	}
-	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
-		return fmt.Errorf(
-			"MODAL_ASR_ENDPOINT host %q is not an allowed modal.run domain",
-			u.Hostname(),
-		)
-	}
-	return nil
-}
-
 func validateModalEndpoint(name, rawURL string) error {
+	if rawURL == "" {
+		return fmt.Errorf("%s is not set", name)
+	}
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("%s is not a valid URL: %w", name, err)

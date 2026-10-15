@@ -39,7 +39,7 @@
 	method="POST"
 	{action}
 	use:optionalEnhance={enhance}
-	class={cn('flex flex-col', className)}
+	class={cn('flex w-full flex-col', className)}
 	aria-describedby={error ? `error-${id}` : undefined}
 >
 	<div class="mb-[1.125rem] flex flex-wrap items-center gap-4 border-b border-rule pb-[1.125rem]">
@@ -89,12 +89,15 @@
 		</div>
 	</div>
 
-	<div class="mt-[1.125rem] flex items-center justify-end gap-3">
+	<div class="mt-[1.125rem] flex w-full flex-wrap items-center justify-end gap-3">
 		{#if saved}
-			<span role="status" class="text-[0.8125rem] font-medium text-status-verified-foreground">
+			<div
+				role="status"
+				class="w-full text-center text-[0.8125rem] font-medium text-status-verified-foreground md:w-auto"
+			>
 				✓ Changes saved
-			</span>
+			</div>
 		{/if}
-		<button type="submit" class={PRIMARY}>Save changes</button>
+		<button type="submit" class={`${PRIMARY} w-full md:w-auto`}>Save changes</button>
 	</div>
 </form>

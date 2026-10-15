@@ -60,7 +60,7 @@
 	<button
 		type="button"
 		disabled
-		class={cn(PRIMARY, 'disabled:pointer-events-none disabled:opacity-50')}
+		class={cn(PRIMARY, 'ml-auto w-full disabled:pointer-events-none disabled:opacity-50 md:w-auto')}
 	>
 		Connect<span class="sr-only">&nbsp;{name} (coming soon)</span>
 	</button>

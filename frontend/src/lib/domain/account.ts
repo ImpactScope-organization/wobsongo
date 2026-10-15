@@ -19,6 +19,54 @@ export interface AccountProfile {
 /** Passwords shorter than this are rejected. */
 export const PASSWORD_MIN_LENGTH = 12;
 
+/** Longest display name accepted. */
+export const NAME_MAX_LENGTH = 100;
+
+/** Trimmed and lowercased, so the same address can't sign up twice. */
+export function normalizeEmail(email: string): string {
+	return email.trim().toLowerCase();
+}
+
+// Deliberately loose: the real check is the email the server sends.
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Why a name and email can't be saved, or null if they can. */
+export function profileError({ name, email }: { name: string; email: string }): string | null {
+	if (!name.trim()) return 'Enter your name.';
+	if (name.trim().length > NAME_MAX_LENGTH)
+		return `Use at most ${NAME_MAX_LENGTH} characters for your name.`;
+	if (!EMAIL_PATTERN.test(email.trim())) return 'Enter a valid email address.';
+	return null;
+}
+
+/** Why a new password can't be used, or null if it can. */
+export function newPasswordError({
+	newPassword,
+	confirmPassword
+}: {
+	newPassword: string;
+	confirmPassword: string;
+}): string | null {
+	if (newPassword.length < PASSWORD_MIN_LENGTH)
+		return `Use at least ${PASSWORD_MIN_LENGTH} characters for your password.`;
+	if (newPassword !== confirmPassword) return 'The passwords don’t match.';
+	return null;
+}
+
+/** Why a password change can't go ahead, or null if it can. */
+export function passwordChangeError(change: {
+	currentPassword: string;
+	newPassword: string;
+	confirmPassword: string;
+}): string | null {
+	if (!change.currentPassword) return 'Enter your current password.';
+	const error = newPasswordError(change);
+	if (error) return error;
+	if (change.newPassword === change.currentPassword)
+		return 'Choose a password different from your current one.';
+	return null;
+}
+
 /** Up to two initials for an avatar: "Dr. Aminata Ouédraogo" → "AO". */
 export function initials(name: string): string {
 	const words = name

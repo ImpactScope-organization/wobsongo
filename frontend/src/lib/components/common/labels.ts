@@ -8,8 +8,10 @@ import type { CheckReason, PriorityQuadrant } from '#lib/domain/operations.js';
 import type { DismissReason, MessageFormat } from '#lib/domain/narrative-detail.js';
 import type { RatingOutcome, ReviewStatus, Verdict } from '#lib/domain/narrative.js';
 import type { Platform } from '#lib/domain/platform.js';
+import type { PulseTopic } from '#lib/domain/pulse.js';
 import type { ReviewDecision } from '#lib/domain/review.js';
 import type { MessageIntent } from '#lib/domain/spread.js';
+import type { TimeRange } from '#lib/domain/time-range.js';
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
 	false: 'False',
@@ -117,4 +119,16 @@ export const BOT_LABEL: Record<BotPlatform, string> = {
 export const BOT_MONOGRAM: Record<BotPlatform, string> = {
 	whatsapp: 'WA',
 	telegram: 'TG'
+};
+
+/** Window lengths, e.g. "Messages received, 24 h". */
+export const TIME_RANGE_LABEL: Record<TimeRange, string> = {
+	'24h': '24 h',
+	'7d': '7 d',
+	'30d': '30 d'
+};
+
+export const PULSE_TOPIC_LABEL: Record<PulseTopic, string> = {
+	misinfo: 'Misinformation',
+	all: 'All topics'
 };

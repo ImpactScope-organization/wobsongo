@@ -11,11 +11,13 @@ import {
 } from '#lib/fixtures/settings.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import AppHeader from '../common/app-header.svelte';
+import BotComingSoon from './bot-coming-soon.svelte';
 import BotConnectPanel from './bot-connect-panel.svelte';
 import BotConnectionList from './bot-connection-list.svelte';
 import BotDisconnectPanel from './bot-disconnect-panel.svelte';
 import PasswordForm from './password-form.svelte';
 import ProfileForm from './profile-form.svelte';
+import SettingsView from './settings-view.svelte';
 
 const input = (body: string, name: string) =>
 	body.match(new RegExp(`<input(?=[^>]*name="${name}")[^>]*>`))?.[0] ?? '';
@@ -222,5 +224,54 @@ describe('BotDisconnectPanel', () => {
 		expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/disconnect"/);
 		expect(body).toContain('name="bot" value="telegram"');
 		expect(body).toMatch(/href="\/settings"[^>]*>Cancel/);
+	});
+});
+
+describe('BotComingSoon', () => {
+	it('shows WhatsApp as coming soon with an example code and a disabled button', () => {
+		const body = stripComments(render(BotComingSoon).body);
+		expect(body).toContain('WhatsApp');
+		expect(body).toContain('Coming soon');
+		expect(body).toContain('WOBSONGO-AUTH 123-456');
+		expect(body).toMatch(/<button type="button" disabled=""[^>]*>\s*Connect/);
+		expect(body).not.toContain('<a ');
+	});
+});
+
+describe('SettingsView', () => {
+	const props = { profile, passwordChangedAt, now: SETTINGS_NOW };
+
+	it('posts each section to its own action, and logs out with a POST', () => {
+		const body = render(SettingsView, { props }).body;
+		expect(body).toContain('action="?/profile"');
+		expect(body).toContain('action="?/password"');
+		expect(body).toContain('action="?/resetPassword"');
+		expect(body).toMatch(/<form method="POST" action="\/logout">/);
+		expect(body).toContain('Coming soon');
+	});
+
+	it('shows each result in its own section only', () => {
+		const saved = render(SettingsView, {
+			props: { ...props, profileResult: { saved: true } }
+		}).body;
+		expect(saved).toContain('Changes saved');
+		expect(saved).not.toContain('Password updated');
+
+		const updated = render(SettingsView, {
+			props: { ...props, passwordResult: { updated: true } }
+		}).body;
+		expect(updated).toContain('Password updated');
+		expect(updated).not.toContain('Changes saved');
+	});
+
+	it('refills the profile form after a failed save', () => {
+		const body = render(SettingsView, {
+			props: {
+				...props,
+				profileResult: { values: { name: 'Typed name', email: 'typed@x.org' }, error: 'Nope.' }
+			}
+		}).body;
+		expect(input(body, 'name')).toContain('value="Typed name"');
+		expect(body).toContain('Nope.');
 	});
 });

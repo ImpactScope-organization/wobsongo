@@ -1,11 +1,27 @@
 import { describe, expect, it } from 'vitest';
-import { botLinkMessage, initials } from './account';
+import {
+	botLinkMessage,
+	initials,
+	newPasswordError,
+	normalizeEmail,
+	passwordChangeError,
+	profileError
+} from './account';
 import { toCount, toTotal } from './count';
 import { isHighHarm, isSpiking } from './narrative';
+import {
+	growthPct,
+	matchesTopic,
+	misinfoShare,
+	parsePulseTopic,
+	topNarratives,
+	trendDirection
+} from './pulse';
 import { parseReviewFormDecision } from './review';
 import { parseTimeRange } from './time-range';
 import { whatsAppLagHours } from './narrative-detail';
 import { fixedClock } from '../utils/clock';
+import { narratives } from '../fixtures/pulse';
 
 describe('toCount', () => {
 	it('suppresses counts below the minimum cell size', () => {
@@ -122,5 +138,139 @@ describe('initials', () => {
 describe('botLinkMessage', () => {
 	it('prefixes the code so the bot never fact-checks it', () => {
 		expect(botLinkMessage({ code: '482913' })).toBe('WOBSONGO-AUTH 482-913');
+	});
+});
+
+describe('parsePulseTopic', () => {
+	it('accepts known topics and falls back to misinformation', () => {
+		expect(parsePulseTopic('all')).toBe('all');
+		expect(parsePulseTopic('misinfo')).toBe('misinfo');
+		expect(parsePulseTopic('rumours')).toBe('misinfo');
+		expect(parsePulseTopic(null)).toBe('misinfo');
+	});
+});
+
+describe('matchesTopic', () => {
+	it('counts false and misleading as misinformation; all adds unverified', () => {
+		expect(matchesTopic('false', 'misinfo')).toBe(true);
+		expect(matchesTopic('misleading', 'misinfo')).toBe(true);
+		expect(matchesTopic('unverified', 'misinfo')).toBe(false);
+		expect(matchesTopic('unverified', 'all')).toBe(true);
+	});
+});
+
+describe('topNarratives', () => {
+	it('filters to the topic and ranks by volume', () => {
+		const misinfo = topNarratives(narratives, 'misinfo');
+		expect(misinfo.map((narrative) => narrative.id)).toEqual([
+			'N-0412',
+			'N-0388',
+			'N-0361',
+			'N-0405'
+		]);
+		expect(topNarratives(narratives, 'all')).toHaveLength(narratives.length);
+	});
+
+	it('leaves the input untouched', () => {
+		const before = narratives.map((narrative) => narrative.id);
+		topNarratives(narratives, 'all');
+		expect(narratives.map((narrative) => narrative.id)).toEqual(before);
+	});
+});
+
+describe('growthPct', () => {
+	it('is the change from the previous window in percent', () => {
+		expect(growthPct({ current: 150, previous: 100 })).toBe(50);
+		expect(growthPct({ current: 75, previous: 100 })).toBe(-25);
+	});
+
+	it('is null without a previous value', () => {
+		expect(growthPct({ current: 10, previous: 0 })).toBeNull();
+	});
+});
+
+describe('misinfoShare', () => {
+	it('counts false and misleading out of every rated narrative', () => {
+		expect(misinfoShare({ false: 14, misleading: 7, unverified: 9, accurate: 7 })).toEqual({
+			misinfo: 21,
+			total: 37
+		});
+	});
+});
+
+describe('trendDirection', () => {
+	it('compares the last value with the first', () => {
+		expect(trendDirection([1, 5, 3])).toBe('rising');
+		expect(trendDirection([5, 9, 2])).toBe('falling');
+		expect(trendDirection([4, 1, 4])).toBe('steady');
+		expect(trendDirection([4])).toBe('steady');
+	});
+});
+
+describe('normalizeEmail', () => {
+	it('trims and lowercases', () => {
+		expect(normalizeEmail('  A.Ouedraogo@WobSongo.org ')).toBe('a.ouedraogo@wobsongo.org');
+	});
+});
+
+describe('profileError', () => {
+	it('accepts a name and a valid email', () => {
+		expect(profileError({ name: 'Aminata', email: 'a@b.org' })).toBeNull();
+	});
+
+	it('requires a name of at most 100 characters', () => {
+		expect(profileError({ name: '  ', email: 'a@b.org' })).toBe('Enter your name.');
+		expect(profileError({ name: 'x'.repeat(101), email: 'a@b.org' })).toMatch(/at most 100/);
+	});
+
+	it('requires a valid email', () => {
+		expect(profileError({ name: 'Aminata', email: 'aminata' })).toBe(
+			'Enter a valid email address.'
+		);
+		expect(profileError({ name: 'Aminata', email: 'a b@c.org' })).toBe(
+			'Enter a valid email address.'
+		);
+	});
+});
+
+describe('newPasswordError', () => {
+	it('requires 12 characters and a matching confirmation', () => {
+		expect(newPasswordError({ newPassword: 'short', confirmPassword: 'short' })).toMatch(
+			/at least 12/
+		);
+		expect(
+			newPasswordError({ newPassword: 'long-enough-pass', confirmPassword: 'long-enough-pas' })
+		).toBe('The passwords don’t match.');
+		expect(
+			newPasswordError({ newPassword: 'long-enough-pass', confirmPassword: 'long-enough-pass' })
+		).toBeNull();
+	});
+});
+
+describe('passwordChangeError', () => {
+	const change = {
+		currentPassword: 'old-password-123',
+		newPassword: 'new-password-456',
+		confirmPassword: 'new-password-456'
+	};
+
+	it('accepts a valid change', () => {
+		expect(passwordChangeError(change)).toBeNull();
+	});
+
+	it('requires the current password', () => {
+		expect(passwordChangeError({ ...change, currentPassword: '' })).toBe(
+			'Enter your current password.'
+		);
+	});
+
+	it('rejects reusing the current password', () => {
+		expect(
+			passwordChangeError({
+				...change,
+				newPassword: change.currentPassword,
+				confirmPassword: change.currentPassword
+			})
+		).toMatch(/different/);
 	});
 });

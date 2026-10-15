@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { PASSWORD_MIN_LENGTH } from '#lib/domain/account.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -81,12 +82,12 @@
 				name="password"
 				type="password"
 				autocomplete="new-password"
-				minlength={8}
+				minlength={PASSWORD_MIN_LENGTH}
 				required
 				aria-describedby="password-note-{id}"
 			/>
 			<Field.Description id="password-note-{id}"
-				>Must be at least 8 characters long.</Field.Description
+				>Must be at least {PASSWORD_MIN_LENGTH} characters long.</Field.Description
 			>
 		</Field.Field>
 		<Field.Field>
@@ -96,7 +97,7 @@
 				name="confirmPassword"
 				type="password"
 				autocomplete="new-password"
-				minlength={8}
+				minlength={PASSWORD_MIN_LENGTH}
 				required
 			/>
 		</Field.Field>

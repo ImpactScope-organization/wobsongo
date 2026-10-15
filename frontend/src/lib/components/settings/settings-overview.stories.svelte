@@ -2,26 +2,19 @@
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
 	import logo from '#lib/assets/wobsongo-mark.jpg';
-	import {
-		botConnections,
-		botContacts,
-		passwordChangedAt,
-		profile,
-		SETTINGS_NOW
-	} from '#lib/fixtures/settings.js';
+	import { passwordChangedAt, profile, SETTINGS_NOW } from '#lib/fixtures/settings.js';
+	import { NAV_ITEMS } from '#lib/navigation.js';
 	import AppHeader from '../common/app-header.svelte';
-	import PageHeader from '../common/page-header.svelte';
-	import SectionCard from '../common/section-card.svelte';
-	import BotConnectionList from './bot-connection-list.svelte';
-	import PasswordForm from './password-form.svelte';
-	import ProfileForm from './profile-form.svelte';
+	import BotComingSoon from './bot-coming-soon.svelte';
+	import SettingsView from './settings-view.svelte';
 
-	// Composition only: how the settings page will assemble these components,
-	// for comparing against the design. The real page lives in routes/.
+	// The settings page as routes/(app)/settings/+page.svelte renders it, inside the app shell.
 	const { Story } = defineMeta({
 		title: 'Settings/Overview',
 		parameters: { layout: 'fullscreen' }
 	});
+
+	const viewProps = { profile, passwordChangedAt, now: SETTINGS_NOW };
 </script>
 
 <Story
@@ -34,6 +27,8 @@
 			'aria-current',
 			'page'
 		);
+		await expect(canvas.getByRole('button', { name: /Connect WhatsApp/ })).toBeDisabled();
+		await expect(canvas.getByRole('button', { name: 'Log out' })).toBeEnabled();
 	}}
 >
 	{#snippet template()}
@@ -42,46 +37,43 @@
 				logoSrc={logo}
 				currentHref="/settings"
 				account={{ name: profile.name, href: '/settings' }}
-				items={[
-					{ label: 'Pulse', href: '/pulse' },
-					{ label: 'Narratives', href: '/narratives' },
-					{ label: 'Spread', href: '/spread' },
-					{ label: 'Operations', href: '/ops' },
-					{ label: 'High-harm', href: '/safety', count: 3 }
-				]}
+				items={NAV_ITEMS}
 			/>
+			<SettingsView {...viewProps} />
+		</div>
+	{/snippet}
+</Story>
 
-			<main class="mx-auto flex max-w-[85rem] flex-col gap-5 p-[clamp(1rem,3vw,2rem)]">
-				<PageHeader title="Settings" eyebrow="Your account" class="mb-0.5" />
+<Story name="After a failed profile save">
+	{#snippet template()}
+		<div class="min-h-screen bg-background">
+			<SettingsView
+				{...viewProps}
+				profileResult={{
+					values: { name: 'Aminata O.', email: 'k.sawadogo@wobsongo.org' },
+					error: 'Another account already uses this email.'
+				}}
+			/>
+		</div>
+	{/snippet}
+</Story>
 
-				<div class="flex max-w-[55rem] flex-col gap-5">
-					<SectionCard title="Account" description="Your profile as seen by other reviewers.">
-						<ProfileForm {profile} action="?/profile" />
-					</SectionCard>
+<Story name="After a password change">
+	{#snippet template()}
+		<div class="min-h-screen bg-background">
+			<SettingsView
+				{...viewProps}
+				passwordChangedAt={SETTINGS_NOW}
+				passwordResult={{ updated: true }}
+			/>
+		</div>
+	{/snippet}
+</Story>
 
-					<SectionCard title="Password">
-						<PasswordForm
-							action="?/password"
-							resetAction="?/resetPassword"
-							changedAt={passwordChangedAt}
-							now={SETTINGS_NOW}
-						/>
-					</SectionCard>
-
-					<SectionCard
-						title="Bot connections"
-						description="Link your own messaging account to the bot to review flagged claims and approve replies from your phone."
-						flush
-					>
-						<BotConnectionList
-							connections={botConnections}
-							contacts={botContacts}
-							connectHrefFor={(bot) => `/settings/bots/${bot}`}
-							disconnectHrefFor={(bot) => `/settings/bots/${bot}/disconnect`}
-						/>
-					</SectionCard>
-				</div>
-			</main>
+<Story name="WhatsApp, coming soon">
+	{#snippet template()}
+		<div class="max-w-[55rem] p-8">
+			<BotComingSoon class="rounded-lg border bg-card" />
 		</div>
 	{/snippet}
 </Story>

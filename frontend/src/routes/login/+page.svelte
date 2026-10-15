@@ -13,7 +13,10 @@
 </svelte:head>
 
 <main class="flex min-h-svh flex-col gap-4 p-6 md:p-10">
-	<a href={resolve('/')} class="flex items-center gap-2 self-center font-semibold md:self-start">
+	<a
+		href={resolve('/(app)')}
+		class="flex items-center gap-2 self-center font-semibold md:self-start"
+	>
 		<img src={logo} alt="" class="size-7 rounded-md" />
 		WobSongo
 	</a>

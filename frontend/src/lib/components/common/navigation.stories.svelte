@@ -111,3 +111,20 @@
 		</div>
 	{/snippet}
 </Story>
+
+<Story
+	name="App header, views not built yet"
+	args={{
+		items: [
+			{ label: 'Pulse', href: '/' },
+			{ label: 'Narratives', href: '/narratives', disabled: true },
+			{ label: 'High-harm', href: '/safety', count: 3, disabled: true }
+		],
+		currentHref: '/'
+	}}
+	play={async ({ canvasElement }) => {
+		const nav = within(canvasElement).getByRole('navigation', { name: 'Main' });
+		await expect(within(nav).getAllByRole('link')).toHaveLength(1);
+		await expect(within(nav).getByText(/High-harm/)).toHaveAttribute('aria-disabled', 'true');
+	}}
+/>

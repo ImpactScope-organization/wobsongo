@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import { highHarmSummary, narratives, platformCounts } from '#lib/fixtures/pulse.js';
+import type { PulseTopic } from '#lib/domain/pulse.js';
+import type { TimeRange } from '#lib/domain/time-range.js';
+import { highHarmSummary, narratives, platformCounts, pulseSnapshot } from '#lib/fixtures/pulse.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
 import PlatformBreakdown from './platform-breakdown.svelte';
+import PulseView from './pulse-view.svelte';
 
 describe('NarrativeList', () => {
 	it('renders an ordered list in the given order', () => {
@@ -100,5 +103,62 @@ describe('HighHarmSummary', () => {
 		});
 		expect(body).toContain('dangerous-practice claims awaiting expert review');
 		expect(body).toContain('claim fast-tracked to the fact-check queue');
+	});
+});
+
+describe('PulseView', () => {
+	const hrefs = {
+		rangeHref: (range: string) => `?range=${range}&topic=misinfo`,
+		topicHref: (topic: string) => `?range=24h&topic=${topic}`
+	};
+	const view = (
+		snapshot = pulseSnapshot,
+		range: TimeRange = '24h',
+		topic: PulseTopic = 'misinfo'
+	) => stripComments(render(PulseView, { props: { snapshot, range, topic, ...hrefs } }).body);
+
+	it('shows the headline numbers with changes against the previous window', () => {
+		const body = view();
+		expect(body).toContain('Burkina Faso · updated 14:05 GMT');
+		expect(body).toContain('Messages received, 24 h');
+		expect(body).toContain('8,412');
+		expect(body).toContain('▲ 64% vs prev. 24 h');
+		expect(body).toContain('6 new in the last 24 h');
+		expect(body).toMatch(/>21<span[^>]*>(&nbsp;|\u00a0)\/ 37</);
+		expect(body).toContain('▲ 18 min vs prev. 24 h');
+	});
+
+	it('says when things fell or held steady', () => {
+		const body = view(
+			{
+				...pulseSnapshot,
+				messages: { ...pulseSnapshot.messages, previous: pulseSnapshot.messages.current },
+				medianDebunkMinutes: { current: 100, previous: 120 }
+			},
+			'7d'
+		);
+		expect(body).toContain('No change vs prev. 7 d');
+		expect(body).toContain('▼ 20 min vs prev. 7 d');
+	});
+
+	it('links the range and topic options, marking the current ones', () => {
+		const body = view(pulseSnapshot, '7d', 'all');
+		expect(body).toMatch(/<a href="\?range=7d&amp;topic=misinfo" aria-current="true"/);
+		expect(body).toMatch(/<a href="\?range=24h&amp;topic=all" aria-current="true"/);
+		expect(body).toContain('Top narratives');
+	});
+
+	it('shows the anomaly banner only when there is one', () => {
+		expect(view()).toContain('aria-label="Anomaly"');
+		expect(view({ ...pulseSnapshot, anomaly: null })).not.toContain('aria-label="Anomaly"');
+	});
+
+	it('lists the narratives it is given, in order', () => {
+		const body = view();
+		const first = body.indexOf(narratives[0].title);
+		const second = body.indexOf(narratives[1].title);
+		expect(first).toBeGreaterThan(-1);
+		expect(second).toBeGreaterThan(first);
+		expect(view({ ...pulseSnapshot, narratives: [] })).toContain('No narratives in this window.');
 	});
 });

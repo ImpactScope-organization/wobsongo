@@ -4,7 +4,9 @@ import { htmlSnippet } from '#lib/testing/snippet.js';
 import { anomaly } from '#lib/fixtures/pulse.js';
 import AnomalyBanner from './anomaly-banner.svelte';
 import AppHeader from './app-header.svelte';
+import ComingSoon from './coming-soon.svelte';
 import CoverageNote from './coverage-note.svelte';
+import ErrorNotice from './error-notice.svelte';
 import PageHeader from './page-header.svelte';
 import SectionCard from './section-card.svelte';
 import SegmentedLinks from './segmented-links.svelte';
@@ -122,5 +124,50 @@ describe('AnomalyBanner', () => {
 		expect(body).toContain('3.4σ above the usual level for this hour');
 		expect(body).toContain('+412% in 3 h');
 		expect(body).toContain('href="/narratives/N-0412"');
+	});
+});
+
+describe('AppHeader disabled items', () => {
+	const items = [
+		{ label: 'Pulse', href: '/' },
+		{ label: 'High-harm', href: '/safety', count: 3, disabled: true }
+	];
+
+	it('shows views not built yet as text, not links, without their count', () => {
+		const { body } = render(AppHeader, { props: { items, currentHref: '/' } });
+		expect(body).not.toContain('href="/safety"');
+		expect(body).toMatch(/<span aria-disabled="true"[^>]*>\s*High-harm/);
+		expect(body).toContain('(coming soon)');
+		expect(body).not.toContain('3<span class="sr-only">');
+	});
+});
+
+describe('ComingSoon', () => {
+	it('names the view and links back', () => {
+		const { body } = render(ComingSoon, { props: { title: 'Spread', backHref: '/' } });
+		expect(body).toMatch(/<h1>Spread is coming soon<\/h1>/);
+		expect(body).toMatch(/<a href="\/"[^>]*>Back to Pulse<\/a>/);
+	});
+});
+
+describe('ErrorNotice', () => {
+	const title = (status: number) =>
+		render(ErrorNotice, { props: { status, message: 'Details.', backHref: '/' } }).body.match(
+			/<h1>([^<]+)<\/h1>/
+		)?.[1];
+
+	it('titles the page by status', () => {
+		expect(title(404)).toBe('Page not found');
+		expect(title(501)).toBe('Not available yet');
+		expect(title(503)).toBe('Something went wrong');
+		expect(title(403)).toBe('This page can’t be shown');
+	});
+
+	it('shows the message and the status', () => {
+		const { body } = render(ErrorNotice, {
+			props: { status: 500, message: 'Try again in a moment.', backHref: '/' }
+		});
+		expect(body).toContain('Try again in a moment.');
+		expect(body).toContain('Error 500');
 	});
 });

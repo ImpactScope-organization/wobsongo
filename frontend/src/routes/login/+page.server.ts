@@ -1,12 +1,21 @@
-import { fail } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
+import { setTokenCookies } from '#lib/server/auth/cookies.js';
+import { safeRedirectTarget } from '#lib/server/auth/session.js';
+import { formText } from '#lib/server/forms.js';
 import type { Actions } from './$types';
 
 export const actions = {
-	// Email/password sign-in is wired up with the auth service (tr.md, "Authentication").
-	// Until then the form says so instead of failing with a 405.
-	default: async ({ request }) => {
+	default: async ({ cookies, locals, request, url }) => {
 		const data = await request.formData();
-		const email = String(data.get('email') ?? '');
-		return fail(501, { email, message: 'Logging in is not available yet.' });
+		const email = formText(data, 'email');
+
+		const result = await locals.services.auth.login({
+			email,
+			password: formText(data, 'password')
+		});
+		if (!result.ok) return fail(result.status, { email, message: result.message });
+
+		setTokenCookies(cookies, result.data, locals.clock.now());
+		redirect(303, safeRedirectTarget(url.searchParams.get('redirectTo')));
 	}
 } satisfies Actions;

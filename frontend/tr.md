@@ -74,7 +74,7 @@ Agents will not handle git commits. We will use conventional commits for commit 
 
 ## Authentication and authorization
 
-We will support 2 methods: regular email/password and Google sign-in. We will use JWT tokens for authentication and authorization, with access tokens and refresh tokens. Access tokens will have a short expiration time (e.g., 15 minutes), while refresh tokens will have a longer expiration time (e.g., 7 days). We will store the access token in memory and the refresh token in an HTTP-only cookie to prevent XSS attacks. We will also implement role-based access control (RBAC) to restrict access to certain features and resources based on the user's role.
+We will support 2 methods: regular email/password and Google sign-in. We will use JWT tokens for authentication and authorization, with access tokens and refresh tokens. Access tokens will have a short expiration time (e.g., 15 minutes), while refresh tokens will have a longer expiration time (e.g., 7 days). We will store the access token in memory and the refresh token in an HTTP-only cookie to prevent XSS attacks. Since every API call is made by the SvelteKit server, not the browser, the access token is also kept in an HTTP-only cookie (it has to reach the server with each request); neither token is ever readable from JavaScript. We will also implement role-based access control (RBAC) to restrict access to certain features and resources based on the user's role.
 
 This is a later feature, for now we prioritize email/password login. We will implement Google sign-in later, after the initial release.
 

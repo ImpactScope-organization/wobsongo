@@ -1,10 +1,11 @@
 /**
  * Sample data for the Pulse view, taken from the Infodemic Dashboard design.
- * Shared by stories, component tests and (later) the stub repositories, so
+ * Shared by stories, component tests and the stub repositories, so
  * treat it as read-only.
  */
 import type { Anomaly, HighHarmSummary, NarrativeSummary } from '#lib/domain/narrative.js';
 import type { PlatformCount } from '#lib/domain/platform.js';
+import type { PulseSnapshot } from '#lib/domain/pulse.js';
 import type { ActivityEntry } from '#lib/domain/review.js';
 
 /** "Now" for every Pulse fixture: Monday 12 Oct 2026, 14:05 GMT. */
@@ -91,6 +92,20 @@ export const messagesTrend = [30, 31, 29, 32, 31, 33, 32, 34, 33, 38, 46, 52, 57
 
 /** Narratives rated in the window, by verdict (plus accurate, for the meter). */
 export const ratedBreakdown = { false: 14, misleading: 7, unverified: 9, accurate: 7 };
+
+/** Everything on the Pulse page for the last 24 h, as the repository returns it. */
+export const pulseSnapshot: PulseSnapshot = {
+	region: 'Burkina Faso',
+	updatedAt: PULSE_NOW,
+	messages: { current: 8412, previous: 5129, trend: messagesTrend },
+	activeNarratives: { count: 37, new: 6 },
+	rated: ratedBreakdown,
+	medianDebunkMinutes: { current: 142, previous: 124 },
+	narratives,
+	anomaly,
+	platformCounts,
+	highHarm: highHarmSummary
+};
 
 export const activity: ActivityEntry[] = [
 	{

@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { setTokenCookies } from '#lib/server/auth/cookies.js';
 import { requireSession } from '#lib/server/auth/session.js';
 import { formText } from '#lib/server/forms.js';
 import type { Actions, PageServerLoad } from './$types';
@@ -25,7 +26,7 @@ export const actions = {
 	},
 
 	// Passwords are never sent back to the page, not even after a failure.
-	password: async ({ locals, request, url }) => {
+	password: async ({ cookies, locals, request, url }) => {
 		const session = requireSession(locals, url);
 		const data = await request.formData();
 
@@ -36,6 +37,7 @@ export const actions = {
 		});
 		if (!result.ok)
 			return fail(result.status, { form: 'password' as const, error: result.message });
+		setTokenCookies(cookies, result.data, locals.clock.now());
 		return { form: 'password' as const, updated: true };
 	},
 

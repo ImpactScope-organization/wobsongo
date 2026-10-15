@@ -3,6 +3,7 @@ import { failure, ok, type Result } from '../../result.js';
 import type { Scope } from '../../scope.js';
 import type { AccountRepo } from '../../services/account.js';
 import { findAccountByEmail, simulatedFailure, type StubAccount, type StubStore } from './store.js';
+import { issueTokens, revokeAccountTokens } from './tokens.js';
 
 export function createStubAccountRepo(store: StubStore, clock: Clock): AccountRepo {
 	function accountFor(scope: Scope): Result<StubAccount> {
@@ -46,7 +47,9 @@ export function createStubAccountRepo(store: StubStore, clock: Clock): AccountRe
 			if (account.password !== currentPassword) return failure(403, 'Wrong password.');
 			account.password = newPassword;
 			account.passwordChangedAt = clock.now();
-			return ok(undefined);
+			// Like the backend: other sessions end, this one gets new tokens.
+			revokeAccountTokens(store, account.id);
+			return ok(issueTokens(store, clock, account.id));
 		},
 
 		async requestPasswordReset(scope) {

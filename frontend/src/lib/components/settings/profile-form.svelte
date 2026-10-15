@@ -46,7 +46,7 @@
 		<AccountAvatar name={profile.name} size="lg" />
 		<div class="min-w-44 flex-1">
 			<p class="text-base font-semibold">{profile.name}</p>
-			<p class="text-[0.8125rem] text-muted-foreground">{profile.title}</p>
+			<p class="text-[0.8125rem] text-muted-foreground">{profile.email}</p>
 		</div>
 		<span
 			class="rounded bg-status-verified px-2 py-1 font-mono text-[0.65625rem] font-semibold tracking-[0.05em] text-status-verified-foreground uppercase"
@@ -86,18 +86,6 @@
 				required
 				class={INPUT}
 			/>
-		</div>
-		<div class={FIELD}>
-			<label for="org-{id}" class={LABEL}>Organization</label>
-			<!-- Not named: set by an administrator, never posted. -->
-			<Input
-				id="org-{id}"
-				value={profile.organization}
-				readonly
-				aria-describedby="org-note-{id}"
-				class={cn(INPUT, 'bg-background text-muted-foreground')}
-			/>
-			<span id="org-note-{id}" class="sr-only">Set by an administrator</span>
 		</div>
 	</div>
 

@@ -124,13 +124,14 @@ type InfluencerVideo struct {
 }
 
 type User struct {
-	ID           uuid.UUID
-	Email        string
-	Name         string
-	PasswordHash string
-	Role         int16
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                uuid.UUID
+	Email             string
+	Name              string
+	PasswordHash      string
+	Role              int16
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	PasswordChangedAt time.Time
 }
 
 type Video struct {

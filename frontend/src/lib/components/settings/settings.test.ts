@@ -49,16 +49,16 @@ describe('ProfileForm', () => {
 	it('shows who the person is and their role', () => {
 		const body = renderForm();
 		expect(body).toContain('Dr. Aminata Ouédraogo');
-		expect(body).toContain('Clinical advisor · Reproductive health');
-		expect(body).toContain('Expert reviewer');
+		expect(body).toContain('a.ouedraogo@wobsongo.org');
+		expect(body).toContain('Administrator');
 	});
 
-	it('posts name and email, never the organization', () => {
+	it('posts name and email, never the role', () => {
 		const body = renderForm();
 		expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\?\/profile"/);
 		expect(input(body, 'name')).toContain('value="Dr. Aminata Ouédraogo"');
 		expect(input(body, 'email')).toContain('value="a.ouedraogo@wobsongo.org"');
-		expect(body).toMatch(/<input(?![^>]*\sname=)[^>]*value="WobSongo · Ouagadougou"[^>]*readonly/);
+		expect(body).not.toMatch(/name="role"/);
 	});
 
 	it('refills submitted values and announces errors and success', () => {

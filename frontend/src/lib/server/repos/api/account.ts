@@ -1,27 +1,34 @@
 import { notImplemented } from '../../result.js';
 import type { AccountRepo } from '../../services/account.js';
+import { call, createApiClient, toTokenPair, type Schemas } from './client.js';
 import type { ApiOptions } from './index.js';
 
-export function createApiAccountRepo(_options: ApiOptions): AccountRepo {
+function toProfile(me: Schemas['dto.MeResponse']) {
+	return { name: me.name, email: me.email, role: me.role };
+}
+
+// The bearer token comes from `handleFetch`; the backend knows who is asking,
+// so the scope isn't sent.
+export function createApiAccountRepo(options: ApiOptions): AccountRepo {
+	const api = createApiClient(options);
 	return {
-		// TODO(openapi): GET /api/v1/me/settings → {name, email, organization, role, title,
-		// password_changed_at}.
-		async getSettings() {
-			return notImplemented('Settings');
-		},
+		getSettings: () =>
+			call(api.GET('/api/v1/me'), (me) => ({
+				profile: toProfile(me),
+				passwordChangedAt: new Date(me.password_changed_at)
+			})),
 
-		// TODO(openapi): PATCH /api/v1/me {name, email} → profile. 409 if the email is taken.
-		async updateProfile() {
-			return notImplemented('Saving your profile');
-		},
+		updateProfile: (_scope, change) => call(api.PATCH('/api/v1/me', { body: change }), toProfile),
 
-		// TODO(openapi): PUT /api/v1/me/password {current_password, new_password}. 403 if the
-		// current password is wrong.
-		async changePassword() {
-			return notImplemented('Changing your password');
-		},
+		changePassword: (_scope, { currentPassword, newPassword }) =>
+			call(
+				api.POST('/api/v1/me/password', {
+					body: { current_password: currentPassword, new_password: newPassword }
+				}),
+				toTokenPair
+			),
 
-		// TODO(openapi): POST /api/v1/me/password/reset → {sent_to}.
+		// TODO: needs a mailer on the backend first.
 		async requestPasswordReset() {
 			return notImplemented('Password reset');
 		}

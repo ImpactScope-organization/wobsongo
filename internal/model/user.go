@@ -68,6 +68,9 @@ type User struct {
 	Name         string
 	PasswordHash string
 	Role         UserRole
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	// PasswordChangedAt is when the password was last set. Refresh tokens
+	// issued before it are no longer accepted.
+	PasswordChangedAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }

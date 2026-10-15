@@ -1,3 +1,4 @@
+basePath: /
 definitions:
   dto.AgentInboundRequest:
     properties:
@@ -75,6 +76,17 @@ definitions:
     required:
     - eventType
     - resource
+    type: object
+  dto.ChangePasswordRequest:
+    properties:
+      current_password:
+        maxLength: 72
+        type: string
+      new_password:
+        type: string
+    required:
+    - current_password
+    - new_password
     type: object
   dto.CheckClaimDTO:
     properties:
@@ -244,6 +256,43 @@ definitions:
     - StatusCompleted
     - StatusFailed
     - StatusRejected
+  dto.LoginRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      password:
+        maxLength: 72
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  dto.MeResponse:
+    properties:
+      email:
+        type: string
+      id:
+        format: uuid
+        type: string
+      name:
+        type: string
+      password_changed_at:
+        type: string
+      role:
+        description: Role is one of "user", "admin" or "superadmin".
+        enum:
+        - user
+        - admin
+        - superadmin
+        type: string
+    required:
+    - email
+    - id
+    - name
+    - password_changed_at
+    - role
+    type: object
   dto.PaginationResults-model_Document:
     properties:
       items:
@@ -272,6 +321,28 @@ definitions:
         type: string
       ttl:
         type: integer
+    type: object
+  dto.RefreshRequest:
+    properties:
+      refresh_token:
+        type: string
+    required:
+    - refresh_token
+    type: object
+  dto.SignupRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      name:
+        maxLength: 100
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - name
+    - password
     type: object
   dto.SubClaimResponse:
     properties:
@@ -347,6 +418,22 @@ definitions:
       status:
         type: string
     type: object
+  dto.TokenPairResponse:
+    properties:
+      access_expires_at:
+        type: string
+      access_token:
+        type: string
+      refresh_expires_at:
+        type: string
+      refresh_token:
+        type: string
+    required:
+    - access_expires_at
+    - access_token
+    - refresh_expires_at
+    - refresh_token
+    type: object
   dto.UpdateDocumentDTO:
     properties:
       publication_year:
@@ -360,6 +447,18 @@ definitions:
         type: string
     required:
     - title
+    type: object
+  dto.UpdateProfileRequest:
+    properties:
+      email:
+        maxLength: 255
+        type: string
+      name:
+        maxLength: 100
+        type: string
+    required:
+    - email
+    - name
     type: object
   model.APIResponse:
     properties:
@@ -467,6 +566,9 @@ definitions:
     type: object
 info:
   contact: {}
+  description: Fact-checking backend for the WobSongo dashboard and messaging bots.
+  title: WobSongo API
+  version: "1.0"
 paths:
   /api/agent/inbound:
     post:
@@ -524,6 +626,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Handle an inbound WhatsApp message
       tags:
       - agent
@@ -592,6 +696,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Handle an inbound voice message
       tags:
       - agent
@@ -646,6 +752,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Trigger media extraction
       tags:
       - media
@@ -704,9 +812,203 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Start synthesizing a bot reply as a voice message
       tags:
       - agent
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Exchanges an email and password for a token pair. Emails are case-insensitive.
+        A wrong password and an unknown email give the same 401.
+      parameters:
+      - description: Credentials
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TokenPairResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Log in
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      description: 'Exchanges a refresh token for a new token pair with the user''s
+        current name and role. Refresh tokens are stateless: they stay valid until
+        they expire, unless the password changes.'
+      parameters:
+      - description: Refresh token
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.RefreshRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TokenPairResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Refresh tokens
+      tags:
+      - auth
+  /api/v1/auth/signup:
+    post:
+      consumes:
+      - application/json
+      description: Creates an account with the "user" role and signs it in.
+      parameters:
+      - description: New account
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.SignupRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TokenPairResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Sign up
+      tags:
+      - auth
   /api/v1/claims/check:
     post:
       consumes:
@@ -742,6 +1044,15 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -760,6 +1071,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Check a claim
       tags:
       - claims
@@ -799,6 +1112,24 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -817,6 +1148,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: List documents
       tags:
       - documents
@@ -852,6 +1185,24 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
         "422":
           description: Unprocessable Entity
           schema:
@@ -870,6 +1221,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Create a document
       tags:
       - documents
@@ -888,6 +1241,15 @@ paths:
           description: No Content
         "400":
           description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
           schema:
             allOf:
             - $ref: '#/definitions/model.APIResponse'
@@ -922,6 +1284,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Delete a document
       tags:
       - documents
@@ -955,6 +1319,24 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
         "404":
           description: Not Found
           schema:
@@ -973,6 +1355,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Get a document by ID
       tags:
       - documents
@@ -1007,6 +1391,15 @@ paths:
               type: object
         "400":
           description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
           schema:
             allOf:
             - $ref: '#/definitions/model.APIResponse'
@@ -1059,9 +1452,171 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Update a document
       tags:
       - documents
+  /api/v1/me:
+    get:
+      description: The signed-in user's own account.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.MeResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get my account
+      tags:
+      - me
+    patch:
+      consumes:
+      - application/json
+      description: Changes the signed-in user's name and email.
+      parameters:
+      - description: Profile
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateProfileRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.MeResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update my profile
+      tags:
+      - me
+  /api/v1/me/password:
+    post:
+      consumes:
+      - application/json
+      description: Sets a new password after checking the current one. Returns a new
+        token pair; refresh tokens issued before the change stop working, which signs
+        out other devices.
+      parameters:
+      - description: Passwords
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.TokenPairResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Change my password
+      tags:
+      - me
   /api/v1/media/presigned-url:
     get:
       consumes:
@@ -1118,6 +1673,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Get presigned GET URL for media access
       tags:
       - media
@@ -1181,6 +1738,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - PSKAuth: []
       summary: Get presigned POST URL for media upload
       tags:
       - media
@@ -1238,4 +1797,15 @@ paths:
       summary: Apify webhook receiver
       tags:
       - webhooks
+securityDefinitions:
+  BearerAuth:
+    description: Access token from /api/v1/auth/login, as "Bearer <token>".
+    in: header
+    name: Authorization
+    type: apiKey
+  PSKAuth:
+    description: Pre-shared key for the messaging bots, as "PSK <key>".
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

@@ -39,15 +39,20 @@ func (r *UserRepo) Create(ctx context.Context, user *model.User) error {
 		user.CreatedAt = now
 	}
 	user.UpdatedAt = now
+	if user.PasswordChangedAt.IsZero() {
+		user.PasswordChangedAt = now
+	}
 
+	role := int16(user.Role) //nolint:gosec // UserRole has 3 values, always fits int16
 	created, err := r.q.CreateUser(ctx, db.CreateUserParams{
-		ID:           user.ID,
-		Email:        user.Email,
-		Name:         user.Name,
-		PasswordHash: user.PasswordHash,
-		Role:         int16(user.Role), //nolint:gosec // UserRole has 3 values, always fits int16
-		CreatedAt:    user.CreatedAt,
-		UpdatedAt:    user.UpdatedAt,
+		ID:                user.ID,
+		Email:             user.Email,
+		Name:              user.Name,
+		PasswordHash:      user.PasswordHash,
+		Role:              role,
+		PasswordChangedAt: user.PasswordChangedAt,
+		CreatedAt:         user.CreatedAt,
+		UpdatedAt:         user.UpdatedAt,
 	})
 	if err != nil {
 		return mapPostgresError(err)
@@ -91,14 +96,50 @@ func (r *UserRepo) UpdateRole(
 	return toModelUser(&u), nil
 }
 
+// UpdateProfile changes a user's name and email.
+func (r *UserRepo) UpdateProfile(
+	ctx context.Context,
+	id uuid.UUID,
+	name, email string,
+) (*model.User, error) {
+	u, err := r.q.UpdateUserProfile(ctx, db.UpdateUserProfileParams{
+		ID:        id,
+		Name:      name,
+		Email:     email,
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return toModelUser(&u), nil
+}
+
+// UpdatePassword stores a new password hash and stamps PasswordChangedAt.
+func (r *UserRepo) UpdatePassword(
+	ctx context.Context,
+	id uuid.UUID,
+	passwordHash string,
+) (*model.User, error) {
+	u, err := r.q.UpdateUserPassword(ctx, db.UpdateUserPasswordParams{
+		ID:                id,
+		PasswordHash:      passwordHash,
+		PasswordChangedAt: time.Now(),
+	})
+	if err != nil {
+		return nil, mapPostgresError(err)
+	}
+	return toModelUser(&u), nil
+}
+
 func toModelUser(u *db.User) *model.User {
 	return &model.User{
-		ID:           u.ID,
-		Email:        u.Email,
-		Name:         u.Name,
-		PasswordHash: u.PasswordHash,
-		Role:         model.UserRole(u.Role),
-		CreatedAt:    u.CreatedAt,
-		UpdatedAt:    u.UpdatedAt,
+		ID:                u.ID,
+		Email:             u.Email,
+		Name:              u.Name,
+		PasswordHash:      u.PasswordHash,
+		Role:              model.UserRole(u.Role),
+		PasswordChangedAt: u.PasswordChangedAt,
+		CreatedAt:         u.CreatedAt,
+		UpdatedAt:         u.UpdatedAt,
 	}
 }

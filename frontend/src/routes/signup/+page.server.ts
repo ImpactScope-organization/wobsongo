@@ -4,7 +4,7 @@ import { formText } from '#lib/server/forms.js';
 import type { Actions } from './$types';
 
 export const actions = {
-	// Open signup for now: anyone can create an account, in a tenant of its own.
+	// Open signup: anyone can create an account.
 	default: async ({ cookies, locals, request }) => {
 		const data = await request.formData();
 		const values = { name: formText(data, 'name'), email: formText(data, 'email') };

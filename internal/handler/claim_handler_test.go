@@ -59,6 +59,7 @@ func newClaimTestApp(
 	// The agent is enabled by default and then needs an LLM endpoint to be
 	// built. It is not under test here.
 	t.Setenv("AGENT_ENABLED", "false")
+	useTestJWTSecret(t)
 
 	app := core.NewApp(
 		testhelpers.NewEcho(),
@@ -69,7 +70,7 @@ func newClaimTestApp(
 		core.WithClaimAnalyzer(analyzer),
 		core.WithClaimJudge(judge),
 	)
-	return app.Echo()
+	return signInAs(t, app.Echo(), model.RoleUser)
 }
 
 func TestCheckClaimHandler_OutOfScope(t *testing.T) {

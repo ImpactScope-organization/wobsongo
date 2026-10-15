@@ -43,6 +43,7 @@ func NewAgentHandler(service *service.AgentService) *AgentHandler {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	PSKAuth
 // @Router			/api/agent/inbound [post]
 func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 	req := new(dto.AgentInboundRequest)
@@ -92,6 +93,7 @@ func (h *AgentHandler) inboundMessageHandler(c echo.Context) error {
 // @Failure		415		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	PSKAuth
 // @Router			/api/agent/inbound-voice [post]
 func (h *AgentHandler) inboundVoiceHandler(c echo.Context) error {
 	req := new(dto.AgentInboundVoiceRequest)

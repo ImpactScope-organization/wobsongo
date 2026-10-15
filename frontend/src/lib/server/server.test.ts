@@ -7,8 +7,8 @@ import { ACCESS_COOKIE, REFRESH_COOKIE } from './auth/cookies.js';
 import { loginUrl, resolveSession, safeRedirectTarget } from './auth/session.js';
 import { parseApiHost, servicesFactory } from './backend.js';
 import { createHandle, createHandleFetch, routeGroup } from './hooks.js';
-import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './repos/stub/auth.js';
-import { DEMO_ACCOUNT_ID, DEMO_TENANT_ID } from './repos/stub/index.js';
+import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from './repos/stub/tokens.js';
+import { DEMO_ACCOUNT_ID } from './repos/stub/index.js';
 import { createFakeCookies, createTestBackend, signInDemo } from './testing/fakes.js';
 
 describe('parseApiHost', () => {
@@ -73,7 +73,7 @@ describe('resolveSession', () => {
 		const { cookies } = await signInDemo(backend);
 		const session = await resolveSession(cookies, backend.services.auth, backend.clock);
 		expect(session).toEqual({
-			scope: { tenantId: DEMO_TENANT_ID, accountId: DEMO_ACCOUNT_ID },
+			scope: { accountId: DEMO_ACCOUNT_ID },
 			name: profile.name
 		});
 	});
@@ -212,20 +212,34 @@ describe('handle', () => {
 });
 
 describe('handleFetch', () => {
-	async function sentAuthorization(baseUrl: string | null, url: string) {
+	async function sent(baseUrl: string | null, url: string, init?: RequestInit) {
 		const backend = createTestBackend();
 		const { cookies } = await signInDemo(backend);
-		const fetch = vi.fn(
-			async (request: Request) => new Response(request.headers.get('authorization'))
-		);
-		const request = new Request(url);
+		const fetch = vi.fn(async () => new Response());
+		const request = new Request(url, init);
 		await createHandleFetch(baseUrl)({
-			event: { cookies } as unknown as RequestEvent,
+			event: { cookies, getClientAddress: () => '203.0.113.7' } as unknown as RequestEvent,
 			request,
 			fetch: fetch as unknown as typeof globalThis.fetch
 		});
-		return request.headers.get('authorization');
+		return request.headers;
 	}
+	const sentAuthorization = async (baseUrl: string | null, url: string) =>
+		(await sent(baseUrl, url)).get('authorization');
+
+	it('keeps an authorization the request sets itself', async () => {
+		const headers = await sent('https://api.example.org', 'https://api.example.org/api/v1/me', {
+			headers: { authorization: 'Bearer fresh' }
+		});
+		expect(headers.get('authorization')).toBe('Bearer fresh');
+	});
+
+	it("passes the visitor's IP to the backend only", async () => {
+		const backend = await sent('https://api.example.org', 'https://api.example.org/api/v1/me');
+		expect(backend.get('x-forwarded-for')).toBe('203.0.113.7');
+		const other = await sent('https://api.example.org', 'https://other.example/x');
+		expect(other.get('x-forwarded-for')).toBeNull();
+	});
 
 	it('sends the access token to the backend', async () => {
 		expect(

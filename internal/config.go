@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/joho/godotenv"
@@ -322,7 +323,8 @@ type Config struct {
 	LogLevel           slog.Level         `json:"log_level"`            // Log level (debug, info, warn, error)
 	Env                string             `json:"env"`                  // Environment (development, staging, production)
 	JWTSecret          string             `json:"-"`                    // Never included in JSON (security)
-	JWTExpiryHours     int                `json:"jwt_expiry_hours"`     // JWT token expiry in hours
+	JWTAccessTTL       time.Duration      `json:"jwt_access_ttl"`       // Access token lifetime
+	JWTRefreshTTL      time.Duration      `json:"jwt_refresh_ttl"`      // Refresh token lifetime
 	PostgresURI        string             `json:"-"`                    // Never included in JSON (security - contains credentials)
 	APIHost            string             `json:"api_host"`             // API host (e.g., "localhost:8000")
 	FrontendHost       string             `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
@@ -442,8 +444,8 @@ func (c *Config) IsOK() error {
 	if c.Port <= 0 || c.Port > 65535 {
 		return errors.New("port is invalid")
 	}
-	if c.JWTExpiryHours <= 0 {
-		return errors.New("JWTExpiryHours is invalid")
+	if c.JWTAccessTTL <= 0 || c.JWTRefreshTTL <= c.JWTAccessTTL {
+		return errors.New("JWTAccessTTL or JWTRefreshTTL is invalid")
 	}
 	if c.ApifyConfig == nil || c.ApifyConfig.Token == "" {
 		return errors.New("APIFY_API_TOKEN is not set")
@@ -609,7 +611,8 @@ func NewConfig(envs ...string) *Config {
 	if appJwtSecret == "" {
 		logger.Error("APP_JWT_SECRET is not set! Exiting.")
 	}
-	jwtExpiryHours := parseJWTExpiryHours(logger)
+	jwtAccessTTL := parseDuration(logger, "APP_JWT_ACCESS_TTL", defaultJWTAccessTTL)
+	jwtRefreshTTL := parseDuration(logger, "APP_JWT_REFRESH_TTL", defaultJWTRefreshTTL)
 
 	// Parse server configuration
 	port := parsePort(logger)
@@ -693,7 +696,8 @@ func NewConfig(envs ...string) *Config {
 		LogLevel:                logLevel,
 		Env:                     appEnv,
 		JWTSecret:               appJwtSecret,
-		JWTExpiryHours:          jwtExpiryHours,
+		JWTAccessTTL:            jwtAccessTTL,
+		JWTRefreshTTL:           jwtRefreshTTL,
 		PostgresURI:             appDBURI,
 		APIHost:                 apiHost,
 		FrontendHost:            frontendHost,

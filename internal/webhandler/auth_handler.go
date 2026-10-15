@@ -2,44 +2,19 @@ package webhandler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/mail"
-	"regexp"
 	"time"
 
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/auth"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/handler"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	authview "github.com/impactscope-organization/wobsongo/internal/view/auth"
 	"github.com/labstack/echo/v4"
 )
-
-var (
-	reHasLetter = regexp.MustCompile(`[a-zA-Z]`)
-	reHasDigit  = regexp.MustCompile(`[0-9]`)
-	reHasSymbol = regexp.MustCompile(`[^a-zA-Z0-9]`)
-)
-
-// passwordValid reports whether s meets the password policy:
-// at least 8 characters, containing at least 2 distinct character types
-// (letters, digits, symbols).
-func passwordValid(s string) bool {
-	if len(s) < 8 {
-		return false
-	}
-	types := 0
-	if reHasLetter.MatchString(s) {
-		types++
-	}
-	if reHasDigit.MatchString(s) {
-		types++
-	}
-	if reHasSymbol.MatchString(s) {
-		types++
-	}
-	return types >= 2
-}
 
 // AuthCookieName is the name of the HTTP cookie carrying the access token
 // for HTML routes. Exported so core/app.go can reference it when wiring the
@@ -80,10 +55,10 @@ func (h *AuthHandler) registerPost(c echo.Context) error {
 		return authview.Register(csrfToken(c), "Please enter a valid email address.").
 			Render(ctx, c.Response())
 	}
-	if !passwordValid(password) {
+	if !auth.PasswordValid(password) {
 		return authview.Register(
 			csrfToken(c),
-			"Password must be at least 8 characters and include at least two types: letters, numbers, or symbols.",
+			fmt.Sprintf("Password must be at least %d characters.", auth.PasswordMinLength),
 		).Render(ctx, c.Response())
 	}
 
@@ -95,7 +70,7 @@ func (h *AuthHandler) registerPost(c echo.Context) error {
 		}
 		return authview.Register(csrfToken(c), msg).Render(ctx, c.Response())
 	}
-	h.setAuthCookie(c, tokens.AccessToken)
+	h.setAuthCookie(c, tokens)
 	return c.Redirect(http.StatusFound, "/")
 }
 
@@ -122,7 +97,7 @@ func (h *AuthHandler) loginPost(c echo.Context) error {
 		return c.Redirect(http.StatusFound, "/login?error=1")
 	}
 
-	h.setAuthCookie(c, tokens.AccessToken)
+	h.setAuthCookie(c, tokens)
 	return c.Redirect(http.StatusFound, "/")
 }
 
@@ -141,14 +116,14 @@ func (h *AuthHandler) logoutPost(c echo.Context) error {
 	return c.Redirect(http.StatusFound, "/login")
 }
 
-func (h *AuthHandler) setAuthCookie(c echo.Context, accessToken string) {
+func (h *AuthHandler) setAuthCookie(c echo.Context, tokens *auth.JWTTokens) {
 	c.SetCookie(&http.Cookie{ //nolint:gosec // Secure omitted: app supports plain HTTP in dev
 		Name:     AuthCookieName,
-		Value:    accessToken,
+		Value:    tokens.AccessToken,
 		Path:     "/",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(time.Duration(h.config.JWTExpiryHours) * time.Hour),
+		Expires:  tokens.AccessExpiresAt,
 		Secure:   h.config.IsProduction(),
 	})
 }

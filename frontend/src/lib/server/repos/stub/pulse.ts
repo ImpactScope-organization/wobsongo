@@ -54,7 +54,7 @@ function scaled(snapshot: PulseSnapshot, range: TimeRange): PulseSnapshot {
 export function createStubPulseRepo(clock: Clock): PulseRepo {
 	return {
 		async getSnapshot(scope, { range }) {
-			const simulated = simulatedFailure(scope.tenantId);
+			const simulated = simulatedFailure(scope.accountId);
 			if (simulated) return simulated;
 			return ok({ ...scaled(structuredClone(pulseSnapshot), range), updatedAt: clock.now() });
 		}

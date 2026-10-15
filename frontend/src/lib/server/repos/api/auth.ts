@@ -1,36 +1,33 @@
-import { notImplemented } from '../../result.js';
+import { ok } from '../../result.js';
 import type { AuthRepo } from '../../services/auth.js';
+import { call, createApiClient, toTokenPair } from './client.js';
 import type { ApiOptions } from './index.js';
 
-export function createApiAuthRepo(_options: ApiOptions): AuthRepo {
+export function createApiAuthRepo(options: ApiOptions): AuthRepo {
+	const api = createApiClient(options);
 	return {
-		// TODO(openapi): POST /api/v1/auth/login {email, password} → {access_token, access_expires_at,
-		// refresh_token, refresh_expires_at}. 401 on bad credentials.
-		async login() {
-			return notImplemented('Logging in');
-		},
+		login: (credentials) =>
+			call(api.POST('/api/v1/auth/login', { body: credentials }), toTokenPair),
 
-		// TODO(openapi): POST /api/v1/auth/signup {name, email, password} → token pair. 409 if the
-		// email is taken. Open signup creates a tenant per account; switch to invites later.
-		async signup() {
-			return notImplemented('Signing up');
-		},
+		signup: (account) => call(api.POST('/api/v1/auth/signup', { body: account }), toTokenPair),
 
-		// TODO(openapi): POST /api/v1/auth/refresh {refresh_token} → token pair. 401 if expired or revoked.
-		async refresh() {
-			return notImplemented('Staying signed in');
-		},
+		refresh: (refreshToken) =>
+			call(
+				api.POST('/api/v1/auth/refresh', { body: { refresh_token: refreshToken } }),
+				toTokenPair
+			),
 
-		// TODO(openapi): POST /api/v1/auth/logout {refresh_token}; revokes it.
+		// The backend's tokens are stateless: there is nothing to revoke.
 		async logout() {
-			return notImplemented('Logging out');
+			return ok(undefined);
 		},
 
-		// TODO(openapi): GET /api/v1/me with the bearer token → {account_id, tenant_id, name}, or
-		// decode the JWT's claims (the backend verifies it on every call). 401 if invalid. The
-		// tenant is the owner's when the account is shared (tr.md, "service layer").
-		async getSession() {
-			return notImplemented('Signing in');
-		}
+		// The token is passed explicitly: right after a refresh it is newer than
+		// the one `handleFetch` would find in the request's cookies.
+		getSession: (accessToken) =>
+			call(
+				api.GET('/api/v1/me', { headers: { authorization: `Bearer ${accessToken}` } }),
+				(me) => ({ scope: { accountId: me.id }, name: me.name })
+			)
 	};
 }

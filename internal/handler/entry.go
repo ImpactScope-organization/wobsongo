@@ -6,7 +6,9 @@ import (
 
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
+	"github.com/impactscope-organization/wobsongo/internal/auth"
 	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -21,6 +23,9 @@ type Handlers struct {
 	claimHandler    *ClaimHandler
 	agentHandler    *AgentHandler
 	ttsHandler      *TTSHandler
+	authHandler     *AuthHandler
+	jwtAuth         *auth.Auth
+	config          *internal.Config
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -46,11 +51,25 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 	// Versioned resource routes use /api/v1/{resource_name_plural}.
 	v1 := api.Group("/v1")
-	v1.POST("/documents", h.documentHandler.createDocumentHandler)
-	v1.GET("/documents", h.documentHandler.listDocumentsHandler)
-	v1.GET("/documents/:id", h.documentHandler.getDocumentHandler)
-	v1.PUT("/documents/:id", h.documentHandler.updateDocumentHandler)
-	v1.DELETE("/documents/:id", h.documentHandler.deleteDocumentHandler)
+
+	// Dashboard users sign in here; everything else under /v1 that the
+	// dashboard calls needs the access token as a bearer token.
+	limited := authRateLimit(h.config)
+	v1.POST("/auth/login", h.authHandler.loginHandler, limited)
+	v1.POST("/auth/signup", h.authHandler.signupHandler, limited)
+	v1.POST("/auth/refresh", h.authHandler.refreshHandler, limited)
+
+	signedIn := BearerAuthMiddleware(h.jwtAuth)
+	v1.GET("/me", h.authHandler.meHandler, signedIn)
+	v1.PATCH("/me", h.authHandler.updateProfileHandler, signedIn)
+	v1.POST("/me/password", h.authHandler.changePasswordHandler, signedIn)
+
+	admin := RequireRoleMiddleware(model.RoleAdmin)
+	v1.POST("/documents", h.documentHandler.createDocumentHandler, signedIn, admin)
+	v1.GET("/documents", h.documentHandler.listDocumentsHandler, signedIn, admin)
+	v1.GET("/documents/:id", h.documentHandler.getDocumentHandler, signedIn, admin)
+	v1.PUT("/documents/:id", h.documentHandler.updateDocumentHandler, signedIn, admin)
+	v1.DELETE("/documents/:id", h.documentHandler.deleteDocumentHandler, signedIn, admin)
 
 	v1.GET(
 		"/media/upload",
@@ -63,7 +82,7 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 		PSKAuthMiddleware(h.botExtractPSK),
 	)
 
-	v1.POST("/claims/check", h.claimHandler.checkClaimHandler)
+	v1.POST("/claims/check", h.claimHandler.checkClaimHandler, signedIn)
 }
 
 // Repos holds the repository interfaces required by the handlers.
@@ -81,6 +100,7 @@ type Repos struct {
 	SpeechRepo        data.SpeechRepoer
 	Translator        data.Translator
 	SpeechSynthesizer data.SpeechSynthesizer
+	UserRepo          data.UserRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -149,6 +169,9 @@ func NewHandlers(repos *Repos) *Handlers {
 	)
 	ttsHandler := NewTTSHandler(speechService)
 
+	jwtAuth := auth.New(config.JWTSecret, config.JWTAccessTTL, config.JWTRefreshTTL)
+	authHandler := NewAuthHandler(service.NewAuthService(repos.UserRepo, jwtAuth))
+
 	return &Handlers{
 		apifyHandler:    apifyHandler,
 		documentHandler: documentHandler,
@@ -157,6 +180,9 @@ func NewHandlers(repos *Repos) *Handlers {
 		botExtractPSK:   config.BotExtractPSK,
 		claimHandler:    claimHandler,
 		agentHandler:    agentHandler,
+		authHandler:     authHandler,
+		jwtAuth:         jwtAuth,
+		config:          config,
 	}
 }
 

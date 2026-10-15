@@ -80,7 +80,7 @@ func runHealthcheck(cmd *cobra.Command, _ []string) {
 	cmd.Println("=== Configuration ===")
 	coreErr := config.IsOK()
 	check(
-		"Core config (APP_DB_URI, APP_JWT_SECRET, APP_JWT_EXPIRY_HOURS, EmailConfig, Port)",
+		"Core config (APP_DB_URI, APP_JWT_SECRET, APP_JWT_ACCESS_TTL, APP_JWT_REFRESH_TTL, EmailConfig, Port)",
 		coreErr,
 	)
 

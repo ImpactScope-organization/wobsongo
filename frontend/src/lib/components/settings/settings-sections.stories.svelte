@@ -56,8 +56,7 @@
 		await userEvent.type(name, 'Aminata Ouédraogo');
 		await userEvent.click(canvas.getByRole('button', { name: 'Save changes' }));
 		await expect(posted.data?.get('name')).toBe('Aminata Ouédraogo');
-		await expect(posted.data?.has('organization')).toBe(false);
-		await expect(canvas.getByLabelText('Organization')).toHaveAttribute('readonly');
+		await expect([...posted.data!.keys()].toSorted()).toEqual(['email', 'name']);
 	}}
 >
 	{#snippet template(args)}

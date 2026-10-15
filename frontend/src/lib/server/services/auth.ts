@@ -33,10 +33,14 @@ export interface Signup {
 export interface AuthRepo {
 	/** 401 when the email or password is wrong. */
 	login(credentials: Credentials): Promise<Result<TokenPair>>;
-	/** Creates the account (and, for now, its own tenant) and signs it in. 409 when the email is taken. */
+	/** Creates the account and signs it in. 409 when the email is taken. */
 	signup(account: { name: string; email: string; password: string }): Promise<Result<TokenPair>>;
 	/** 401 when the refresh token is expired or revoked. */
 	refresh(refreshToken: string): Promise<Result<TokenPair>>;
+	/**
+	 * Ends the session where the backend can. Its tokens are stateless, so
+	 * there it does nothing; signing out is clearing the cookies.
+	 */
 	logout(refreshToken: string): Promise<Result<void>>;
 	/** 401 when the access token is expired or unknown. */
 	getSession(accessToken: string): Promise<Result<Session>>;
@@ -49,13 +53,16 @@ export type AuthService = Omit<AuthRepo, 'signup'> & {
 // Same message for an unknown email and a wrong password, so the form can't
 // be used to find out who has an account.
 const BAD_CREDENTIALS = 'Email or password is incorrect.';
+const TOO_MANY_ATTEMPTS = 'Too many attempts. Wait a minute and try again.';
 
 export function createAuthService(repo: AuthRepo): AuthService {
 	return {
 		async login({ email, password }) {
 			if (!email.trim() || !password) return failure(400, 'Enter your email and password.');
 			const result = await repo.login({ email: normalizeEmail(email), password });
-			return result.ok ? result : describeFailure(result, { 401: BAD_CREDENTIALS });
+			return result.ok
+				? result
+				: describeFailure(result, { 401: BAD_CREDENTIALS, 429: TOO_MANY_ATTEMPTS });
 		},
 
 		async signup(account) {
@@ -74,7 +81,10 @@ export function createAuthService(repo: AuthRepo): AuthService {
 			});
 			return result.ok
 				? result
-				: describeFailure(result, { 409: 'An account with this email already exists.' });
+				: describeFailure(result, {
+						409: 'An account with this email already exists.',
+						429: TOO_MANY_ATTEMPTS
+					});
 		},
 
 		refresh: (refreshToken) => repo.refresh(refreshToken),

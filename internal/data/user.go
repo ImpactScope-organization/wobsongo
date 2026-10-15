@@ -9,7 +9,7 @@ import (
 
 // UserRepoer defines the interface for interacting with user data storage.
 // Deliberately not CrudableWithTx — the web layer's auth flows only need
-// Create/lookup/role-update, not pagination, generic Update, or Delete.
+// create/lookup/profile/password/role updates, not pagination, generic Update, or Delete.
 type UserRepoer interface {
 	// Create inserts a new user. Returns ErrConflict if the email is
 	// already registered.
@@ -23,4 +23,12 @@ type UserRepoer interface {
 
 	// UpdateRole changes a user's role. Returns ErrNotFound if no user has that ID.
 	UpdateRole(ctx context.Context, id uuid.UUID, role model.UserRole) (*model.User, error)
+
+	// UpdateProfile changes a user's name and email. Returns ErrNotFound if
+	// no user has that ID, ErrConflict if another user has the email.
+	UpdateProfile(ctx context.Context, id uuid.UUID, name, email string) (*model.User, error)
+
+	// UpdatePassword stores a new password hash and stamps
+	// PasswordChangedAt. Returns ErrNotFound if no user has that ID.
+	UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) (*model.User, error)
 }

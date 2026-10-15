@@ -36,7 +36,7 @@ export interface Comparison {
 }
 
 export interface PulseSnapshot {
-	/** Country or area the tenant monitors, e.g. "Burkina Faso". */
+	/** Country or area WobSongo monitors, e.g. "Burkina Faso". */
 	region: string;
 	updatedAt: Date;
 	/** Messages received, with the volume per time bucket, oldest first. */

@@ -31,8 +31,10 @@ type JWTClaims struct {
 
 // JWTTokens holds an access/refresh token pair returned after login or registration.
 type JWTTokens struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
+	AccessToken      string    `json:"access_token"`
+	AccessExpiresAt  time.Time `json:"access_expires_at"`
+	RefreshToken     string    `json:"refresh_token"`
+	RefreshExpiresAt time.Time `json:"refresh_expires_at"`
 }
 
 // JWTPayload is the input for generating JWT tokens.
@@ -44,18 +46,34 @@ type JWTPayload struct {
 	AuthID uuid.UUID
 }
 
-// Auth holds the signing secret and token expiry used for all JWT operations.
+// Auth holds the signing secret and token lifetimes used for all JWT operations.
+//
+// Both tokens are stateless: nothing is stored server-side, so a refresh
+// token stays valid until it expires. Callers that need to cut sessions
+// short (e.g. after a password change) compare IssuedAt against their own
+// data.
 type Auth struct {
-	secret      []byte
-	expiryHours int
+	secret     []byte
+	accessTTL  time.Duration
+	refreshTTL time.Duration
+	now        func() time.Time
 }
 
-// New creates an Auth instance. expiryHours controls access token lifetime.
-func New(secret string, expiryHours int) *Auth {
-	if expiryHours <= 0 {
-		expiryHours = 24
+// New creates an Auth instance with the given access and refresh token lifetimes.
+func New(secret string, accessTTL, refreshTTL time.Duration) *Auth {
+	return &Auth{
+		secret:     []byte(secret),
+		accessTTL:  accessTTL,
+		refreshTTL: refreshTTL,
+		now:        time.Now,
 	}
-	return &Auth{secret: []byte(secret), expiryHours: expiryHours}
+}
+
+// WithClock returns a copy of a that reads the time from now. For tests.
+func (a *Auth) WithClock(now func() time.Time) *Auth {
+	clone := *a
+	clone.now = now
+	return &clone
 }
 
 // GenerateJWTPair issues a new access + refresh token pair for the given payload.
@@ -66,15 +84,24 @@ func (a *Auth) GenerateJWTPair(payload *JWTPayload) (*JWTTokens, error) {
 	}
 	payload.AuthID = id
 
-	accessToken, err := a.generateAccessJWT(payload)
+	now := a.now()
+	tokens := &JWTTokens{
+		AccessExpiresAt:  now.Add(a.accessTTL),
+		RefreshExpiresAt: now.Add(a.refreshTTL),
+	}
+	tokens.AccessToken, err = a.sign(
+		a.claims(payload, AccessTokenSubject, now, tokens.AccessExpiresAt),
+	)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, err := a.generateRefreshJWT(payload)
+	tokens.RefreshToken, err = a.sign(
+		a.claims(payload, RefreshTokenSubject, now, tokens.RefreshExpiresAt),
+	)
 	if err != nil {
 		return nil, err
 	}
-	return &JWTTokens{AccessToken: accessToken, RefreshToken: refreshToken}, nil
+	return tokens, nil
 }
 
 // ValidateJWT parses and validates a signed token. Optionally checks its subject.
@@ -88,6 +115,8 @@ func (a *Auth) ValidateJWT(signedToken string, purposes ...string) (*JWTClaims, 
 			}
 			return a.secret, nil
 		},
+		jwt.WithTimeFunc(a.now),
+		jwt.WithExpirationRequired(),
 	)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
@@ -109,40 +138,25 @@ func (a *Auth) ValidateJWT(signedToken string, purposes ...string) (*JWTClaims, 
 	return claims, nil
 }
 
-func (a *Auth) generateAccessJWT(payload *JWTPayload) (string, error) {
-	expiry := time.Now().Add(time.Duration(a.expiryHours) * time.Hour)
-	claims := &JWTClaims{
+func (a *Auth) claims(
+	payload *JWTPayload,
+	subject TokenSubject,
+	issuedAt, expiresAt time.Time,
+) *JWTClaims {
+	return &JWTClaims{
 		UserID: payload.ID,
 		Name:   payload.Name,
 		Email:  payload.Email,
 		Role:   payload.Role,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    tokenIssuer,
-			Subject:   string(AccessTokenSubject),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			ExpiresAt: jwt.NewNumericDate(expiry),
+			Subject:   string(subject),
+			IssuedAt:  jwt.NewNumericDate(issuedAt),
+			NotBefore: jwt.NewNumericDate(issuedAt),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			ID:        payload.AuthID.String(),
 		},
 	}
-	return a.sign(claims)
-}
-
-func (a *Auth) generateRefreshJWT(payload *JWTPayload) (string, error) {
-	claims := &JWTClaims{
-		UserID: payload.ID,
-		Name:   payload.Name,
-		Email:  payload.Email,
-		Role:   payload.Role,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    tokenIssuer,
-			Subject:   string(RefreshTokenSubject),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			ID:        payload.AuthID.String(),
-		},
-	}
-	return a.sign(claims)
 }
 
 func (a *Auth) sign(claims *JWTClaims) (string, error) {

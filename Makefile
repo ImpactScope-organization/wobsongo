@@ -3,7 +3,7 @@ setup:
 	@go install github.com/riverqueue/river/cmd/river@v0.30.2
 check:
 	@go mod tidy
-	# @go tool swag init -q --output ./swagger --generalInfo ./internal/core/app.go
+	@go tool swag init -q --output ./swagger --generalInfo ./internal/core/app.go
 	@go build -o ./tmp/out . && find tmp -name '*out' -print0 | xargs -0 ls -lhS
 	@golangci-lint run ./...
 	# @go tool sqlc diff
@@ -64,7 +64,8 @@ test-integration:
 	@echo "Running integration tests (requires test database)..."
 	APP_ENV="testing" \
 	APP_JWT_SECRET="VerySecretToken123456" \
-	APP_JWT_EXPIRY_HOURS="2" \
+	APP_JWT_ACCESS_TTL="15m" \
+	APP_JWT_REFRESH_TTL="72h" \
 	APP_DB_URI="postgres://wobsongocore_user:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30&timezone=UTC" \
 	APP_LOG_LEVEL="2" \
 	go test -v ./internal/repo/...
@@ -74,7 +75,8 @@ test-integration-race:
 	@echo "Running integration tests with race detector..."
 	APP_ENV="testing" \
 	APP_JWT_SECRET="VerySecretToken123456" \
-	APP_JWT_EXPIRY_HOURS="2" \
+	APP_JWT_ACCESS_TTL="15m" \
+	APP_JWT_REFRESH_TTL="72h" \
 	APP_DB_URI="postgres://wobsongocore_user:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30&timezone=UTC" \
 	APP_LOG_LEVEL="2" \
 	go test -race -v ./internal/repo/...
@@ -84,7 +86,8 @@ test-integration-race:
 test:
 	APP_ENV="testing" \
 	APP_JWT_SECRET="VerySecretToken123456" \
-	APP_JWT_EXPIRY_HOURS="2" \
+	APP_JWT_ACCESS_TTL="15m" \
+	APP_JWT_REFRESH_TTL="72h" \
 	APP_DB_URI="postgres://wobsongocore_user:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30&timezone=UTC" \
 	APP_LOG_LEVEL="2" \
 	go test \
@@ -97,7 +100,8 @@ test:
 testrace:
 	APP_ENV="testing" \
 	APP_JWT_SECRET="VerySecretToken123456" \
-	APP_JWT_EXPIRY_HOURS="2" \
+	APP_JWT_ACCESS_TTL="15m" \
+	APP_JWT_REFRESH_TTL="72h" \
 	APP_DB_URI="postgres://wobsongocore_user:LocalDev123@localhost:45433/wobsongocore_db?sslmode=disable&connect_timeout=30&timezone=UTC" \
 	APP_LOG_LEVEL="2" \
 	go test -race ./...

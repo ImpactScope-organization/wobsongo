@@ -37,6 +37,7 @@ func NewApifyHandler(service *service.ApifyService) *ApifyHandler {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	PSKAuth
 // @Router		/api/extract [post]
 func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 	req := new(dto.ExtractAPIRequest)

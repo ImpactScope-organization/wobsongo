@@ -38,6 +38,9 @@ func NewDocumentHandler(service *service.DocumentService) *DocumentHandler {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
+// @Failure		403		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/documents [post]
 func (h *DocumentHandler) createDocumentHandler(c echo.Context) error {
 	req := new(dto.CreateDocumentDTO)
@@ -74,6 +77,9 @@ func (h *DocumentHandler) createDocumentHandler(c echo.Context) error {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		404		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
+// @Failure		403		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/documents/{id} [get]
 func (h *DocumentHandler) getDocumentHandler(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
@@ -104,6 +110,9 @@ func (h *DocumentHandler) getDocumentHandler(c echo.Context) error {
 // @Failure		400			{object}	model.APIResponse{error=string}
 // @Failure		422			{object}	model.APIResponse{error=string}
 // @Failure		500			{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
+// @Failure		403		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/documents [get]
 func (h *DocumentHandler) listDocumentsHandler(c echo.Context) error {
 	pagination := new(dto.PaginationDTO)
@@ -145,6 +154,9 @@ func (h *DocumentHandler) listDocumentsHandler(c echo.Context) error {
 // @Failure		409		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
+// @Failure		403		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/documents/{id} [put]
 func (h *DocumentHandler) updateDocumentHandler(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))
@@ -190,6 +202,9 @@ func (h *DocumentHandler) updateDocumentHandler(c echo.Context) error {
 // @Failure		403	{object}	model.APIResponse{error=string}
 // @Failure		404	{object}	model.APIResponse{error=string}
 // @Failure		500	{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
+// @Failure		403		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/documents/{id} [delete]
 func (h *DocumentHandler) deleteDocumentHandler(c echo.Context) error {
 	id, err := uuid.Parse(c.Param("id"))

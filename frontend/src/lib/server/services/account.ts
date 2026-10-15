@@ -6,6 +6,7 @@ import {
 } from '#lib/domain/account.js';
 import { failure, type Result } from '../result.js';
 import type { Scope } from '../scope.js';
+import type { TokenPair } from './auth.js';
 import { describeFailure } from './failures.js';
 
 /** The signed-in person's settings. */
@@ -31,11 +32,14 @@ export interface AccountRepo {
 	getSettings(scope: Scope): Promise<Result<AccountSettings>>;
 	/** 409 when another account uses the email. */
 	updateProfile(scope: Scope, change: ProfileChange): Promise<Result<AccountProfile>>;
-	/** 403 when the current password is wrong. */
+	/**
+	 * 403 when the current password is wrong. Ends the account's other
+	 * sessions and returns new tokens for this one.
+	 */
 	changePassword(
 		scope: Scope,
 		change: { currentPassword: string; newPassword: string }
-	): Promise<Result<void>>;
+	): Promise<Result<TokenPair>>;
 	/** Emails a reset link; returns the address it went to. */
 	requestPasswordReset(scope: Scope): Promise<Result<{ sentTo: string }>>;
 }
@@ -43,7 +47,7 @@ export interface AccountRepo {
 export interface AccountService {
 	getSettings(scope: Scope): Promise<Result<AccountSettings>>;
 	updateProfile(scope: Scope, change: ProfileChange): Promise<Result<AccountProfile>>;
-	changePassword(scope: Scope, change: PasswordChange): Promise<Result<void>>;
+	changePassword(scope: Scope, change: PasswordChange): Promise<Result<TokenPair>>;
 	requestPasswordReset(scope: Scope): Promise<Result<{ sentTo: string }>>;
 }
 

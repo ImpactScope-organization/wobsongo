@@ -2,6 +2,7 @@ package internal
 
 import (
 	"strings"
+	"time"
 	"testing"
 )
 
@@ -54,7 +55,8 @@ func validConfig() *Config {
 	return &Config{
 		PostgresURI:      "postgres://localhost/test",
 		JWTSecret:        "secret",
-		JWTExpiryHours:   1,
+		JWTAccessTTL:     time.Minute,
+		JWTRefreshTTL:    time.Hour,
 		Port:             8000,
 		EmailConfig:      &EmailConfig{},
 		ApifyConfig:      &ApifyConfig{Token: "apify-token"},

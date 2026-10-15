@@ -1,29 +1,12 @@
 import type { Clock } from '#lib/utils/clock.js';
 import { failure, ok } from '../../result.js';
-import type { AuthRepo, TokenPair } from '../../services/auth.js';
+import type { AuthRepo } from '../../services/auth.js';
 import { findAccountByEmail, simulatedFailure, type StubAccount, type StubStore } from './store.js';
-
-/** Token lifetimes from tr.md: short-lived access, week-long refresh. */
-export const ACCESS_TOKEN_TTL_MS = 15 * 60_000;
-export const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60_000;
+import { issueAccess, issueTokens } from './tokens.js';
 
 const UNAUTHORIZED = failure(401, 'Not signed in.');
 
 export function createStubAuthRepo(store: StubStore, clock: Clock): AuthRepo {
-	function issueAccess(accountId: string, refreshToken: string) {
-		const accessToken = `stub-access-${crypto.randomUUID()}`;
-		const accessExpiresAt = new Date(clock.now().getTime() + ACCESS_TOKEN_TTL_MS);
-		store.accessTokens.set(accessToken, { accountId, expiresAt: accessExpiresAt, refreshToken });
-		return { accessToken, accessExpiresAt };
-	}
-
-	function issueTokens(accountId: string): TokenPair {
-		const refreshToken = `stub-refresh-${crypto.randomUUID()}`;
-		const refreshExpiresAt = new Date(clock.now().getTime() + REFRESH_TOKEN_TTL_MS);
-		store.refreshTokens.set(refreshToken, { accountId, expiresAt: refreshExpiresAt });
-		return { ...issueAccess(accountId, refreshToken), refreshToken, refreshExpiresAt };
-	}
-
 	const expired = (expiresAt: Date) => expiresAt.getTime() <= clock.now().getTime();
 
 	return {
@@ -33,7 +16,7 @@ export function createStubAuthRepo(store: StubStore, clock: Clock): AuthRepo {
 
 			const account = findAccountByEmail(store, email);
 			if (!account || account.password !== password) return failure(401, 'Wrong credentials.');
-			return ok(issueTokens(account.id));
+			return ok(issueTokens(store, clock, account.id));
 		},
 
 		async signup({ name, email, password }) {
@@ -41,17 +24,15 @@ export function createStubAuthRepo(store: StubStore, clock: Clock): AuthRepo {
 			if (simulated) return simulated;
 			if (findAccountByEmail(store, email)) return failure(409, 'Email taken.');
 
-			// Open signup for now: every account gets its own tenant. Invites come later.
 			store.sequence += 1;
 			const account: StubAccount = {
 				id: `acc-${store.sequence}`,
-				tenantId: `t-${store.sequence}`,
-				profile: { name, email, organization: 'Independent', role: 'admin', title: '' },
+				profile: { name, email, role: 'user' },
 				password,
 				passwordChangedAt: clock.now()
 			};
 			store.accounts.set(account.id, account);
-			return ok(issueTokens(account.id));
+			return ok(issueTokens(store, clock, account.id));
 		},
 
 		async refresh(refreshToken) {
@@ -63,7 +44,7 @@ export function createStubAuthRepo(store: StubStore, clock: Clock): AuthRepo {
 			// The refresh token is kept, not rotated, so parallel requests that
 			// refresh at the same moment don't sign each other out.
 			return ok({
-				...issueAccess(token.accountId, refreshToken),
+				...issueAccess(store, clock, token.accountId, refreshToken),
 				refreshToken,
 				refreshExpiresAt: token.expiresAt
 			});
@@ -85,7 +66,7 @@ export function createStubAuthRepo(store: StubStore, clock: Clock): AuthRepo {
 				return UNAUTHORIZED;
 			}
 			return ok({
-				scope: { tenantId: account.tenantId, accountId: account.id },
+				scope: { accountId: account.id },
 				name: account.profile.name
 			});
 		}

@@ -4,7 +4,7 @@ import type { ApiOptions } from './index.js';
 
 export function createApiPulseRepo(_options: ApiOptions): PulseRepo {
 	return {
-		// TODO(openapi): GET /api/v1/tenants/{tenant_id}/pulse?range=24h|7d|30d → snapshot. Map the
+		// TODO(openapi): GET /api/v1/pulse?range=24h|7d|30d → snapshot. Map the
 		// backend's verdict codes onto `Verdict` (see domain/narrative.ts) and suppress small
 		// counts server-side (domain/count.ts).
 		async getSnapshot() {

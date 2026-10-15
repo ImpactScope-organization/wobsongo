@@ -27,9 +27,10 @@ func newDocumentTestApp(t *testing.T, repo data.DocumentRepoer) *echo.Echo {
 	// The agent is enabled by default and then needs an LLM endpoint to be
 	// built. It is not under test here.
 	t.Setenv("AGENT_ENABLED", "false")
+	useTestJWTSecret(t)
 
 	app := core.NewApp(testhelpers.NewEcho(), internal.NewConfig(), core.WithDocumentRepo(repo))
-	return app.Echo()
+	return signInAs(t, app.Echo(), model.RoleAdmin)
 }
 
 // validSHA256 is the SHA-256 digest of the empty string, used as a

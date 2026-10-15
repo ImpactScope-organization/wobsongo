@@ -1,6 +1,11 @@
 package auth
 
-import "golang.org/x/crypto/bcrypt"
+import (
+	"strings"
+	"unicode/utf8"
+
+	"golang.org/x/crypto/bcrypt"
+)
 
 // defaultCost is the bcrypt cost factor used in production.
 const defaultCost = 12
@@ -17,6 +22,27 @@ func WithMinCost() hashOption {
 	return func(opts *hashOptions) {
 		opts.cost = bcrypt.MinCost
 	}
+}
+
+const (
+	// PasswordMinLength is the fewest characters a password may have.
+	PasswordMinLength = 12
+	// PasswordMaxBytes is bcrypt's input limit; longer passwords are rejected
+	// rather than silently truncated.
+	PasswordMaxBytes = 72
+)
+
+// PasswordValid reports whether password meets the policy: at least
+// PasswordMinLength characters and at most PasswordMaxBytes bytes.
+func PasswordValid(password string) bool {
+	return utf8.RuneCountInString(password) >= PasswordMinLength &&
+		len(password) <= PasswordMaxBytes
+}
+
+// NormalizeEmail trims and lowercases an email address, so the same address
+// can't be registered twice in different cases.
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }
 
 // HashPassword hashes a plaintext password using bcrypt.

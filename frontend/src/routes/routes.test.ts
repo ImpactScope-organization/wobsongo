@@ -87,7 +87,7 @@ describe('Pulse page', () => {
 				event({
 					locals: {
 						...locals,
-						session: { ...locals.session!, scope: { tenantId: 't-500', accountId: 'a' } }
+						session: { ...locals.session!, scope: { accountId: 'acc-500' } }
 					},
 					url: new URL('/', ORIGIN)
 				})
@@ -152,10 +152,12 @@ describe('Settings page', () => {
 	});
 
 	describe('password action', () => {
-		it('changes the password', async () => {
-			const { locals } = await signedIn();
+		it('changes the password and swaps this session onto new tokens', async () => {
+			const { backend, cookies, locals } = await signedIn();
+			const oldAccess = cookies.get(ACCESS_COOKIE)!;
 			const result = await settingsActions.password(
 				event({
+					cookies,
 					locals,
 					url,
 					request: formRequest(`${url}?/password`, {
@@ -166,6 +168,11 @@ describe('Settings page', () => {
 				})
 			);
 			expect(result).toEqual({ form: 'password', updated: true });
+
+			const newAccess = cookies.get(ACCESS_COOKIE)!;
+			expect(newAccess).not.toBe(oldAccess);
+			expect((await backend.services.auth.getSession(oldAccess)).ok).toBe(false);
+			expect((await backend.services.auth.getSession(newAccess)).ok).toBe(true);
 		});
 
 		it('never sends passwords back', async () => {

@@ -3,17 +3,19 @@
  * messaging bots they can link to review claims from their phone.
  */
 
-/** What a person may do in the dashboard. */
-export type AccountRole = 'expert' | 'analyst' | 'admin';
+/**
+ * What a person may do in the dashboard, lowest first. Everyone who signs up
+ * is a `user`; an administrator promotes them.
+ */
+export type AccountRole = 'user' | 'admin' | 'superadmin';
+
+export const ACCOUNT_ROLES: readonly AccountRole[] = ['user', 'admin', 'superadmin'];
 
 export interface AccountProfile {
 	name: string;
 	email: string;
 	/** Set by an administrator; read-only for the person. */
-	organization: string;
 	role: AccountRole;
-	/** Free text shown under the name, e.g. "Clinical advisor · Reproductive health". */
-	title: string;
 }
 
 /** Passwords shorter than this are rejected. */

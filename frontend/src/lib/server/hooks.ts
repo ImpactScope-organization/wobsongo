@@ -41,13 +41,20 @@ export function createHandle({ clock, servicesFor }: HandleOptions): Handle {
 	};
 }
 
-/** Sends the access token with requests to the backend, and only there. */
+/**
+ * Sends the access token with requests to the backend, and only there,
+ * unless the request sets its own. Also passes on the visitor's IP: every
+ * call comes from this server, and the backend rate-limits sign-in per IP.
+ */
 export function createHandleFetch(baseUrl: string | null): HandleFetch {
 	return ({ event, request, fetch }) => {
+		if (!baseUrl || !request.url.startsWith(`${baseUrl}/`)) return fetch(request);
+
 		const token = event.cookies.get(ACCESS_COOKIE);
-		if (baseUrl && token && request.url.startsWith(`${baseUrl}/`)) {
+		if (token && !request.headers.has('authorization')) {
 			request.headers.set('authorization', `Bearer ${token}`);
 		}
+		request.headers.set('x-forwarded-for', event.getClientAddress());
 		return fetch(request);
 	};
 }

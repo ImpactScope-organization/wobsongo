@@ -9,7 +9,6 @@ import { failure, type Failure } from '../../result.js';
 
 export interface StubAccount {
 	id: string;
-	tenantId: string;
 	profile: AccountProfile;
 	password: string;
 	passwordChangedAt: Date | null;
@@ -26,7 +25,7 @@ export interface StubStore {
 	accounts: Map<string, StubAccount>;
 	accessTokens: Map<string, StubToken>;
 	refreshTokens: Map<string, StubToken>;
-	/** Last number used for a new account and tenant id. */
+	/** Last number used for a new account id. */
 	sequence: number;
 }
 
@@ -34,12 +33,10 @@ export interface StubStore {
 export const DEMO_EMAIL = profile.email;
 export const DEMO_PASSWORD = 'wobsongo-demo-2026';
 export const DEMO_ACCOUNT_ID = 'acc-000';
-export const DEMO_TENANT_ID = 't-000';
 
 export function createStubStore(): StubStore {
 	const demo: StubAccount = {
 		id: DEMO_ACCOUNT_ID,
-		tenantId: DEMO_TENANT_ID,
 		profile: structuredClone(profile),
 		password: DEMO_PASSWORD,
 		passwordChangedAt

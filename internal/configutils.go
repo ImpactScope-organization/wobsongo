@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -107,17 +108,24 @@ func createLogger(appEnv string, logLevel slog.Level) *slog.Logger {
 	}))
 }
 
-// parseJWTExpiryHours parses the JWT expiry hours from environment variable.
-func parseJWTExpiryHours(logger *slog.Logger) int {
-	appJwtExpiryHoursStr := getEnv("APP_JWT_EXPIRY_HOURS", "")
-	if appJwtExpiryHoursStr == "" {
-		logger.Error("APP_JWT_EXPIRY_HOURS is not set.")
+const (
+	defaultJWTAccessTTL  = 15 * time.Minute
+	defaultJWTRefreshTTL = 72 * time.Hour
+)
+
+// parseDuration parses a Go duration (e.g. "15m", "72h") from the named
+// environment variable, falling back to def when it is unset or invalid.
+func parseDuration(logger *slog.Logger, key string, def time.Duration) time.Duration {
+	value := getEnv(key, "")
+	if value == "" {
+		return def
 	}
-	jwtExpiryHours, err := strconv.Atoi(appJwtExpiryHoursStr)
-	if err != nil {
-		jwtExpiryHours = 7 * 24 // 7 days
+	d, err := time.ParseDuration(value)
+	if err != nil || d <= 0 {
+		logger.Error("Invalid duration, using default", "key", key, "value", value, "default", def)
+		return def
 	}
-	return jwtExpiryHours
+	return d
 }
 
 // parsePort parses the port from environment variable.

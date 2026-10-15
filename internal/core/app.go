@@ -167,6 +167,21 @@ func WithSpeechSynthesizer(synthesizer data.SpeechSynthesizer) AppOption {
 	}
 }
 
+// General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
+//
+// @title						WobSongo API
+// @version					1.0
+// @description				Fact-checking backend for the WobSongo dashboard and messaging bots.
+// @BasePath					/
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
+// @description				Access token from /api/v1/auth/login, as "Bearer <token>".
+// @securityDefinitions.apikey	PSKAuth
+// @in							header
+// @name						Authorization
+// @description				Pre-shared key for the messaging bots, as "PSK <key>".
+
 // NewApp initializes the application with the given Echo instance, version,
 // and optional dependencies. Returns a pointer to the app instance
 // with singleton behavior.
@@ -208,13 +223,14 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.SpeechRepo = app.speechRepo
 	repos.Translator = app.translator
 	repos.SpeechSynthesizer = app.speechSynthesizer
+	repos.UserRepo = app.userRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)
 
 	// HTML routes, mounted alongside /api on the same Echo instance — token
 	// comes from a cookie instead of the Authorization header.
-	jwtAuth := auth.New(config.JWTSecret, config.JWTExpiryHours)
+	jwtAuth := auth.New(config.JWTSecret, config.JWTAccessTTL, config.JWTRefreshTTL)
 	webGroup := e.Group("",
 		handler.JWTFromCookieMiddleware(webhandler.AuthCookieName),
 		handler.JWTParserMiddleware(jwtAuth),

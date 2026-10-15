@@ -31,6 +31,8 @@ func NewClaimHandler(service *service.ClaimService) *ClaimHandler {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		500		{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Failure		401		{object}	model.APIResponse{error=string}
 // @Router		/api/v1/claims/check [post]
 func (h *ClaimHandler) checkClaimHandler(c echo.Context) error {
 	req := new(dto.CheckClaimDTO)

@@ -14,20 +14,21 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
-    id, email, name, password_hash, role, created_at, updated_at
+    id, email, name, password_hash, role, password_changed_at, created_at, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, email, name, password_hash, role, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7, $8
+) RETURNING id, email, name, password_hash, role, created_at, updated_at, password_changed_at
 `
 
 type CreateUserParams struct {
-	ID           uuid.UUID
-	Email        string
-	Name         string
-	PasswordHash string
-	Role         int16
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
+	ID                uuid.UUID
+	Email             string
+	Name              string
+	PasswordHash      string
+	Role              int16
+	PasswordChangedAt time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -37,6 +38,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.Name,
 		arg.PasswordHash,
 		arg.Role,
+		arg.PasswordChangedAt,
 		arg.CreatedAt,
 		arg.UpdatedAt,
 	)
@@ -49,12 +51,13 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, role, created_at, updated_at FROM users WHERE email = $1
+SELECT id, email, name, password_hash, role, created_at, updated_at, password_changed_at FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -68,12 +71,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, role, created_at, updated_at FROM users WHERE id = $1
+SELECT id, email, name, password_hash, role, created_at, updated_at, password_changed_at FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -87,6 +91,75 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :one
+UPDATE users SET
+    password_hash = $2,
+    password_changed_at = $3,
+    updated_at = $3
+WHERE id = $1
+RETURNING id, email, name, password_hash, role, created_at, updated_at, password_changed_at
+`
+
+type UpdateUserPasswordParams struct {
+	ID                uuid.UUID
+	PasswordHash      string
+	PasswordChangedAt time.Time
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserPassword, arg.ID, arg.PasswordHash, arg.PasswordChangedAt)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordChangedAt,
+	)
+	return i, err
+}
+
+const updateUserProfile = `-- name: UpdateUserProfile :one
+UPDATE users SET
+    name = $2,
+    email = $3,
+    updated_at = $4
+WHERE id = $1
+RETURNING id, email, name, password_hash, role, created_at, updated_at, password_changed_at
+`
+
+type UpdateUserProfileParams struct {
+	ID        uuid.UUID
+	Name      string
+	Email     string
+	UpdatedAt time.Time
+}
+
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile,
+		arg.ID,
+		arg.Name,
+		arg.Email,
+		arg.UpdatedAt,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.Role,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }
@@ -96,7 +169,7 @@ UPDATE users SET
     role = $2,
     updated_at = $3
 WHERE id = $1
-RETURNING id, email, name, password_hash, role, created_at, updated_at
+RETURNING id, email, name, password_hash, role, created_at, updated_at, password_changed_at
 `
 
 type UpdateUserRoleParams struct {
@@ -116,6 +189,7 @@ func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) 
 		&i.Role,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PasswordChangedAt,
 	)
 	return i, err
 }

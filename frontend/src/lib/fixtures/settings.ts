@@ -16,9 +16,7 @@ export const SETTINGS_NOW = PULSE_NOW;
 export const profile: AccountProfile = {
 	name: 'Dr. Aminata Ouédraogo',
 	email: 'a.ouedraogo@wobsongo.org',
-	organization: 'WobSongo · Ouagadougou',
-	role: 'expert',
-	title: 'Clinical advisor · Reproductive health'
+	role: 'admin'
 };
 
 export const passwordChangedAt = new Date('2026-07-08T09:30:00Z');

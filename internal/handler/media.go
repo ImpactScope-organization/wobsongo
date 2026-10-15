@@ -33,6 +33,7 @@ func NewMediaHandler(mediaSvc *service.MediaService) *MediaHandler {
 // @Failure		404				{object}	model.APIResponse{error=string}
 // @Failure		409				{object}	model.APIResponse{error=string}
 // @Failure		422				{object}	model.APIResponse{error=string}
+// @Security	PSKAuth
 // @Router		/api/v1/media/upload [get]
 func (h *MediaHandler) getPresignedPOSTURL(c echo.Context) error {
 	form := new(dto.GetPresignedURLDTO)
@@ -93,6 +94,7 @@ func (h *MediaHandler) getPresignedPOSTURL(c echo.Context) error {
 // @Failure		400		{object}	model.APIResponse{error=string}	"Invalid S3 key"
 // @Failure		422		{object}	model.APIResponse{error=string}	"Validation error"
 // @Failure		500		{object}	model.APIResponse{error=string}	"Internal server error"
+// @Security	PSKAuth
 // @Router		/api/v1/media/presigned-url [get]
 func (h *MediaHandler) getPresignedGETURL(c echo.Context) error {
 	form := new(dto.GetPresignedGETURLDTO)

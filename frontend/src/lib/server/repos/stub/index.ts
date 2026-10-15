@@ -22,7 +22,6 @@ export {
 	DEMO_ACCOUNT_ID,
 	DEMO_EMAIL,
 	DEMO_PASSWORD,
-	DEMO_TENANT_ID,
 	ERROR_EMAIL_DOMAIN,
 	type StubStore
 } from './store.js';

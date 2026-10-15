@@ -30,6 +30,12 @@ var _ data.UserRepoer = &UserRepoerMock{}
 //			GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.User, error) {
 //				panic("mock out the GetByID method")
 //			},
+//			UpdatePasswordFunc: func(ctx context.Context, id uuid.UUID, passwordHash string) (*model.User, error) {
+//				panic("mock out the UpdatePassword method")
+//			},
+//			UpdateProfileFunc: func(ctx context.Context, id uuid.UUID, name string, email string) (*model.User, error) {
+//				panic("mock out the UpdateProfile method")
+//			},
 //			UpdateRoleFunc: func(ctx context.Context, id uuid.UUID, role model.UserRole) (*model.User, error) {
 //				panic("mock out the UpdateRole method")
 //			},
@@ -48,6 +54,12 @@ type UserRepoerMock struct {
 
 	// GetByIDFunc mocks the GetByID method.
 	GetByIDFunc func(ctx context.Context, id uuid.UUID) (*model.User, error)
+
+	// UpdatePasswordFunc mocks the UpdatePassword method.
+	UpdatePasswordFunc func(ctx context.Context, id uuid.UUID, passwordHash string) (*model.User, error)
+
+	// UpdateProfileFunc mocks the UpdateProfile method.
+	UpdateProfileFunc func(ctx context.Context, id uuid.UUID, name string, email string) (*model.User, error)
 
 	// UpdateRoleFunc mocks the UpdateRole method.
 	UpdateRoleFunc func(ctx context.Context, id uuid.UUID, role model.UserRole) (*model.User, error)
@@ -75,6 +87,26 @@ type UserRepoerMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// UpdatePassword holds details about calls to the UpdatePassword method.
+		UpdatePassword []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+			// PasswordHash is the passwordHash argument value.
+			PasswordHash string
+		}
+		// UpdateProfile holds details about calls to the UpdateProfile method.
+		UpdateProfile []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Name is the name argument value.
+			Name string
+			// Email is the email argument value.
+			Email string
+		}
 		// UpdateRole holds details about calls to the UpdateRole method.
 		UpdateRole []struct {
 			// Ctx is the ctx argument value.
@@ -85,10 +117,12 @@ type UserRepoerMock struct {
 			Role model.UserRole
 		}
 	}
-	lockCreate     sync.RWMutex
-	lockGetByEmail sync.RWMutex
-	lockGetByID    sync.RWMutex
-	lockUpdateRole sync.RWMutex
+	lockCreate         sync.RWMutex
+	lockGetByEmail     sync.RWMutex
+	lockGetByID        sync.RWMutex
+	lockUpdatePassword sync.RWMutex
+	lockUpdateProfile  sync.RWMutex
+	lockUpdateRole     sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -196,6 +230,90 @@ func (mock *UserRepoerMock) GetByIDCalls() []struct {
 	mock.lockGetByID.RLock()
 	calls = mock.calls.GetByID
 	mock.lockGetByID.RUnlock()
+	return calls
+}
+
+// UpdatePassword calls UpdatePasswordFunc.
+func (mock *UserRepoerMock) UpdatePassword(ctx context.Context, id uuid.UUID, passwordHash string) (*model.User, error) {
+	if mock.UpdatePasswordFunc == nil {
+		panic("UserRepoerMock.UpdatePasswordFunc: method is nil but UserRepoer.UpdatePassword was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		ID           uuid.UUID
+		PasswordHash string
+	}{
+		Ctx:          ctx,
+		ID:           id,
+		PasswordHash: passwordHash,
+	}
+	mock.lockUpdatePassword.Lock()
+	mock.calls.UpdatePassword = append(mock.calls.UpdatePassword, callInfo)
+	mock.lockUpdatePassword.Unlock()
+	return mock.UpdatePasswordFunc(ctx, id, passwordHash)
+}
+
+// UpdatePasswordCalls gets all the calls that were made to UpdatePassword.
+// Check the length with:
+//
+//	len(mockedUserRepoer.UpdatePasswordCalls())
+func (mock *UserRepoerMock) UpdatePasswordCalls() []struct {
+	Ctx          context.Context
+	ID           uuid.UUID
+	PasswordHash string
+} {
+	var calls []struct {
+		Ctx          context.Context
+		ID           uuid.UUID
+		PasswordHash string
+	}
+	mock.lockUpdatePassword.RLock()
+	calls = mock.calls.UpdatePassword
+	mock.lockUpdatePassword.RUnlock()
+	return calls
+}
+
+// UpdateProfile calls UpdateProfileFunc.
+func (mock *UserRepoerMock) UpdateProfile(ctx context.Context, id uuid.UUID, name string, email string) (*model.User, error) {
+	if mock.UpdateProfileFunc == nil {
+		panic("UserRepoerMock.UpdateProfileFunc: method is nil but UserRepoer.UpdateProfile was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		ID    uuid.UUID
+		Name  string
+		Email string
+	}{
+		Ctx:   ctx,
+		ID:    id,
+		Name:  name,
+		Email: email,
+	}
+	mock.lockUpdateProfile.Lock()
+	mock.calls.UpdateProfile = append(mock.calls.UpdateProfile, callInfo)
+	mock.lockUpdateProfile.Unlock()
+	return mock.UpdateProfileFunc(ctx, id, name, email)
+}
+
+// UpdateProfileCalls gets all the calls that were made to UpdateProfile.
+// Check the length with:
+//
+//	len(mockedUserRepoer.UpdateProfileCalls())
+func (mock *UserRepoerMock) UpdateProfileCalls() []struct {
+	Ctx   context.Context
+	ID    uuid.UUID
+	Name  string
+	Email string
+} {
+	var calls []struct {
+		Ctx   context.Context
+		ID    uuid.UUID
+		Name  string
+		Email string
+	}
+	mock.lockUpdateProfile.RLock()
+	calls = mock.calls.UpdateProfile
+	mock.lockUpdateProfile.RUnlock()
 	return calls
 }
 

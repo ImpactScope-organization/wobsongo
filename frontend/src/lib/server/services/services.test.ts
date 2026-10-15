@@ -3,12 +3,11 @@ import { PULSE_NOW } from '#lib/fixtures/pulse.js';
 import { profile } from '#lib/fixtures/settings.js';
 import { failure } from '../result.js';
 import { createApiRepos } from '../repos/api/index.js';
-import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from '../repos/stub/auth.js';
+import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from '../repos/stub/tokens.js';
 import {
 	DEMO_ACCOUNT_ID,
 	DEMO_EMAIL,
 	DEMO_PASSWORD,
-	DEMO_TENANT_ID,
 	ERROR_EMAIL_DOMAIN
 } from '../repos/stub/index.js';
 import { createTestBackend } from '../testing/fakes.js';
@@ -16,7 +15,7 @@ import { describeFailure, SERVER_ERROR_MESSAGE } from './failures.js';
 import { createServices } from './index.js';
 import { PULSE_NARRATIVE_LIMIT } from './pulse.js';
 
-const demo = { tenantId: DEMO_TENANT_ID, accountId: DEMO_ACCOUNT_ID };
+const demo = { accountId: DEMO_ACCOUNT_ID };
 const apiServices = createServices(
 	createApiRepos({ baseUrl: 'https://api.example.org', fetch: () => Promise.reject() })
 );
@@ -76,13 +75,13 @@ describe('PulseService', () => {
 		expect(week.data.anomaly).toBeNull();
 	});
 
-	it('follows the stub id conventions for the tenant', async () => {
+	it('follows the stub id conventions for the account', async () => {
 		const { services } = createTestBackend();
 		const query = { range: '24h', topic: 'misinfo' } as const;
-		expect(await services.pulse.getPulse({ ...demo, tenantId: 't-404' }, query)).toEqual(
+		expect(await services.pulse.getPulse({ accountId: 'acc-404' }, query)).toEqual(
 			failure(404, 'No Pulse data for this account.')
 		);
-		expect(await services.pulse.getPulse({ ...demo, tenantId: 't-500' }, query)).toEqual(
+		expect(await services.pulse.getPulse({ accountId: 'acc-500' }, query)).toEqual(
 			failure(500, SERVER_ERROR_MESSAGE)
 		);
 	});
@@ -193,12 +192,6 @@ describe('AccountService', () => {
 		const result = await services.account.requestPasswordReset(demo);
 		expect(result.ok && result.data).toEqual({ sentTo: profile.email });
 	});
-
-	it('is not available yet on the backend', async () => {
-		expect(await apiServices.account.getSettings(demo)).toEqual(
-			failure(501, 'Settings is not available yet.')
-		);
-	});
 });
 
 describe('AuthService', () => {
@@ -232,16 +225,10 @@ describe('AuthService', () => {
 				failure(400, 'Enter your email and password.')
 			);
 		});
-
-		it('is not available yet on the backend', async () => {
-			expect(await apiServices.auth.login({ email: DEMO_EMAIL, password: DEMO_PASSWORD })).toEqual(
-				failure(501, 'Logging in is not available yet.')
-			);
-		});
 	});
 
 	describe('signup', () => {
-		it('creates an account in a tenant of its own, signed in', async () => {
+		it('creates a new account, signed in', async () => {
 			const { services } = createTestBackend();
 			const tokens = await services.auth.signup(newAccount);
 			if (!tokens.ok) throw new Error(tokens.message);
@@ -249,7 +236,7 @@ describe('AuthService', () => {
 			const session = await services.auth.getSession(tokens.data.accessToken);
 			if (!session.ok) throw new Error(session.message);
 			expect(session.data.name).toBe(newAccount.name);
-			expect(session.data.scope.tenantId).not.toBe(DEMO_TENANT_ID);
+			expect(session.data.scope.accountId).not.toBe(DEMO_ACCOUNT_ID);
 
 			const settings = await services.account.getSettings(session.data.scope);
 			expect(settings.ok && settings.data.profile.email).toBe(newAccount.email);

@@ -36,6 +36,7 @@ func NewTTSHandler(service *service.SpeechService) *TTSHandler {
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		422		{object}	model.APIResponse{error=string}
 // @Failure		503		{object}	model.APIResponse{error=string}
+// @Security	PSKAuth
 // @Router			/api/tts [post]
 func (h *TTSHandler) synthesizeHandler(c echo.Context) error {
 	req := new(dto.TTSRequest)

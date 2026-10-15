@@ -105,9 +105,9 @@ export const PRIORITY_QUADRANT_LABEL: Record<PriorityQuadrant, string> = {
 };
 
 export const ACCOUNT_ROLE_LABEL: Record<AccountRole, string> = {
-	expert: 'Expert reviewer',
-	analyst: 'Analyst',
-	admin: 'Administrator'
+	user: 'Member',
+	admin: 'Administrator',
+	superadmin: 'Super administrator'
 };
 
 export const BOT_LABEL: Record<BotPlatform, string> = {

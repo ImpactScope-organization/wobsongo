@@ -68,7 +68,10 @@ func runCreateSuperadmin(cmd *cobra.Command, _ []string) {
 	defer pool.Close()
 
 	userRepo := repo.NewUserRepo(db.New(pool), pool)
-	authSvc := service.NewAuthService(userRepo, auth.New(config.JWTSecret, config.JWTExpiryHours))
+	authSvc := service.NewAuthService(
+		userRepo,
+		auth.New(config.JWTSecret, config.JWTAccessTTL, config.JWTRefreshTTL),
+	)
 
 	user, err := authSvc.CreateSuperadmin(
 		ctx,

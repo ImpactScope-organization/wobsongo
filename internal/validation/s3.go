@@ -12,7 +12,7 @@ import (
 // regexSHA256Filename ensures the filename is exactly 64 hex chars + valid extension.
 var (
 	regexSHA256Filename = regexp.MustCompile(
-		`^[a-fA-F0-9]{64}\.(jpg|jpeg|png|webp|avif|pdf|docx|doc|rtf|html|md)$`,
+		`^[a-fA-F0-9]{64}\.(jpg|jpeg|png|webp|avif|pdf|docx|doc|rtf|html|md|ogg|mp3|m4a|aac|amr|webm|wav)$`,
 	)
 	pathTraversalRegex = regexp.MustCompile(`\.\.`)
 )

@@ -160,15 +160,38 @@ var serveCmd = &cobra.Command{
 		mediaWorker := worker.NewExtractMediaWorker(apifyDispatcher, botClient)
 		river.AddWorker(workers, mediaWorker)
 
-		transcriptionWorker := worker.NewTranscriptionWorker(
-			workerVideoService,
+		// One ASR client shared by the video and voice-message workers.
+		asrClient := external.NewASRClient(
 			config.ASRConfig.Endpoint,
 			config.ASRConfig.Model,
 			config.ASRConfig.SourceLang,
+		)
+
+		transcriptionWorker := worker.NewTranscriptionWorker(
+			workerVideoService,
+			asrClient,
 			botClient,
 			workerConversationService,
 		)
 		river.AddWorker(workers, transcriptionWorker)
+
+		// The voice worker downloads the media itself (the bot only forwards a
+		// reference), parks it in S3 and lets the ASR service fetch it by
+		// presigned URL. There is deliberately no mock fallback here.
+		voiceMediaClient := external.NewVoiceMediaClient(
+			config.VoiceMediaConfig.TwilioAccountSID,
+			config.VoiceMediaConfig.TwilioAuthToken,
+			config.VoiceMediaConfig.TelegramBotToken,
+		)
+		voiceWorker := worker.NewVoiceTranscriptionWorker(
+			voiceMediaClient,
+			mediaProvider,
+			mediaService,
+			asrClient,
+			workerConversationService,
+			botClient,
+		)
+		river.AddWorker(workers, voiceWorker)
 
 		// register ParseDocumentWorker with River
 		parseDocumentWorker := worker.NewParseDocumentWorker(
@@ -270,9 +293,25 @@ var serveCmd = &cobra.Command{
 		agentTurnWorker := worker.NewAgentTurnWorker(agentService, botClient)
 		river.AddWorker(workers, agentTurnWorker)
 
+		workerSpeechService := service.NewSpeechService(
+			translationClient,
+			newSpeechSynthesizer(config),
+			repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs),
+		)
+		speechWorker := worker.NewSpeechWorker(
+			workerSpeechService,
+			botClient,
+			mediaProvider,
+			mediaService,
+		)
+		river.AddWorker(workers, speechWorker)
+
+		river.AddWorker(workers, worker.NewTTSAudioCleanupWorker(mediaProvider))
+
 		// Initialize River client with the database pool and registered workers.
-		// Document ingestion and media processing get separate queues (see
-		// each job DTO's InsertOpts() in internal/queue) so a long-running
+		// Document ingestion, media (video) processing, voice transcription,
+		// speech synthesis and maintenance each get their own queue (see each
+		// job DTO's InsertOpts() in internal/queue)  so a long-running
 		// document import — extraction alone can run for hours on a large
 		// document, see internal/worker/extract_knowledge.go — can't starve
 		// video processing of worker slots, or vice versa.
@@ -280,8 +319,22 @@ var serveCmd = &cobra.Command{
 			Queues: map[string]river.QueueConfig{
 				queue.QueueDocumentIngestion: {MaxWorkers: 10},
 				queue.QueueMediaProcessing:   {MaxWorkers: 10},
+				queue.QueueVoiceTranscription: {
+					MaxWorkers: queue.DefaultVoiceTranscriptionMaxWorkers,
+				},
+				queue.QueueSpeechSynthesis: {MaxWorkers: config.TTSConfig.MaxWorkers},
+				queue.QueueMaintenance:     {MaxWorkers: queue.MaintenanceMaxWorkers},
 			},
 			Workers: workers,
+			PeriodicJobs: []*river.PeriodicJob{
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.TTSAudioCleanupInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.TTSAudioCleanupJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
+			},
 		})
 		if err != nil {
 			cmd.PrintErrf("Failed to initialize job queue: %s\n", err.Error())
@@ -343,6 +396,5 @@ func newSpeechSynthesizer(config *internal.Config) data.SpeechSynthesizer {
 		)
 		return external.NewMockTTSClient()
 	}
-	// real Modal client lands in PR 3; until then /api/tts answers 503
-	return nil
+	return external.NewTTSClient(tts.Endpoint)
 }

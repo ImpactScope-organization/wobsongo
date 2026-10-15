@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"math"
 
@@ -81,7 +80,7 @@ func (r *conversationRepo) RecentMessages(
 		row := &rows[i]
 		messages[len(rows)-1-i] = model.ConversationMessage{
 			ID:        row.ID,
-			Jid:       row.Jid,
+			JID:       row.Jid,
 			Role:      model.ConversationRole(row.Role),
 			Content:   row.Content,
 			CreatedAt: row.CreatedAt,
@@ -99,9 +98,13 @@ func (r *conversationRepo) EnqueueAgentTurn(ctx context.Context, payload queue.A
 	return nil
 }
 
-// EnqueueVoiceTranscription is implemented in PR 3.
+// EnqueueVoiceTranscription adds a new voice-transcription job to the River queue.
 func (r *conversationRepo) EnqueueVoiceTranscription(
-	context.Context, *queue.VoiceTranscriptionJob,
+	ctx context.Context,
+	payload *queue.VoiceTranscriptionJob,
 ) error {
-	return errors.New("voice transcription is not implemented yet")
+	if _, err := r.riverClientFn().Insert(ctx, payload, nil); err != nil {
+		return fmt.Errorf("failed to insert voice transcription job: %w", err)
+	}
+	return nil
 }

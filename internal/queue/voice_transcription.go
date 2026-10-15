@@ -6,6 +6,10 @@ import "github.com/riverqueue/river"
 // answer; a late retry would only produce a reply after the user gave up.
 const voiceTranscriptionMaxAttempts = 1
 
+// DefaultVoiceTranscriptionMaxWorkers is the number of voice messages one
+// server process transcribes at the same time.
+const DefaultVoiceTranscriptionMaxWorkers = 10
+
 // VoiceTranscriptionJob transcribes one inbound voice message and then starts
 // an agent turn with the transcript as the user's message. It carries only a
 // reference to the media, never the audio: the worker downloads it, stores it
@@ -33,7 +37,7 @@ func (VoiceTranscriptionJob) Kind() string { return string(JobTypeTranscribeVoic
 // InsertOpts implements river.JobArgsWithInsertOpts.
 func (VoiceTranscriptionJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		Queue:       QueueMediaProcessing,
+		Queue:       QueueVoiceTranscription,
 		MaxAttempts: voiceTranscriptionMaxAttempts,
 	}
 }

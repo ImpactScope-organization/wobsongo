@@ -21,6 +21,15 @@ const (
 	// document_images/ so they stay presigned-GET-able like any other
 	// intent, even though the write itself goes through RawObjectStore.
 	DocumentImageUploadIntent MediaUploadIntent = "document_image"
+
+	// VoiceNoteUploadIntent is used for inbound voice messages that the voice
+	// worker copies from Twilio/Telegram into S3 so the ASR service can fetch
+	// them by presigned URL. Stored under voice_notes/.
+	VoiceNoteUploadIntent MediaUploadIntent = "voice_note"
+
+	// TTSAudioUploadIntent is used for synthesized voice replies that wa-bot
+	// hands to Twilio/Telegram by presigned URL. Stored under tts_audios/.
+	TTSAudioUploadIntent MediaUploadIntent = "tts_audio"
 )
 
 // ValidMediaUploadIntents returns a slice of all valid media upload intents.
@@ -28,6 +37,8 @@ func ValidMediaUploadIntents() []MediaUploadIntent {
 	return []MediaUploadIntent{
 		DocumentUploadIntent,
 		DocumentImageUploadIntent,
+		VoiceNoteUploadIntent,
+		TTSAudioUploadIntent,
 	}
 }
 
@@ -93,4 +104,12 @@ type MediaUploadProvider interface {
 		s3Keys []string,
 		expirySeconds int64,
 	) (map[string]string, error)
+}
+
+// ObjectPresigner turns an S3 key into a presigned GET URL. It is the slice of
+// MediaUploadProvider that workers need to hand a stored object to another
+// service (ASR, Twilio, Telegram).
+type ObjectPresigner interface {
+	// GetPresignedGETURL generates a presigned GET URL for the object at s3Key.
+	GetPresignedGETURL(ctx context.Context, s3Key string, expirySeconds int64) (string, error)
 }

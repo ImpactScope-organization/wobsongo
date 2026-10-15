@@ -231,6 +231,30 @@ type ASRConfig struct {
 	SourceLang string `json:"source_lang"`
 }
 
+// VoiceMediaConfig holds the credentials used to download inbound voice
+// messages from the messaging platforms.
+type VoiceMediaConfig struct {
+	// TwilioAccountSID and TwilioAuthToken authenticate WhatsApp media downloads.
+	TwilioAccountSID string `json:"-"`
+	TwilioAuthToken  string `json:"-"`
+
+	// TelegramBotToken authenticates Telegram getFile and file downloads.
+	TelegramBotToken string `json:"-"`
+}
+
+// IsOK checks that the voice-media credentials are usable.
+func (c *VoiceMediaConfig) IsOK() error {
+	if (c.TwilioAccountSID == "") != (c.TwilioAuthToken == "") {
+		return errors.New("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN must be set together")
+	}
+	if c.TwilioAccountSID == "" && c.TelegramBotToken == "" {
+		return errors.New(
+			"set TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN and/or TELEGRAM_BOT_TOKEN to download voice messages",
+		)
+	}
+	return nil
+}
+
 // ModalMeloTTSConfig holds the configuration for MeloTTS (text-to-speech)
 // deployed on Modal.
 type ModalMeloTTSConfig struct {
@@ -311,6 +335,7 @@ type Config struct {
 	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
 	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
 	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the text-to-speech providers
+	VoiceMediaConfig   *VoiceMediaConfig  `json:"voice_media_config"`   // Credentials for downloading inbound voice messages
 	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
 	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
 	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
@@ -426,6 +451,9 @@ func (c *Config) IsOK() error {
 	if err := c.asrOK(); err != nil {
 		return err
 	}
+	if err := c.voiceMediaOK(); err != nil {
+		return err
+	}
 	return c.ttsOK()
 }
 
@@ -441,6 +469,14 @@ func (c *Config) asrOK() error {
 		return err
 	}
 	return validateASRSourceLang(c.ASRConfig.SourceLang)
+}
+
+// voiceMediaOK checks the credentials used to download inbound voice messages.
+func (c *Config) voiceMediaOK() error {
+	if c.VoiceMediaConfig == nil {
+		return errors.New("VoiceMediaConfig is not set")
+	}
+	return c.VoiceMediaConfig.IsOK()
 }
 
 // ttsOK checks the text-to-speech configuration.
@@ -609,6 +645,13 @@ func NewConfig(envs ...string) *Config {
 		SourceLang: getEnv("MODAL_ASR_SOURCE_LANG", "auto"),
 	}
 
+	// Parse voice-media download credentials
+	voiceMediaConfig := &VoiceMediaConfig{
+		TwilioAccountSID: getEnv("TWILIO_ACCOUNT_SID", ""),
+		TwilioAuthToken:  getEnv("TWILIO_AUTH_TOKEN", ""),
+		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+	}
+
 	// Parse TTS configuration
 	ttsConfig := &TTSConfig{
 		ModalMeloTTSConfig: ModalMeloTTSConfig{
@@ -665,6 +708,7 @@ func NewConfig(envs ...string) *Config {
 		ApifyConfig:             apifyConfig,
 		ASRConfig:               asrConfig,
 		TTSConfig:               ttsConfig,
+		VoiceMediaConfig:        voiceMediaConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,
 		EmbeddingConfig:         embeddingConfig,

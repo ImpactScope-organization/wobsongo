@@ -52,6 +52,10 @@ const (
 
 	// JobTypeTranscribeVoice represents a job type for transcribing a voice.
 	JobTypeTranscribeVoice BackgroundJobType = "transcribe_voice"
+
+	// JobTypeCleanupTTSAudio represents a job type for deleting expired
+	// synthesized voice replies from S3.
+	JobTypeCleanupTTSAudio BackgroundJobType = "cleanup_tts_audio"
 )
 
 // BackgroundJob represents a generic background job.
@@ -81,4 +85,12 @@ const (
 
 	// QueueSpeechSynthesis is used by SpeechJob.
 	QueueSpeechSynthesis = "speech_synthesis"
+
+	// QueueVoiceTranscription is used by VoiceTranscriptionJob (inbound voice
+	// messages -> ASR). It is separate from QueueMediaProcessing so voice
+	// notes and video processing never compete for the same workers.
+	QueueVoiceTranscription = "voice_transcription"
+
+	// QueueMaintenance is used by housekeeping jobs such as TTSAudioCleanupJob.
+	QueueMaintenance = "maintenance"
 )

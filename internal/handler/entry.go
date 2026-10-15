@@ -52,8 +52,16 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	v1.PUT("/documents/:id", h.documentHandler.updateDocumentHandler)
 	v1.DELETE("/documents/:id", h.documentHandler.deleteDocumentHandler)
 
-	v1.GET("/media/upload", h.mediaHandler.getPresignedPOSTURL)
-	v1.GET("/media/presigned-url", h.mediaHandler.getPresignedGETURL)
+	v1.GET(
+		"/media/upload",
+		h.mediaHandler.getPresignedPOSTURL,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
+	v1.GET(
+		"/media/presigned-url",
+		h.mediaHandler.getPresignedGETURL,
+		PSKAuthMiddleware(h.botExtractPSK),
+	)
 
 	v1.POST("/claims/check", h.claimHandler.checkClaimHandler)
 }

@@ -306,9 +306,12 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, speechWorker)
 
+		river.AddWorker(workers, worker.NewTTSAudioCleanupWorker(mediaProvider))
+
 		// Initialize River client with the database pool and registered workers.
-		// Document ingestion and media processing get separate queues (see
-		// each job DTO's InsertOpts() in internal/queue) so a long-running
+		// Document ingestion, media (video) processing, voice transcription,
+		// speech synthesis and maintenance each get their own queue (see each
+		// job DTO's InsertOpts() in internal/queue)  so a long-running
 		// document import — extraction alone can run for hours on a large
 		// document, see internal/worker/extract_knowledge.go — can't starve
 		// video processing of worker slots, or vice versa.
@@ -316,9 +319,22 @@ var serveCmd = &cobra.Command{
 			Queues: map[string]river.QueueConfig{
 				queue.QueueDocumentIngestion: {MaxWorkers: 10},
 				queue.QueueMediaProcessing:   {MaxWorkers: 10},
-				queue.QueueSpeechSynthesis:   {MaxWorkers: config.TTSConfig.MaxWorkers},
+				queue.QueueVoiceTranscription: {
+					MaxWorkers: queue.DefaultVoiceTranscriptionMaxWorkers,
+				},
+				queue.QueueSpeechSynthesis: {MaxWorkers: config.TTSConfig.MaxWorkers},
+				queue.QueueMaintenance:     {MaxWorkers: queue.MaintenanceMaxWorkers},
 			},
 			Workers: workers,
+			PeriodicJobs: []*river.PeriodicJob{
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.TTSAudioCleanupInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.TTSAudioCleanupJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
+			},
 		})
 		if err != nil {
 			cmd.PrintErrf("Failed to initialize job queue: %s\n", err.Error())

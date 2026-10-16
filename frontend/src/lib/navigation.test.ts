@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { activeNavHref, comingSoonSection, NAV_ITEMS } from './navigation';
 
 describe('NAV_ITEMS', () => {
-	it('enables only Pulse for now', () => {
+	it('enables only Overview for now', () => {
 		expect(NAV_ITEMS.filter((item) => !item.disabled).map((item) => item.href)).toEqual(['/']);
 	});
 });
 
 describe('activeNavHref', () => {
-	it('matches Pulse on the home page only', () => {
+	it('matches Overview on the home page only', () => {
 		expect(activeNavHref('/')).toBe('/');
 		expect(activeNavHref('/somewhere')).toBeUndefined();
 	});

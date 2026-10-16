@@ -1,6 +1,6 @@
 import { isRedirect, type RequestEvent } from '@sveltejs/kit';
 import { describe, expect, it, vi } from 'vitest';
-import { PULSE_NOW } from '#lib/fixtures/pulse.js';
+import { OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 import { profile } from '#lib/fixtures/settings.js';
 import { fixedClock } from '#lib/utils/clock.js';
 import { ACCESS_COOKIE, REFRESH_COOKIE } from './auth/cookies.js';
@@ -36,14 +36,14 @@ describe('parseApiHost', () => {
 
 describe('servicesFactory', () => {
 	it('shares one stub store between requests', async () => {
-		const servicesFor = servicesFactory({ kind: 'stub' }, fixedClock(PULSE_NOW));
+		const servicesFor = servicesFactory({ kind: 'stub' }, fixedClock(OVERVIEW_NOW));
 		expect(servicesFor(fetch)).toBe(servicesFor(fetch));
 	});
 
 	it('builds backend services per request', async () => {
 		const servicesFor = servicesFactory(
 			{ kind: 'api', baseUrl: 'https://api.example.org' },
-			fixedClock(PULSE_NOW)
+			fixedClock(OVERVIEW_NOW)
 		);
 		expect(servicesFor(fetch)).not.toBe(servicesFor(fetch));
 	});
@@ -197,7 +197,7 @@ describe('handle', () => {
 		expect(resolved).toBe(true);
 		expect(event.locals.session?.name).toBe(profile.name);
 		expect(event.locals.services).toBeDefined();
-		expect(event.locals.clock.now()).toEqual(PULSE_NOW);
+		expect(event.locals.clock.now()).toEqual(OVERVIEW_NOW);
 	});
 
 	it('sends signed-in people away from login and signup', async () => {

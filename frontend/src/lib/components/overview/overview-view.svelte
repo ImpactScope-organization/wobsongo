@@ -2,18 +2,18 @@
 	import {
 		growthPct,
 		misinfoShare,
-		PULSE_TOPICS,
+		OVERVIEW_TOPICS,
 		trendDirection,
-		type PulseSnapshot,
-		type PulseTopic
-	} from '#lib/domain/pulse.js';
+		type OverviewSnapshot,
+		type OverviewTopic
+	} from '#lib/domain/overview.js';
 	import { TIME_RANGES, type TimeRange } from '#lib/domain/time-range.js';
 	import { formatClockTime, formatNumber, formatPercent } from '#lib/utils/format.js';
 	import AnomalyBanner from '../common/anomaly-banner.svelte';
 	import CoverageNote from '../common/coverage-note.svelte';
 	import KpiGroup from '../common/kpi-group.svelte';
 	import KpiTile from '../common/kpi-tile.svelte';
-	import { PULSE_TOPIC_LABEL, TIME_RANGE_LABEL } from '../common/labels';
+	import { OVERVIEW_TOPIC_LABEL, TIME_RANGE_LABEL } from '../common/labels';
 	import PageHeader from '../common/page-header.svelte';
 	import SectionCard from '../common/section-card.svelte';
 	import SegmentedLinks from '../common/segmented-links.svelte';
@@ -24,13 +24,13 @@
 	import PlatformBreakdown from './platform-breakdown.svelte';
 
 	interface Props {
-		snapshot: PulseSnapshot;
+		snapshot: OverviewSnapshot;
 		range: TimeRange;
-		topic: PulseTopic;
+		topic: OverviewTopic;
 		/** This page with another time range, e.g. "?range=7d&topic=all". */
 		rangeHref: (range: TimeRange) => string;
 		/** This page with another topic. */
-		topicHref: (topic: PulseTopic) => string;
+		topicHref: (topic: OverviewTopic) => string;
 		/** A narrative's detail page. */
 		narrativeHref?: (id: string) => string;
 		/** The high-harm view. */
@@ -69,7 +69,7 @@
 
 <main class="mx-auto flex max-w-[85rem] flex-col gap-5 p-[clamp(1rem,3vw,2rem)]">
 	<PageHeader
-		title="Pulse"
+		title="Overview"
 		eyebrow="{snapshot.region} · updated {formatClockTime(snapshot.updatedAt)} GMT"
 		class="mb-0.5"
 	>
@@ -136,9 +136,9 @@
 					label="Topic"
 					variant="pills"
 					current={topic}
-					options={PULSE_TOPICS.map((value) => ({
+					options={OVERVIEW_TOPICS.map((value) => ({
 						value,
-						label: PULSE_TOPIC_LABEL[value],
+						label: OVERVIEW_TOPIC_LABEL[value],
 						href: topicHref(value)
 					}))}
 				/>

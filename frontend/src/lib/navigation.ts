@@ -4,7 +4,7 @@ import type { NavItem } from '#lib/components/common/app-header.svelte';
 export const SETTINGS_HREF = '/settings';
 
 export const NAV_ITEMS: readonly NavItem[] = [
-	{ label: 'Pulse', href: '/' },
+	{ label: 'Overview', href: '/' },
 	{ label: 'Narratives', href: '/narratives', disabled: true },
 	{ label: 'Spread', href: '/spread', disabled: true },
 	{ label: 'Operations', href: '/ops', disabled: true },
@@ -13,7 +13,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 /**
  * The nav href to mark current for `pathname`: the longest one it is under.
- * "/" only matches itself, so every page doesn't light up Pulse.
+ * "/" only matches itself, so every page doesn't light up Overview.
  */
 export function activeNavHref(
 	pathname: string,

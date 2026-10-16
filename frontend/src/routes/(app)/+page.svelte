@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import PulseView from '#lib/components/pulse/pulse-view.svelte';
+	import OverviewView from '#lib/components/overview/overview-view.svelte';
 	import { withSearchParam } from '#lib/utils/url.js';
 	import type { PageProps } from './$types';
 
@@ -8,10 +8,10 @@
 </script>
 
 <svelte:head>
-	<title>Pulse · WobSongo</title>
+	<title>Overview · WobSongo</title>
 </svelte:head>
 
-<PulseView
+<OverviewView
 	snapshot={data.snapshot}
 	range={data.range}
 	topic={data.topic}

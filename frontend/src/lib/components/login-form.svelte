@@ -1,4 +1,6 @@
 <script lang="ts">
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import {
 		FieldGroup,
@@ -32,6 +34,8 @@
 	}: Props = $props();
 
 	const id = $props.id();
+
+	let showPassword = $state(false);
 </script>
 
 <!-- A plain POST form: works without JavaScript; `enhance` upgrades it. -->
@@ -66,13 +70,30 @@
 		</Field>
 		<Field>
 			<FieldLabel for="password-{id}">Password</FieldLabel>
-			<Input
-				id="password-{id}"
-				name="password"
-				type="password"
-				autocomplete="current-password"
-				required
-			/>
+			<div class="relative">
+				<Input
+					id="password-{id}"
+					name="password"
+					type={showPassword ? 'text' : 'password'}
+					autocomplete="current-password"
+					required
+					class="pr-10"
+				/>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+					onclick={() => (showPassword = !showPassword)}
+					aria-label={showPassword ? 'Hide password' : 'Show password'}
+				>
+					{#if showPassword}
+						<EyeOffIcon class="size-4" />
+					{:else}
+						<EyeIcon class="size-4" />
+					{/if}
+				</Button>
+			</div>
 		</Field>
 		<Field>
 			<Button type="submit">Log in</Button>

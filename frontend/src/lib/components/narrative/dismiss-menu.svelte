@@ -78,7 +78,7 @@
 		<p
 			class="mt-1 border-t border-rule px-2 pt-1.5 pb-1 text-[0.71875rem]/snug text-faint-foreground"
 		>
-			Hidden from Pulse and alerts. The engine keeps replying to users.
+			Hidden from Overview and alerts. The engine keeps replying to users.
 		</p>
 	</form>
 </details>

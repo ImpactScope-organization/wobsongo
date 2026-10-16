@@ -38,7 +38,7 @@
 	}: Props = $props();
 </script>
 
-<main class="mx-auto flex max-w-[85rem] flex-col gap-5 p-[clamp(1rem,3vw,2rem)]">
+<main class="mx-auto flex max-w-5xl flex-col gap-5 p-[clamp(1rem,3vw,2rem)]">
 	<PageHeader title="Settings" eyebrow="Your account" class="mb-0.5">
 		{#snippet actions()}
 			<!-- Signing out changes state, so it is a POST, never a link. -->
@@ -48,7 +48,7 @@
 		{/snippet}
 	</PageHeader>
 
-	<div class="flex max-w-[55rem] flex-col gap-5">
+	<div class="mx-auto flex w-full max-w-5xl flex-col gap-5">
 		<SectionCard title="Account" description="Your profile as seen by other reviewers.">
 			<ProfileForm
 				{profile}

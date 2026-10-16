@@ -28,7 +28,7 @@ export interface EngineVerdict {
 	explanation: string;
 }
 
-/** Why an analyst hides a narrative from Pulse and alerts. */
+/** Why an analyst hides a narrative from Overview and alerts. */
 export type DismissReason = 'not-srh' | 'not-a-claim' | 'duplicate' | 'satire';
 
 export const DISMISS_REASONS: readonly DismissReason[] = [

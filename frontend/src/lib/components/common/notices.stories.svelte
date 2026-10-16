@@ -18,7 +18,10 @@
 		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(
 			'Narratives is coming soon'
 		);
-		await expect(canvas.getByRole('link', { name: 'Back to Pulse' })).toHaveAttribute('href', '/');
+		await expect(canvas.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute(
+			'href',
+			'/'
+		);
 	}}
 >
 	{#snippet template()}
@@ -34,7 +37,7 @@
 
 <Story name="Not available yet">
 	{#snippet template()}
-		<ErrorNotice status={501} message="Pulse is not available yet." backHref="/" />
+		<ErrorNotice status={501} message="Overview is not available yet." backHref="/" />
 	{/snippet}
 </Story>
 

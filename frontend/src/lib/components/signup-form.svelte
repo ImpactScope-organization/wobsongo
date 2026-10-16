@@ -1,4 +1,6 @@
 <script lang="ts">
+	import EyeIcon from '@lucide/svelte/icons/eye';
+	import EyeOffIcon from '@lucide/svelte/icons/eye-off';
 	import { PASSWORD_MIN_LENGTH } from '#lib/domain/account.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
@@ -28,6 +30,8 @@
 	}: Props = $props();
 
 	const id = $props.id();
+
+	let showPassword = $state(false);
 </script>
 
 <!-- A plain POST form: works without JavaScript; `enhance` upgrades it. -->
@@ -77,15 +81,32 @@
 		</Field.Field>
 		<Field.Field>
 			<Field.Label for="password-{id}">Password</Field.Label>
-			<Input
-				id="password-{id}"
-				name="password"
-				type="password"
-				autocomplete="new-password"
-				minlength={PASSWORD_MIN_LENGTH}
-				required
-				aria-describedby="password-note-{id}"
-			/>
+			<div class="relative">
+				<Input
+					id="password-{id}"
+					name="password"
+					type={showPassword ? 'text' : 'password'}
+					autocomplete="new-password"
+					minlength={PASSWORD_MIN_LENGTH}
+					required
+					aria-describedby="password-note-{id}"
+					class="pr-10"
+				/>
+				<Button
+					type="button"
+					variant="ghost"
+					size="icon-sm"
+					class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+					onclick={() => (showPassword = !showPassword)}
+					aria-label={showPassword ? 'Hide password' : 'Show password'}
+				>
+					{#if showPassword}
+						<EyeOffIcon class="size-4" />
+					{:else}
+						<EyeIcon class="size-4" />
+					{/if}
+				</Button>
+			</div>
 			<Field.Description id="password-note-{id}"
 				>Must be at least {PASSWORD_MIN_LENGTH} characters long.</Field.Description
 			>
@@ -95,7 +116,7 @@
 			<Input
 				id="confirm-password-{id}"
 				name="confirmPassword"
-				type="password"
+				type={showPassword ? 'text' : 'password'}
 				autocomplete="new-password"
 				minlength={PASSWORD_MIN_LENGTH}
 				required

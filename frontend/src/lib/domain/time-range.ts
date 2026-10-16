@@ -1,4 +1,4 @@
-/** Reporting windows offered on the Pulse view. */
+/** Reporting windows offered on the Overview view. */
 export type TimeRange = '24h' | '7d' | '30d';
 
 export const TIME_RANGES: readonly TimeRange[] = ['24h', '7d', '30d'];

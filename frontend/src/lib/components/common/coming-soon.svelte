@@ -10,7 +10,7 @@
 		backLabel?: string;
 	}
 
-	let { title, backHref, backLabel = 'Back to Pulse' }: Props = $props();
+	let { title, backHref, backLabel = 'Back to Overview' }: Props = $props();
 </script>
 
 <main class="mx-auto flex max-w-[85rem] p-[clamp(1rem,3vw,2rem)]">

@@ -32,7 +32,6 @@
 	const id = $props.id();
 
 	let showPassword = $state(false);
-	let showConfirmPassword = $state(false);
 </script>
 
 <!-- A plain POST form: works without JavaScript; `enhance` upgrades it. -->
@@ -114,31 +113,14 @@
 		</Field.Field>
 		<Field.Field>
 			<Field.Label for="confirm-password-{id}">Confirm password</Field.Label>
-			<div class="relative">
-				<Input
-					id="confirm-password-{id}"
-					name="confirmPassword"
-					type={showConfirmPassword ? 'text' : 'password'}
-					autocomplete="new-password"
-					minlength={PASSWORD_MIN_LENGTH}
-					required
-					class="pr-10"
-				/>
-				<Button
-					type="button"
-					variant="ghost"
-					size="icon-sm"
-					class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-					onclick={() => (showConfirmPassword = !showConfirmPassword)}
-					aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
-				>
-					{#if showConfirmPassword}
-						<EyeOffIcon class="size-4" />
-					{:else}
-						<EyeIcon class="size-4" />
-					{/if}
-				</Button>
-			</div>
+			<Input
+				id="confirm-password-{id}"
+				name="confirmPassword"
+				type={showPassword ? 'text' : 'password'}
+				autocomplete="new-password"
+				minlength={PASSWORD_MIN_LENGTH}
+				required
+			/>
 		</Field.Field>
 		<Field.Field>
 			<Button type="submit">Create account</Button>

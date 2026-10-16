@@ -87,9 +87,9 @@ describe('OverviewService', () => {
 	});
 
 	it('is not available yet on the backend', async () => {
-		expect(await apiServices.overview.getOverview(demo, { range: '24h', topic: 'misinfo' })).toEqual(
-			failure(501, 'Overview is not available yet.')
-		);
+		expect(
+			await apiServices.overview.getOverview(demo, { range: '24h', topic: 'misinfo' })
+		).toEqual(failure(501, 'Overview is not available yet.'));
 	});
 });
 
@@ -272,7 +272,9 @@ describe('AuthService', () => {
 
 		it('expire the access token after 15 minutes', async () => {
 			const { clock, services, tokens } = await signedIn();
-			expect(tokens.accessExpiresAt).toEqual(new Date(OVERVIEW_NOW.getTime() + ACCESS_TOKEN_TTL_MS));
+			expect(tokens.accessExpiresAt).toEqual(
+				new Date(OVERVIEW_NOW.getTime() + ACCESS_TOKEN_TTL_MS)
+			);
 
 			clock.advance(ACCESS_TOKEN_TTL_MS);
 			expect(await services.auth.getSession(tokens.accessToken)).toEqual(

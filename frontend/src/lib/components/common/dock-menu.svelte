@@ -40,13 +40,10 @@
 
 <nav
 	aria-label="Mobile Navigation"
-	class={cn(
-		'fixed bottom-3 inset-x-3 z-50 mx-auto max-w-md md:hidden',
-		className
-	)}
+	class={cn('fixed inset-x-3 bottom-3 z-50 mx-auto max-w-md md:hidden', className)}
 >
 	<div
-		class="relative flex items-center justify-around gap-1 rounded-2xl border border-inverse-border/80 bg-inverse/95 p-1.5 shadow-[0_10px_35px_-5px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.05)] backdrop-blur-xl text-inverse-foreground"
+		class="relative flex items-center justify-around gap-1 rounded-2xl border border-inverse-border/80 bg-inverse/95 p-1.5 text-inverse-foreground shadow-[0_10px_35px_-5px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.05)] backdrop-blur-xl"
 	>
 		{#each items as item (item.href)}
 			{@const Icon = resolveIcon(item)}
@@ -56,12 +53,12 @@
 				<span
 					aria-disabled="true"
 					title="Coming soon"
-					class="relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-center text-inverse-muted-foreground cursor-not-allowed select-none"
+					class="relative flex flex-1 cursor-not-allowed flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-center text-inverse-muted-foreground select-none"
 				>
 					<span class="relative flex size-5 items-center justify-center">
 						<Icon class="size-5 shrink-0 stroke-[1.75]" />
 					</span>
-					<span class="text-[0.625rem] font-medium leading-none tracking-tight truncate max-w-17">
+					<span class="max-w-17 truncate text-[0.625rem] leading-none font-medium tracking-tight">
 						{item.label}
 						<span class="sr-only">&nbsp;(coming soon)</span>
 					</span>
@@ -71,9 +68,9 @@
 					href={item.href}
 					aria-current={isCurrent ? 'page' : undefined}
 					class={cn(
-						'group relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl py-1.5 px-1 text-center outline-none transition-all duration-200 active:scale-95 focus-visible:ring-2 focus-visible:ring-inverse-signal',
+						'group relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 py-1.5 text-center transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal active:scale-95',
 						isCurrent
-							? 'bg-inverse-raised text-inverse-signal font-semibold shadow-inner'
+							? 'bg-inverse-raised font-semibold text-inverse-signal shadow-inner'
 							: 'text-inverse-muted-foreground hover:bg-inverse-raised/60 hover:text-inverse-foreground'
 					)}
 				>
@@ -93,7 +90,7 @@
 							</span>
 						{/if}
 					</span>
-					<span class="text-[0.625rem] font-medium leading-none tracking-tight truncate max-w-17">
+					<span class="max-w-17 truncate text-[0.625rem] leading-none font-medium tracking-tight">
 						{item.label}
 					</span>
 					{#if isCurrent}

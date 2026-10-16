@@ -133,7 +133,7 @@
 <Story name="Mobile dock menu">
 	{#snippet template()}
 		<div class="relative min-h-32 bg-background p-4">
-			<DockMenu items={NAV} currentHref="/overview" class="static! max-w-md! mx-auto! block!" />
+			<DockMenu items={NAV} currentHref="/overview" class="static! mx-auto! block! max-w-md!" />
 		</div>
 	{/snippet}
 </Story>

@@ -133,4 +133,3 @@ export const activity: ActivityEntry[] = [
 		text: 'Published audio debunk “Potash drinks are dangerous” (Mooré)'
 	}
 ];
-

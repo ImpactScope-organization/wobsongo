@@ -18,7 +18,10 @@
 		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(
 			'Narratives is coming soon'
 		);
-		await expect(canvas.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute('href', '/');
+		await expect(canvas.getByRole('link', { name: 'Back to Overview' })).toHaveAttribute(
+			'href',
+			'/'
+		);
 	}}
 >
 	{#snippet template()}

@@ -60,4 +60,3 @@ export function createStubOverviewRepo(clock: Clock): OverviewRepo {
 		}
 	};
 }
-

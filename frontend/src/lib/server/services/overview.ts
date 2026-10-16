@@ -1,9 +1,5 @@
 import type { TimeRange } from '#lib/domain/time-range.js';
-import {
-	topNarratives,
-	type OverviewSnapshot,
-	type OverviewTopic
-} from '#lib/domain/overview.js';
+import { topNarratives, type OverviewSnapshot, type OverviewTopic } from '#lib/domain/overview.js';
 import { ok, type Result } from '../result.js';
 import type { Scope } from '../scope.js';
 import { describeFailure } from './failures.js';
@@ -39,5 +35,3 @@ export function createOverviewService(repo: OverviewRepo): OverviewService {
 		}
 	};
 }
-
-

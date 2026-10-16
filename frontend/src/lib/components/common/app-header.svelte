@@ -49,6 +49,7 @@
 	<div class="mx-auto flex min-h-14 max-w-[85rem] flex-wrap items-center gap-x-5 gap-y-2 py-2">
 		<a
 			href="/"
+			aria-label="Monitor"
 			class="flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal"
 		>
 			{#if logoSrc}

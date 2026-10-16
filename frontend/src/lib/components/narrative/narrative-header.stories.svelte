@@ -30,7 +30,10 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent(narrative.title);
-		await expect(canvas.getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/overview');
+		await expect(canvas.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+			'href',
+			'/overview'
+		);
 
 		// The dismiss menu is a <details>: closed until its summary is clicked.
 		const reason = () => canvas.queryByRole('button', { name: /Duplicate/ });

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import type { OverviewTopic } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
-import { highHarmSummary, narratives, platformCounts, overviewSnapshot } from '#lib/fixtures/overview.js';
+import {
+	highHarmSummary,
+	narratives,
+	platformCounts,
+	overviewSnapshot
+} from '#lib/fixtures/overview.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
@@ -159,6 +164,8 @@ describe('OverviewView', () => {
 		const second = body.indexOf(narratives[1].title);
 		expect(first).toBeGreaterThan(-1);
 		expect(second).toBeGreaterThan(first);
-		expect(view({ ...overviewSnapshot, narratives: [] })).toContain('No narratives in this window.');
+		expect(view({ ...overviewSnapshot, narratives: [] })).toContain(
+			'No narratives in this window.'
+		);
 	});
 });

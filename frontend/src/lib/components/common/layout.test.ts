@@ -6,6 +6,7 @@ import AnomalyBanner from './anomaly-banner.svelte';
 import AppHeader from './app-header.svelte';
 import ComingSoon from './coming-soon.svelte';
 import CoverageNote from './coverage-note.svelte';
+import DockMenu from './dock-menu.svelte';
 import ErrorNotice from './error-notice.svelte';
 import PageHeader from './page-header.svelte';
 import SectionCard from './section-card.svelte';
@@ -113,6 +114,40 @@ describe('AppHeader', () => {
 			props: { items, currentHref: '/overview', logoSrc: '/logo.png' }
 		});
 		expect(body).toContain('src="/logo.png"');
+	});
+
+	it('hides desktop navigation on mobile screens', () => {
+		const { body } = render(AppHeader, { props: { items, currentHref: '/overview' } });
+		expect(body).toMatch(/<nav[^>]*class="[^"]*hidden[^"]*md:block/);
+	});
+
+	it('renders mobile dock when mobileDock is true', () => {
+		const { body } = render(AppHeader, {
+			props: { items, currentHref: '/overview', mobileDock: true }
+		});
+		expect(body).toContain('aria-label="Mobile Navigation"');
+	});
+});
+
+describe('DockMenu', () => {
+	const items = [
+		{ label: 'Overview', href: '/overview', count: 5 },
+		{ label: 'High-harm', href: '/safety', count: 3, disabled: true },
+		{ label: 'Spread', href: '/spread', count: 0 }
+	];
+
+	it('renders mobile navigation with icons and marks current page', () => {
+		const { body } = render(DockMenu, { props: { items, currentHref: '/overview' } });
+		expect(body).toContain('aria-label="Mobile Navigation"');
+		expect(body).toMatch(/href="\/overview"[^>]*aria-current="page"/);
+		expect(body).toContain('Overview');
+	});
+
+	it('shows non-zero counts and disables coming-soon items', () => {
+		const { body } = render(DockMenu, { props: { items, currentHref: '/overview' } });
+		expect(body).toMatch(/5\s*<span class="sr-only">/);
+		expect(body).toContain('(coming soon)');
+		expect(body).not.toContain('href="/safety"');
 	});
 });
 

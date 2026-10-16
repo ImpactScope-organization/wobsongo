@@ -8,12 +8,13 @@
 	let { data, children }: LayoutProps = $props();
 </script>
 
-<div class="min-h-screen bg-background">
+<div class="min-h-screen bg-background pb-20 md:pb-0">
 	<AppHeader
 		logoSrc={logo}
 		items={NAV_ITEMS}
 		currentHref={activeNavHref(page.url.pathname) ?? ''}
 		account={{ name: data.account.name, href: SETTINGS_HREF }}
+		mobileDock
 	/>
 	{@render children()}
 </div>

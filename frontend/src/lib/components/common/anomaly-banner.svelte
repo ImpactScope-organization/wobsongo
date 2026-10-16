@@ -24,7 +24,7 @@
 			<span class="size-2 rounded-full bg-current motion-safe:animate-pulse"></span>
 			Anomaly
 		</div>
-		<div class="min-w-60 flex-1 text-sm/snug font-medium text-pretty">
+		<div class="min-w-60 flex-1 text-sm/snug font-medium text-pretty truncate line-clamp-1 md:line-clamp-2 w-full">
 			<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
 			is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
 			{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.

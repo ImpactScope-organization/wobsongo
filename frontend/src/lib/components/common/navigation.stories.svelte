@@ -5,6 +5,7 @@
 	import { anomaly } from '#lib/fixtures/overview.js';
 	import AnomalyBanner from './anomaly-banner.svelte';
 	import AppHeader from './app-header.svelte';
+	import DockMenu from './dock-menu.svelte';
 	import PageHeader from './page-header.svelte';
 	import SegmentedLinks from './segmented-links.svelte';
 
@@ -128,3 +129,11 @@
 		await expect(within(nav).getByText(/High-harm/)).toHaveAttribute('aria-disabled', 'true');
 	}}
 />
+
+<Story name="Mobile dock menu">
+	{#snippet template()}
+		<div class="relative min-h-32 bg-background p-4">
+			<DockMenu items={NAV} currentHref="/overview" class="static! max-w-md! mx-auto! block!" />
+		</div>
+	{/snippet}
+</Story>

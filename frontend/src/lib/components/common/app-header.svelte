@@ -1,4 +1,6 @@
 <script lang="ts" module>
+	import type { Component } from 'svelte';
+
 	export interface NavItem {
 		label: string;
 		href: string;
@@ -6,6 +8,8 @@
 		count?: number;
 		/** Not built yet: shown, but not a link. */
 		disabled?: boolean;
+		/** Optional icon component for dock / mobile view. */
+		icon?: Component;
 	}
 </script>
 
@@ -13,6 +17,7 @@
 	import type { Snippet } from 'svelte';
 	import { cn } from '#lib/utils.js';
 	import AccountAvatar from './account-avatar.svelte';
+	import DockMenu from './dock-menu.svelte';
 
 	interface Props {
 		/** Logo image URL; omitted shows the name only. */
@@ -24,6 +29,8 @@
 		actions?: Snippet;
 		/** The signed-in person; shows their avatar linking to settings. */
 		account?: { name: string; href: string };
+		/** Include the bottom docker menu on mobile screen. Defaults to false. */
+		mobileDock?: boolean;
 		class?: string;
 	}
 
@@ -33,6 +40,7 @@
 		currentHref,
 		actions,
 		account,
+		mobileDock = false,
 		class: className
 	}: Props = $props();
 </script>
@@ -50,7 +58,7 @@
 
 		<nav
 			aria-label="Main"
-			class="order-last min-w-0 basis-full overflow-x-auto sm:order-none sm:flex-1 sm:basis-auto"
+			class="order-last hidden min-w-0 basis-full overflow-x-auto md:order-0 md:block md:flex-1 md:basis-auto"
 		>
 			<ul class="flex gap-0.5">
 				{#each items as item (item.href)}
@@ -85,7 +93,7 @@
 		</nav>
 
 		{#if actions || account}
-			<div class="ml-auto flex items-center gap-2.5 sm:ml-0">
+			<div class="ml-auto flex items-center gap-2.5">
 				{@render actions?.()}
 				{#if account}
 					<a
@@ -102,3 +110,7 @@
 		{/if}
 	</div>
 </header>
+
+{#if mobileDock}
+	<DockMenu {items} {currentHref} />
+{/if}

@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import { activity, PULSE_NOW } from '#lib/fixtures/pulse.js';
+	import { activity, OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 	import ActivityLog from './activity-log.svelte';
 	import CoverageNote from './coverage-note.svelte';
 	import SectionCard from './section-card.svelte';
@@ -38,7 +38,7 @@
 <Story name="Activity log" args={{ title: 'Activity log', description: undefined }}>
 	{#snippet template(args)}
 		<SectionCard title={args.title} description={args.description} class="max-w-xl">
-			<ActivityLog entries={activity} now={PULSE_NOW} />
+			<ActivityLog entries={activity} now={OVERVIEW_NOW} />
 		</SectionCard>
 	{/snippet}
 </Story>
@@ -46,7 +46,7 @@
 <Story name="Empty activity log" args={{ title: 'Activity log', description: undefined }}>
 	{#snippet template(args)}
 		<SectionCard title={args.title} description={args.description} class="max-w-xl">
-			<ActivityLog entries={[]} now={PULSE_NOW} />
+			<ActivityLog entries={[]} now={OVERVIEW_NOW} />
 		</SectionCard>
 	{/snippet}
 </Story>

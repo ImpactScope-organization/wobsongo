@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { htmlSnippet } from '#lib/testing/snippet.js';
-import { anomaly } from '#lib/fixtures/pulse.js';
+import { anomaly } from '#lib/fixtures/overview.js';
 import AnomalyBanner from './anomaly-banner.svelte';
 import AppHeader from './app-header.svelte';
 import ComingSoon from './coming-soon.svelte';
@@ -55,9 +55,9 @@ describe('CoverageNote', () => {
 describe('PageHeader', () => {
 	it('renders the page title as the h1, with an optional eyebrow', () => {
 		const { body } = render(PageHeader, {
-			props: { title: 'Pulse', eyebrow: 'Burkina Faso · updated 14:05 GMT' }
+			props: { title: 'Overview', eyebrow: 'Burkina Faso · updated 14:05 GMT' }
 		});
-		expect(body).toMatch(/<h1[^>]*>\s*Pulse/);
+		expect(body).toMatch(/<h1[^>]*>\s*Overview/);
 		expect(body).toContain('Burkina Faso · updated 14:05 GMT');
 	});
 });
@@ -89,30 +89,29 @@ describe('SegmentedLinks', () => {
 
 describe('AppHeader', () => {
 	const items = [
-		{ label: 'Pulse', href: '/pulse' },
+		{ label: 'Overview', href: '/overview' },
 		{ label: 'High-harm', href: '/safety', count: 3 },
 		{ label: 'Spread', href: '/spread', count: 0 }
 	];
 
 	it('marks the current section as the page', () => {
-		const { body } = render(AppHeader, { props: { items, currentHref: '/pulse' } });
+		const { body } = render(AppHeader, { props: { items, currentHref: '/overview' } });
 		expect(body).toContain('aria-label="Main"');
-		expect(body).toMatch(/href="\/pulse"[^>]*aria-current="page"/);
+		expect(body).toMatch(/href="\/overview"[^>]*aria-current="page"/);
 		expect(body.match(/aria-current/g)).toHaveLength(1);
 	});
 
 	it('shows non-zero counts only', () => {
-		const { body } = render(AppHeader, { props: { items, currentHref: '/pulse' } });
+		const { body } = render(AppHeader, { props: { items, currentHref: '/overview' } });
 		// The space must survive SSR, or screen readers hear "3open".
 		expect(body).toMatch(/3<span class="sr-only">(&nbsp;|\u00a0)open<\/span>/);
 		expect(body.match(/open<\/span>/g)).toHaveLength(1);
 	});
 
-	it('renders the product name and an optional logo', () => {
+	it('renders an optional logo', () => {
 		const { body } = render(AppHeader, {
-			props: { items, currentHref: '/pulse', logoSrc: '/logo.png' }
+			props: { items, currentHref: '/overview', logoSrc: '/logo.png' }
 		});
-		expect(body).toContain('WobSongo Monitor');
 		expect(body).toContain('src="/logo.png"');
 	});
 });
@@ -129,7 +128,7 @@ describe('AnomalyBanner', () => {
 
 describe('AppHeader disabled items', () => {
 	const items = [
-		{ label: 'Pulse', href: '/' },
+		{ label: 'Overview', href: '/' },
 		{ label: 'High-harm', href: '/safety', count: 3, disabled: true }
 	];
 
@@ -146,7 +145,7 @@ describe('ComingSoon', () => {
 	it('names the view and links back', () => {
 		const { body } = render(ComingSoon, { props: { title: 'Spread', backHref: '/' } });
 		expect(body).toMatch(/<h1>Spread is coming soon<\/h1>/);
-		expect(body).toMatch(/<a href="\/"[^>]*>Back to Pulse<\/a>/);
+		expect(body).toMatch(/<a href="\/"[^>]*>Back to Overview<\/a>/);
 	});
 });
 
@@ -159,15 +158,16 @@ describe('ErrorNotice', () => {
 	it('titles the page by status', () => {
 		expect(title(404)).toBe('Page not found');
 		expect(title(501)).toBe('Not available yet');
-		expect(title(503)).toBe('Something went wrong');
-		expect(title(403)).toBe('This page can’t be shown');
+		expect(title(500)).toBe('Something went wrong');
+		expect(title(418)).toBe('This page can’t be shown');
 	});
 
-	it('shows the message and the status', () => {
+	it('shows the server message and the numeric code', () => {
 		const { body } = render(ErrorNotice, {
-			props: { status: 500, message: 'Try again in a moment.', backHref: '/' }
+			props: { status: 404, message: 'No such narrative.', backHref: '/' }
 		});
-		expect(body).toContain('Try again in a moment.');
-		expect(body).toContain('Error 500');
+		expect(body).toContain('No such narrative.');
+		expect(body).toContain('Error 404');
+		expect(body).toMatch(/<a href="\/"[^>]*>Back to Overview<\/a>/);
 	});
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import { activity, PULSE_NOW } from '#lib/fixtures/pulse.js';
+import { activity, OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import ActivityLog from './activity-log.svelte';
 import BarList from './bar-list.svelte';
@@ -91,14 +91,14 @@ describe('PageBreadcrumb', () => {
 		const { body } = render(PageBreadcrumb, {
 			props: {
 				crumbs: [
-					{ label: 'Pulse', href: '/pulse' },
+					{ label: 'Overview', href: '/overview' },
 					{ label: 'Narratives' },
 					{ label: 'N-0412', mono: true }
 				]
 			}
 		});
 		expect(body).toContain('aria-label="breadcrumb"');
-		expect(body).toContain('href="/pulse"');
+		expect(body).toContain('href="/overview"');
 		expect(stripComments(body)).toMatch(/aria-current="page"[^>]*>\s*N-0412/);
 		expect(body).not.toContain('href="undefined"');
 	});
@@ -107,7 +107,7 @@ describe('PageBreadcrumb', () => {
 describe('ActivityLog compact variant', () => {
 	it('shows clock times and hides the actor column', () => {
 		const { body } = render(ActivityLog, {
-			props: { entries: activity, now: PULSE_NOW, variant: 'compact' }
+			props: { entries: activity, now: OVERVIEW_NOW, variant: 'compact' }
 		});
 		expect(body).toContain('>14:02<');
 		expect(body).not.toContain('Today 14:02<');

@@ -13,15 +13,15 @@ import {
 	growthPct,
 	matchesTopic,
 	misinfoShare,
-	parsePulseTopic,
+	parseOverviewTopic,
 	topNarratives,
 	trendDirection
-} from './pulse';
+} from './overview';
 import { parseReviewFormDecision } from './review';
 import { parseTimeRange } from './time-range';
 import { whatsAppLagHours } from './narrative-detail';
 import { fixedClock } from '../utils/clock';
-import { narratives } from '../fixtures/pulse';
+import { narratives } from '../fixtures/overview';
 
 describe('toCount', () => {
 	it('suppresses counts below the minimum cell size', () => {
@@ -141,12 +141,12 @@ describe('botLinkMessage', () => {
 	});
 });
 
-describe('parsePulseTopic', () => {
+describe('parseOverviewTopic', () => {
 	it('accepts known topics and falls back to misinformation', () => {
-		expect(parsePulseTopic('all')).toBe('all');
-		expect(parsePulseTopic('misinfo')).toBe('misinfo');
-		expect(parsePulseTopic('rumours')).toBe('misinfo');
-		expect(parsePulseTopic(null)).toBe('misinfo');
+		expect(parseOverviewTopic('all')).toBe('all');
+		expect(parseOverviewTopic('misinfo')).toBe('misinfo');
+		expect(parseOverviewTopic('rumours')).toBe('misinfo');
+		expect(parseOverviewTopic(null)).toBe('misinfo');
 	});
 });
 

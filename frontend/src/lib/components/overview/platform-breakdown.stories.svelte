@@ -1,13 +1,13 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import { platformCounts } from '#lib/fixtures/pulse.js';
+	import { platformCounts } from '#lib/fixtures/overview.js';
 	import CoverageNote from '../common/coverage-note.svelte';
 	import SectionCard from '../common/section-card.svelte';
 	import PlatformBreakdown from './platform-breakdown.svelte';
 
 	const { Story } = defineMeta({
-		title: 'Pulse/PlatformBreakdown',
+		title: 'Overview/PlatformBreakdown',
 		component: PlatformBreakdown,
 		tags: ['autodocs'],
 		parameters: { layout: 'padded' },

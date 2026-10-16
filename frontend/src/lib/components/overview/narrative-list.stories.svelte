@@ -1,13 +1,13 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import { narratives } from '#lib/fixtures/pulse.js';
+	import { narratives } from '#lib/fixtures/overview.js';
 	import SectionCard from '../common/section-card.svelte';
 	import SegmentedLinks from '../common/segmented-links.svelte';
 	import NarrativeList from './narrative-list.svelte';
 
 	const { Story } = defineMeta({
-		title: 'Pulse/NarrativeList',
+		title: 'Overview/NarrativeList',
 		component: NarrativeList,
 		tags: ['autodocs'],
 		parameters: { layout: 'padded' },

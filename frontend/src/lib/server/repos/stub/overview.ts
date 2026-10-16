@@ -1,9 +1,9 @@
-import type { PulseSnapshot } from '#lib/domain/pulse.js';
+import type { OverviewSnapshot } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
-import { pulseSnapshot } from '#lib/fixtures/pulse.js';
+import { overviewSnapshot } from '#lib/fixtures/overview.js';
 import type { Clock } from '#lib/utils/clock.js';
 import { ok } from '../../result.js';
-import type { PulseRepo } from '../../services/pulse.js';
+import type { OverviewRepo } from '../../services/overview.js';
 import { simulatedFailure } from './store.js';
 
 /**
@@ -16,7 +16,7 @@ const SCALE: Record<TimeRange, { messages: number; narratives: number }> = {
 	'30d': { messages: 25, narratives: 2.5 }
 };
 
-function scaled(snapshot: PulseSnapshot, range: TimeRange): PulseSnapshot {
+function scaled(snapshot: OverviewSnapshot, range: TimeRange): OverviewSnapshot {
 	const { messages, narratives } = SCALE[range];
 	if (messages === 1 && narratives === 1) return snapshot;
 
@@ -51,12 +51,13 @@ function scaled(snapshot: PulseSnapshot, range: TimeRange): PulseSnapshot {
 	};
 }
 
-export function createStubPulseRepo(clock: Clock): PulseRepo {
+export function createStubOverviewRepo(clock: Clock): OverviewRepo {
 	return {
 		async getSnapshot(scope, { range }) {
 			const simulated = simulatedFailure(scope.accountId);
 			if (simulated) return simulated;
-			return ok({ ...scaled(structuredClone(pulseSnapshot), range), updatedAt: clock.now() });
+			return ok({ ...scaled(structuredClone(overviewSnapshot), range), updatedAt: clock.now() });
 		}
 	};
 }
+

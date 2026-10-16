@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import type { PulseTopic } from '#lib/domain/pulse.js';
+import type { OverviewTopic } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
-import { highHarmSummary, narratives, platformCounts, pulseSnapshot } from '#lib/fixtures/pulse.js';
+import { highHarmSummary, narratives, platformCounts, overviewSnapshot } from '#lib/fixtures/overview.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
 import PlatformBreakdown from './platform-breakdown.svelte';
-import PulseView from './pulse-view.svelte';
+import OverviewView from './overview-view.svelte';
 
 describe('NarrativeList', () => {
 	it('renders an ordered list in the given order', () => {
@@ -106,16 +106,16 @@ describe('HighHarmSummary', () => {
 	});
 });
 
-describe('PulseView', () => {
+describe('OverviewView', () => {
 	const hrefs = {
 		rangeHref: (range: string) => `?range=${range}&topic=misinfo`,
 		topicHref: (topic: string) => `?range=24h&topic=${topic}`
 	};
 	const view = (
-		snapshot = pulseSnapshot,
+		snapshot = overviewSnapshot,
 		range: TimeRange = '24h',
-		topic: PulseTopic = 'misinfo'
-	) => stripComments(render(PulseView, { props: { snapshot, range, topic, ...hrefs } }).body);
+		topic: OverviewTopic = 'misinfo'
+	) => stripComments(render(OverviewView, { props: { snapshot, range, topic, ...hrefs } }).body);
 
 	it('shows the headline numbers with changes against the previous window', () => {
 		const body = view();
@@ -131,8 +131,8 @@ describe('PulseView', () => {
 	it('says when things fell or held steady', () => {
 		const body = view(
 			{
-				...pulseSnapshot,
-				messages: { ...pulseSnapshot.messages, previous: pulseSnapshot.messages.current },
+				...overviewSnapshot,
+				messages: { ...overviewSnapshot.messages, previous: overviewSnapshot.messages.current },
 				medianDebunkMinutes: { current: 100, previous: 120 }
 			},
 			'7d'
@@ -142,7 +142,7 @@ describe('PulseView', () => {
 	});
 
 	it('links the range and topic options, marking the current ones', () => {
-		const body = view(pulseSnapshot, '7d', 'all');
+		const body = view(overviewSnapshot, '7d', 'all');
 		expect(body).toMatch(/<a href="\?range=7d&amp;topic=misinfo" aria-current="true"/);
 		expect(body).toMatch(/<a href="\?range=24h&amp;topic=all" aria-current="true"/);
 		expect(body).toContain('Top narratives');
@@ -150,7 +150,7 @@ describe('PulseView', () => {
 
 	it('shows the anomaly banner only when there is one', () => {
 		expect(view()).toContain('aria-label="Anomaly"');
-		expect(view({ ...pulseSnapshot, anomaly: null })).not.toContain('aria-label="Anomaly"');
+		expect(view({ ...overviewSnapshot, anomaly: null })).not.toContain('aria-label="Anomaly"');
 	});
 
 	it('lists the narratives it is given, in order', () => {
@@ -159,6 +159,6 @@ describe('PulseView', () => {
 		const second = body.indexOf(narratives[1].title);
 		expect(first).toBeGreaterThan(-1);
 		expect(second).toBeGreaterThan(first);
-		expect(view({ ...pulseSnapshot, narratives: [] })).toContain('No narratives in this window.');
+		expect(view({ ...overviewSnapshot, narratives: [] })).toContain('No narratives in this window.');
 	});
 });

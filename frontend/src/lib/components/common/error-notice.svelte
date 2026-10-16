@@ -12,7 +12,7 @@
 		backLabel?: string;
 	}
 
-	let { status, message, backHref, backLabel = 'Back to Pulse' }: Props = $props();
+	let { status, message, backHref, backLabel = 'Back to Overview' }: Props = $props();
 
 	const title = $derived(
 		status === 404

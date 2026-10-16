@@ -1,5 +1,5 @@
 /**
- * The Pulse view: the headline numbers for one reporting window, plus the
+ * The Overview view: the headline numbers for one reporting window, plus the
  * narratives, sources and alerts behind them.
  */
 import type {
@@ -11,21 +11,21 @@ import type {
 } from './narrative.js';
 import type { PlatformCount } from './platform.js';
 
-/** Which narratives the Pulse list shows. */
-export type PulseTopic = 'misinfo' | 'all';
+/** Which narratives the Overview list shows. */
+export type OverviewTopic = 'misinfo' | 'all';
 
-export const PULSE_TOPICS: readonly PulseTopic[] = ['misinfo', 'all'];
+export const OVERVIEW_TOPICS: readonly OverviewTopic[] = ['misinfo', 'all'];
 
-export const DEFAULT_PULSE_TOPIC: PulseTopic = 'misinfo';
+export const DEFAULT_OVERVIEW_TOPIC: OverviewTopic = 'misinfo';
 
-export function parsePulseTopic(value: string | null | undefined): PulseTopic {
-	return PULSE_TOPICS.find((topic) => topic === value) ?? DEFAULT_PULSE_TOPIC;
+export function parseOverviewTopic(value: string | null | undefined): OverviewTopic {
+	return OVERVIEW_TOPICS.find((topic) => topic === value) ?? DEFAULT_OVERVIEW_TOPIC;
 }
 
 /** Verdicts counted as misinformation; "all" adds unverified claims. */
 export const MISINFO_VERDICTS: readonly Verdict[] = ['false', 'misleading'];
 
-export function matchesTopic(verdict: Verdict, topic: PulseTopic): boolean {
+export function matchesTopic(verdict: Verdict, topic: OverviewTopic): boolean {
 	return topic === 'all' || MISINFO_VERDICTS.includes(verdict);
 }
 
@@ -35,7 +35,7 @@ export interface Comparison {
 	previous: number;
 }
 
-export interface PulseSnapshot {
+export interface OverviewSnapshot {
 	/** Country or area WobSongo monitors, e.g. "Burkina Faso". */
 	region: string;
 	updatedAt: Date;
@@ -57,7 +57,7 @@ export interface PulseSnapshot {
 /** Narratives for a topic, highest volume first. */
 export function topNarratives(
 	narratives: readonly NarrativeSummary[],
-	topic: PulseTopic
+	topic: OverviewTopic
 ): NarrativeSummary[] {
 	return narratives
 		.filter((narrative) => matchesTopic(narrative.verdict, topic))

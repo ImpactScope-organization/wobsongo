@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import logo from '#lib/assets/wobsongo-mark.jpg';
+	import logo from '#lib/assets/ws-logo-white.svg';
 	import AppHeader from '#lib/components/common/app-header.svelte';
 	import { activeNavHref, NAV_ITEMS, SETTINGS_HREF } from '#lib/navigation.js';
 	import type { LayoutProps } from './$types';

@@ -15,7 +15,6 @@
 	import AccountAvatar from './account-avatar.svelte';
 
 	interface Props {
-		productName?: string;
 		/** Logo image URL; omitted shows the name only. */
 		logoSrc?: string;
 		items: readonly NavItem[];
@@ -29,7 +28,6 @@
 	}
 
 	let {
-		productName = 'WobSongo Monitor',
 		logoSrc,
 		items,
 		currentHref,
@@ -46,17 +44,8 @@
 			class="flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal"
 		>
 			{#if logoSrc}
-				<img
-					src={logoSrc}
-					alt=""
-					width="30"
-					height="30"
-					class="size-[1.875rem] rounded-md bg-white"
-				/>
+				<img src={logoSrc} alt="" class="h-[20px] w-auto" />
 			{/if}
-			<span class="font-heading text-[0.9375rem] leading-none font-bold tracking-[-0.01em]">
-				{productName}
-			</span>
 		</a>
 
 		<nav

@@ -8,7 +8,7 @@
 import type { Repos } from '../../services/index.js';
 import { createApiAccountRepo } from './account.js';
 import { createApiAuthRepo } from './auth.js';
-import { createApiPulseRepo } from './pulse.js';
+import { createApiOverviewRepo } from './overview.js';
 
 export interface ApiOptions {
 	/** Backend origin, e.g. "https://api.wobsongo.org". */
@@ -21,6 +21,6 @@ export function createApiRepos(options: ApiOptions): Repos {
 	return {
 		auth: createApiAuthRepo(options),
 		account: createApiAccountRepo(options),
-		pulse: createApiPulseRepo(options)
+		overview: createApiOverviewRepo(options)
 	};
 }

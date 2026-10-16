@@ -1,15 +1,15 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, waitFor, within } from 'storybook/test';
-	import logo from '#lib/assets/wobsongo-mark.jpg';
-	import { anomaly } from '#lib/fixtures/pulse.js';
+	import logo from '#lib/assets/ws-logo-white.svg';
+	import { anomaly } from '#lib/fixtures/overview.js';
 	import AnomalyBanner from './anomaly-banner.svelte';
 	import AppHeader from './app-header.svelte';
 	import PageHeader from './page-header.svelte';
 	import SegmentedLinks from './segmented-links.svelte';
 
 	const NAV = [
-		{ label: 'Pulse', href: '/pulse' },
+		{ label: 'Overview', href: '/overview' },
 		{ label: 'Narratives', href: '/narratives' },
 		{ label: 'Spread', href: '/spread' },
 		{ label: 'Operations', href: '/ops' },
@@ -27,7 +27,7 @@
 		component: AppHeader,
 		tags: ['autodocs'],
 		parameters: { layout: 'fullscreen' },
-		args: { items: NAV, currentHref: '/pulse', logoSrc: logo }
+		args: { items: NAV, currentHref: '/overview', logoSrc: logo }
 	});
 </script>
 
@@ -36,8 +36,8 @@
 	play={async ({ canvasElement }) => {
 		const nav = within(canvasElement).getByRole('navigation', { name: 'Main' });
 		const current = within(nav).getByRole('link', { current: 'page' });
-		await expect(current).toHaveTextContent('Pulse');
-		const brand = within(canvasElement).getByRole('link', { name: 'WobSongo Monitor' });
+		await expect(current).toHaveTextContent('Overview');
+		const brand = within(canvasElement).getByRole('link', { name: 'Monitor' });
 		const logoImg = brand.querySelector('img')!;
 		// Proves the asset path resolves: a broken image has no natural size.
 		await waitFor(() => expect(logoImg.naturalWidth).toBeGreaterThan(0));
@@ -80,14 +80,14 @@
 	name="Page header with range toggle"
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Pulse');
+		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Overview');
 		const range = canvas.getByRole('navigation', { name: 'Time range' });
 		await expect(within(range).getByRole('link', { current: true })).toHaveTextContent('24 h');
 	}}
 >
 	{#snippet template()}
 		<div class="p-8">
-			<PageHeader title="Pulse" eyebrow="Burkina Faso · updated 14:05 GMT">
+			<PageHeader title="Overview" eyebrow="Burkina Faso · updated 14:05 GMT">
 				{#snippet actions()}
 					<SegmentedLinks label="Time range" options={RANGES} current="24h" />
 				{/snippet}
@@ -116,7 +116,7 @@
 	name="App header, views not built yet"
 	args={{
 		items: [
-			{ label: 'Pulse', href: '/' },
+			{ label: 'Overview', href: '/' },
 			{ label: 'Narratives', href: '/narratives', disabled: true },
 			{ label: 'High-harm', href: '/safety', count: 3, disabled: true }
 		],

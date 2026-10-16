@@ -23,11 +23,11 @@ const input = (body: string, name: string) =>
 	body.match(new RegExp(`<input(?=[^>]*name="${name}")[^>]*>`))?.[0] ?? '';
 
 describe('AppHeader account link', () => {
-	const items = [{ label: 'Pulse', href: '/pulse' }];
+	const items = [{ label: 'Overview', href: '/overview' }];
 
 	it('links the avatar to settings and names it for screen readers', () => {
 		const { body } = render(AppHeader, {
-			props: { items, currentHref: '/pulse', account: { name: profile.name, href: '/settings' } }
+			props: { items, currentHref: '/overview', account: { name: profile.name, href: '/settings' } }
 		});
 		expect(body).toMatch(/<a href="\/settings"(?![^>]*aria-current)[^>]*>/);
 		expect(body).toContain('>AO</span>');

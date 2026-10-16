@@ -11,9 +11,9 @@ import type {
 	WeeklyCounts
 } from '#lib/domain/spread.js';
 import { toCount, toTotal } from '#lib/domain/count.js';
-import { narratives, PULSE_NOW } from './pulse.js';
+import { narratives, OVERVIEW_NOW } from './overview.js';
 
-export const SPREAD_NOW = PULSE_NOW;
+export const SPREAD_NOW = OVERVIEW_NOW;
 
 const DAY = 86_400_000;
 /** Monday of the first of eight full weeks before SPREAD_NOW (W34–W41). */

@@ -1,5 +1,4 @@
 <script lang="ts">
-	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import type { Anomaly } from '#lib/domain/narrative.js';
@@ -49,8 +48,10 @@
 					<span
 						class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100"
 					></span>
-					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
-				</span>				<div class="min-w-0 flex-1 truncate text-xs/snug font-medium">
+					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"
+					></span>
+				</span>
+				<div class="min-w-0 flex-1 truncate text-xs/snug font-medium">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
 					is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
 					{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.
@@ -65,7 +66,8 @@
 					<span
 						class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100"
 					></span>
-					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
+					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"
+					></span>
 				</span>
 				<div class="flex-1 text-xs/relaxed font-medium text-pretty">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
@@ -104,9 +106,10 @@
 		<div class="text-eyebrow flex items-center gap-2 font-semibold" aria-hidden="true">
 			<span class="relative flex size-3">
 				<span
-					class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 mix-blend-screen opacity-100"
+					class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100 mix-blend-screen"
 				></span>
-				<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
+				<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"
+				></span>
 			</span>
 		</div>
 		<div

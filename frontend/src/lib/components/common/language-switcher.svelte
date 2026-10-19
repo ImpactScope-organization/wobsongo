@@ -25,7 +25,7 @@
 	role="group"
 	aria-label="Language"
 	class={cn(
-		'inline-flex items-center rounded-md border border-inverse-border bg-inverse-raised p-0.5 gap-x-2',
+		'inline-flex items-center gap-x-2 rounded-md border border-inverse-border bg-inverse-raised p-0.5',
 		className
 	)}
 >

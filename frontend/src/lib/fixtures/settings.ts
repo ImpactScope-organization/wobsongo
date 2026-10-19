@@ -9,9 +9,9 @@ import type {
 	BotLinkCode,
 	BotPlatform
 } from '#lib/domain/account.js';
-import { PULSE_NOW } from './pulse.js';
+import { OVERVIEW_NOW } from './overview.js';
 
-export const SETTINGS_NOW = PULSE_NOW;
+export const SETTINGS_NOW = OVERVIEW_NOW;
 
 export const profile: AccountProfile = {
 	name: 'Dr. Aminata Ouédraogo',

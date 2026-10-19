@@ -3,7 +3,7 @@
  * cookie jar, and services on stub repositories with a controllable clock.
  */
 import type { Cookies } from '@sveltejs/kit';
-import { PULSE_NOW } from '#lib/fixtures/pulse.js';
+import { OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 import { manualClock, type ManualClock } from '#lib/testing/clock.js';
 import { setTokenCookies } from '../auth/cookies.js';
 import {
@@ -51,7 +51,7 @@ export interface TestBackend {
 }
 
 /** Fresh stub services, starting at the fixtures' "now". */
-export function createTestBackend(start: Date = PULSE_NOW): TestBackend {
+export function createTestBackend(start: Date = OVERVIEW_NOW): TestBackend {
 	const clock = manualClock(start);
 	const store = createStubStore();
 	return { clock, store, services: createServices(createStubRepos(clock, store)) };

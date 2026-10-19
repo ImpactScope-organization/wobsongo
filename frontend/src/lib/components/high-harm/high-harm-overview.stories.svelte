@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import logo from '#lib/assets/wobsongo-mark.jpg';
+	import logo from '#lib/assets/ws-logo-white.svg';
 	import {
 		harmAlerts,
 		HIGH_HARM_NOW,
@@ -38,7 +38,7 @@
 				logoSrc={logo}
 				currentHref="/safety"
 				items={[
-					{ label: 'Pulse', href: '/pulse' },
+					{ label: 'Overview', href: '/overview' },
 					{ label: 'Narratives', href: '/narratives' },
 					{ label: 'Spread', href: '/spread' },
 					{ label: 'Operations', href: '/ops' },

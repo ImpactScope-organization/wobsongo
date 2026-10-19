@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import { activity, PULSE_NOW } from '#lib/fixtures/pulse.js';
+import { activity, OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 import { htmlSnippet, stripComments } from '#lib/testing/snippet.js';
 import ActivityLog from './activity-log.svelte';
 import KpiGroup from './kpi-group.svelte';
@@ -69,7 +69,7 @@ describe('VerdictMeter', () => {
 
 describe('ActivityLog', () => {
 	it('lists entries with machine-readable times relative to now', () => {
-		const { body } = render(ActivityLog, { props: { entries: activity, now: PULSE_NOW } });
+		const { body } = render(ActivityLog, { props: { entries: activity, now: OVERVIEW_NOW } });
 		expect(body).toContain('datetime="2026-10-12T14:02:00.000Z"');
 		expect(body).toContain('Today 14:02');
 		expect(body).toContain('Yesterday 09:14');
@@ -77,13 +77,13 @@ describe('ActivityLog', () => {
 	});
 
 	it('names system events', () => {
-		const { body } = render(ActivityLog, { props: { entries: activity, now: PULSE_NOW } });
+		const { body } = render(ActivityLog, { props: { entries: activity, now: OVERVIEW_NOW } });
 		expect(body).toContain('System');
 		expect(body).toContain('Dr. A.');
 	});
 
 	it('shows an empty state', () => {
-		const { body } = render(ActivityLog, { props: { entries: [], now: PULSE_NOW } });
+		const { body } = render(ActivityLog, { props: { entries: [], now: OVERVIEW_NOW } });
 		expect(body).toContain('No activity yet.');
 		expect(body).not.toContain('<ol');
 	});

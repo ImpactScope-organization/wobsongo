@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import logo from '#lib/assets/wobsongo-mark.jpg';
+	import logo from '#lib/assets/ws-logo-white.svg';
 	import { passwordChangedAt, profile, SETTINGS_NOW } from '#lib/fixtures/settings.js';
 	import { NAV_ITEMS } from '#lib/navigation.js';
 	import AppHeader from '../common/app-header.svelte';

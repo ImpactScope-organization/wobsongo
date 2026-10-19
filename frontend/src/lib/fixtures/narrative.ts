@@ -16,9 +16,9 @@ import type {
 import type { Platform } from '#lib/domain/platform.js';
 import type { ActivityEntry } from '#lib/domain/review.js';
 import { toCount, toTotal } from '#lib/domain/count.js';
-import { narratives, PULSE_NOW } from './pulse.js';
+import { narratives, OVERVIEW_NOW } from './overview.js';
 
-export const NARRATIVE_NOW = PULSE_NOW;
+export const NARRATIVE_NOW = OVERVIEW_NOW;
 
 export const narrative: NarrativeDetail = {
 	...narratives[0],

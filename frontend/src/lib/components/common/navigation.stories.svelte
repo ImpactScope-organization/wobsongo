@@ -1,15 +1,16 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, waitFor, within } from 'storybook/test';
-	import logo from '#lib/assets/wobsongo-mark.jpg';
-	import { anomaly } from '#lib/fixtures/pulse.js';
+	import logo from '#lib/assets/ws-logo-white.svg';
+	import { anomaly } from '#lib/fixtures/overview.js';
 	import AnomalyBanner from './anomaly-banner.svelte';
 	import AppHeader from './app-header.svelte';
+	import DockMenu from './dock-menu.svelte';
 	import PageHeader from './page-header.svelte';
 	import SegmentedLinks from './segmented-links.svelte';
 
 	const NAV = [
-		{ label: 'Pulse', href: '/pulse' },
+		{ label: 'Overview', href: '/overview' },
 		{ label: 'Narratives', href: '/narratives' },
 		{ label: 'Spread', href: '/spread' },
 		{ label: 'Operations', href: '/ops' },
@@ -27,7 +28,7 @@
 		component: AppHeader,
 		tags: ['autodocs'],
 		parameters: { layout: 'fullscreen' },
-		args: { items: NAV, currentHref: '/pulse', logoSrc: logo }
+		args: { items: NAV, currentHref: '/overview', logoSrc: logo }
 	});
 </script>
 
@@ -36,8 +37,8 @@
 	play={async ({ canvasElement }) => {
 		const nav = within(canvasElement).getByRole('navigation', { name: 'Main' });
 		const current = within(nav).getByRole('link', { current: 'page' });
-		await expect(current).toHaveTextContent('Pulse');
-		const brand = within(canvasElement).getByRole('link', { name: 'WobSongo Monitor' });
+		await expect(current).toHaveTextContent('Overview');
+		const brand = within(canvasElement).getByRole('link', { name: 'Monitor' });
 		const logoImg = brand.querySelector('img')!;
 		// Proves the asset path resolves: a broken image has no natural size.
 		await waitFor(() => expect(logoImg.naturalWidth).toBeGreaterThan(0));
@@ -45,6 +46,17 @@
 			'href',
 			'/safety'
 		);
+		const frButton = within(canvasElement).getByRole('button', { name: 'Français' });
+		const enButton = within(canvasElement).getByRole('button', { name: 'English' });
+		await expect(frButton).toHaveAttribute('aria-pressed', 'true');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'false');
+		await enButton.click();
+		await expect(frButton).toHaveAttribute('aria-pressed', 'false');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'true');
+		// Clicking the active language again should remain pressed
+		await enButton.click();
+		await expect(frButton).toHaveAttribute('aria-pressed', 'false');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'true');
 	}}
 >
 	{#snippet template(args)}
@@ -77,17 +89,42 @@
 </Story>
 
 <Story
+	name="Anomaly banner (mobile collapsible)"
+	play={async ({ canvasElement }) => {
+		const banner = within(canvasElement).getByRole('complementary', { name: 'Anomaly' });
+		const expandButton = within(banner).getByRole('button', { name: 'Expand anomaly notice' });
+		await expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+		await expandButton.click();
+		const collapseButton = within(banner).getByRole('button', { name: 'Collapse anomaly notice' });
+		await expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
+		const ctaLink = within(banner).getByRole('link', { name: 'Open narrative' });
+		await expect(ctaLink).toHaveAttribute('href', '/narratives/N-0412');
+		await expect(ctaLink).toHaveTextContent(/Check/);
+		await collapseButton.click();
+		await expect(
+			within(banner).getByRole('button', { name: 'Expand anomaly notice' })
+		).toHaveAttribute('aria-expanded', 'false');
+	}}
+>
+	{#snippet template()}
+		<div class="max-w-md bg-background p-4">
+			<AnomalyBanner {anomaly} href="/narratives/N-0412" forceMobile />
+		</div>
+	{/snippet}
+</Story>
+
+<Story
 	name="Page header with range toggle"
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Pulse');
+		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Overview');
 		const range = canvas.getByRole('navigation', { name: 'Time range' });
 		await expect(within(range).getByRole('link', { current: true })).toHaveTextContent('24 h');
 	}}
 >
 	{#snippet template()}
 		<div class="p-8">
-			<PageHeader title="Pulse" eyebrow="Burkina Faso · updated 14:05 GMT">
+			<PageHeader title="Overview" eyebrow="Burkina Faso · updated 14:05 GMT">
 				{#snippet actions()}
 					<SegmentedLinks label="Time range" options={RANGES} current="24h" />
 				{/snippet}
@@ -116,7 +153,7 @@
 	name="App header, views not built yet"
 	args={{
 		items: [
-			{ label: 'Pulse', href: '/' },
+			{ label: 'Overview', href: '/' },
 			{ label: 'Narratives', href: '/narratives', disabled: true },
 			{ label: 'High-harm', href: '/safety', count: 3, disabled: true }
 		],
@@ -128,3 +165,11 @@
 		await expect(within(nav).getByText(/High-harm/)).toHaveAttribute('aria-disabled', 'true');
 	}}
 />
+
+<Story name="Mobile dock menu">
+	{#snippet template()}
+		<div class="relative min-h-32 bg-background p-4">
+			<DockMenu items={NAV} currentHref="/overview" class="static! mx-auto! block! max-w-md!" />
+		</div>
+	{/snippet}
+</Story>

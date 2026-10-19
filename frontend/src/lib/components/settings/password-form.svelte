@@ -106,25 +106,34 @@
 			</div>
 		</div>
 
-		<div class="mt-[1.125rem] flex flex-wrap items-center justify-between gap-3">
-			<div class="flex flex-wrap items-center gap-2.5">
+		<div class="mt-[1.125rem] flex flex-wrap items-center justify-end gap-3">
+			<div class="flex w-full flex-wrap items-center gap-2.5">
 				<!-- Submits the separate reset form below, so passwords are never sent with it. -->
-				<button type="submit" form="reset-{id}" class={cn(TEXT_LINK, 'py-1')}>
+				<button
+					type="submit"
+					form="reset-{id}"
+					class={cn(TEXT_LINK, 'w-full py-1 text-center md:text-right')}
+				>
 					Forgot your password? Email me a reset link
 				</button>
 				{#if resetSentTo}
-					<span role="status" class="text-[0.78125rem] font-medium text-status-verified-foreground">
+					<span
+						role="status"
+						class="w-full text-[0.78125rem] font-medium text-status-verified-foreground"
+					>
 						✓ Reset link sent to {resetSentTo}
 					</span>
 				{/if}
 			</div>
-			<div class="flex items-center gap-3">
+			<div class="flex w-full items-center gap-3">
 				{#if updated}
 					<span role="status" class="text-[0.8125rem] font-medium text-status-verified-foreground">
 						✓ Password updated
 					</span>
 				{/if}
-				<button type="submit" class={PRIMARY}>Update password</button>
+				<button type="submit" class={cn(PRIMARY, 'ml-auto w-full md:w-auto')}
+					>Update password</button
+				>
 			</div>
 		</div>
 	</form>

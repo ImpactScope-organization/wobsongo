@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PULSE_NOW } from '#lib/fixtures/pulse.js';
+import { OVERVIEW_NOW } from '#lib/fixtures/overview.js';
 import { profile } from '#lib/fixtures/settings.js';
 import { failure } from '../result.js';
 import { createApiRepos } from '../repos/api/index.js';
@@ -13,7 +13,7 @@ import {
 import { createTestBackend } from '../testing/fakes.js';
 import { describeFailure, SERVER_ERROR_MESSAGE } from './failures.js';
 import { createServices } from './index.js';
-import { PULSE_NARRATIVE_LIMIT } from './pulse.js';
+import { OVERVIEW_NARRATIVE_LIMIT } from './overview.js';
 
 const demo = { accountId: DEMO_ACCOUNT_ID };
 const apiServices = createServices(
@@ -31,17 +31,17 @@ describe('describeFailure', () => {
 	it('words expected statuses, hides server errors and keeps "not available yet"', () => {
 		expect(describeFailure(failure(409, 'raw'), { 409: 'Taken.' }).message).toBe('Taken.');
 		expect(describeFailure(failure(503, 'upstream timeout')).message).toBe(SERVER_ERROR_MESSAGE);
-		expect(describeFailure(failure(501, 'Pulse is not available yet.')).message).toBe(
-			'Pulse is not available yet.'
+		expect(describeFailure(failure(501, 'Overview is not available yet.')).message).toBe(
+			'Overview is not available yet.'
 		);
 		expect(describeFailure(failure(400, 'Bad input.')).message).toBe('Bad input.');
 	});
 });
 
-describe('PulseService', () => {
+describe('OverviewService', () => {
 	it('shows misinformation narratives, highest volume first', async () => {
 		const { services } = createTestBackend();
-		const result = await services.pulse.getPulse(demo, { range: '24h', topic: 'misinfo' });
+		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
 		if (!result.ok) throw new Error(result.message);
 
 		const { narratives } = result.data;
@@ -49,26 +49,26 @@ describe('PulseService', () => {
 		expect(narratives.map((narrative) => narrative.volume)).toEqual(
 			narratives.map((narrative) => narrative.volume).toSorted((a, b) => b - a)
 		);
-		expect(narratives.length).toBeLessThanOrEqual(PULSE_NARRATIVE_LIMIT);
+		expect(narratives.length).toBeLessThanOrEqual(OVERVIEW_NARRATIVE_LIMIT);
 	});
 
 	it('adds unverified narratives for all topics', async () => {
 		const { services } = createTestBackend();
-		const result = await services.pulse.getPulse(demo, { range: '24h', topic: 'all' });
+		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'all' });
 		expect(result.ok && result.data.narratives.some((n) => n.verdict === 'unverified')).toBe(true);
 	});
 
 	it('stamps the snapshot with the clock', async () => {
 		const { clock, services } = createTestBackend();
 		clock.advance(60_000);
-		const result = await services.pulse.getPulse(demo, { range: '24h', topic: 'misinfo' });
-		expect(result.ok && result.data.updatedAt).toEqual(new Date(PULSE_NOW.getTime() + 60_000));
+		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
+		expect(result.ok && result.data.updatedAt).toEqual(new Date(OVERVIEW_NOW.getTime() + 60_000));
 	});
 
 	it('scales longer windows in the stub, without the anomaly banner', async () => {
 		const { services } = createTestBackend();
-		const day = await services.pulse.getPulse(demo, { range: '24h', topic: 'misinfo' });
-		const week = await services.pulse.getPulse(demo, { range: '7d', topic: 'misinfo' });
+		const day = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
+		const week = await services.overview.getOverview(demo, { range: '7d', topic: 'misinfo' });
 		if (!day.ok || !week.ok) throw new Error('expected data');
 		expect(week.data.messages.current).toBeGreaterThan(day.data.messages.current);
 		expect(day.data.anomaly).not.toBeNull();
@@ -78,18 +78,18 @@ describe('PulseService', () => {
 	it('follows the stub id conventions for the account', async () => {
 		const { services } = createTestBackend();
 		const query = { range: '24h', topic: 'misinfo' } as const;
-		expect(await services.pulse.getPulse({ accountId: 'acc-404' }, query)).toEqual(
-			failure(404, 'No Pulse data for this account.')
+		expect(await services.overview.getOverview({ accountId: 'acc-404' }, query)).toEqual(
+			failure(404, 'No Overview data for this account.')
 		);
-		expect(await services.pulse.getPulse({ accountId: 'acc-500' }, query)).toEqual(
+		expect(await services.overview.getOverview({ accountId: 'acc-500' }, query)).toEqual(
 			failure(500, SERVER_ERROR_MESSAGE)
 		);
 	});
 
 	it('is not available yet on the backend', async () => {
-		expect(await apiServices.pulse.getPulse(demo, { range: '24h', topic: 'misinfo' })).toEqual(
-			failure(501, 'Pulse is not available yet.')
-		);
+		expect(
+			await apiServices.overview.getOverview(demo, { range: '24h', topic: 'misinfo' })
+		).toEqual(failure(501, 'Overview is not available yet.'));
 	});
 });
 
@@ -272,7 +272,9 @@ describe('AuthService', () => {
 
 		it('expire the access token after 15 minutes', async () => {
 			const { clock, services, tokens } = await signedIn();
-			expect(tokens.accessExpiresAt).toEqual(new Date(PULSE_NOW.getTime() + ACCESS_TOKEN_TTL_MS));
+			expect(tokens.accessExpiresAt).toEqual(
+				new Date(OVERVIEW_NOW.getTime() + ACCESS_TOKEN_TTL_MS)
+			);
 
 			clock.advance(ACCESS_TOKEN_TTL_MS);
 			expect(await services.auth.getSession(tokens.accessToken)).toEqual(

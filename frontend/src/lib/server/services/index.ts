@@ -4,28 +4,29 @@
  */
 import { createAccountService, type AccountRepo, type AccountService } from './account.js';
 import { createAuthService, type AuthRepo, type AuthService } from './auth.js';
-import { createPulseService, type PulseRepo, type PulseService } from './pulse.js';
+import { createOverviewService, type OverviewRepo, type OverviewService } from './overview.js';
 
 export interface Repos {
 	auth: AuthRepo;
 	account: AccountRepo;
-	pulse: PulseRepo;
+	overview: OverviewRepo;
 }
 
 export interface Services {
 	auth: AuthService;
 	account: AccountService;
-	pulse: PulseService;
+	overview: OverviewService;
 }
 
 export function createServices(repos: Repos): Services {
+	const overview = createOverviewService(repos.overview);
 	return {
 		auth: createAuthService(repos.auth),
 		account: createAccountService(repos.account),
-		pulse: createPulseService(repos.pulse)
+		overview
 	};
 }
 
 export type { AccountService, AccountSettings, PasswordChange, ProfileChange } from './account.js';
 export type { AuthService, Session, TokenPair } from './auth.js';
-export type { PulseService } from './pulse.js';
+export type { OverviewService } from './overview.js';

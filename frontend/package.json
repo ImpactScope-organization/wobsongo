@@ -75,5 +75,8 @@
 	"imports": {
 		"#lib": "./src/lib/index.js",
 		"#lib/*": "./src/lib/*"
+	},
+	"dependencies": {
+		"lucide": "^1.59.0"
 	}
 }

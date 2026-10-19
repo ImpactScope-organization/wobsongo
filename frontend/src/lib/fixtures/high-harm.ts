@@ -3,9 +3,9 @@
  * design. Read-only; shared by stories, tests and stubs.
  */
 import type { HarmAlert, SubstanceMention } from '#lib/domain/high-harm.js';
-import { activity, PULSE_NOW } from './pulse.js';
+import { activity, OVERVIEW_NOW } from './overview.js';
 
-export const HIGH_HARM_NOW = PULSE_NOW;
+export const HIGH_HARM_NOW = OVERVIEW_NOW;
 
 export const harmAlerts: HarmAlert[] = [
 	{
@@ -79,5 +79,5 @@ export const substances: SubstanceMention[] = [
 	{ id: 'objects', name: 'Objects inserted', practice: 'Invasive procedure', count: 3 }
 ];
 
-/** The high-harm activity log; the same events the Pulse view shows. */
+/** The high-harm activity log; the same events the Overview view shows. */
 export const highHarmActivity = activity;

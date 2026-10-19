@@ -8,9 +8,9 @@ import type {
 	KnowledgeGap,
 	PriorityPoint
 } from '#lib/domain/operations.js';
-import { narratives, PULSE_NOW } from './pulse.js';
+import { narratives, OVERVIEW_NOW } from './overview.js';
 
-export const OPERATIONS_NOW = PULSE_NOW;
+export const OPERATIONS_NOW = OVERVIEW_NOW;
 
 const pending = { kind: 'pending' } as const;
 const daysAgo = (days: number) => new Date(OPERATIONS_NOW.getTime() - days * 86_400_000);

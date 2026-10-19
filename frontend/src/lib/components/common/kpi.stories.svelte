@@ -1,7 +1,7 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import { messagesTrend, ratedBreakdown } from '#lib/fixtures/pulse.js';
+	import { messagesTrend, ratedBreakdown } from '#lib/fixtures/overview.js';
 	import KpiGroup from './kpi-group.svelte';
 	import KpiTile from './kpi-tile.svelte';
 	import Sparkline from './sparkline.svelte';
@@ -25,7 +25,7 @@
 </Story>
 
 <Story
-	name="Pulse strip"
+	name="Overview strip"
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getAllByRole('term')).toHaveLength(4);

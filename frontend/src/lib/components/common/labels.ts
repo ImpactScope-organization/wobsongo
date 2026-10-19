@@ -8,7 +8,7 @@ import type { CheckReason, PriorityQuadrant } from '#lib/domain/operations.js';
 import type { DismissReason, MessageFormat } from '#lib/domain/narrative-detail.js';
 import type { RatingOutcome, ReviewStatus, Verdict } from '#lib/domain/narrative.js';
 import type { Platform } from '#lib/domain/platform.js';
-import type { PulseTopic } from '#lib/domain/pulse.js';
+import type { OverviewTopic } from '#lib/domain/overview.js';
 import type { ReviewDecision } from '#lib/domain/review.js';
 import type { MessageIntent } from '#lib/domain/spread.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
@@ -128,7 +128,7 @@ export const TIME_RANGE_LABEL: Record<TimeRange, string> = {
 	'30d': '30 d'
 };
 
-export const PULSE_TOPIC_LABEL: Record<PulseTopic, string> = {
+export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = {
 	misinfo: 'Misinformation',
 	all: 'All topics'
 };

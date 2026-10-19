@@ -1,11 +1,11 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
 	import { expect, within } from 'storybook/test';
-	import { highHarmSummary } from '#lib/fixtures/pulse.js';
+	import { highHarmSummary } from '#lib/fixtures/overview.js';
 	import HighHarmSummary from './high-harm-summary.svelte';
 
 	const { Story } = defineMeta({
-		title: 'Pulse/HighHarmSummary',
+		title: 'Overview/HighHarmSummary',
 		component: HighHarmSummary,
 		tags: ['autodocs'],
 		parameters: { layout: 'padded' },

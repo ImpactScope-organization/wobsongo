@@ -12,7 +12,7 @@ import {
 	type TestBackend
 } from '#lib/server/testing/fakes.js';
 import { load as layoutLoad } from './(app)/+layout.server';
-import { load as pulseLoad } from './(app)/+page.server';
+import { load as overviewLoad } from './(app)/+page.server';
 import { load as comingSoonLoad } from './(app)/[...path]/+page.server';
 import { actions as settingsActions, load as settingsLoad } from './(app)/settings/+page.server';
 import { actions as loginActions } from './login/+page.server';
@@ -58,10 +58,10 @@ describe('(app) layout', () => {
 	});
 });
 
-describe('Pulse page', () => {
+describe('Overview page', () => {
 	const loadAt = async (path: string, backend?: TestBackend) => {
 		const { locals } = await signedIn(backend);
-		return settle(() => pulseLoad(event({ locals, url: new URL(path, ORIGIN) })));
+		return settle(() => overviewLoad(event({ locals, url: new URL(path, ORIGIN) })));
 	};
 
 	it('defaults to the last 24 h of misinformation', async () => {
@@ -83,7 +83,7 @@ describe('Pulse page', () => {
 		const backend = createTestBackend();
 		const { locals } = await signedIn(backend);
 		const result = await settle(() =>
-			pulseLoad(
+			overviewLoad(
 				event({
 					locals: {
 						...locals,
@@ -99,6 +99,11 @@ describe('Pulse page', () => {
 
 describe('Coming-soon pages', () => {
 	const at = (path: string) => settle(() => comingSoonLoad(event({ url: new URL(path, ORIGIN) })));
+
+	it('redirects /overview and /pulse to /', async () => {
+		expect(await at('/overview')).toEqual({ redirect: '/' });
+		expect(await at('/pulse')).toEqual({ redirect: '/' });
+	});
 
 	it('names the unbuilt view a path is in', async () => {
 		expect(await at('/narratives/N-0412')).toEqual({ value: { title: 'Narratives' } });
@@ -275,7 +280,7 @@ describe('Signup', () => {
 		confirmPassword: 'kadi-password-1'
 	};
 
-	it('creates the account, signs in and opens Pulse', async () => {
+	it('creates the account, signs in and opens Overview', async () => {
 		const result = await signup(createTestBackend(), fields);
 		expect(result.redirect).toBe('/');
 		expect(result.cookies.get(ACCESS_COOKIE)).toBeDefined();

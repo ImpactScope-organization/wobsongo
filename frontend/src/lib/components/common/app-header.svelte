@@ -1,23 +1,10 @@
-<script lang="ts" module>
-	import type { Component } from 'svelte';
-
-	export interface NavItem {
-		label: string;
-		href: string;
-		/** Count badge, e.g. open high-harm alerts. Hidden when 0 or absent. */
-		count?: number;
-		/** Not built yet: shown, but not a link. */
-		disabled?: boolean;
-		/** Optional icon component for dock / mobile view. */
-		icon?: Component;
-	}
-</script>
-
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { resolveNavIcon, type NavItem } from '#lib/navigation.js';
 	import { cn } from '#lib/utils.js';
 	import AccountAvatar from './account-avatar.svelte';
 	import DockMenu from './dock-menu.svelte';
+	import LanguageSwitcher, { type HeaderLang } from './language-switcher.svelte';
 
 	interface Props {
 		/** Logo image URL; omitted shows the name only. */
@@ -29,6 +16,10 @@
 		actions?: Snippet;
 		/** The signed-in person; shows their avatar linking to settings. */
 		account?: { name: string; href: string };
+		/** Current active language. Defaults to 'fr'. */
+		lang?: HeaderLang;
+		/** Callback when language is switched. */
+		onLangChange?: (lang: HeaderLang) => void;
 		/** Include the bottom docker menu on mobile screen. Defaults to false. */
 		mobileDock?: boolean;
 		class?: string;
@@ -40,6 +31,8 @@
 		currentHref,
 		actions,
 		account,
+		lang = $bindable('fr'),
+		onLangChange,
 		mobileDock = false,
 		class: className
 	}: Props = $props();
@@ -63,13 +56,15 @@
 		>
 			<ul class="flex gap-0.5">
 				{#each items as item (item.href)}
+					{@const Icon = resolveNavIcon(item)}
 					<li>
 						{#if item.disabled}
 							<span
 								aria-disabled="true"
 								title="Coming soon"
-								class="flex cursor-not-allowed items-center rounded-md px-3 py-2 text-[0.8125rem] font-medium whitespace-nowrap text-inverse-muted-foreground opacity-60"
+								class="flex cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-2 text-[0.8125rem] font-medium whitespace-nowrap text-inverse-muted-foreground opacity-60"
 							>
+								<Icon class="size-4 shrink-0 stroke-[1.75]" aria-hidden="true" />
 								{item.label}<span class="sr-only">&nbsp;(coming soon)</span>
 							</span>
 						{:else}
@@ -78,6 +73,7 @@
 								aria-current={item.href === currentHref ? 'page' : undefined}
 								class="flex items-center gap-1.5 rounded-md px-3 py-2 text-[0.8125rem] font-medium whitespace-nowrap transition-colors outline-none hover:bg-inverse-raised focus-visible:ring-2 focus-visible:ring-inverse-signal aria-[current=page]:bg-inverse-border"
 							>
+								<Icon class="size-4 shrink-0 stroke-[1.75]" aria-hidden="true" />
 								{item.label}
 								{#if item.count}
 									<span
@@ -92,23 +88,22 @@
 				{/each}
 			</ul>
 		</nav>
+		<div class="ml-auto flex items-center gap-2.5">
+			<LanguageSwitcher bind:lang {onLangChange} />
 
-		{#if actions || account}
-			<div class="ml-auto flex items-center gap-2.5">
-				{@render actions?.()}
-				{#if account}
-					<a
-						href={account.href}
-						aria-current={account.href === currentHref ? 'page' : undefined}
-						title="Settings"
-						class="rounded-full border-2 border-transparent outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal aria-[current=page]:border-inverse-foreground"
-					>
-						<AccountAvatar name={account.name} />
-						<span class="sr-only">Settings for {account.name}</span>
-					</a>
-				{/if}
-			</div>
-		{/if}
+			{@render actions?.()}
+			{#if account}
+				<a
+					href={account.href}
+					aria-current={account.href === currentHref ? 'page' : undefined}
+					title="Settings"
+					class="rounded-full border-2 border-transparent outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal aria-[current=page]:border-inverse-foreground"
+				>
+					<AccountAvatar name={account.name} />
+					<span class="sr-only">Settings for {account.name}</span>
+				</a>
+			{/if}
+		</div>
 	</div>
 </header>
 

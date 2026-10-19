@@ -1,13 +1,6 @@
 <script lang="ts">
-	import type { Component } from 'svelte';
-	import type { NavItem } from './app-header.svelte';
+	import { resolveNavIcon, type NavItem } from '#lib/navigation.js';
 	import { cn } from '#lib/utils.js';
-	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
-	import MessageSquareTextIcon from '@lucide/svelte/icons/message-square-text';
-	import ActivityIcon from '@lucide/svelte/icons/activity';
-	import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
-	import LayersIcon from '@lucide/svelte/icons/layers';
-	import Radar from '@lucide/svelte/icons/radar';
 
 	interface Props {
 		items: readonly NavItem[];
@@ -17,25 +10,6 @@
 	}
 
 	let { items, currentHref, class: className }: Props = $props();
-
-	function resolveIcon(item: NavItem): Component {
-		if (item.icon) return item.icon;
-		const path = item.href.replace(/^\//, '').split('/')[0] || '';
-		if (!path || path === 'overview') return LayoutDashboardIcon;
-		if (path === 'narratives') return MessageSquareTextIcon;
-		if (path === 'spread') return Radar;
-		if (path === 'ops') return ActivityIcon;
-		if (path === 'safety') return ShieldAlertIcon;
-
-		const label = item.label.toLowerCase();
-		if (label.includes('overview')) return LayoutDashboardIcon;
-		if (label.includes('narrative')) return MessageSquareTextIcon;
-		if (label.includes('spread')) return Radar;
-		if (label.includes('operation') || label.includes('ops')) return ActivityIcon;
-		if (label.includes('harm') || label.includes('safety')) return ShieldAlertIcon;
-
-		return LayersIcon;
-	}
 </script>
 
 <nav
@@ -46,7 +20,7 @@
 		class="relative flex items-center justify-around gap-1 rounded-2xl border border-inverse-border/80 bg-inverse/95 p-1.5 text-inverse-foreground shadow-[0_10px_35px_-5px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.05)] backdrop-blur-xl"
 	>
 		{#each items as item (item.href)}
-			{@const Icon = resolveIcon(item)}
+			{@const Icon = resolveNavIcon(item)}
 			{@const isCurrent = item.href === currentHref}
 
 			{#if item.disabled}

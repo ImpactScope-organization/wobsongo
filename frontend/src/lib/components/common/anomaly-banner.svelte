@@ -45,8 +45,12 @@
 				aria-expanded={false}
 				aria-label="Expand anomaly notice"
 			>
-				<CircleAlertIcon class="size-4 shrink-0" aria-hidden="true" />
-				<div class="min-w-0 flex-1 truncate text-xs/snug font-medium">
+				<span class="relative flex size-3">
+					<span
+						class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100"
+					></span>
+					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
+				</span>				<div class="min-w-0 flex-1 truncate text-xs/snug font-medium">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
 					is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
 					{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.
@@ -57,7 +61,12 @@
 			</div>
 		{:else}
 			<div class="flex items-start gap-2.5">
-				<CircleAlertIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+				<span class="relative mt-1 flex size-3">
+					<span
+						class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100"
+					></span>
+					<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
+				</span>
 				<div class="flex-1 text-xs/relaxed font-medium text-pretty">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
 					is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
@@ -95,11 +104,10 @@
 		<div class="text-eyebrow flex items-center gap-2 font-semibold" aria-hidden="true">
 			<span class="relative flex size-3">
 				<span
-					class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 opacity-100"
+					class="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-200 mix-blend-screen opacity-100"
 				></span>
-				<span class="relative inline-flex size-3 rounded-full bg-white"></span>
+				<span class="relative inline-flex size-3 rounded-full border-2 border-white bg-red-500"></span>
 			</span>
-			Anomaly
 		</div>
 		<div
 			class="line-clamp-1 min-w-60 flex-1 truncate text-sm/snug font-medium text-pretty md:line-clamp-2"

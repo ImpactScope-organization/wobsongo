@@ -8,6 +8,7 @@ import ComingSoon from './coming-soon.svelte';
 import CoverageNote from './coverage-note.svelte';
 import DockMenu from './dock-menu.svelte';
 import ErrorNotice from './error-notice.svelte';
+import LanguageSwitcher from './language-switcher.svelte';
 import PageHeader from './page-header.svelte';
 import SectionCard from './section-card.svelte';
 import SegmentedLinks from './segmented-links.svelte';
@@ -127,6 +128,38 @@ describe('AppHeader', () => {
 		});
 		expect(body).toContain('aria-label="Mobile Navigation"');
 	});
+
+	it('renders FR-EN language switcher defaulting to French', () => {
+		const { body } = render(AppHeader, { props: { items, currentHref: '/overview' } });
+		expect(body).toContain('aria-label="Language"');
+		expect(body).toContain('aria-label="Français"');
+		expect(body).toContain('aria-label="English"');
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>FR<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>EN<\/button>/);
+	});
+
+	it('reflects custom lang prop in language switcher', () => {
+		const { body } = render(AppHeader, {
+			props: { items, currentHref: '/overview', lang: 'en' }
+		});
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>FR<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>EN<\/button>/);
+	});
+});
+
+describe('LanguageSwitcher', () => {
+	it('renders language group with FR selected by default', () => {
+		const { body } = render(LanguageSwitcher);
+		expect(body).toContain('aria-label="Language"');
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>FR<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>EN<\/button>/);
+	});
+
+	it('supports en as current language', () => {
+		const { body } = render(LanguageSwitcher, { props: { lang: 'en' } });
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>FR<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>EN<\/button>/);
+	});
 });
 
 describe('DockMenu', () => {
@@ -176,7 +209,7 @@ describe('AppHeader disabled items', () => {
 	it('shows views not built yet as text, not links, without their count', () => {
 		const { body } = render(AppHeader, { props: { items, currentHref: '/' } });
 		expect(body).not.toContain('href="/safety"');
-		expect(body).toMatch(/<span aria-disabled="true"[^>]*>\s*High-harm/);
+		expect(body).toMatch(/<span aria-disabled="true"[^>]*>[\s\S]*?High-harm/);
 		expect(body).toContain('(coming soon)');
 		expect(body).not.toContain('3<span class="sr-only">');
 	});

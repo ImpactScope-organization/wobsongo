@@ -1,9 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { activeNavHref, comingSoonSection, NAV_ITEMS } from './navigation';
+import ActivityIcon from '@lucide/svelte/icons/activity';
+import LayersIcon from '@lucide/svelte/icons/layers';
+import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
+import { activeNavHref, comingSoonSection, NAV_ITEMS, resolveNavIcon } from './navigation';
 
 describe('NAV_ITEMS', () => {
 	it('enables only Overview for now', () => {
 		expect(NAV_ITEMS.filter((item) => !item.disabled).map((item) => item.href)).toEqual(['/']);
+	});
+
+	it('assigns an icon to each item', () => {
+		for (const item of NAV_ITEMS) {
+			expect(item.icon).toBeDefined();
+		}
+		expect(NAV_ITEMS[0].icon).toBe(LayoutDashboardIcon);
+	});
+});
+
+describe('resolveNavIcon', () => {
+	it('uses item.icon when present', () => {
+		expect(resolveNavIcon(NAV_ITEMS[0])).toBe(LayoutDashboardIcon);
+	});
+
+	it('infers icon by path or label when icon is omitted', () => {
+		expect(resolveNavIcon({ label: 'Ops', href: '/ops' })).toBe(ActivityIcon);
+		expect(resolveNavIcon({ label: 'Unknown', href: '/custom' })).toBe(LayersIcon);
 	});
 });
 

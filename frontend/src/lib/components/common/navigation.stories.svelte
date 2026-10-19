@@ -46,6 +46,17 @@
 			'href',
 			'/safety'
 		);
+		const frButton = within(canvasElement).getByRole('button', { name: 'Français' });
+		const enButton = within(canvasElement).getByRole('button', { name: 'English' });
+		await expect(frButton).toHaveAttribute('aria-pressed', 'true');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'false');
+		await enButton.click();
+		await expect(frButton).toHaveAttribute('aria-pressed', 'false');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'true');
+		// Clicking the active language again should remain pressed
+		await enButton.click();
+		await expect(frButton).toHaveAttribute('aria-pressed', 'false');
+		await expect(enButton).toHaveAttribute('aria-pressed', 'true');
 	}}
 >
 	{#snippet template(args)}

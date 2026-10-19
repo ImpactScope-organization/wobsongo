@@ -159,6 +159,12 @@ describe('AnomalyBanner', () => {
 		expect(body).toContain('+412% in 3 h');
 		expect(body).toContain('href="/narratives/N-0412"');
 	});
+
+	it('renders mobile version in collapsed state by default', () => {
+		const { body } = render(AnomalyBanner, { props: { anomaly, href: '/narratives/N-0412' } });
+		expect(body).toContain('aria-expanded="false"');
+		expect(body).toContain('aria-label="Expand anomaly notice"');
+	});
 });
 
 describe('AppHeader disabled items', () => {

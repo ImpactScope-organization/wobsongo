@@ -78,6 +78,31 @@
 </Story>
 
 <Story
+	name="Anomaly banner (mobile collapsible)"
+	play={async ({ canvasElement }) => {
+		const banner = within(canvasElement).getByRole('complementary', { name: 'Anomaly' });
+		const expandButton = within(banner).getByRole('button', { name: 'Expand anomaly notice' });
+		await expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+		await expandButton.click();
+		const collapseButton = within(banner).getByRole('button', { name: 'Collapse anomaly notice' });
+		await expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
+		const ctaLink = within(banner).getByRole('link', { name: 'Open narrative' });
+		await expect(ctaLink).toHaveAttribute('href', '/narratives/N-0412');
+		await expect(ctaLink).toHaveTextContent(/Check/);
+		await collapseButton.click();
+		await expect(
+			within(banner).getByRole('button', { name: 'Expand anomaly notice' })
+		).toHaveAttribute('aria-expanded', 'false');
+	}}
+>
+	{#snippet template()}
+		<div class="max-w-md bg-background p-4">
+			<AnomalyBanner {anomaly} href="/narratives/N-0412" forceMobile />
+		</div>
+	{/snippet}
+</Story>
+
+<Story
 	name="Page header with range toggle"
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);

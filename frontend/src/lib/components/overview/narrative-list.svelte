@@ -37,7 +37,7 @@
 		{emptyText}
 	</p>
 {:else}
-	<ol aria-label={label} class={className}>
+	<ol aria-label={label} class={cn(className, 'mb-4')}>
 		{#each narratives as narrative, index (narrative.id)}
 			{@const spiking = isSpiking(narrative.growthPct)}
 			<li class="relative border-t border-rule hover:bg-muted has-focus-visible:bg-muted">

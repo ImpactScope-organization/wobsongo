@@ -35,6 +35,24 @@ export interface Comparison {
 	previous: number;
 }
 
+/** Supported creator platforms */
+export type CreatorPlatform = 'tiktok' | 'instagram' | 'facebook' | 'x';
+
+export interface ContentCreator {
+	id: string;
+	name: string;
+	handle?: string;
+	platform: CreatorPlatform;
+	avatarUrl?: string;
+	followers?: number;
+	postsCount?: number;
+	rated: Record<RatingOutcome, number>;
+	profileUrl?: string;
+	pseudoname?: string;
+	pseudonym?: string;
+	riskLevel?: number;
+}
+
 export interface OverviewSnapshot {
 	/** Country or area WobSongo monitors, e.g. "Burkina Faso". */
 	region: string;
@@ -48,6 +66,8 @@ export interface OverviewSnapshot {
 	medianDebunkMinutes: Comparison;
 	/** The window's narratives, in no particular order. */
 	narratives: NarrativeSummary[];
+	/** Top content creators detected across monitored platforms. */
+	creators?: ContentCreator[];
 	/** The most unusual jump in volume, if any narrative has one. */
 	anomaly: Anomaly | null;
 	platformCounts: PlatformCount[];
@@ -62,6 +82,34 @@ export function topNarratives(
 	return narratives
 		.filter((narrative) => matchesTopic(narrative.verdict, topic))
 		.toSorted((a, b) => b.volume - a.volume);
+}
+
+/** Content creators for a topic, highest volume (posts) first. */
+export function topCreators(
+	creators: readonly ContentCreator[],
+	topic: OverviewTopic = 'all'
+): ContentCreator[] {
+	return creators
+		.filter((creator) => {
+			if (topic === 'all') return true;
+			return (creator.rated.false || 0) + (creator.rated.misleading || 0) > 0;
+		})
+		.toSorted((a, b) => {
+			const volumeA =
+				a.postsCount ??
+				(a.rated.false || 0) +
+					(a.rated.misleading || 0) +
+					(a.rated.unverified || 0) +
+					(a.rated.accurate || 0);
+			const volumeB =
+				b.postsCount ??
+				(b.rated.false || 0) +
+					(b.rated.misleading || 0) +
+					(b.rated.unverified || 0) +
+					(b.rated.accurate || 0);
+			if (volumeB !== volumeA) return volumeB - volumeA;
+			return (b.followers ?? 0) - (a.followers ?? 0);
+		});
 }
 
 /** Change from the previous window in percent, or null when there was nothing before. */

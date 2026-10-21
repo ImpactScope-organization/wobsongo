@@ -14,6 +14,7 @@ import {
 	matchesTopic,
 	misinfoShare,
 	parseOverviewTopic,
+	topCreators,
 	topNarratives,
 	trendDirection
 } from './overview';
@@ -21,7 +22,7 @@ import { parseReviewFormDecision } from './review';
 import { parseTimeRange } from './time-range';
 import { whatsAppLagHours } from './narrative-detail';
 import { fixedClock } from '../utils/clock';
-import { narratives } from '../fixtures/overview';
+import { narratives, sampleCreators } from '../fixtures/overview';
 
 describe('toCount', () => {
 	it('suppresses counts below the minimum cell size', () => {
@@ -175,6 +176,25 @@ describe('topNarratives', () => {
 		const before = narratives.map((narrative) => narrative.id);
 		topNarratives(narratives, 'all');
 		expect(narratives.map((narrative) => narrative.id)).toEqual(before);
+	});
+});
+
+describe('topCreators', () => {
+	it('ranks creators by volume (posts/claims count) highest first', () => {
+		const ranked = topCreators(sampleCreators, 'all');
+		expect(ranked.map((creator) => creator.id)).toEqual([
+			'c2', // 52 posts
+			'c3', // 41 posts
+			'c1', // 38 posts
+			'c5', // 34 posts
+			'c4' // 27 posts
+		]);
+	});
+
+	it('leaves the input untouched', () => {
+		const before = sampleCreators.map((creator) => creator.id);
+		topCreators(sampleCreators, 'all');
+		expect(sampleCreators.map((creator) => creator.id)).toEqual(before);
 	});
 });
 

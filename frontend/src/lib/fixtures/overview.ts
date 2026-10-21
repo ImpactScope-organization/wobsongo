@@ -5,7 +5,7 @@
  */
 import type { Anomaly, HighHarmSummary, NarrativeSummary } from '#lib/domain/narrative.js';
 import type { PlatformCount } from '#lib/domain/platform.js';
-import type { OverviewSnapshot } from '#lib/domain/overview.js';
+import type { ContentCreator, OverviewSnapshot } from '#lib/domain/overview.js';
 import type { ActivityEntry } from '#lib/domain/review.js';
 
 /** "Now" for every Overview fixture: Monday 12 Oct 2026, 14:05 GMT. */
@@ -87,6 +87,70 @@ export const platformCounts: PlatformCount[] = [
 
 export const highHarmSummary: HighHarmSummary = { awaitingReview: 2, fastTracked: 1 };
 
+/** Sample creators across TikTok, Instagram, Facebook, and X */
+export const sampleCreators: ContentCreator[] = [
+	{
+		id: 'c1',
+		name: 'Ibrahim Cissé',
+		pseudoname: 'Creator 03',
+		handle: '@ibrahim_cisse',
+		platform: 'tiktok',
+		profileUrl: 'https://www.tiktok.com/@ibrahim_cisse',
+		followers: 482000,
+		postsCount: 38,
+		riskLevel: 79,
+		rated: { false: 18, misleading: 12, unverified: 5, accurate: 3 }
+	},
+	{
+		id: 'c2',
+		name: 'Aïcha Ouédraogo',
+		pseudoname: 'Creator 01',
+		handle: '@aicha_oued',
+		platform: 'facebook',
+		profileUrl: 'https://www.facebook.com/aicha_oued',
+		followers: 890000,
+		postsCount: 52,
+		riskLevel: 82,
+		rated: { false: 24, misleading: 16, unverified: 8, accurate: 4 }
+	},
+	{
+		id: 'c3',
+		name: 'Moussa Sawadogo',
+		pseudoname: 'Creator 02',
+		handle: '@moussa_sawadogo',
+		platform: 'x',
+		profileUrl: 'https://x.com/moussa_sawadogo',
+		followers: 165000,
+		postsCount: 41,
+		riskLevel: 73,
+		rated: { false: 19, misleading: 11, unverified: 7, accurate: 4 }
+	},
+	{
+		id: 'c4',
+		name: 'Fatimata Kaboré',
+		pseudoname: 'Creator 05',
+		handle: '@fatima_kabore',
+		platform: 'instagram',
+		profileUrl: 'https://www.instagram.com/fatima_kabore',
+		followers: 230000,
+		postsCount: 27,
+		riskLevel: 28,
+		rated: { false: 12, misleading: 9, unverified: 4, accurate: 2 }
+	},
+	{
+		id: 'c5',
+		name: 'Cheick Diallo',
+		pseudoname: 'Creator 04',
+		handle: '@cheick_diallo_officiel',
+		platform: 'tiktok',
+		profileUrl: 'https://www.tiktok.com/@cheick_diallo_officiel',
+		followers: 315000,
+		postsCount: 34,
+		riskLevel: 58,
+		rated: { false: 15, misleading: 8, unverified: 6, accurate: 5 }
+	}
+];
+
 /** Messages received per hour over the last 24 h, oldest first. */
 export const messagesTrend = [30, 31, 29, 32, 31, 33, 32, 34, 33, 38, 46, 52, 57];
 
@@ -102,6 +166,7 @@ export const overviewSnapshot: OverviewSnapshot = {
 	rated: ratedBreakdown,
 	medianDebunkMinutes: { current: 142, previous: 124 },
 	narratives,
+	creators: sampleCreators,
 	anomaly,
 	platformCounts,
 	highHarm: highHarmSummary

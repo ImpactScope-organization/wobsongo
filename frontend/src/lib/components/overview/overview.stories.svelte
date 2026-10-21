@@ -24,7 +24,10 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Overview');
-		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(3);
+		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(4);
+		await expect(
+			canvas.getByRole('heading', { level: 2, name: 'Content creators' })
+		).toBeInTheDocument();
 		await expect(canvas.getByRole('link', { name: 'Overview' })).toHaveAttribute(
 			'aria-current',
 			'page'

@@ -95,6 +95,77 @@ describe('Overview page', () => {
 		);
 		expect(result).toMatchObject({ error: 500 });
 	});
+
+	it('filters creator names to pseudonyms and masks stats by default for non-whitelisted users, even with privacy=false', async () => {
+		delete process.env.PRIVACY_WHITELIST_EMAILS;
+
+		const { value } = await loadAt('/');
+		const snapshot = (value as { snapshot: { creators?: Array<Record<string, unknown>> } })
+			.snapshot;
+		expect(snapshot.creators).toBeDefined();
+		expect(snapshot.creators!.length).toBeGreaterThan(0);
+		for (const creator of snapshot.creators!) {
+			expect(creator.followers).toBeUndefined();
+			expect(creator.postsCount).toBeUndefined();
+			expect(creator.handle).toBeUndefined();
+			expect(creator.profileUrl).toBeUndefined();
+			expect(creator.name).toMatch(/^Creator \d+$/);
+			expect(creator.name).not.toBe('Ibrahim Cissé');
+			expect(creator.name).not.toBe('Aïcha Ouédraogo');
+		}
+
+		// Non-whitelisted user cannot bypass privacy mode with privacy=false
+		const nonWhitelistedAttempt = await loadAt('/?privacy=false');
+		const attemptSnapshot = (
+			nonWhitelistedAttempt.value as { snapshot: { creators?: Array<Record<string, unknown>> } }
+		).snapshot;
+		for (const creator of attemptSnapshot.creators!) {
+			expect(creator.followers).toBeUndefined();
+			expect(creator.postsCount).toBeUndefined();
+			expect(creator.handle).toBeUndefined();
+		}
+
+		const noAccess = await loadAt('/?hasAccess=false');
+		const noAccessSnapshot = (
+			noAccess.value as { snapshot: { creators?: Array<Record<string, unknown>> } }
+		).snapshot;
+		for (const creator of noAccessSnapshot.creators!) {
+			expect(creator.followers).toBeUndefined();
+			expect(creator.postsCount).toBeUndefined();
+			expect(creator.handle).toBeUndefined();
+			expect(creator.profileUrl).toBeUndefined();
+		}
+	});
+
+	it('automatically reveals full creator data for whitelisted users, with optional privacy=true toggle', async () => {
+		process.env.PRIVACY_WHITELIST_EMAILS = 'a.ouedraogo@wobsongo.org, other@wobsongo.org';
+		try {
+			// Whitelisted user automatically sees full data on "/"
+			const { value } = await loadAt('/');
+			const snapshot = (value as { snapshot: { creators?: Array<Record<string, unknown>> } })
+				.snapshot;
+			expect(snapshot.creators).toBeDefined();
+			expect(snapshot.creators!.length).toBeGreaterThan(0);
+			const first = snapshot.creators![0];
+			expect(first.name).toBe('Ibrahim Cissé');
+			expect(first.handle).toBe('@ibrahim_cisse');
+			expect(first.followers).toBe(482000);
+			expect(first.postsCount).toBe(38);
+
+			// Whitelisted user can still toggle private mode on with ?privacy=true
+			const privateView = await loadAt('/?privacy=true');
+			const privateSnapshot = (
+				privateView.value as { snapshot: { creators?: Array<Record<string, unknown>> } }
+			).snapshot;
+			for (const creator of privateSnapshot.creators!) {
+				expect(creator.followers).toBeUndefined();
+				expect(creator.postsCount).toBeUndefined();
+				expect(creator.handle).toBeUndefined();
+			}
+		} finally {
+			delete process.env.PRIVACY_WHITELIST_EMAILS;
+		}
+	});
 });
 
 describe('Coming-soon pages', () => {

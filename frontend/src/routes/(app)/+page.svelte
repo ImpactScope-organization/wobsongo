@@ -15,6 +15,8 @@
 	snapshot={data.snapshot}
 	range={data.range}
 	topic={data.topic}
+	privacyMode={data.privacyMode}
+	hasAccess={data.hasAccess}
 	rangeHref={(range) => withSearchParam(page.url, 'range', range)}
 	topicHref={(topic) => withSearchParam(page.url, 'topic', topic)}
 />

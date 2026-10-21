@@ -11,10 +11,12 @@
 
 	interface Props {
 		counts: VerdictCounts;
+		/** How the description reads each segment: "14 false" or "Voice note 52%". */
+		describe?: 'count' | 'percent';
 		class?: string;
 	}
 
-	let { counts, class: className }: Props = $props();
+	let { counts, describe = 'count', class: className }: Props = $props();
 
 	const TONE: Record<RatingOutcome, string> = {
 		false: 'bg-verdict-false-strong',
@@ -35,4 +37,4 @@
 	);
 </script>
 
-<StackedBar {segments} emptyText="No rated narratives" class={className} />
+<StackedBar {segments} {describe} emptyText="No rated narratives" class={className} />

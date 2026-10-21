@@ -7,5 +7,10 @@ export const variables = defineEnvVars({
 		// Optional here so `svelte-kit sync` and tests run without it; the server
 		// refuses to start without it (hooks.server.ts).
 		schema: (value) => value || undefined
+	},
+	PRIVACY_WHITELIST_EMAILS: {
+		description:
+			'Comma-separated list of emails allowed to view unredacted creator data (e.g. `admin@wobsongo.org,lead@wobsongo.org`).',
+		schema: (value) => value ?? ''
 	}
 });

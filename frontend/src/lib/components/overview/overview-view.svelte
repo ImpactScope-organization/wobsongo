@@ -3,6 +3,7 @@
 		growthPct,
 		misinfoShare,
 		OVERVIEW_TOPICS,
+		topCreators,
 		trendDirection,
 		type OverviewSnapshot,
 		type OverviewTopic
@@ -21,7 +22,9 @@
 	import VerdictMeter from '../common/verdict-meter.svelte';
 	import HighHarmSummary from './high-harm-summary.svelte';
 	import NarrativeList from './narrative-list.svelte';
+	import CreatorList from './creator-list.svelte';
 	import PlatformBreakdown from './platform-breakdown.svelte';
+	import { sampleCreators } from '#lib/fixtures/overview.js';
 
 	interface Props {
 		snapshot: OverviewSnapshot;
@@ -35,6 +38,10 @@
 		narrativeHref?: (id: string) => string;
 		/** The high-harm view. */
 		highHarmHref?: string;
+		/** Whether the viewer has access to unredacted creator identities. */
+		hasAccess?: boolean;
+		/** Force privacy mode on/off. */
+		privacyMode?: boolean;
 	}
 
 	let {
@@ -44,7 +51,9 @@
 		rangeHref,
 		topicHref,
 		narrativeHref = (id) => `/narratives/${encodeURIComponent(id)}`,
-		highHarmHref = '/safety'
+		highHarmHref = '/safety',
+		hasAccess = true,
+		privacyMode = true
 	}: Props = $props();
 
 	const windowLabel = $derived(TIME_RANGE_LABEL[range]);
@@ -61,6 +70,7 @@
 		snapshot.medianDebunkMinutes.current - snapshot.medianDebunkMinutes.previous
 	);
 	const rated = $derived(misinfoShare(snapshot.rated));
+	const visibleCreators = $derived(topCreators(snapshot.creators ?? sampleCreators, topic));
 </script>
 
 {#if snapshot.anomaly}
@@ -125,26 +135,35 @@
 	</KpiGroup>
 
 	<div class="flex flex-wrap items-start gap-5">
-		<SectionCard
-			title={topic === 'misinfo' ? 'Top misinformation narratives' : 'Top narratives'}
-			description="Clustered claims, last {windowLabel}, ranked by volume"
-			flush
-			class="flex-[2_1_35rem]"
-		>
-			{#snippet actions()}
-				<SegmentedLinks
-					label="Topic"
-					variant="pills"
-					current={topic}
-					options={OVERVIEW_TOPICS.map((value) => ({
-						value,
-						label: OVERVIEW_TOPIC_LABEL[value],
-						href: topicHref(value)
-					}))}
-				/>
-			{/snippet}
-			<NarrativeList narratives={snapshot.narratives} hrefFor={narrativeHref} />
-		</SectionCard>
+		<div class="grid min-w-0 flex-[2_1_35rem] gap-5">
+			<SectionCard
+				title={topic === 'misinfo' ? 'Top misinformation narratives' : 'Top narratives'}
+				description="Clustered claims, last {windowLabel}, ranked by volume"
+				flush
+			>
+				{#snippet actions()}
+					<SegmentedLinks
+						label="Topic"
+						variant="pills"
+						current={topic}
+						options={OVERVIEW_TOPICS.map((value) => ({
+							value,
+							label: OVERVIEW_TOPIC_LABEL[value],
+							href: topicHref(value)
+						}))}
+					/>
+				{/snippet}
+				<NarrativeList narratives={snapshot.narratives} hrefFor={narrativeHref} />
+			</SectionCard>
+
+			<SectionCard
+				title="Content creators"
+				description="Top content creators detected, last {windowLabel}, ranked by volume"
+				flush
+			>
+				<CreatorList creators={visibleCreators} {hasAccess} {privacyMode} />
+			</SectionCard>
+		</div>
 
 		<div class="flex min-w-0 flex-[1_1_20rem] flex-col gap-5">
 			<SectionCard title="Where claims come from" description="Incoming claims by source platform">

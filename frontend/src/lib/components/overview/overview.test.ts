@@ -6,9 +6,11 @@ import {
 	highHarmSummary,
 	narratives,
 	platformCounts,
-	overviewSnapshot
+	overviewSnapshot,
+	sampleCreators
 } from '#lib/fixtures/overview.js';
 import { stripComments } from '#lib/testing/snippet.js';
+import CreatorList from './creator-list.svelte';
 import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
 import PlatformBreakdown from './platform-breakdown.svelte';
@@ -51,6 +53,136 @@ describe('NarrativeList', () => {
 	it('shows an empty state', () => {
 		const { body } = render(NarrativeList, { props: { narratives: [] } });
 		expect(body).toContain('No narratives in this window.');
+	});
+});
+
+describe('CreatorList', () => {
+	it('renders creators with numbering, names, and handles without avatars', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators } });
+		expect(body).toContain('aria-label="Content creators"');
+		expect(body).toContain('Ibrahim Cissé');
+		expect(body).toContain('@ibrahim_cisse');
+		expect(body).toContain('Aïcha Ouédraogo');
+		expect(body).toContain('@aicha_oued');
+		expect(body).not.toContain('<img');
+	});
+
+	it('renders platform icons for tiktok, instagram, facebook, and x', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators } });
+		expect(body).toContain('title="tiktok"');
+		expect(body).toContain('title="facebook"');
+		expect(body).toContain('title="x"');
+		expect(body).toContain('title="instagram"');
+	});
+
+	it('displays formatted followers and posts counts', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators.slice(0, 1) } });
+		expect(body).toContain('482K');
+		expect(body).toContain('followers');
+		expect(body).toContain('38');
+		expect(body).toContain('posts');
+	});
+
+	it('displays rated false or misleading count with verdict meter', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators.slice(0, 1) } });
+		// 18 false + 12 misleading = 30 out of 38 total (18+12+5+3=38)
+		expect(body).toContain('30');
+		expect(body).toContain('/ 38');
+		expect(body).toContain('role="img"');
+	});
+
+	it('shows an empty state when no creators are present', () => {
+		const { body } = render(CreatorList, { props: { creators: [] } });
+		expect(body).toContain('No content creators detected in this window.');
+	});
+
+	it('ranks creators by volume (posts/claims count) highest first', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators } });
+		// Aïcha Ouédraogo has 52 posts (highest), Ibrahim Cissé has 38 posts
+		const aichaIndex = body.indexOf('Aïcha Ouédraogo');
+		const ibrahimIndex = body.indexOf('Ibrahim Cissé');
+		expect(aichaIndex).toBeLessThan(ibrahimIndex);
+	});
+
+	it('swaps creator names with pseudonyms, hides handles, and masks metrics when privacyMode is enabled', () => {
+		const { body } = render(CreatorList, {
+			props: { creators: sampleCreators, privacyMode: true }
+		});
+		expect(body).not.toContain('Aïcha Ouédraogo');
+		expect(body).not.toContain('Ibrahim Cissé');
+		expect(body).not.toContain('@aicha_oued');
+		expect(body).not.toContain('@ibrahim_cisse');
+		expect(body).toContain('Creator');
+		expect(body).toContain('Creator 01');
+		expect(body).toContain('Creator 03');
+		// Followers and posts count are masked to "-" in privacy mode
+		expect(body).not.toContain('890K');
+		expect(body).not.toContain('482K');
+		expect(body).toContain('-');
+		// Rated false/misleading is shown as percentage
+		expect(body).toContain('77%');
+		expect(body).not.toContain('/ 52');
+		expect(body).toContain('role="img"');
+	});
+
+	it('swaps creator names with pseudonyms and hides handles when hasAccess is false', () => {
+		const { body } = render(CreatorList, {
+			props: { creators: sampleCreators, hasAccess: false }
+		});
+		expect(body).not.toContain('Aïcha Ouédraogo');
+		expect(body).not.toContain('@aicha_oued');
+		expect(body).toContain('Creator 01');
+		expect(body).not.toContain('890K');
+		expect(body).toContain('-');
+		expect(body).toContain('77%');
+		expect(body).not.toContain('/ 52');
+	});
+
+	it('renders risk level column with radial gauges representing 0-100 risk score', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators } });
+		expect(body).toContain('Risk level');
+		expect(body).toContain('role="meter"');
+		// High risk (red tier, e.g. 82)
+		expect(body).toContain('aria-valuenow="82"');
+		expect(body).toContain('82');
+		// Medium risk (orange tier, e.g. 58)
+		expect(body).toContain('aria-valuenow="58"');
+		expect(body).toContain('58');
+		// Low risk (green tier, e.g. 28)
+		expect(body).toContain('aria-valuenow="28"');
+		expect(body).toContain('28');
+	});
+
+	it('makes list items a link to profileUrl when !isPrivate', () => {
+		const { body } = render(CreatorList, { props: { creators: sampleCreators } });
+		expect(body).toContain('href="https://www.tiktok.com/@ibrahim_cisse"');
+		expect(body).toContain('target="_blank"');
+		expect(body).toContain('rel="noopener noreferrer"');
+	});
+
+	it('supports a custom profileUrl resolver function', () => {
+		const { body } = render(CreatorList, {
+			props: {
+				creators: sampleCreators,
+				profileUrl: (creator) => `/creators/${creator.id}`
+			}
+		});
+		expect(body).toContain('href="/creators/c1"');
+		expect(body).toContain('href="/creators/c2"');
+	});
+
+	it('renders a regular list with no link or redirect when privacyMode is enabled or hasAccess=false', () => {
+		const privateView = render(CreatorList, {
+			props: { creators: sampleCreators, privacyMode: true }
+		}).body;
+		expect(privateView).not.toContain('<a href');
+		expect(privateView).not.toContain('https://www.tiktok.com');
+
+		const noAccessView = render(CreatorList, {
+			props: { creators: sampleCreators, hasAccess: false }
+		}).body;
+		expect(noAccessView).not.toContain('<a href');
+		expect(noAccessView).not.toContain('https://www.tiktok.com');
 	});
 });
 

@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { notImplemented } from '../../result.js';
 import type { OverviewRepo } from '../../services/overview.js';
 import type { ApiOptions } from './index.js';
@@ -8,7 +9,7 @@ export function createApiOverviewRepo(_options: ApiOptions): OverviewRepo {
 		// backend's verdict codes onto `Verdict` (see domain/narrative.ts) and suppress small
 		// counts server-side (domain/count.ts).
 		async getSnapshot() {
-			return notImplemented('Overview');
+			return notImplemented(m.nav_overview());
 		}
 	};
 }

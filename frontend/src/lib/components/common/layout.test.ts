@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
+import { withLocale } from '#lib/testing/locale.js';
 import { htmlSnippet } from '#lib/testing/snippet.js';
 import { anomaly } from '#lib/fixtures/overview.js';
 import AnomalyBanner from './anomaly-banner.svelte';
@@ -129,36 +130,44 @@ describe('AppHeader', () => {
 		expect(body).toContain('aria-label="Mobile Navigation"');
 	});
 
-	it('renders FR-EN language switcher defaulting to French', () => {
-		const { body } = render(AppHeader, { props: { items, currentHref: '/overview' } });
+	it('renders the FR-EN language switcher, coming back to this page', () => {
+		const { body } = render(AppHeader, {
+			props: { items, currentHref: '/overview', returnTo: '/?range=7d' }
+		});
 		expect(body).toContain('aria-label="Language"');
 		expect(body).toContain('aria-label="Français"');
 		expect(body).toContain('aria-label="English"');
-		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>FR<\/button>/);
-		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>EN<\/button>/);
-	});
-
-	it('reflects custom lang prop in language switcher', () => {
-		const { body } = render(AppHeader, {
-			props: { items, currentHref: '/overview', lang: 'en' }
-		});
-		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>FR<\/button>/);
-		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>EN<\/button>/);
+		expect(body).toContain('name="redirectTo" value="/?range=7d"');
 	});
 });
 
 describe('LanguageSwitcher', () => {
-	it('renders language group with FR selected by default', () => {
-		const { body } = render(LanguageSwitcher);
-		expect(body).toContain('aria-label="Language"');
-		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>FR<\/button>/);
-		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>EN<\/button>/);
+	it('posts the chosen language to /lang', () => {
+		const { body } = render(LanguageSwitcher, { props: { returnTo: '/settings' } });
+		expect(body).toMatch(/<form[^>]*method="POST"[^>]*action="\/lang"/);
+		expect(body).toContain('name="redirectTo" value="/settings"');
+		expect(body).toMatch(/<button[^>]*type="submit"[^>]*name="lang"[^>]*value="fr"/);
+		expect(body).toMatch(/<button[^>]*type="submit"[^>]*name="lang"[^>]*value="en"/);
 	});
 
-	it('supports en as current language', () => {
-		const { body } = render(LanguageSwitcher, { props: { lang: 'en' } });
-		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>FR<\/button>/);
-		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>EN<\/button>/);
+	it('marks the current language as pressed', () => {
+		const { body } = render(LanguageSwitcher);
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>\s*FR\s*<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>\s*EN\s*<\/button>/);
+	});
+
+	it('marks French when the page is in French', () => {
+		const body = withLocale('fr', () => render(LanguageSwitcher).body);
+		expect(body).toContain('aria-label="Langue"');
+		expect(body).toMatch(/<button[^>]*aria-pressed="true"[^>]*>\s*FR\s*<\/button>/);
+		expect(body).toMatch(/<button[^>]*aria-pressed="false"[^>]*>\s*EN\s*<\/button>/);
+	});
+
+	it('names each language in itself', () => {
+		const body = withLocale('fr', () => render(LanguageSwitcher).body);
+		expect(body).toContain('aria-label="Français"');
+		expect(body).toContain('aria-label="English"');
+		expect(body).toContain('lang="en"');
 	});
 });
 

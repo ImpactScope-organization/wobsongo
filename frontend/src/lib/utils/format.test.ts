@@ -13,8 +13,10 @@ import {
 	formatSince,
 	formatTotal,
 	percentShares,
-	formatWeekday
+	formatWeekday,
+	plural
 } from './format';
+import { withLocale } from '#lib/testing/locale.js';
 
 describe('formatNumber', () => {
 	it('groups thousands', () => {
@@ -160,5 +162,31 @@ describe('formatCountdown', () => {
 		expect(formatCountdown(552_000)).toBe('9:12');
 		expect(formatCountdown(59_001)).toBe('1:00');
 		expect(formatCountdown(-5)).toBe('0:00');
+	});
+});
+
+describe('in French', () => {
+	const now = new Date('2026-10-12T14:05:00Z');
+	const fr = <T>(run: () => T) => withLocale('fr', run);
+
+	it('groups thousands with a narrow no-break space', () => {
+		expect(fr(() => formatNumber(8412))).toBe('8\u202f412');
+	});
+
+	it('words dates and relative times in French', () => {
+		expect(fr(() => formatDate(new Date('2026-09-02T10:00:00Z')))).toBe('2 sept. 2026');
+		expect(fr(() => formatLogTime(new Date('2026-10-12T09:14:00Z'), now))).toBe(
+			'Aujourd’hui 09:14'
+		);
+		expect(fr(() => formatAgo(new Date('2026-10-12T13:27:00Z'), now))).toBe('il y a 38 min');
+		expect(fr(() => formatSince(new Date('2026-10-11T14:05:00Z'), now))).toBe('hier');
+		expect(fr(() => formatSince(new Date('2026-10-07T14:05:00Z'), now))).toBe('il y a 5 jours');
+		expect(fr(() => formatIsoWeek(new Date('2026-08-20T00:00:00Z')))).toBe('S34');
+	});
+
+	it('counts 0 as singular, unlike English', () => {
+		expect(plural(0, 'one', 'other')).toBe('other');
+		expect(fr(() => plural(0, 'one', 'other'))).toBe('one');
+		expect(fr(() => plural(2, 'one', 'other'))).toBe('other');
 	});
 });

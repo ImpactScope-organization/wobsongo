@@ -1,5 +1,7 @@
 <script lang="ts">
 	import type { HighHarmSummary } from '#lib/domain/narrative.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { plural } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -14,17 +16,19 @@
 	const rows = $derived([
 		{
 			count: summary.awaitingReview,
-			text:
-				summary.awaitingReview === 1
-					? 'dangerous-practice claim awaiting expert review'
-					: 'dangerous-practice claims awaiting expert review'
+			text: plural(
+				summary.awaitingReview,
+				m.overview_high_harm_awaiting_one(),
+				m.overview_high_harm_awaiting_other()
+			)
 		},
 		{
 			count: summary.fastTracked,
-			text:
-				summary.fastTracked === 1
-					? 'claim fast-tracked to the fact-check queue'
-					: 'claims fast-tracked to the fact-check queue'
+			text: plural(
+				summary.fastTracked,
+				m.overview_high_harm_fast_tracked_one(),
+				m.overview_high_harm_fast_tracked_other()
+			)
 		}
 	]);
 
@@ -41,12 +45,12 @@
 	<div class="mb-3 flex items-center justify-between gap-2.5">
 		<h2 id={headingId} class="text-lg font-bold">
 			<!-- The heading link's ::after makes the whole card clickable. -->
-			<a {href} class="outline-none after:absolute after:inset-0">High-harm claims</a>
+			<a {href} class="outline-none after:absolute after:inset-0">{m.overview_high_harm_title()}</a>
 		</h2>
 		<span
 			class="rounded border border-muted-foreground px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold tracking-[0.06em] text-inverse-muted-foreground uppercase"
 		>
-			Priority
+			{m.overview_high_harm_priority()}
 		</span>
 	</div>
 
@@ -62,6 +66,6 @@
 	</ul>
 
 	<p class="mt-3 text-xs/normal text-inverse-muted-foreground">
-		Claims promoting toxic substances or unsafe procedures. These are debunked first.
+		{m.overview_high_harm_note()}
 	</p>
 </section>

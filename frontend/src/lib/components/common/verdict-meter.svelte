@@ -7,6 +7,7 @@
 
 <script lang="ts">
 	import { RATING_OUTCOME_LABEL } from './labels';
+	import { m } from '#lib/paraglide/messages.js';
 	import StackedBar from './stacked-bar.svelte';
 
 	interface Props {
@@ -37,4 +38,4 @@
 	);
 </script>
 
-<StackedBar {segments} {describe} emptyText="No rated narratives" class={className} />
+<StackedBar {segments} {describe} emptyText={m.common_no_rated_narratives()} class={className} />

@@ -1,6 +1,8 @@
 /**
- * Display labels for domain values. English only for now; this is the one
- * place to swap for i18n messages later.
+ * Display labels for domain values, in the current language. Each entry is a
+ * getter that calls its message, so `VERDICT_LABEL.false` reads the language
+ * of the request (or page) at the time it's read. Read them while rendering,
+ * never into a module-level constant, or the first language sticks.
  */
 import type { AccountRole, BotPlatform } from '#lib/domain/account.js';
 import type { HarmRisk } from '#lib/domain/high-harm.js';
@@ -12,103 +14,133 @@ import type { OverviewTopic } from '#lib/domain/overview.js';
 import type { ReviewDecision } from '#lib/domain/review.js';
 import type { MessageIntent } from '#lib/domain/spread.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
+import { m } from '#lib/paraglide/messages.js';
 
-export const VERDICT_LABEL: Record<Verdict, string> = {
-	false: 'False',
-	misleading: 'Misleading',
-	unverified: 'Unverified'
-};
+type Message = () => string;
+type Messages = { readonly [key: string]: Message | Messages };
+type Localized<T> = { readonly [K in keyof T]: T[K] extends Message ? string : Localized<T[K]> };
 
-export const RATING_OUTCOME_LABEL: Record<RatingOutcome, string> = {
-	...VERDICT_LABEL,
-	accurate: 'Accurate'
-};
+/** An object of the same shape whose leaves are read from `messages` on access. */
+function localized<T extends Messages>(messages: T): Localized<T> {
+	const result = {};
+	for (const [key, value] of Object.entries(messages)) {
+		const nested = typeof value === 'function' ? undefined : localized(value);
+		Object.defineProperty(result, key, {
+			enumerable: true,
+			get: nested ? () => nested : () => (value as Message)()
+		});
+	}
+	return result as Localized<T>;
+}
 
-export const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = {
-	'needs-check': 'Needs check',
-	'auto-checked': 'Auto-checked',
-	'expert-verified': 'Expert-verified',
-	'not-in-kb': 'Not in KB'
-};
+const verdictMessages = {
+	false: m.label_verdict_false,
+	misleading: m.label_verdict_misleading,
+	unverified: m.label_verdict_unverified
+} satisfies Record<Verdict, Message>;
 
-export const PLATFORM_LABEL: Record<Platform, string> = {
-	whatsapp: 'WhatsApp (bot)',
-	facebook: 'Facebook',
-	tiktok: 'TikTok',
-	x: 'X',
-	other: 'Other'
-};
+export const VERDICT_LABEL: Record<Verdict, string> = localized(verdictMessages);
+
+export const RATING_OUTCOME_LABEL: Record<RatingOutcome, string> = localized({
+	...verdictMessages,
+	accurate: m.label_verdict_accurate
+});
+
+export const REVIEW_STATUS_LABEL: Record<ReviewStatus, string> = localized({
+	'needs-check': m.label_review_status_needs_check,
+	'auto-checked': m.label_review_status_auto_checked,
+	'expert-verified': m.label_review_status_expert_verified,
+	'not-in-kb': m.label_review_status_not_in_kb
+});
+
+export const PLATFORM_LABEL: Record<Platform, string> = localized({
+	whatsapp: m.label_platform_whatsapp_bot,
+	facebook: () => 'Facebook',
+	tiktok: () => 'TikTok',
+	x: () => 'X',
+	other: m.label_platform_other
+});
 
 /** Shown after an expert decides on a review item. */
-export const REVIEW_OUTCOME_LABEL: Record<ReviewDecision, string> = {
-	approve: 'Approved',
-	override: 'Override saved · reply updated',
-	dismiss: 'Dismissed as irrelevant',
-	'add-fact-check': 'Fact-check draft created'
-};
+export const REVIEW_OUTCOME_LABEL: Record<ReviewDecision, string> = localized({
+	approve: m.label_review_outcome_approve,
+	override: m.label_review_outcome_override,
+	dismiss: m.label_review_outcome_dismiss,
+	'add-fact-check': m.label_review_outcome_add_fact_check
+});
 
-export const MESSAGE_FORMAT_LABEL: Record<MessageFormat, string> = {
-	audio: 'Voice note',
-	video: 'Video',
-	text: 'Text',
-	image: 'Image'
-};
+export const MESSAGE_FORMAT_LABEL: Record<MessageFormat, string> = localized({
+	audio: m.label_format_audio,
+	video: m.label_format_video,
+	text: m.label_format_text,
+	image: m.label_format_image
+});
 
 /** Short name of a platform, without qualifiers like "(bot)". */
-export const PLATFORM_SHORT_LABEL: Record<Platform, string> = {
-	whatsapp: 'WhatsApp',
-	facebook: 'Facebook',
-	tiktok: 'TikTok',
-	x: 'X',
-	other: 'Other'
-};
+export const PLATFORM_SHORT_LABEL: Record<Platform, string> = localized({
+	whatsapp: () => 'WhatsApp',
+	facebook: () => 'Facebook',
+	tiktok: () => 'TikTok',
+	x: () => 'X',
+	other: m.label_platform_other
+});
 
-export const DISMISS_REASON_LABEL: Record<DismissReason, { label: string; description: string }> = {
-	'not-srh': { label: 'Not SRH-related', description: 'Off-topic for this platform' },
-	'not-a-claim': { label: 'Not a claim', description: 'Greeting, opinion or spam' },
-	duplicate: { label: 'Duplicate', description: 'Already covered by another narrative' },
-	satire: { label: 'Satire or joke', description: 'Not meant as fact' }
-};
+export const DISMISS_REASON_LABEL: Record<DismissReason, { label: string; description: string }> =
+	localized({
+		'not-srh': {
+			label: m.label_dismiss_not_srh,
+			description: m.label_dismiss_not_srh_description
+		},
+		'not-a-claim': {
+			label: m.label_dismiss_not_a_claim,
+			description: m.label_dismiss_not_a_claim_description
+		},
+		duplicate: {
+			label: m.label_dismiss_duplicate,
+			description: m.label_dismiss_duplicate_description
+		},
+		satire: { label: m.label_dismiss_satire, description: m.label_dismiss_satire_description }
+	});
 
-export const HARM_RISK_LABEL: Record<HarmRisk, string> = {
-	critical: 'Critical',
-	high: 'High'
-};
+export const HARM_RISK_LABEL: Record<HarmRisk, string> = localized({
+	critical: m.label_harm_risk_critical,
+	high: m.label_harm_risk_high
+});
 
-export const MESSAGE_INTENT_LABEL: Record<MessageIntent, { label: string; description: string }> = {
-	verification: {
-		label: 'Verification request',
-		description: 'Forwarded message or link to check'
-	},
-	general: {
-		label: 'General SRH question',
-		description: 'Information request, e.g. how a method works'
-	},
-	'out-of-scope': {
-		label: 'Out of scope',
-		description:
-			'Personal medical questions the platform does not handle. Tracked to improve bot replies'
-	}
-};
+export const MESSAGE_INTENT_LABEL: Record<MessageIntent, { label: string; description: string }> =
+	localized({
+		verification: {
+			label: m.label_intent_verification,
+			description: m.label_intent_verification_description
+		},
+		general: {
+			label: m.label_intent_general,
+			description: m.label_intent_general_description
+		},
+		'out-of-scope': {
+			label: m.label_intent_out_of_scope,
+			description: m.label_intent_out_of_scope_description
+		}
+	});
 
-export const CHECK_REASON_LABEL: Record<CheckReason, string> = {
-	spiking: 'Spiking',
-	'low-confidence': 'Low confidence',
-	'partly-true': 'Partly true'
-};
+export const CHECK_REASON_LABEL: Record<CheckReason, string> = localized({
+	spiking: m.label_check_reason_spiking,
+	'low-confidence': m.label_check_reason_low_confidence,
+	'partly-true': m.label_check_reason_partly_true
+});
 
-export const PRIORITY_QUADRANT_LABEL: Record<PriorityQuadrant, string> = {
-	critical: 'Critical priority',
-	urgent: 'Urgent debunk',
-	monitor: 'Monitor',
-	campaign: 'Public campaign'
-};
+export const PRIORITY_QUADRANT_LABEL: Record<PriorityQuadrant, string> = localized({
+	critical: m.label_quadrant_critical,
+	urgent: m.label_quadrant_urgent,
+	monitor: m.label_quadrant_monitor,
+	campaign: m.label_quadrant_campaign
+});
 
-export const ACCOUNT_ROLE_LABEL: Record<AccountRole, string> = {
-	user: 'Member',
-	admin: 'Administrator',
-	superadmin: 'Super administrator'
-};
+export const ACCOUNT_ROLE_LABEL: Record<AccountRole, string> = localized({
+	user: m.label_role_user,
+	admin: m.label_role_admin,
+	superadmin: m.label_role_superadmin
+});
 
 export const BOT_LABEL: Record<BotPlatform, string> = {
 	whatsapp: 'WhatsApp',
@@ -122,13 +154,13 @@ export const BOT_MONOGRAM: Record<BotPlatform, string> = {
 };
 
 /** Window lengths, e.g. "Messages received, 24 h". */
-export const TIME_RANGE_LABEL: Record<TimeRange, string> = {
-	'24h': '24 h',
-	'7d': '7 d',
-	'30d': '30 d'
-};
+export const TIME_RANGE_LABEL: Record<TimeRange, string> = localized({
+	'24h': m.label_time_range_24h,
+	'7d': m.label_time_range_7d,
+	'30d': m.label_time_range_30d
+});
 
-export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = {
-	misinfo: 'Misinformation',
-	all: 'All topics'
-};
+export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = localized({
+	misinfo: m.label_topic_misinfo,
+	all: m.label_topic_all
+});

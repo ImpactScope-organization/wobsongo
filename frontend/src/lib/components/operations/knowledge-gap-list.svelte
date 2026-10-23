@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { KnowledgeGap } from '#lib/domain/operations.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
-	import { formatAgo, formatNumber } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { formatAgo, formatNumber, plural } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import ReviewActions from '../common/review-actions.svelte';
 
@@ -22,7 +23,7 @@
 		now,
 		action,
 		enhance,
-		emptyText = 'Every claim matched the knowledge base.',
+		emptyText = m.operations_gaps_empty(),
 		class: className
 	}: Props = $props();
 </script>
@@ -30,7 +31,7 @@
 {#if gaps.length === 0}
 	<p class={cn('text-[0.8125rem] text-muted-foreground', className)}>{emptyText}</p>
 {:else}
-	<ol aria-label="Knowledge base gaps" class={className}>
+	<ol aria-label={m.operations_gaps_label()} class={className}>
 		{#each gaps as gap (gap.id)}
 			{@const decision = gap.review.kind === 'decided' ? gap.review.decision : undefined}
 			<li
@@ -45,7 +46,7 @@
 						“{gap.example}”
 					</blockquote>
 					<p class="font-mono text-[0.6875rem] font-medium text-faint-foreground">
-						{gap.languages.join(', ')} · first asked
+						{gap.languages.join(', ')} · {m.operations_first_asked()}
 						<time datetime={gap.firstAskedAt.toISOString()}>{formatAgo(gap.firstAskedAt, now)}</time
 						>
 					</p>
@@ -54,7 +55,9 @@
 					<span class="block font-mono text-[1.0625rem] font-semibold">
 						{formatNumber(gap.messageCount)}
 					</span>
-					<span class="block text-[0.65625rem] text-faint-foreground">messages</span>
+					<span class="block text-[0.65625rem] text-faint-foreground">
+						{plural(gap.messageCount, m.operations_messages_one(), m.operations_messages_other())}
+					</span>
 				</p>
 				<ReviewActions
 					itemId={gap.id}

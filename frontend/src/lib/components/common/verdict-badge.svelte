@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Verdict } from '#lib/domain/narrative.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { VERDICT_LABEL } from './labels';
 
@@ -25,6 +26,6 @@
 		className
 	)}
 >
-	<span class="sr-only">Verdict:</span>
+	<span class="sr-only">{m.common_verdict_prefix()}</span>
 	{VERDICT_LABEL[verdict]}
 </span>

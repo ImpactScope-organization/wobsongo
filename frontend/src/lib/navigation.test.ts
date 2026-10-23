@@ -2,24 +2,34 @@ import { describe, expect, it } from 'vitest';
 import ActivityIcon from '@lucide/svelte/icons/activity';
 import LayersIcon from '@lucide/svelte/icons/layers';
 import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
-import { activeNavHref, comingSoonSection, NAV_ITEMS, resolveNavIcon } from './navigation';
+import { withLocale } from '#lib/testing/locale.js';
+import { activeNavHref, comingSoonSection, navItems, resolveNavIcon } from './navigation';
 
-describe('NAV_ITEMS', () => {
+describe('navItems', () => {
 	it('enables only Overview for now', () => {
-		expect(NAV_ITEMS.filter((item) => !item.disabled).map((item) => item.href)).toEqual(['/']);
+		expect(
+			navItems()
+				.filter((item) => !item.disabled)
+				.map((item) => item.href)
+		).toEqual(['/']);
 	});
 
 	it('assigns an icon to each item', () => {
-		for (const item of NAV_ITEMS) {
+		for (const item of navItems()) {
 			expect(item.icon).toBeDefined();
 		}
-		expect(NAV_ITEMS[0].icon).toBe(LayoutDashboardIcon);
+		expect(navItems()[0].icon).toBe(LayoutDashboardIcon);
+	});
+
+	it('labels the items in the current language', () => {
+		expect(navItems()[0].label).toBe('Overview');
+		expect(withLocale('fr', () => navItems()[0].label)).toBe('Vue d’ensemble');
 	});
 });
 
 describe('resolveNavIcon', () => {
 	it('uses item.icon when present', () => {
-		expect(resolveNavIcon(NAV_ITEMS[0])).toBe(LayoutDashboardIcon);
+		expect(resolveNavIcon(navItems()[0])).toBe(LayoutDashboardIcon);
 	});
 
 	it('infers icon by path or label when icon is omitted', () => {

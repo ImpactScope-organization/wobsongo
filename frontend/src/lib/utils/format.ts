@@ -1,15 +1,36 @@
+import { m } from '#lib/paraglide/messages.js';
+import { getLocale, type Locale } from '#lib/paraglide/runtime.js';
+
 /**
- * Display formatting. Locale and time zone are fixed so server and browser
- * render identical strings (no hydration mismatch) until i18n lands.
+ * Display formatting in the current language. Time zone is fixed and the
+ * language comes from the same cookie on both sides, so server and browser
+ * render identical strings (no hydration mismatch).
  * Burkina Faso is on GMT all year, so UTC is the default zone.
  */
-const LOCALE = 'en-US';
 export const DEFAULT_TIME_ZONE = 'UTC';
 
-const numberFormat = new Intl.NumberFormat(LOCALE);
+const INTL_LOCALES: Record<Locale, string> = { fr: 'fr-FR', en: 'en-US' };
+
+/** The BCP 47 tag `Intl` formats the current language with. */
+export function intlLocale(): string {
+	return INTL_LOCALES[getLocale()];
+}
+
+/**
+ * Picks the singular or plural message for `count`. French treats 0 and 1 as
+ * singular ("0 message"), English only 1, so ask Intl, not `count === 1`.
+ */
+export function plural<T>(count: number, one: T, other: T): T {
+	return new Intl.PluralRules(intlLocale()).select(count) === 'one' ? one : other;
+}
+
+const numberFormats = new Map<string, Intl.NumberFormat>();
 
 export function formatNumber(value: number): string {
-	return numberFormat.format(value);
+	const locale = intlLocale();
+	let format = numberFormats.get(locale);
+	if (!format) numberFormats.set(locale, (format = new Intl.NumberFormat(locale)));
+	return format.format(value);
 }
 
 /** `12` → "12%"; with `signed`, `12` → "+12%" and `-3` → "−3%". */
@@ -50,7 +71,7 @@ export function percentShares(values: readonly number[]): number[] {
 
 /** 24-hour clock time, e.g. "14:05". */
 export function formatClockTime(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
-	return new Intl.DateTimeFormat(LOCALE, {
+	return new Intl.DateTimeFormat(intlLocale(), {
 		hour: '2-digit',
 		minute: '2-digit',
 		hourCycle: 'h23',
@@ -69,20 +90,22 @@ function dayKey(at: Date, timeZone: string): string {
 export function formatLogTime(at: Date, now: Date, timeZone = DEFAULT_TIME_ZONE): string {
 	const time = formatClockTime(at, timeZone);
 	const day = dayKey(at, timeZone);
-	if (day === dayKey(now, timeZone)) return `Today ${time}`;
+	if (day === dayKey(now, timeZone)) return m.time_today_at({ time });
 
 	const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-	if (day === dayKey(yesterday, timeZone)) return `Yesterday ${time}`;
+	if (day === dayKey(yesterday, timeZone)) return m.time_yesterday_at({ time });
 
-	const date = new Intl.DateTimeFormat(LOCALE, { month: 'short', day: 'numeric', timeZone }).format(
-		at
-	);
+	const date = new Intl.DateTimeFormat(intlLocale(), {
+		month: 'short',
+		day: 'numeric',
+		timeZone
+	}).format(at);
 	return `${date}, ${time}`;
 }
 
 /** Short weekday and clock time, e.g. "Mon 02:10". */
 export function formatDayTime(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
-	const day = new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone }).format(at);
+	const day = new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', timeZone }).format(at);
 	return `${day} ${formatClockTime(at, timeZone)}`;
 }
 
@@ -97,11 +120,11 @@ export function formatFactor(value: number): string {
  */
 export function formatAgo(at: Date, now: Date): string {
 	const minutes = Math.floor((now.getTime() - at.getTime()) / 60_000);
-	if (minutes < 1) return 'just now';
-	if (minutes < 60) return `${minutes} min ago`;
+	if (minutes < 1) return m.time_just_now();
+	if (minutes < 60) return m.time_minutes_ago({ count: minutes });
 	const hours = Math.floor(minutes / 60);
-	if (hours < 24) return `${hours} h ago`;
-	return `${Math.floor(hours / 24)} d ago`;
+	if (hours < 24) return m.time_hours_ago({ count: hours });
+	return m.time_days_ago({ count: Math.floor(hours / 24) });
 }
 
 /**
@@ -110,19 +133,24 @@ export function formatAgo(at: Date, now: Date): string {
  */
 export function formatSince(at: Date, now: Date): string {
 	const days = Math.floor((now.getTime() - at.getTime()) / 86_400_000);
-	const plural = (count: number, unit: string) => `${count} ${unit}${count === 1 ? '' : 's'} ago`;
-	if (days < 1) return 'today';
-	if (days < 2) return 'yesterday';
-	if (days < 14) return plural(days, 'day');
-	if (days < 60) return plural(Math.floor(days / 7), 'week');
-	if (days < 365) return plural(Math.floor(days / 30), 'month');
-	return plural(Math.floor(days / 365), 'year');
+	// "auto" words 0 and -1 days ("today", "yesterday"); "always" keeps
+	// "1 year ago" from becoming "last year".
+	const ago = (count: number, unit: Intl.RelativeTimeFormatUnit) =>
+		new Intl.RelativeTimeFormat(intlLocale(), { numeric: days < 2 ? 'auto' : 'always' }).format(
+			-count,
+			unit
+		);
+	if (days < 14) return ago(Math.max(0, days), 'day');
+	if (days < 60) return ago(Math.floor(days / 7), 'week');
+	if (days < 365) return ago(Math.floor(days / 30), 'month');
+	return ago(Math.floor(days / 365), 'year');
 }
 
 /** Calendar date, e.g. "2 Sep 2026". */
 export function formatDate(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
-	// Assembled from parts: en-GB would give "Sept", en-US "Sep 2, 2026".
-	const parts = new Intl.DateTimeFormat(LOCALE, {
+	// Assembled from parts: en-GB would give "Sept", en-US "Sep 2, 2026";
+	// French gives "2 sept. 2026".
+	const parts = new Intl.DateTimeFormat(intlLocale(), {
 		day: 'numeric',
 		month: 'short',
 		year: 'numeric',
@@ -141,15 +169,16 @@ export function formatCountdown(ms: number): string {
 
 /** Short weekday, e.g. "Mon". */
 export function formatWeekday(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
-	return new Intl.DateTimeFormat(LOCALE, { weekday: 'short', timeZone }).format(at);
+	return new Intl.DateTimeFormat(intlLocale(), { weekday: 'short', timeZone }).format(at);
 }
 
-/** ISO 8601 week number of a UTC date, e.g. "W34". */
+/** ISO 8601 week number of a UTC date, e.g. "W34" (French "S34"). */
 export function formatIsoWeek(at: Date): string {
 	const day = new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate()));
 	// Move to the Thursday of this week; its year owns the week.
 	day.setUTCDate(day.getUTCDate() + 3 - ((day.getUTCDay() + 6) % 7));
 	const firstThursday = new Date(Date.UTC(day.getUTCFullYear(), 0, 4));
 	firstThursday.setUTCDate(firstThursday.getUTCDate() + 3 - ((firstThursday.getUTCDay() + 6) % 7));
-	return `W${1 + Math.round((day.getTime() - firstThursday.getTime()) / (7 * 86_400_000))}`;
+	const week = 1 + Math.round((day.getTime() - firstThursday.getTime()) / (7 * 86_400_000));
+	return m.time_iso_week({ week });
 }

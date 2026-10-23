@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ActivityEntry } from '#lib/domain/review.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatClockTime, formatLogTime } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 
@@ -17,7 +18,7 @@
 		entries,
 		now,
 		variant = 'full',
-		emptyText = 'No activity yet.',
+		emptyText = m.common_activity_empty(),
 		class: className
 	}: Props = $props();
 </script>
@@ -46,7 +47,7 @@
 					>
 						{formatLogTime(entry.at, now)}
 					</time>
-					<span class="w-16 shrink-0 font-medium">{entry.actor ?? 'System'}</span>
+					<span class="w-16 shrink-0 font-medium">{entry.actor ?? m.common_activity_system()}</span>
 				{/if}
 				<span class="min-w-0 flex-1 text-pretty">{entry.text}</span>
 			</li>

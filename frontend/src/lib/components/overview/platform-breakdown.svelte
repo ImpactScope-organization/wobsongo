@@ -3,6 +3,7 @@
 	import * as Chart from '#lib/components/ui/chart/index.js';
 	import type { Platform, PlatformCount } from '#lib/domain/platform.js';
 	import { formatNumber, percentShares } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { PLATFORM_LABEL } from '../common/labels';
 
@@ -43,7 +44,9 @@
 		class="relative aspect-square shrink-0"
 		style="width: {size}px; height: {size}px"
 		role="img"
-		aria-label={total > 0 ? `Claims by platform: ${description}` : 'No claims by platform yet'}
+		aria-label={total > 0
+			? m.overview_platform_chart({ description })
+			: m.overview_platform_chart_empty()}
 	>
 		{#if total > 0}
 			<!-- Built from primitives: PieChart's Layer wrapper crashes when rendered on the server. -->
@@ -74,15 +77,21 @@
 		>
 			<div>
 				<div class="font-mono text-xl font-semibold">{formatNumber(total)}</div>
-				<div class="text-[0.65625rem] font-medium text-muted-foreground">claims</div>
+				<div class="text-[0.65625rem] font-medium text-muted-foreground">
+					{m.overview_claims_unit()}
+				</div>
 			</div>
 		</div>
 	</Chart.Container>
 
 	<table class="min-w-[9.5rem] flex-1 text-[0.8125rem]">
-		<caption class="sr-only">Incoming claims by source platform</caption>
+		<caption class="sr-only">{m.overview_sources_description()}</caption>
 		<thead class="sr-only">
-			<tr><th scope="col">Platform</th><th scope="col">Claims</th><th scope="col">Share</th></tr>
+			<tr>
+				<th scope="col">{m.overview_creators_platform()}</th>
+				<th scope="col">{m.overview_col_claims()}</th>
+				<th scope="col">{m.overview_col_share()}</th>
+			</tr>
 		</thead>
 		<tbody>
 			{#each rows as row (row.platform)}

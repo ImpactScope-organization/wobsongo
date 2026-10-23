@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { SampleMessage } from '#lib/domain/narrative-detail.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { PLATFORM_SHORT_LABEL } from '../common/labels';
 
@@ -10,7 +11,7 @@
 		class?: string;
 	}
 
-	let { samples, emptyText = 'No sample messages.', class: className }: Props = $props();
+	let { samples, emptyText = m.narrative_samples_empty(), class: className }: Props = $props();
 </script>
 
 {#if samples.length === 0}

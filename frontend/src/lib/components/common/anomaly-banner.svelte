@@ -2,7 +2,8 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronUpIcon from '@lucide/svelte/icons/chevron-up';
 	import type { Anomaly } from '#lib/domain/narrative.js';
-	import { formatPercent } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { formatPercent, intlLocale } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -17,10 +18,21 @@
 	let { anomaly, href, class: className, forceMobile = false }: Props = $props();
 
 	let expanded = $state(false);
+
+	const spiking = $derived(
+		m.common_anomaly_spiking({
+			sigma: anomaly.sigma.toLocaleString(intlLocale(), {
+				minimumFractionDigits: 1,
+				maximumFractionDigits: 1
+			}),
+			growth: formatPercent(anomaly.growthPct, { signed: true }),
+			hours: anomaly.windowHours
+		})
+	);
 </script>
 
 <aside
-	aria-label="Anomaly"
+	aria-label={m.common_anomaly_label()}
 	class={cn(
 		'mx-3.5 mt-2.5 rounded-xl border border-signal-foreground/25 bg-signal p-3 text-signal-foreground md:mx-0 md:mt-0 md:rounded-none md:border-0 md:px-[clamp(1rem,3vw,2rem)] md:py-0',
 		forceMobile && 'mx-3.5 mt-2.5 rounded-xl border border-signal-foreground/25 p-3',
@@ -42,7 +54,7 @@
 					}
 				}}
 				aria-expanded={false}
-				aria-label="Expand anomaly notice"
+				aria-label={m.common_anomaly_expand()}
 			>
 				<span class="relative flex size-3">
 					<span
@@ -53,8 +65,7 @@
 				</span>
 				<div class="min-w-0 flex-1 truncate text-xs/snug font-medium">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
-					is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
-					{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.
+					{spiking}
 				</div>
 				<span class="flex size-6 shrink-0 items-center justify-center rounded">
 					<ChevronDownIcon class="size-4" aria-hidden="true" />
@@ -71,23 +82,22 @@
 				</span>
 				<div class="flex-1 text-xs/relaxed font-medium text-pretty">
 					<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
-					is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
-					{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.
+					{spiking}
 				</div>
 			</div>
 			<div class="mt-2.5 flex items-center justify-end gap-3 pt-0.5">
 				<a
 					{href}
-					aria-label="Open narrative"
+					aria-label={m.common_open_narrative()}
 					class="ml-auto rounded-md bg-white px-3 py-[0.4375rem] text-xs font-semibold text-signal outline-none hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-signal"
 				>
-					Check <span aria-hidden="true">→</span>
+					{m.common_check()} <span aria-hidden="true">→</span>
 				</a>
 				<button
 					type="button"
 					onclick={() => (expanded = false)}
 					aria-expanded={true}
-					aria-label="Collapse anomaly notice"
+					aria-label={m.common_anomaly_collapse()}
 					class="flex size-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-white/10 focus-visible:ring-1 focus-visible:ring-current focus-visible:outline-none active:bg-white/20"
 				>
 					<ChevronUpIcon class="size-4" aria-hidden="true" />
@@ -116,15 +126,14 @@
 			class="line-clamp-1 min-w-60 flex-1 truncate text-sm/snug font-medium text-pretty md:line-clamp-2"
 		>
 			<strong class="font-semibold">“{anomaly.narrativeTitle}”</strong>
-			is spiking: {anomaly.sigma.toFixed(1)}σ above the usual level for this hour,
-			{formatPercent(anomaly.growthPct, { signed: true })} in {anomaly.windowHours} h.
+			{spiking}
 		</div>
 		<a
 			{href}
-			aria-label="Open narrative"
+			aria-label={m.common_open_narrative()}
 			class="ml-auto rounded-md bg-white px-3 py-[0.4375rem] text-xs font-semibold text-signal outline-none hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-signal"
 		>
-			Check <span aria-hidden="true">→</span>
+			{m.common_check()} <span aria-hidden="true">→</span>
 		</a>
 	</div>
 </aside>

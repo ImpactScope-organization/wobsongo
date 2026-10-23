@@ -4,6 +4,7 @@ import {
 	profileError,
 	type AccountProfile
 } from '#lib/domain/account.js';
+import { m } from '#lib/paraglide/messages.js';
 import { failure, type Result } from '../result.js';
 import type { Scope } from '../scope.js';
 import type { TokenPair } from './auth.js';
@@ -55,7 +56,7 @@ export function createAccountService(repo: AccountRepo): AccountService {
 	return {
 		async getSettings(scope) {
 			const result = await repo.getSettings(scope);
-			return result.ok ? result : describeFailure(result, { 404: 'Your account was not found.' });
+			return result.ok ? result : describeFailure(result, { 404: m.account_not_found() });
 		},
 
 		async updateProfile(scope, change) {
@@ -66,9 +67,7 @@ export function createAccountService(repo: AccountRepo): AccountService {
 				name: change.name.trim(),
 				email: normalizeEmail(change.email)
 			});
-			return result.ok
-				? result
-				: describeFailure(result, { 409: 'Another account already uses this email.' });
+			return result.ok ? result : describeFailure(result, { 409: m.account_email_taken() });
 		},
 
 		async changePassword(scope, change) {
@@ -79,9 +78,7 @@ export function createAccountService(repo: AccountRepo): AccountService {
 				currentPassword: change.currentPassword,
 				newPassword: change.newPassword
 			});
-			return result.ok
-				? result
-				: describeFailure(result, { 403: 'Your current password is incorrect.' });
+			return result.ok ? result : describeFailure(result, { 403: m.account_wrong_password() });
 		},
 
 		async requestPasswordReset(scope) {

@@ -11,9 +11,11 @@ import {
 	ERROR_EMAIL_DOMAIN
 } from '../repos/stub/index.js';
 import { createTestBackend } from '../testing/fakes.js';
-import { describeFailure, SERVER_ERROR_MESSAGE } from './failures.js';
+import { describeFailure } from './failures.js';
 import { createServices } from './index.js';
 import { OVERVIEW_NARRATIVE_LIMIT } from './overview.js';
+
+const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
 
 const demo = { accountId: DEMO_ACCOUNT_ID };
 const apiServices = createServices(

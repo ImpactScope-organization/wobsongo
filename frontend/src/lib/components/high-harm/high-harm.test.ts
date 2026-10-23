@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { harmAlerts, HIGH_HARM_NOW, substances } from '#lib/fixtures/high-harm.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import HarmAlertCard from './harm-alert-card.svelte';
 import HarmAlertList from './harm-alert-list.svelte';
@@ -110,5 +111,33 @@ describe('SubstanceList', () => {
 	it('shows an empty state', () => {
 		const { body } = render(SubstanceList, { props: { substances: [] } });
 		expect(body).toContain('No lexicon matches.');
+	});
+});
+
+describe('in French', () => {
+	it('words the alert card, keeping 1 and 0 singular', () => {
+		const body = withLocale('fr', () =>
+			stripComments(
+				render(HarmAlertCard, {
+					props: {
+						alert: { ...potash, similarCount: 0 },
+						now: HIGH_HARM_NOW,
+						action: '?/review',
+						overrideHref: '/safety/override'
+					}
+				}).body
+			)
+		);
+		expect(body).toContain('0 message similaire');
+		expect(body).toContain('Réponse du moteur · Faux · conf. 0.94');
+		expect(body).toContain('il y a 38 min');
+		expect(body).toMatch(/>\s*Approuver\s*</);
+		expect(body).toMatch(/>\s*Corriger…\s*</);
+	});
+
+	it('words the substance table', () => {
+		const body = withLocale('fr', () => render(SubstanceList, { props: { substances } }).body);
+		expect(body).toContain('Mentions de substances et de pratiques');
+		expect(body).toContain('Substance ou pratique');
 	});
 });

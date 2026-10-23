@@ -1,3 +1,4 @@
+import { m } from '#lib/paraglide/messages.js';
 import { notImplemented } from '../../result.js';
 import type { AccountRepo } from '../../services/account.js';
 import { call, createApiClient, toTokenPair, type Schemas } from './client.js';
@@ -30,7 +31,7 @@ export function createApiAccountRepo(options: ApiOptions): AccountRepo {
 
 		// TODO: needs a mailer on the backend first.
 		async requestPasswordReset() {
-			return notImplemented('Password reset');
+			return notImplemented(m.settings_feature_password_reset());
 		}
 	};
 }

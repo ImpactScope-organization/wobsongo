@@ -1,4 +1,5 @@
 import { newPasswordError, normalizeEmail, profileError } from '#lib/domain/account.js';
+import { m } from '#lib/paraglide/messages.js';
 import { failure, type Result } from '../result.js';
 import type { Scope } from '../scope.js';
 import { describeFailure } from './failures.js';
@@ -52,17 +53,18 @@ export type AuthService = Omit<AuthRepo, 'signup'> & {
 
 // Same message for an unknown email and a wrong password, so the form can't
 // be used to find out who has an account.
-const BAD_CREDENTIALS = 'Email or password is incorrect.';
-const TOO_MANY_ATTEMPTS = 'Too many attempts. Wait a minute and try again.';
 
 export function createAuthService(repo: AuthRepo): AuthService {
 	return {
 		async login({ email, password }) {
-			if (!email.trim() || !password) return failure(400, 'Enter your email and password.');
+			if (!email.trim() || !password) return failure(400, m.auth_credentials_required());
 			const result = await repo.login({ email: normalizeEmail(email), password });
 			return result.ok
 				? result
-				: describeFailure(result, { 401: BAD_CREDENTIALS, 429: TOO_MANY_ATTEMPTS });
+				: describeFailure(result, {
+						401: m.auth_bad_credentials(),
+						429: m.auth_too_many_attempts()
+					});
 		},
 
 		async signup(account) {
@@ -82,8 +84,8 @@ export function createAuthService(repo: AuthRepo): AuthService {
 			return result.ok
 				? result
 				: describeFailure(result, {
-						409: 'An account with this email already exists.',
-						429: TOO_MANY_ATTEMPTS
+						409: m.auth_email_taken(),
+						429: m.auth_too_many_attempts()
 					});
 		},
 

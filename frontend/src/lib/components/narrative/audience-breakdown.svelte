@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { FormatCount, LanguageCount } from '#lib/domain/narrative-detail.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import BarList from '../common/bar-list.svelte';
 	import { MESSAGE_FORMAT_LABEL } from '../common/labels';
@@ -17,8 +18,8 @@
 
 <div class={cn('flex flex-col', className)}>
 	<BarList
-		caption="Messages by language"
-		labelHeader="Language"
+		caption={m.narrative_messages_by_language()}
+		labelHeader={m.narrative_language()}
 		items={languages.map((item) => ({
 			key: item.language,
 			label: item.language,
@@ -27,7 +28,7 @@
 	/>
 
 	<h3 class="text-eyebrow mt-5 mb-2.5 font-semibold tracking-[0.05em] text-muted-foreground">
-		Format
+		{m.narrative_format_heading()}
 	</h3>
 	<StackedBar
 		size="lg"

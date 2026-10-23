@@ -3,7 +3,7 @@
 	import { expect, within } from 'storybook/test';
 	import { overviewSnapshot } from '#lib/fixtures/overview.js';
 	import logo from '#lib/assets/ws-logo-white.svg';
-	import { NAV_ITEMS } from '#lib/navigation.js';
+	import { navItems } from '#lib/navigation.js';
 	import AppHeader from '../common/app-header.svelte';
 	import OverviewView from './overview-view.svelte';
 
@@ -42,7 +42,7 @@
 			<AppHeader
 				logoSrc={logo}
 				currentHref="/"
-				items={NAV_ITEMS}
+				items={navItems()}
 				account={{ name: 'Dr. Aminata Ouédraogo', href: '/settings' }}
 			/>
 			<OverviewView snapshot={overviewSnapshot} range="24h" topic="misinfo" {...hrefs} />

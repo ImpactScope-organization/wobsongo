@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { MESSAGE_INTENTS, type DailyIntents, type MessageIntent } from '#lib/domain/spread.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatWeekday } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { MESSAGE_INTENT_LABEL } from '../common/labels';
@@ -13,7 +14,7 @@
 		class?: string;
 	}
 
-	let { days, emptyText = 'No messages in this window.', class: className }: Props = $props();
+	let { days, emptyText = m.spread_empty(), class: className }: Props = $props();
 
 	const TONE: Record<MessageIntent, { bar: string; swatch: string }> = {
 		verification: { bar: 'bg-primary text-primary-foreground', swatch: 'bg-primary' },

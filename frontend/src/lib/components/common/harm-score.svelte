@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { isHighHarm, MAX_HARM, type HarmScore } from '#lib/domain/narrative.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -30,6 +31,6 @@
 			className
 		)}
 	>
-		Harm {harm}/{MAX_HARM}
+		{m.common_harm_score({ score: harm, max: MAX_HARM })}
 	</span>
 {/if}

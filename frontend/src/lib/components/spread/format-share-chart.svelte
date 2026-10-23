@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { MESSAGE_FORMATS, type MessageFormat } from '#lib/domain/narrative-detail.js';
 	import type { WeeklyCounts } from '#lib/domain/spread.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatIsoWeek } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { MESSAGE_FORMAT_LABEL } from '../common/labels';
@@ -19,7 +20,7 @@
 
 <div class={cn('flex flex-col gap-2.5', className)}>
 	<ShareColumns
-		caption="Share of claims by format, weekly"
+		caption={m.spread_format_share_caption()}
 		barsClass="h-40"
 		columns={weeks.map((week) => ({
 			key: week.weekStart.toISOString(),

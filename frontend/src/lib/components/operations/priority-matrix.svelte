@@ -9,6 +9,7 @@
 		type PriorityPoint,
 		type PrioritySeverity
 	} from '#lib/domain/operations.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatNumber } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { PRIORITY_QUADRANT_LABEL as QUADRANT_LABEL } from '../common/labels';
@@ -24,7 +25,7 @@
 	let {
 		points,
 		hrefFor = (id) => `/narratives/${encodeURIComponent(id)}`,
-		emptyText = 'No active narratives.',
+		emptyText = m.operations_matrix_empty(),
 		class: className
 	}: Props = $props();
 
@@ -51,7 +52,13 @@
 	/** Spoken after the title; the chart itself is not navigable. */
 	function details(point: PriorityPoint): string {
 		const velocity = Math.round(point.velocity * 100);
-		return ` (${QUADRANT_LABEL[quadrant(point)]}: harm ${point.harm} of 5, spread velocity ${velocity}%, ${formatNumber(point.volume7d)} messages in 7 days)`;
+		const text = m.operations_matrix_details({
+			quadrant: QUADRANT_LABEL[quadrant(point)],
+			harm: point.harm,
+			velocity,
+			volume: formatNumber(point.volume7d)
+		});
+		return ` ${text}`;
 	}
 
 	const maxVolume = $derived(Math.max(1, ...points.map((point) => point.volume7d)));
@@ -61,10 +68,10 @@
 	const description = $derived.by(() => {
 		const urgent = points.filter((point) => quadrant(point) === 'urgent');
 		return [
-			`Harm against spread velocity for ${points.length} active narratives and topics; bubble size is 7-day volume.`,
+			m.operations_matrix_description({ count: points.length }),
 			urgent.length
-				? `Urgent debunk: ${urgent.map((point) => point.title).join('; ')}.`
-				: 'None in urgent debunk.'
+				? m.operations_matrix_urgent({ titles: urgent.map((point) => point.title).join('; ') })
+				: m.operations_matrix_none_urgent()
 		].join(' ');
 	});
 
@@ -80,7 +87,7 @@
 				class="rotate-180 text-center font-mono text-[0.6875rem] font-medium text-faint-foreground [writing-mode:vertical-rl]"
 				aria-hidden="true"
 			>
-				Harm →
+				{m.operations_axis_harm()}
 			</span>
 			<div class="min-w-0 flex-1">
 				<Chart.Container
@@ -170,7 +177,7 @@
 					class="mt-2 text-center font-mono text-[0.6875rem] font-medium text-faint-foreground"
 					aria-hidden="true"
 				>
-					Spread velocity →
+					{m.operations_axis_velocity()}
 				</p>
 			</div>
 		</div>

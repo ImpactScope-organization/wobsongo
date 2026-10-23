@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { isHighFollowUp, type DebunkOutcome } from '#lib/domain/operations.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatNumber } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 
@@ -10,14 +11,8 @@
 		class?: string;
 	}
 
-	let {
-		outcomes,
-		emptyText = 'No debunks delivered in this window.',
-		class: className
-	}: Props = $props();
+	let { outcomes, emptyText = m.operations_debunks_empty(), class: className }: Props = $props();
 
-	// Leading NBSP: Svelte trims ordinary leading whitespace in the span.
-	const HIGH_NOTE = '\u00a0(high)';
 	const HEAD = 'py-1.5 text-left text-[0.6875rem] font-medium text-faint-foreground';
 </script>
 
@@ -31,7 +26,9 @@
 			></div>
 		</div>
 		<span class={cn('w-9 font-mono text-xs font-semibold', high && 'text-signal')}
-			>{value}%{#if high}<span class="sr-only">{HIGH_NOTE}</span>{/if}</span
+			>{value}%{#if high}<span class="sr-only"
+					><!-- Leading NBSP: Svelte trims ordinary leading whitespace in the span. -->&nbsp;{m.operations_high_note()}</span
+				>{/if}</span
 		>
 	</div>
 {/snippet}
@@ -41,13 +38,13 @@
 {:else}
 	<div class={cn('overflow-x-auto', className)}>
 		<table class="w-full min-w-[36rem]">
-			<caption class="sr-only">Debunk effectiveness</caption>
+			<caption class="sr-only">{m.operations_debunk_caption()}</caption>
 			<thead>
 				<tr>
-					<th scope="col" class={HEAD}>Debunk</th>
-					<th scope="col" class={cn(HEAD, 'w-20 pr-4 text-right')}>Sent</th>
-					<th scope="col" class={cn(HEAD, 'w-44 pr-4')}>Helpful</th>
-					<th scope="col" class={cn(HEAD, 'w-44')}>Asked again</th>
+					<th scope="col" class={HEAD}>{m.operations_col_debunk()}</th>
+					<th scope="col" class={cn(HEAD, 'w-20 pr-4 text-right')}>{m.operations_col_sent()}</th>
+					<th scope="col" class={cn(HEAD, 'w-44 pr-4')}>{m.operations_col_helpful()}</th>
+					<th scope="col" class={cn(HEAD, 'w-44')}>{m.operations_col_asked_again()}</th>
 				</tr>
 			</thead>
 			<tbody>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { ReviewStatus } from '#lib/domain/narrative.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { REVIEW_STATUS_LABEL } from './labels';
 
@@ -27,6 +28,6 @@
 		className
 	)}
 >
-	<span class="sr-only">Review status:</span>
+	<span class="sr-only">{m.common_review_status_prefix()}</span>
 	{REVIEW_STATUS_LABEL[status]}
 </span>

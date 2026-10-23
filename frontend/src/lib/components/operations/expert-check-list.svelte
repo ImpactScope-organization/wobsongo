@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ExpertCheck } from '#lib/domain/operations.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { CHECK_REASON_LABEL } from '../common/labels';
 	import ReviewActions from '../common/review-actions.svelte';
@@ -23,14 +24,14 @@
 		action,
 		overrideHrefFor,
 		enhance,
-		emptyText = 'Nothing waiting for an expert.',
+		emptyText = m.operations_checks_empty(),
 		class: className
 	}: Props = $props();
 
 	/** "Harm 4 · spiking", "Low confidence · Mooré audio": sentence case, note kept as is. */
 	function flag(check: ExpertCheck): string {
 		const reasons = [
-			...(check.harm === undefined ? [] : [`Harm ${check.harm}`]),
+			...(check.harm === undefined ? [] : [m.operations_flag_harm({ harm: check.harm })]),
 			...check.reasons.map((reason) => CHECK_REASON_LABEL[reason])
 		].map((label, index) => (index === 0 ? label : label.toLowerCase()));
 		return [...reasons, ...(check.note ? [check.note] : [])].join(' · ');
@@ -40,7 +41,7 @@
 {#if checks.length === 0}
 	<p class={cn('px-5 pb-5 text-[0.8125rem] text-muted-foreground', className)}>{emptyText}</p>
 {:else}
-	<ol aria-label="Expert review queue" class={className}>
+	<ol aria-label={m.operations_expert_queue()} class={className}>
 		{#each checks as check (check.id)}
 			{@const decision = check.review.kind === 'decided' ? check.review.decision : undefined}
 			<li
@@ -51,12 +52,12 @@
 					<div class="flex flex-wrap items-center gap-2">
 						<VerdictBadge verdict={check.engine.verdict} />
 						<span class="font-mono text-[0.71875rem] font-medium text-muted-foreground">
-							conf. {check.engine.confidence.toFixed(2)}
+							{m.operations_confidence_short({ value: check.engine.confidence.toFixed(2) })}
 						</span>
 						<span
 							class="rounded-full border border-signal-soft px-2 py-px text-[0.6875rem] font-medium text-signal"
 						>
-							<span class="sr-only">Flagged for:</span>
+							<span class="sr-only">{m.operations_flagged_for()}</span>
 							{flag(check)}
 						</span>
 					</div>
@@ -67,7 +68,7 @@
 						<span
 							class="mr-1.5 font-mono text-[0.65625rem] font-semibold tracking-[0.04em] text-muted-foreground uppercase"
 						>
-							Engine reply
+							{m.operations_engine_reply()}
 						</span>
 						{check.engine.explanation}
 					</p>

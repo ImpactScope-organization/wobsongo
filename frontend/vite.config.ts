@@ -1,3 +1,4 @@
+import { paraglideVitePlugin } from '@inlang/paraglide-js';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
@@ -16,7 +17,10 @@ export default defineConfig({
 					filename.split(/[/\\]/).includes('node_modules') ? undefined : true
 			},
 			adapter: adapter()
-		})
+		}),
+
+		// Options live in project.inlang/paraglide.config.js, shared with the CLI.
+		paraglideVitePlugin({ project: './project.inlang' })
 	],
 	test: {
 		expect: { requireAssertions: true },
@@ -27,7 +31,8 @@ export default defineConfig({
 				test: {
 					name: 'server',
 					environment: 'node',
-					include: ['src/**/*.{test,spec}.{js,ts}']
+					include: ['src/**/*.{test,spec}.{js,ts}'],
+					setupFiles: ['src/lib/testing/locale.ts']
 				}
 			},
 			{

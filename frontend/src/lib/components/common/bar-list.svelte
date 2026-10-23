@@ -8,6 +8,7 @@
 
 <script lang="ts">
 	import { formatNumber, percentShares } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -25,9 +26,9 @@
 	let {
 		items,
 		caption,
-		labelHeader = 'Item',
+		labelHeader = m.common_bar_list_item(),
 		show = 'percent',
-		emptyText = 'No data in this window.',
+		emptyText = m.common_no_data_in_window(),
 		class: className
 	}: Props = $props();
 
@@ -44,7 +45,7 @@
 		<thead class="sr-only">
 			<tr>
 				<th scope="col">{labelHeader}</th>
-				<th scope="col">{show === 'percent' ? 'Share' : 'Count'}</th>
+				<th scope="col">{show === 'percent' ? m.common_share() : m.common_count()}</th>
 			</tr>
 		</thead>
 		<tbody>

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { RegionCount } from '#lib/domain/narrative-detail.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import CountValue from './count-value.svelte';
 
@@ -13,7 +14,7 @@
 		class?: string;
 	}
 
-	let { regions, map, emptyText = 'No location answers yet.', class: className }: Props = $props();
+	let { regions, map, emptyText = m.common_region_empty(), class: className }: Props = $props();
 
 	// Show a topic line on every row once any region has one, so rows align.
 	const withTopics = $derived(regions.some((row) => row.topTopic));
@@ -26,9 +27,12 @@
 		<p class="text-[0.8125rem] text-muted-foreground">{emptyText}</p>
 	{:else}
 		<table class="w-full text-[0.8125rem]">
-			<caption class="sr-only">Messages by region</caption>
+			<caption class="sr-only">{m.common_region_caption()}</caption>
 			<thead class="sr-only">
-				<tr><th scope="col">Region</th><th scope="col">Messages</th></tr>
+				<tr>
+					<th scope="col">{m.common_region()}</th>
+					<th scope="col">{m.common_messages()}</th>
+				</tr>
 			</thead>
 			<tbody>
 				{#each regions as row (row.region)}
@@ -41,7 +45,7 @@
 							{#if withTopics}
 								<span class="block text-[0.71875rem] font-normal text-faint-foreground">
 									{row.count.kind === 'suppressed'
-										? 'Too few responses to show'
+										? m.common_region_suppressed()
 										: (row.topTopic ?? '—')}
 								</span>
 							{/if}

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { MESSAGE_FORMATS } from '#lib/domain/narrative-detail.js';
 	import type { LanguageFormatMix } from '#lib/domain/spread.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { percentShares } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { MESSAGE_FORMAT_LABEL } from '../common/labels';
@@ -12,7 +13,7 @@
 		class?: string;
 	}
 
-	let { rows, emptyText = 'No messages in this window.', class: className }: Props = $props();
+	let { rows, emptyText = m.spread_empty(), class: className }: Props = $props();
 
 	// Row percentages: how each language splits across formats.
 	const table = $derived(
@@ -28,10 +29,11 @@
 {:else}
 	<div class={className}>
 		<table class="w-full border-separate border-spacing-[3px] text-[0.6875rem]">
-			<caption class="sr-only">Share of each language's messages by format</caption>
+			<caption class="sr-only">{m.spread_matrix_caption()}</caption>
 			<thead>
 				<tr>
-					<th scope="col" class="w-[4.75rem]"><span class="sr-only">Language</span></th>
+					<th scope="col" class="w-[4.75rem]"><span class="sr-only">{m.spread_language()}</span></th
+					>
 					{#each MESSAGE_FORMATS as format (format)}
 						<th scope="col" class="font-medium text-muted-foreground">
 							{MESSAGE_FORMAT_LABEL[format]}
@@ -59,7 +61,7 @@
 			</tbody>
 		</table>
 		<p class="mt-2 text-[0.71875rem] text-faint-foreground">
-			Row percentages. Darker = larger share.
+			{m.spread_matrix_note()}
 		</p>
 	</div>
 {/if}

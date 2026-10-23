@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { HarmAlert } from '#lib/domain/high-harm.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import HarmAlertCard from './harm-alert-card.svelte';
 
@@ -24,8 +25,8 @@
 		action,
 		overrideHrefFor,
 		enhance,
-		label = 'Dangerous practice alerts',
-		emptyText = 'No dangerous-practice alerts.',
+		label = m.high_harm_alerts_label(),
+		emptyText = m.high_harm_alerts_empty(),
 		class: className
 	}: Props = $props();
 </script>

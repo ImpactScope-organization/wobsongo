@@ -3,7 +3,7 @@
 	import { expect, within } from 'storybook/test';
 	import logo from '#lib/assets/ws-logo-white.svg';
 	import { passwordChangedAt, profile, SETTINGS_NOW } from '#lib/fixtures/settings.js';
-	import { NAV_ITEMS } from '#lib/navigation.js';
+	import { navItems } from '#lib/navigation.js';
 	import AppHeader from '../common/app-header.svelte';
 	import BotComingSoon from './bot-coming-soon.svelte';
 	import SettingsView from './settings-view.svelte';
@@ -37,7 +37,7 @@
 				logoSrc={logo}
 				currentHref="/settings"
 				account={{ name: profile.name, href: '/settings' }}
-				items={NAV_ITEMS}
+				items={navItems()}
 			/>
 			<SettingsView {...viewProps} />
 		</div>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Count } from '#lib/domain/count.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatNumber } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 
@@ -16,8 +17,8 @@
 {:else}
 	<span
 		class={cn('font-mono text-faint-foreground', className)}
-		title="Fewer than {count.threshold}: hidden to protect privacy"
+		title={m.common_suppressed_title({ threshold: count.threshold })}
 	>
-		&lt; {count.threshold}<span class="sr-only">, hidden to protect privacy</span>
+		&lt; {count.threshold}<span class="sr-only">{m.common_suppressed_sr()}</span>
 	</span>
 {/if}

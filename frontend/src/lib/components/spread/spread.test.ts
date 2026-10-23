@@ -7,6 +7,7 @@ import {
 	lags,
 	platformWeeks
 } from '#lib/fixtures/spread.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import FormatShareChart from './format-share-chart.svelte';
 import IntentBreakdown from './intent-breakdown.svelte';
@@ -108,5 +109,24 @@ describe('IntentBreakdown', () => {
 		const body = render(IntentBreakdown, { props: { days: dailyIntents } }).body;
 		expect(body).toContain('Personal medical questions the platform does not handle');
 		expect(body).not.toMatch(/<ul aria-hidden="true"[^>]*grid/);
+	});
+});
+
+describe('Spread in French', () => {
+	it('words the lag list in French', () => {
+		const body = withLocale('fr', () => stripComments(render(LagList, { props: { lags } }).body));
+		expect(body).toContain('aria-label="Délai entre plateformes publiques et WhatsApp, par récit"');
+		expect(body).toContain('Vu d’abord sur\u00a0: TikTok');
+		expect(body).toContain('Plateformes publiques uniquement');
+	});
+
+	it('labels weeks and formats in French', () => {
+		const body = withLocale(
+			'fr',
+			() => render(FormatShareChart, { props: { weeks: formatWeeks } }).body
+		);
+		expect(body).toContain('Part des affirmations par format, par semaine');
+		expect(body).toContain('Note vocale');
+		expect(body).toMatch(/>S\d+</);
 	});
 });

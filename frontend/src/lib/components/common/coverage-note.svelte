@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import InfoIcon from '@lucide/svelte/icons/info';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -23,8 +24,7 @@
 		{#if children}
 			{@render children()}
 		{:else}
-			Reflects monitoring coverage, not true prevalence. Social figures come from crawled public
-			groups and accounts; WhatsApp counts are bot submissions.
+			{m.common_coverage_note()}
 		{/if}
 	</span>
 </p>

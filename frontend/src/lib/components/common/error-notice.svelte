@@ -1,5 +1,6 @@
 <script lang="ts">
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
+	import { m } from '#lib/paraglide/messages.js';
 	import * as Empty from '../ui/empty/index.js';
 
 	interface Props {
@@ -12,16 +13,16 @@
 		backLabel?: string;
 	}
 
-	let { status, message, backHref, backLabel = 'Back to Overview' }: Props = $props();
+	let { status, message, backHref, backLabel = m.back_to_overview() }: Props = $props();
 
 	const title = $derived(
 		status === 404
-			? 'Page not found'
+			? m.error_title_not_found()
 			: status === 501
-				? 'Not available yet'
+				? m.error_title_not_available()
 				: status >= 500
-					? 'Something went wrong'
-					: 'This page can’t be shown'
+					? m.error_title_server()
+					: m.error_title_other()
 	);
 </script>
 
@@ -32,7 +33,7 @@
 			<Empty.Title><h1>{title}</h1></Empty.Title>
 			<Empty.Description>
 				{message}
-				<span class="mt-1 block font-mono text-xs">Error {status}</span>
+				<span class="mt-1 block font-mono text-xs">{m.error_status({ status })}</span>
 			</Empty.Description>
 		</Empty.Header>
 		<Empty.Content>

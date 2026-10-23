@@ -2,6 +2,7 @@ import { error } from '@sveltejs/kit';
 import { PRIVACY_WHITELIST_EMAILS } from '$app/env/private';
 import { parseOverviewTopic } from '#lib/domain/overview.js';
 import { parseTimeRange } from '#lib/domain/time-range.js';
+import { m } from '#lib/paraglide/messages.js';
 import { requireSession } from '#lib/server/auth/session.js';
 import { isWhitelistedForFullData } from '#lib/server/privacy.js';
 import type { PageServerLoad } from './$types';
@@ -40,7 +41,10 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 				creators: result.data.creators?.map(
 					({ followers: _f, postsCount: _p, handle: _h, profileUrl: _url, ...creator }, index) => ({
 						...creator,
-						name: creator.pseudoname || creator.pseudonym || `Creator ${index + 1}`
+						name:
+							creator.pseudoname ||
+							creator.pseudonym ||
+							m.overview_creator_pseudonym({ number: index + 1 })
 					})
 				)
 			}

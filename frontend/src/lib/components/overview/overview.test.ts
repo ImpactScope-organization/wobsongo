@@ -9,6 +9,7 @@ import {
 	overviewSnapshot,
 	sampleCreators
 } from '#lib/fixtures/overview.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import CreatorList from './creator-list.svelte';
 import HighHarmSummary from './high-harm-summary.svelte';
@@ -299,5 +300,45 @@ describe('OverviewView', () => {
 		expect(view({ ...overviewSnapshot, narratives: [] })).toContain(
 			'No narratives in this window.'
 		);
+	});
+});
+
+describe('Overview in French', () => {
+	it('words the headline numbers, sections and lists in French', () => {
+		const body = withLocale('fr', () =>
+			stripComments(
+				render(OverviewView, {
+					props: {
+						snapshot: overviewSnapshot,
+						range: '7d',
+						topic: 'misinfo',
+						rangeHref: (range: string) => `?range=${range}`,
+						topicHref: (topic: string) => `?topic=${topic}`
+					}
+				}).body
+			)
+		);
+		expect(body).toContain('Burkina Faso · mis à jour à 14:05 GMT');
+		expect(body).toContain('Messages reçus, 7 j');
+		expect(body).toContain('8\u202f412');
+		expect(body).toContain('vs 7 j préc.');
+		expect(body).toContain('6 nouveaux en 7 j');
+		expect(body).toContain('Principaux récits de désinformation');
+		expect(body).toContain('D’où viennent les affirmations');
+		expect(body).toContain('Affirmations à risque élevé');
+		expect(body).toContain('aria-label="Récits"');
+	});
+
+	it('counts one claim in the singular', () => {
+		const body = withLocale(
+			'fr',
+			() =>
+				render(HighHarmSummary, {
+					props: { summary: { awaitingReview: 1, fastTracked: 0 }, href: '/safety' }
+				}).body
+		);
+		expect(body).toContain('affirmation sur une pratique dangereuse en attente');
+		// French counts 0 as singular too.
+		expect(body).toContain('affirmation traitée en priorité');
 	});
 });

@@ -5,6 +5,7 @@
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Field from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
 	import { cn } from '#lib/utils.js';
 
@@ -44,16 +45,14 @@
 >
 	<Field.Group>
 		<div class="flex flex-col items-center gap-1 text-center">
-			<h1 class="text-2xl font-bold">Create your account</h1>
-			<p class="text-sm text-balance text-muted-foreground">
-				Fill in the form below to create your account
-			</p>
+			<h1 class="text-2xl font-bold">{m.signup_heading()}</h1>
+			<p class="text-sm text-balance text-muted-foreground">{m.signup_intro()}</p>
 		</div>
 		{#if error}
 			<p id="error-{id}" role="alert" class="text-sm font-medium text-destructive">{error}</p>
 		{/if}
 		<Field.Field>
-			<Field.Label for="name-{id}">Full name</Field.Label>
+			<Field.Label for="name-{id}">{m.field_full_name()}</Field.Label>
 			<Input
 				id="name-{id}"
 				name="name"
@@ -64,7 +63,7 @@
 			/>
 		</Field.Field>
 		<Field.Field>
-			<Field.Label for="email-{id}">Email</Field.Label>
+			<Field.Label for="email-{id}">{m.field_email()}</Field.Label>
 			<Input
 				id="email-{id}"
 				name="email"
@@ -76,11 +75,11 @@
 				aria-describedby="email-note-{id}"
 			/>
 			<Field.Description id="email-note-{id}">
-				We'll use this to contact you. We will not share your email with anyone else.
+				{m.signup_email_note()}
 			</Field.Description>
 		</Field.Field>
 		<Field.Field>
-			<Field.Label for="password-{id}">Password</Field.Label>
+			<Field.Label for="password-{id}">{m.field_password()}</Field.Label>
 			<div class="relative">
 				<Input
 					id="password-{id}"
@@ -98,7 +97,7 @@
 					size="icon-sm"
 					class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 					onclick={() => (showPassword = !showPassword)}
-					aria-label={showPassword ? 'Hide password' : 'Show password'}
+					aria-label={showPassword ? m.password_hide() : m.password_show()}
 				>
 					{#if showPassword}
 						<EyeOffIcon class="size-4" />
@@ -107,12 +106,12 @@
 					{/if}
 				</Button>
 			</div>
-			<Field.Description id="password-note-{id}"
-				>Must be at least {PASSWORD_MIN_LENGTH} characters long.</Field.Description
-			>
+			<Field.Description id="password-note-{id}">
+				{m.signup_password_note({ min: PASSWORD_MIN_LENGTH })}
+			</Field.Description>
 		</Field.Field>
 		<Field.Field>
-			<Field.Label for="confirm-password-{id}">Confirm password</Field.Label>
+			<Field.Label for="confirm-password-{id}">{m.field_confirm_password()}</Field.Label>
 			<Input
 				id="confirm-password-{id}"
 				name="confirmPassword"
@@ -123,10 +122,10 @@
 			/>
 		</Field.Field>
 		<Field.Field>
-			<Button type="submit">Create account</Button>
+			<Button type="submit">{m.signup_submit()}</Button>
 			<Field.Description class="px-6 text-center">
-				Already have an account?
-				<a href={loginHref} class="underline underline-offset-4">Log in</a>
+				{m.signup_have_account()}
+				<a href={loginHref} class="underline underline-offset-4">{m.signup_login_link()}</a>
 			</Field.Description>
 		</Field.Field>
 	</Field.Group>

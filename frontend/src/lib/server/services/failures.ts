@@ -1,6 +1,5 @@
+import { m } from '#lib/paraglide/messages.js';
 import { failure, type Failure } from '../result.js';
-
-export const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
 
 /**
  * The message to show for a repository failure: `known` words statuses the
@@ -13,6 +12,6 @@ export function describeFailure(
 ): Failure {
 	const message =
 		known[result.status] ??
-		(result.status >= 500 && result.status !== 501 ? SERVER_ERROR_MESSAGE : result.message);
+		(result.status >= 500 && result.status !== 501 ? m.error_server() : result.message);
 	return failure(result.status, message);
 }

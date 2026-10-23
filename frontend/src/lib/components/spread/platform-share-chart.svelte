@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { PLATFORMS, type Platform } from '#lib/domain/platform.js';
 	import type { WeeklyCounts } from '#lib/domain/spread.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatIsoWeek } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { PLATFORM_LABEL } from '../common/labels';
@@ -26,7 +27,7 @@
 		}))}
 	/>
 	<ShareColumns
-		caption="Share of incoming claims by platform, weekly"
+		caption={m.spread_platform_share_caption()}
 		columns={weeks.map((week) => ({
 			key: week.weekStart.toISOString(),
 			label: formatIsoWeek(week.weekStart),

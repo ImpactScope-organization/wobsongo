@@ -11,6 +11,7 @@
 
 <script lang="ts">
 	import { formatNumber, percentShares } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -30,7 +31,7 @@
 		describe = 'count',
 		showPercent = false,
 		size = 'sm',
-		emptyText = 'No data',
+		emptyText = m.common_no_data(),
 		class: className
 	}: Props = $props();
 

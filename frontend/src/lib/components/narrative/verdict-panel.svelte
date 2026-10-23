@@ -2,6 +2,7 @@
 	import type { EngineVerdict } from '#lib/domain/narrative-detail.js';
 	import type { ActivityEntry, ReviewState } from '#lib/domain/review.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import ActivityLog from '../common/activity-log.svelte';
 	import { VERDICT_LABEL } from '../common/labels';
@@ -49,10 +50,10 @@
 		<div
 			class="mb-1.5 flex justify-between gap-2 font-mono text-[0.6875rem] font-semibold uppercase"
 		>
-			<span class="tracking-[0.05em] text-muted-foreground">API verdict</span>
+			<span class="tracking-[0.05em] text-muted-foreground">{m.narrative_api_verdict()}</span>
 			<span class={VERDICT_TONE[engine.verdict]}>
 				{VERDICT_LABEL[engine.verdict]} · {engine.confidence.toFixed(2)}<span class="sr-only"
-					>&nbsp;confidence</span
+					>&nbsp;{m.narrative_confidence()}</span
 				>
 			</span>
 		</div>
@@ -67,15 +68,15 @@
 		{enhance}
 		{overrideHref}
 		decisions={['approve', 'override']}
-		labels={{ approve: 'Confirm verdict', override: 'Correct…' }}
+		labels={{ approve: m.narrative_confirm_verdict(), override: m.narrative_correct() }}
 		fill
 		class="mb-1"
 	/>
 
-	<section aria-label="Review log">
+	<section aria-label={m.narrative_review_log()}>
 		<h3 class="text-eyebrow mb-2 font-semibold tracking-[0.05em] text-muted-foreground">
-			Review log
+			{m.narrative_review_log()}
 		</h3>
-		<ActivityLog entries={log} {now} variant="compact" emptyText="No reviews yet." />
+		<ActivityLog entries={log} {now} variant="compact" emptyText={m.narrative_no_reviews()} />
 	</section>
 </div>

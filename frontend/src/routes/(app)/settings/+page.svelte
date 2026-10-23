@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import SettingsView from '#lib/components/settings/settings-view.svelte';
+	import { m } from '#lib/paraglide/messages.js';
 	import type { PageProps } from './$types';
 
 	let { data, form }: PageProps = $props();
 </script>
 
 <svelte:head>
-	<title>Settings · WobSongo</title>
+	<title>{m.page_title({ title: m.settings_title() })}</title>
 </svelte:head>
 
 <SettingsView

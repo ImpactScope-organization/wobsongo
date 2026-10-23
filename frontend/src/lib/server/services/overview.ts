@@ -1,5 +1,6 @@
 import type { TimeRange } from '#lib/domain/time-range.js';
 import { topNarratives, type OverviewSnapshot, type OverviewTopic } from '#lib/domain/overview.js';
+import { m } from '#lib/paraglide/messages.js';
 import { ok, type Result } from '../result.js';
 import type { Scope } from '../scope.js';
 import { describeFailure } from './failures.js';
@@ -25,7 +26,7 @@ export function createOverviewService(repo: OverviewRepo): OverviewService {
 	return {
 		async getOverview(scope, { range, topic }) {
 			const result = await repo.getSnapshot(scope, { range });
-			if (!result.ok) return describeFailure(result, { 404: 'No Overview data for this account.' });
+			if (!result.ok) return describeFailure(result, { 404: m.overview_not_found() });
 
 			const snapshot = result.data;
 			return ok({

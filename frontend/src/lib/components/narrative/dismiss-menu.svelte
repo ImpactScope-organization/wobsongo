@@ -2,6 +2,7 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import { DISMISS_REASONS } from '#lib/domain/narrative-detail.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { DISMISS_REASON_LABEL } from '../common/labels';
 
@@ -39,7 +40,7 @@
 	<summary
 		class="flex cursor-pointer list-none items-center gap-1.5 rounded-md border bg-card px-3.5 py-[0.5625rem] text-[0.8125rem] font-medium outline-none select-none hover:border-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
 	>
-		Dismiss
+		{m.narrative_dismiss()}
 		<ChevronDownIcon
 			class="size-3.5 transition-transform group-open:rotate-180"
 			aria-hidden="true"
@@ -57,7 +58,7 @@
 			<legend
 				class="text-eyebrow px-2 pt-1.5 pb-1 text-[0.65625rem] font-semibold text-faint-foreground"
 			>
-				Dismiss narrative as
+				{m.narrative_dismiss_legend()}
 			</legend>
 			{#each DISMISS_REASONS as reason (reason)}
 				<button
@@ -78,7 +79,7 @@
 		<p
 			class="mt-1 border-t border-rule px-2 pt-1.5 pb-1 text-[0.71875rem]/snug text-faint-foreground"
 		>
-			Hidden from Overview and alerts. The engine keeps replying to users.
+			{m.narrative_dismiss_note()}
 		</p>
 	</form>
 </details>

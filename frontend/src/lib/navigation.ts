@@ -5,6 +5,7 @@ import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 import MessageSquareTextIcon from '@lucide/svelte/icons/message-square-text';
 import Radar from '@lucide/svelte/icons/radar';
 import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
+import { m } from '#lib/paraglide/messages.js';
 
 export interface NavItem {
 	label: string;
@@ -19,13 +20,18 @@ export interface NavItem {
 
 export const SETTINGS_HREF = '/settings';
 
-export const NAV_ITEMS: readonly NavItem[] = [
-	{ label: 'Overview', href: '/', icon: LayoutDashboardIcon },
-	{ label: 'Narratives', href: '/narratives', disabled: true, icon: MessageSquareTextIcon },
-	{ label: 'Spread', href: '/spread', disabled: true, icon: Radar },
-	{ label: 'Operations', href: '/ops', disabled: true, icon: ActivityIcon },
-	{ label: 'High-harm', href: '/safety', disabled: true, icon: ShieldAlertIcon }
+const NAV: readonly (Omit<NavItem, 'label'> & { label: () => string })[] = [
+	{ label: m.nav_overview, href: '/', icon: LayoutDashboardIcon },
+	{ label: m.nav_narratives, href: '/narratives', disabled: true, icon: MessageSquareTextIcon },
+	{ label: m.nav_spread, href: '/spread', disabled: true, icon: Radar },
+	{ label: m.nav_operations, href: '/ops', disabled: true, icon: ActivityIcon },
+	{ label: m.nav_high_harm, href: '/safety', disabled: true, icon: ShieldAlertIcon }
 ];
+
+/** The main nav, labelled in the current language. */
+export function navItems(): NavItem[] {
+	return NAV.map((item) => ({ ...item, label: item.label() }));
+}
 
 /**
  * Returns the icon component for a nav item, either from item.icon or inferred by href/label.
@@ -55,7 +61,7 @@ export function resolveNavIcon(item: NavItem): Component {
  */
 export function activeNavHref(
 	pathname: string,
-	hrefs: readonly string[] = [...NAV_ITEMS.map((item) => item.href), SETTINGS_HREF]
+	hrefs: readonly string[] = [...NAV.map((item) => item.href), SETTINGS_HREF]
 ): string | undefined {
 	return hrefs
 		.filter((href) =>
@@ -66,7 +72,7 @@ export function activeNavHref(
 
 /** The nav item for a view that isn't built yet, if `pathname` is in one. */
 export function comingSoonSection(pathname: string): NavItem | undefined {
-	return NAV_ITEMS.find(
+	return navItems().find(
 		(item) => item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`))
 	);
 }

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { AccountProfile } from '#lib/domain/account.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
 	import { cn } from '#lib/utils.js';
 	import AccountAvatar from '../common/account-avatar.svelte';
@@ -65,7 +66,7 @@
 		class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,15rem),1fr))] gap-x-[1.125rem] gap-y-3.5"
 	>
 		<div class={FIELD}>
-			<label for="name-{id}" class={LABEL}>Full name</label>
+			<label for="name-{id}" class={LABEL}>{m.field_full_name()}</label>
 			<Input
 				id="name-{id}"
 				name="name"
@@ -76,7 +77,7 @@
 			/>
 		</div>
 		<div class={FIELD}>
-			<label for="email-{id}" class={LABEL}>Email</label>
+			<label for="email-{id}" class={LABEL}>{m.field_email()}</label>
 			<Input
 				id="email-{id}"
 				name="email"
@@ -95,9 +96,9 @@
 				role="status"
 				class="w-full text-center text-[0.8125rem] font-medium text-status-verified-foreground md:w-auto"
 			>
-				✓ Changes saved
+				{m.settings_changes_saved()}
 			</div>
 		{/if}
-		<button type="submit" class={`${PRIMARY} w-full md:w-auto`}>Save changes</button>
+		<button type="submit" class={`${PRIMARY} w-full md:w-auto`}>{m.settings_save_changes()}</button>
 	</div>
 </form>

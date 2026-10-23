@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { isSpiking, type NarrativeSummary } from '#lib/domain/narrative.js';
 	import { formatNumber, formatPercent } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import HarmScore from '../common/harm-score.svelte';
 	import ReviewStatusBadge from '../common/review-status-badge.svelte';
@@ -20,9 +21,9 @@
 
 	let {
 		narratives,
-		label = 'Narratives',
+		label = m.nav_narratives(),
 		hrefFor = (id) => `/narratives/${encodeURIComponent(id)}`,
-		emptyText = 'No narratives in this window.',
+		emptyText = m.overview_narratives_empty(),
 		class: className
 	}: Props = $props();
 </script>
@@ -68,18 +69,20 @@
 						<Sparkline
 							values={narrative.trend}
 							tone={spiking ? 'signal' : 'muted'}
-							label="Volume trend{spiking ? ', spiking' : ''}"
+							label={spiking ? m.overview_volume_trend_spiking() : m.overview_volume_trend()}
 						/>
 						<div class="w-16 text-right font-mono">
 							<div class="text-[0.9375rem] font-semibold">
-								{formatNumber(narrative.volume)}<span class="sr-only">&nbsp;messages</span>
+								{formatNumber(narrative.volume)}<span class="sr-only"
+									>&nbsp;{m.overview_sr_messages()}</span
+								>
 							</div>
 							<div
 								data-spiking={spiking || undefined}
 								class="text-[0.71875rem] font-medium text-muted-foreground data-spiking:text-signal"
 							>
 								{formatPercent(narrative.growthPct, { signed: true })}<span class="sr-only"
-									>&nbsp;growth</span
+									>&nbsp;{m.overview_sr_growth()}</span
 								>
 							</div>
 						</div>

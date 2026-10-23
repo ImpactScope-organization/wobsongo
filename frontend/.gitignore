@@ -27,3 +27,6 @@ storybook-static
 
 # Vitest browser-mode failure screenshots
 __screenshots__/
+# Paraglide
+src/lib/paraglide
+project.inlang/cache/

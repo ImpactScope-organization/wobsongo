@@ -3,6 +3,7 @@
 	import { MAX_HARM, isSpiking } from '#lib/domain/narrative.js';
 	import type { NarrativeDetail } from '#lib/domain/narrative-detail.js';
 	import { formatFactor, formatNumber } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import KpiGroup from '../common/kpi-group.svelte';
 	import KpiTile from '../common/kpi-tile.svelte';
 
@@ -20,24 +21,33 @@
 </script>
 
 <KpiGroup class={className}>
-	<KpiTile size="sm" label="Messages, 7 d" value={formatNumber(narrative.volume7d)} />
 	<KpiTile
 		size="sm"
-		label="Growth, last 6 h"
+		label={m.narrative_metric_messages_7d()}
+		value={formatNumber(narrative.volume7d)}
+	/>
+	<KpiTile
+		size="sm"
+		label={m.narrative_metric_growth_6h()}
 		value={formatFactor(narrative.growthFactor6h)}
 		valueTone={spiking ? 'signal' : 'default'}
 	/>
-	<KpiTile size="sm" label="Harm score" value={String(narrative.harm)} suffix="/{MAX_HARM}">
+	<KpiTile
+		size="sm"
+		label={m.narrative_metric_harm()}
+		value={String(narrative.harm)}
+		suffix="/{MAX_HARM}"
+	>
 		{#snippet aside()}
 			{#if narrative.harmValidated}
 				<span
 					class="mr-auto ml-2 flex items-center gap-1 self-end text-[0.6875rem] font-medium text-verdict-accurate-strong"
 				>
 					<CheckIcon class="size-3" aria-hidden="true" />
-					Expert-validated
+					{m.narrative_metric_expert_validated()}
 				</span>
 			{/if}
 		{/snippet}
 	</KpiTile>
-	<KpiTile size="sm" label="Priority score" value={String(narrative.priority)} />
+	<KpiTile size="sm" label={m.narrative_metric_priority()} value={String(narrative.priority)} />
 </KpiGroup>

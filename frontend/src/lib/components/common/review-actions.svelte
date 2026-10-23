@@ -1,11 +1,13 @@
 <script lang="ts" module>
 	import type { ReviewDecision } from '#lib/domain/review.js';
+	import { m } from '#lib/paraglide/messages.js';
 
-	const DECISION_LABEL: Record<ReviewDecision, string> = {
-		approve: 'Approve',
-		override: 'Override…',
-		dismiss: 'Dismiss',
-		'add-fact-check': 'Add fact-check'
+	// Functions, not strings: read while rendering, in the page's language.
+	const DECISION_LABEL: Record<ReviewDecision, () => string> = {
+		approve: m.common_decision_approve,
+		override: m.common_decision_override,
+		dismiss: m.common_decision_dismiss,
+		'add-fact-check': m.common_decision_add_fact_check
 	};
 </script>
 
@@ -65,7 +67,7 @@
 <form method="POST" {action} use:optionalEnhance={enhance} class={cn('flex', className)}>
 	<input type="hidden" name="id" value={itemId} />
 	<fieldset class="flex flex-1 flex-wrap items-center gap-1.5">
-		<legend class="sr-only">Review “{itemLabel}”</legend>
+		<legend class="sr-only">{m.common_review_legend({ item: itemLabel })}</legend>
 		{#if state.kind === 'pending'}
 			{#each offered as decision, index (decision)}
 				{@const classes = cn(
@@ -80,11 +82,11 @@
 				)}
 				{#if decision === 'override'}
 					<a href={overrideHref} class={classes}>
-						{labels[decision] ?? DECISION_LABEL[decision]}
+						{labels[decision] ?? DECISION_LABEL[decision]()}
 					</a>
 				{:else}
 					<button type="submit" name="decision" value={decision} class={classes}>
-						{labels[decision] ?? DECISION_LABEL[decision]}
+						{labels[decision] ?? DECISION_LABEL[decision]()}
 					</button>
 				{/if}
 			{/each}
@@ -102,7 +104,7 @@
 				value={undo}
 				class={cn(BUTTON, 'text-muted-foreground underline-offset-2 hover:underline')}
 			>
-				Undo
+				{m.common_undo()}
 			</button>
 		{/if}
 	</fieldset>

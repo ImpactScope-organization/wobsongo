@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { AccountProfile } from '#lib/domain/account.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import PageHeader from '../common/page-header.svelte';
 	import SectionCard from '../common/section-card.svelte';
 	import BotComingSoon from './bot-coming-soon.svelte';
@@ -39,17 +40,17 @@
 </script>
 
 <main class="mx-auto flex max-w-5xl flex-col gap-5 p-[clamp(1rem,3vw,2rem)]">
-	<PageHeader title="Settings" eyebrow="Your account" class="mb-0.5">
+	<PageHeader title={m.settings_title()} eyebrow={m.settings_eyebrow()} class="mb-0.5">
 		{#snippet actions()}
 			<!-- Signing out changes state, so it is a POST, never a link. -->
 			<form method="POST" action={logoutAction}>
-				<button type="submit" class={SECONDARY}>Log out</button>
+				<button type="submit" class={SECONDARY}>{m.settings_log_out()}</button>
 			</form>
 		{/snippet}
 	</PageHeader>
 
 	<div class="mx-auto flex w-full max-w-5xl flex-col gap-5">
-		<SectionCard title="Account" description="Your profile as seen by other reviewers.">
+		<SectionCard title={m.settings_account_title()} description={m.settings_account_description()}>
 			<ProfileForm
 				{profile}
 				action="?/profile"
@@ -60,7 +61,7 @@
 			/>
 		</SectionCard>
 
-		<SectionCard title="Password">
+		<SectionCard title={m.settings_password_title()}>
 			<PasswordForm
 				action="?/password"
 				resetAction="?/resetPassword"
@@ -73,11 +74,7 @@
 			/>
 		</SectionCard>
 
-		<SectionCard
-			title="Bot connections"
-			description="Link your own messaging account to the bot to review flagged claims and approve replies from your phone."
-			flush
-		>
+		<SectionCard title={m.settings_bots_title()} description={m.settings_bots_description()} flush>
 			<BotComingSoon />
 		</SectionCard>
 	</div>

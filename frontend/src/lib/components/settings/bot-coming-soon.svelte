@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { botLinkMessage, type BotPlatform } from '#lib/domain/account.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { BOT_LABEL, BOT_MONOGRAM } from '../common/labels';
 	import { BOT_TONE } from '../common/tones';
@@ -43,15 +44,14 @@
 			<span
 				class="rounded-full bg-secondary px-2 py-0.5 text-[0.71875rem] font-medium text-muted-foreground"
 			>
-				Coming soon
+				{m.settings_bot_coming_soon()}
 			</span>
 		</div>
 		<p class="mt-[0.1875rem] text-[0.78125rem]/[1.45] text-pretty text-muted-foreground">
-			For now the bot answers everyone. Once linking is ready, you’ll send it a one-time code like
-			this:
+			{m.settings_bot_coming_soon_intro()}
 		</p>
 		<p class="mt-2 flex flex-wrap items-center gap-2 text-[0.75rem] text-muted-foreground">
-			<span>Example</span>
+			<span>{m.settings_bot_example()}</span>
 			<code class="rounded-[0.3125rem] border bg-background px-2 py-1 font-mono text-foreground/70">
 				{example}
 			</code>
@@ -62,6 +62,8 @@
 		disabled
 		class={cn(PRIMARY, 'ml-auto w-full disabled:pointer-events-none disabled:opacity-50 md:w-auto')}
 	>
-		Connect<span class="sr-only">&nbsp;{name} (coming soon)</span>
+		{m.settings_bot_connect()}<span class="sr-only"
+			>&nbsp;{m.settings_bot_connect_coming_soon_suffix({ name })}</span
+		>
 	</button>
 </div>

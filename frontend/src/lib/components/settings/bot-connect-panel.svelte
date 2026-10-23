@@ -8,6 +8,7 @@
 		type BotLinkPhase
 	} from '#lib/domain/account.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatCountdown } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { BOT_LABEL } from '../common/labels';
@@ -99,12 +100,13 @@
 			<svelte:element
 				this={level === 1 ? 'h1' : 'h2'}
 				id={titleId}
-				class="font-heading text-xl font-bold">Connect {name}</svelte:element
+				class="font-heading text-xl font-bold"
+				>{m.settings_bot_connect_title({ name })}</svelte:element
 			>
 		</div>
 		<a
 			href={closeHref}
-			aria-label="Close"
+			aria-label={m.settings_close()}
 			class="rounded px-1 py-0.5 text-[1.375rem]/none text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
 			>×</a
 		>
@@ -113,9 +115,9 @@
 	{#if phase === 'code' && code}
 		<div class="flex flex-col gap-4 px-[1.375rem] pt-4 pb-[1.375rem]">
 			<ol class="flex list-decimal flex-col gap-1.5 pl-5 text-[0.84375rem]/[1.45]">
-				<li>Copy the authentication message below.</li>
-				<li>Send it as a message to {contact.address} from the account you want to link.</li>
-				<li>The bot confirms the link and this page updates.</li>
+				<li>{m.settings_bot_step_copy()}</li>
+				<li>{m.settings_bot_step_send({ address: contact.address })}</li>
+				<li>{m.settings_bot_step_confirm()}</li>
 			</ol>
 
 			<div
@@ -126,7 +128,7 @@
 					<span
 						class="font-mono text-[0.65625rem] font-semibold tracking-[0.06em] text-inverse-muted-foreground uppercase"
 					>
-						Authentication message
+						{m.settings_bot_auth_message()}
 					</span>
 					<span
 						class={cn(
@@ -135,14 +137,15 @@
 						)}
 					>
 						{#if expired}
-							Expired
+							{m.settings_bot_expired()}
 						{:else}
-							Expires in <time datetime="PT{Math.ceil(left / 1000)}S">{formatCountdown(left)}</time>
+							{m.settings_bot_expires_in()}
+							<time datetime="PT{Math.ceil(left / 1000)}S">{formatCountdown(left)}</time>
 						{/if}
 					</span>
 				</div>
 				<!-- The countdown isn't live (it would speak every second); expiry is. -->
-				<span role="status" class="sr-only">{expired ? 'The code has expired.' : ''}</span>
+				<span role="status" class="sr-only">{expired ? m.settings_bot_code_expired() : ''}</span>
 				<p
 					class="font-mono text-[clamp(1.0625rem,4.4vw,1.3125rem)]/[1.3] font-semibold tracking-[0.02em] break-all select-all group-data-expired:text-inverse-muted-foreground group-data-expired:line-through"
 				>
@@ -156,7 +159,7 @@
 								onclick={copy}
 								class="min-w-30 flex-1 rounded-md bg-inverse-foreground px-3 py-[0.5625rem] text-[0.8125rem] font-semibold text-inverse outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal"
 							>
-								{copied ? '✓ Copied' : 'Copy message'}
+								{copied ? m.settings_bot_copied() : m.settings_bot_copy_message()}
 							</button>
 						{/if}
 						<a
@@ -165,26 +168,27 @@
 							rel="noopener noreferrer"
 							class="min-w-30 flex-1 rounded-md border border-inverse-border px-3 py-[0.5625rem] text-center text-[0.8125rem] font-medium outline-none hover:bg-inverse-raised focus-visible:ring-2 focus-visible:ring-inverse-signal"
 						>
-							Open {name}<span class="sr-only">&nbsp;(opens in a new tab)</span>
+							{m.settings_bot_open({ name })}<span class="sr-only"
+								>&nbsp;{m.settings_opens_new_tab()}</span
+							>
 						</a>
 					</div>
 				{/if}
 			</div>
 
 			<p class="text-xs/normal text-pretty text-muted-foreground">
-				The {BOT_LINK_PREFIX} prefix tells the bot this is a login code, not a question, so it is never
-				fact-checked or stored as a user message. Single use. Do not share it.
+				{m.settings_bot_prefix_note({ prefix: BOT_LINK_PREFIX })}
 			</p>
 
 			<div class="flex flex-wrap items-center justify-between gap-2.5 border-t border-rule pt-3">
 				<form method="POST" action={regenerateAction} use:optionalEnhance={enhance}>
 					<button type="submit" class={cn(expired ? PRIMARY : cn(TEXT_LINK, 'py-1'))}>
-						Generate new code
+						{m.settings_bot_generate_code()}
 					</button>
 				</form>
 				{#if !expired}
 					<form method="POST" action={sentAction} use:optionalEnhance={enhance}>
-						<button type="submit" class={PRIMARY}>I’ve sent it</button>
+						<button type="submit" class={PRIMARY}>{m.settings_bot_sent_it()}</button>
 					</form>
 				{/if}
 			</div>
@@ -195,11 +199,11 @@
 				aria-hidden="true"
 				class="size-[2.125rem] rounded-full border-3 border-rule border-t-foreground motion-safe:animate-spin"
 			></span>
-			<p role="status" class="text-[0.9375rem] font-semibold">Waiting for the bot…</p>
+			<p role="status" class="text-[0.9375rem] font-semibold">{m.settings_bot_waiting()}</p>
 			<p class="max-w-[21.25rem] text-[0.8125rem]/[1.45] text-muted-foreground">
-				Keep this window open. It updates as soon as the bot receives your code.
+				{m.settings_bot_waiting_note()}
 			</p>
-			<a href={checkHref} class={TEXT_LINK}>Check again</a>
+			<a href={checkHref} class={TEXT_LINK}>{m.settings_bot_check_again()}</a>
 		</div>
 	{:else}
 		<div
@@ -210,11 +214,11 @@
 				class="grid size-11 place-items-center rounded-full bg-status-verified text-xl font-bold text-status-verified-foreground"
 				>✓</span
 			>
-			<p role="status" class="text-base font-semibold">Account connected</p>
+			<p role="status" class="text-base font-semibold">{m.settings_bot_account_connected()}</p>
 			<p class="text-[0.8125rem]/[1.45] text-muted-foreground">
-				You can now review claims from {name}.
+				{m.settings_bot_can_review({ name })}
 			</p>
-			<a href={closeHref} class={cn(PRIMARY, 'mt-2')}>Done</a>
+			<a href={closeHref} class={cn(PRIMARY, 'mt-2')}>{m.settings_done()}</a>
 		</div>
 	{/if}
 </section>

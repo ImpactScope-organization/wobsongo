@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { ContentCreator } from '#lib/domain/overview.js';
-	import { formatNumber, formatPercent } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { formatNumber, formatPercent, intlLocale } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import PlatformIcon from '../common/platform-icon.svelte';
 	import RiskGauge from '../common/risk-gauge.svelte';
@@ -32,8 +33,8 @@
 
 	let {
 		creators,
-		label = 'Content creators',
-		emptyText = 'No content creators detected in this window.',
+		label = m.overview_creators_title(),
+		emptyText = m.overview_creators_empty(),
 		class: className,
 		privacyMode = false,
 		hasAccess = true,
@@ -61,17 +62,18 @@
 
 	function formatCompact(count: number | undefined): string {
 		if (count === undefined) return '-';
-		if (count >= 1_000_000) {
-			return (count / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
-		}
-		if (count >= 1_000) {
-			return (count / 1_000).toFixed(1).replace(/\.0$/, '') + 'K';
-		}
-		return formatNumber(count);
+		if (count < 1_000) return formatNumber(count);
+		// "12.3K" in English, "12,3 k" in French.
+		return new Intl.NumberFormat(intlLocale(), {
+			notation: 'compact',
+			maximumFractionDigits: 1
+		}).format(count);
 	}
 
 	function getPseudonym(creator: ContentCreator, index: number): string {
-		return creator.pseudoname || creator.pseudonym || `Creator ${index + 1}`;
+		return (
+			creator.pseudoname || creator.pseudonym || m.overview_creator_pseudonym({ number: index + 1 })
+		);
 	}
 
 	function getRiskLevel(creator: ContentCreator): number {
@@ -156,14 +158,16 @@
 					{:else}
 						{formatCompact(creator.followers)}
 					{/if}
-					<span class="text-[0.6875rem] font-normal text-muted-foreground">followers</span>
+					<span class="text-[0.6875rem] font-normal text-muted-foreground"
+						>{m.overview_creators_followers_unit()}</span
+					>
 				</div>
 				<div class="text-[0.75rem] text-muted-foreground">
 					{#if isPrivate || creator.postsCount === undefined}
-						<span>- posts</span>
+						<span>- {m.overview_creators_posts_unit()}</span>
 					{:else}
 						<span class="font-semibold text-foreground">{formatNumber(creator.postsCount)}</span>
-						<span class="text-[0.6875rem]">posts</span>
+						<span class="text-[0.6875rem]">{m.overview_creators_posts_unit()}</span>
 					{/if}
 				</div>
 			</div>
@@ -174,14 +178,14 @@
 			<div class="flex shrink-0 flex-col items-center gap-0.5">
 				<RiskGauge value={riskLevel} size={34} />
 				<span class="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-					Risk
+					{m.overview_creators_risk()}
 				</span>
 			</div>
 
 			<div class="flex min-w-0 flex-1 flex-col gap-1.5">
 				<div class="flex items-baseline justify-between font-mono text-xs">
 					<span class="text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase">
-						Rated False / Misleading
+						{m.overview_creators_rated_header()}
 					</span>
 					<div class="flex items-baseline gap-1">
 						{#if isPrivate}
@@ -196,7 +200,7 @@
 								/ {formatNumber(total)}
 							</span>
 						{/if}
-						<span class="sr-only">rated false or misleading</span>
+						<span class="sr-only">{m.overview_creators_rated_sr()}</span>
 					</div>
 				</div>
 				<VerdictMeter
@@ -295,7 +299,7 @@
 						/ {formatNumber(total)}
 					</span>
 				{/if}
-				<span class="sr-only">rated false or misleading</span>
+				<span class="sr-only">{m.overview_creators_rated_sr()}</span>
 			</div>
 			<VerdictMeter
 				counts={creator.rated}
@@ -322,12 +326,12 @@
 			class="hidden min-w-180 items-center gap-x-6 border-t border-rule bg-muted/40 px-5 py-2 text-[0.6875rem] font-semibold text-muted-foreground select-none md:flex"
 		>
 			<span class="w-5 shrink-0 text-center">#</span>
-			<span class="min-w-0 flex-1">Creator</span>
-			<span class="w-12 shrink-0 text-center">Platform</span>
-			<span class="w-20 shrink-0 text-right">Followers</span>
-			<span class="w-16 shrink-0 text-right">Posts</span>
-			<span class="w-20 shrink-0 text-center">Risk level</span>
-			<span class="w-28 shrink-0 text-right sm:w-32">Rated False / Misleading</span>
+			<span class="min-w-0 flex-1">{m.overview_creators_creator()}</span>
+			<span class="w-12 shrink-0 text-center">{m.overview_creators_platform()}</span>
+			<span class="w-20 shrink-0 text-right">{m.overview_creators_followers()}</span>
+			<span class="w-16 shrink-0 text-right">{m.overview_creators_posts()}</span>
+			<span class="w-20 shrink-0 text-center">{m.overview_creators_risk_level()}</span>
+			<span class="w-28 shrink-0 text-right sm:w-32">{m.overview_creators_rated_header()}</span>
 		</div>
 
 		<ol aria-label={label} class="mb-4 divide-y divide-rule border-t border-rule md:border-t-0">

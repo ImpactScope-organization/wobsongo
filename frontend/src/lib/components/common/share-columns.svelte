@@ -12,6 +12,7 @@
 
 <script lang="ts">
 	import { percentShares } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -30,9 +31,9 @@
 	let {
 		columns,
 		caption,
-		columnHeader = 'Week',
+		columnHeader = m.common_week(),
 		barsClass = 'h-52',
-		emptyText = 'No data in this window.',
+		emptyText = m.common_no_data_in_window(),
 		class: className
 	}: Props = $props();
 

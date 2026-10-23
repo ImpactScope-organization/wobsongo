@@ -9,6 +9,7 @@ import {
 	profile,
 	SETTINGS_NOW
 } from '#lib/fixtures/settings.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import AppHeader from '../common/app-header.svelte';
 import BotComingSoon from './bot-coming-soon.svelte';
@@ -273,5 +274,33 @@ describe('SettingsView', () => {
 		}).body;
 		expect(input(body, 'name')).toContain('value="Typed name"');
 		expect(body).toContain('Nope.');
+	});
+});
+
+describe('Settings in French', () => {
+	it('labels the page, sections and forms in French', () => {
+		const body = withLocale(
+			'fr',
+			() => render(SettingsView, { props: { profile, passwordChangedAt, now: SETTINGS_NOW } }).body
+		);
+		expect(body).toContain('Paramètres');
+		expect(body).toContain('Se déconnecter');
+		expect(body).toContain('Mot de passe actuel');
+		expect(body).toContain('Enregistrer les modifications');
+		expect(body).toContain('Administrateur');
+		expect(body).toContain('Bientôt disponible');
+		expect(body).toContain('Au moins 12 caractères');
+	});
+
+	it('asks to confirm a disconnect in French', () => {
+		const body = withLocale(
+			'fr',
+			() =>
+				render(BotDisconnectPanel, {
+					props: { bot: 'telegram', action: '?/disconnect', cancelHref: '/settings' }
+				}).body
+		);
+		expect(body).toContain('Déconnecter Telegram\u00a0?');
+		expect(body).toContain('Annuler');
 	});
 });

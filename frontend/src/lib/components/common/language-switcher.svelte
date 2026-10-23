@@ -1,64 +1,65 @@
+<script lang="ts" module>
+	import type { Locale } from '#lib/paraglide/runtime.js';
+
+	/** Each language is named in itself, so people find their own. */
+	const LANGUAGES: readonly { code: Locale; short: string; name: string }[] = [
+		{ code: 'fr', short: 'FR', name: 'Français' },
+		{ code: 'en', short: 'EN', name: 'English' }
+	];
+</script>
+
 <script lang="ts">
 	import GlobeIcon from '@lucide/svelte/icons/globe';
+	import { m } from '#lib/paraglide/messages.js';
+	import { getLocale } from '#lib/paraglide/runtime.js';
 	import { cn } from '#lib/utils.js';
 
-	export type HeaderLang = 'fr' | 'en';
-
 	interface Props {
-		/** Current active language code. Defaults to 'fr'. */
-		lang?: HeaderLang;
-		/** Callback when language is switched. */
-		onLangChange?: (lang: HeaderLang) => void;
+		/** This page's path and query, to come back to after switching. */
+		returnTo?: string;
+		/** Endpoint that stores the choice in a cookie. */
+		action?: string;
+		/** `inverse` for the dark app header, `plain` on light pages. */
+		tone?: 'inverse' | 'plain';
 		class?: string;
 	}
 
-	let { lang = $bindable('fr'), onLangChange, class: className }: Props = $props();
+	let { returnTo = '/', action = '/lang', tone = 'inverse', class: className }: Props = $props();
 
-	function setLang(newLang: HeaderLang) {
-		if (lang === newLang) return;
-		lang = newLang;
-		onLangChange?.(newLang);
-	}
+	// Switching reloads the page, so this never changes while it is shown.
+	const current = getLocale();
 </script>
 
-<div
-	role="group"
-	aria-label="Language"
-	class={cn(
-		'inline-flex items-center gap-x-2 rounded-md border border-inverse-border bg-inverse-raised p-0.5',
-		className
-	)}
->
-	<GlobeIcon
-		class="mr-0.5 ml-1.5 size-3.5 shrink-0 text-inverse-muted-foreground"
-		aria-hidden="true"
-	/>
-	<button
-		type="button"
-		onclick={() => setLang('fr')}
-		aria-pressed={lang === 'fr'}
-		aria-label="Français"
-		class={cn(
-			'h-6 min-w-7 rounded px-1.5 text-[0.6875rem] font-semibold transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inverse-signal',
-			lang === 'fr'
-				? 'bg-inverse-border text-inverse-foreground'
-				: 'text-inverse-muted-foreground hover:bg-transparent hover:text-inverse-foreground'
-		)}
+<!-- A plain POST form: works without JavaScript; the server sets the cookie and sends the person back. -->
+<form method="POST" {action} class={cn('inline-flex', className)}>
+	<input type="hidden" name="redirectTo" value={returnTo} />
+	<div
+		role="group"
+		aria-label={m.language_switcher_label()}
+		data-tone={tone}
+		class="group/lang inline-flex items-center gap-x-2 rounded-md border p-0.5 data-[tone=inverse]:border-inverse-border data-[tone=inverse]:bg-inverse-raised data-[tone=plain]:border-border data-[tone=plain]:bg-muted"
 	>
-		FR
-	</button>
-	<button
-		type="button"
-		onclick={() => setLang('en')}
-		aria-pressed={lang === 'en'}
-		aria-label="English"
-		class={cn(
-			'h-6 min-w-7 rounded px-1.5 text-[0.6875rem] font-semibold transition-colors outline-none focus-visible:ring-1 focus-visible:ring-inverse-signal',
-			lang === 'en'
-				? 'bg-inverse-border text-inverse-foreground'
-				: 'text-inverse-muted-foreground hover:bg-transparent hover:text-inverse-foreground'
-		)}
-	>
-		EN
-	</button>
-</div>
+		<GlobeIcon
+			class="mr-0.5 ml-1.5 size-3.5 shrink-0 group-data-[tone=inverse]/lang:text-inverse-muted-foreground group-data-[tone=plain]/lang:text-muted-foreground"
+			aria-hidden="true"
+		/>
+		{#each LANGUAGES as language (language.code)}
+			<button
+				type="submit"
+				name="lang"
+				value={language.code}
+				aria-pressed={current === language.code}
+				aria-label={language.name}
+				lang={language.code}
+				class={cn(
+					'h-6 min-w-7 rounded px-1.5 text-[0.6875rem] font-semibold transition-colors outline-none',
+					tone === 'inverse'
+						? 'focus-visible:ring-1 focus-visible:ring-inverse-signal aria-pressed:bg-inverse-border aria-pressed:text-inverse-foreground aria-[pressed=false]:text-inverse-muted-foreground aria-[pressed=false]:hover:text-inverse-foreground'
+						: 'focus-visible:ring-1 focus-visible:ring-ring aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-xs aria-[pressed=false]:text-muted-foreground aria-[pressed=false]:hover:text-foreground'
+				)}
+			>
+				{language.short}
+			</button>
+		{/each}
+	</div>
+</form>

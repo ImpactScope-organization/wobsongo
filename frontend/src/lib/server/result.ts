@@ -1,3 +1,5 @@
+import { m } from '#lib/paraglide/messages.js';
+
 /**
  * What services and repositories return. Expected failures (not found, wrong
  * password, validation) are values, not exceptions, so callers must handle
@@ -21,7 +23,7 @@ export function failure(status: number, message: string): Failure {
 	return { ok: false, status, message };
 }
 
-/** For backend calls that aren't wired up yet. */
+/** For backend calls that aren't wired up yet. `feature` is already localized. */
 export function notImplemented(feature: string): Failure {
-	return failure(501, `${feature} is not available yet.`);
+	return failure(501, m.error_not_implemented({ feature }));
 }

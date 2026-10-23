@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { cn } from '#lib/utils.js';
+	import { m } from '#lib/paraglide/messages.js';
 
 	interface Props {
 		/** Risk score from 0 to 100. */
@@ -19,7 +20,7 @@
 		size = 36,
 		strokeWidth = 3,
 		class: className,
-		label = 'Risk level'
+		label = m.common_risk_level()
 	}: Props = $props();
 
 	const clamped = $derived(Math.max(0, Math.min(100, Math.round(value))));
@@ -35,19 +36,19 @@
 				stroke: 'var(--verdict-false-strong, #dc2626)',
 				text: 'text-verdict-false-strong dark:text-red-400',
 				bg: 'fill-red-500/10 dark:fill-red-950/25',
-				title: 'High'
+				title: m.common_risk_high()
 			},
 			medium: {
 				stroke: 'var(--verdict-misleading-strong, #ea580c)',
 				text: 'text-verdict-misleading-foreground dark:text-amber-400',
 				bg: 'fill-amber-500/10 dark:fill-amber-950/25',
-				title: 'Medium'
+				title: m.common_risk_medium()
 			},
 			low: {
 				stroke: 'var(--verdict-accurate-strong, #16a34a)',
 				text: 'text-verdict-accurate-strong dark:text-emerald-400',
 				bg: 'fill-emerald-500/10 dark:fill-emerald-950/25',
-				title: 'Low'
+				title: m.common_risk_low()
 			}
 		}[tier]
 	);

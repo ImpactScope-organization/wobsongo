@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { PASSWORD_MIN_LENGTH } from '#lib/domain/account.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
 	import { formatSince } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
@@ -38,15 +39,16 @@
 	}: Props = $props();
 
 	const id = $props.id();
-	const rule = `At least ${PASSWORD_MIN_LENGTH} characters`;
+	const rule = $derived(m.settings_password_rule({ min: PASSWORD_MIN_LENGTH }));
 </script>
 
 <div class={className}>
 	<p class="mb-[1.125rem] text-[0.8125rem] text-muted-foreground">
 		{#if changedAt}
-			Last changed <time datetime={changedAt.toISOString()}>{formatSince(changedAt, now)}</time>.
+			{m.settings_password_last_changed()}
+			<time datetime={changedAt.toISOString()}>{formatSince(changedAt, now)}</time>.
 		{:else}
-			Never changed.
+			{m.settings_password_never_changed()}
 		{/if}
 	</p>
 
@@ -67,7 +69,7 @@
 			class="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.75rem),1fr))] gap-x-[1.125rem] gap-y-3.5"
 		>
 			<div class={FIELD}>
-				<label for="current-{id}" class={LABEL}>Current password</label>
+				<label for="current-{id}" class={LABEL}>{m.settings_current_password()}</label>
 				<Input
 					id="current-{id}"
 					name="currentPassword"
@@ -78,7 +80,7 @@
 				/>
 			</div>
 			<div class={FIELD}>
-				<label for="new-{id}" class={LABEL}>New password</label>
+				<label for="new-{id}" class={LABEL}>{m.settings_new_password()}</label>
 				<Input
 					id="new-{id}"
 					name="newPassword"
@@ -93,7 +95,7 @@
 				<span id="rule-{id}" class="sr-only">{rule}</span>
 			</div>
 			<div class={FIELD}>
-				<label for="confirm-{id}" class={LABEL}>Confirm new password</label>
+				<label for="confirm-{id}" class={LABEL}>{m.settings_confirm_new_password()}</label>
 				<Input
 					id="confirm-{id}"
 					name="confirmPassword"
@@ -114,25 +116,25 @@
 					form="reset-{id}"
 					class={cn(TEXT_LINK, 'w-full py-1 text-center md:text-right')}
 				>
-					Forgot your password? Email me a reset link
+					{m.settings_forgot_password()}
 				</button>
 				{#if resetSentTo}
 					<span
 						role="status"
 						class="w-full text-[0.78125rem] font-medium text-status-verified-foreground"
 					>
-						✓ Reset link sent to {resetSentTo}
+						{m.settings_reset_sent({ email: resetSentTo })}
 					</span>
 				{/if}
 			</div>
 			<div class="flex w-full items-center gap-3">
 				{#if updated}
 					<span role="status" class="text-[0.8125rem] font-medium text-status-verified-foreground">
-						✓ Password updated
+						{m.settings_password_updated()}
 					</span>
 				{/if}
 				<button type="submit" class={cn(PRIMARY, 'ml-auto w-full md:w-auto')}
-					>Update password</button
+					>{m.settings_update_password()}</button
 				>
 			</div>
 		</div>

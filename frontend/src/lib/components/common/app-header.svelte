@@ -4,7 +4,8 @@
 	import { cn } from '#lib/utils.js';
 	import AccountAvatar from './account-avatar.svelte';
 	import DockMenu from './dock-menu.svelte';
-	import LanguageSwitcher, { type HeaderLang } from './language-switcher.svelte';
+	import { m } from '#lib/paraglide/messages.js';
+	import LanguageSwitcher from './language-switcher.svelte';
 
 	interface Props {
 		/** Logo image URL; omitted shows the name only. */
@@ -16,10 +17,8 @@
 		actions?: Snippet;
 		/** The signed-in person; shows their avatar linking to settings. */
 		account?: { name: string; href: string };
-		/** Current active language. Defaults to 'fr'. */
-		lang?: HeaderLang;
-		/** Callback when language is switched. */
-		onLangChange?: (lang: HeaderLang) => void;
+		/** This page's path and query, where switching language comes back to. */
+		returnTo?: string;
 		/** Include the bottom docker menu on mobile screen. Defaults to false. */
 		mobileDock?: boolean;
 		class?: string;
@@ -31,8 +30,7 @@
 		currentHref,
 		actions,
 		account,
-		lang = $bindable('fr'),
-		onLangChange,
+		returnTo,
 		mobileDock = false,
 		class: className
 	}: Props = $props();
@@ -42,7 +40,7 @@
 	<div class="mx-auto flex min-h-14 max-w-[85rem] flex-wrap items-center gap-x-5 gap-y-2 py-2">
 		<a
 			href="/"
-			aria-label="Monitor"
+			aria-label={m.nav_home_label()}
 			class="flex items-center gap-2.5 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal"
 		>
 			{#if logoSrc}
@@ -51,7 +49,7 @@
 		</a>
 
 		<nav
-			aria-label="Main"
+			aria-label={m.nav_main_label()}
 			class="order-last hidden min-w-0 basis-full overflow-x-auto md:order-0 md:block md:flex-1 md:basis-auto"
 		>
 			<ul class="flex gap-0.5">
@@ -61,11 +59,11 @@
 						{#if item.disabled}
 							<span
 								aria-disabled="true"
-								title="Coming soon"
+								title={m.nav_coming_soon()}
 								class="flex cursor-not-allowed items-center gap-1.5 rounded-md px-3 py-2 text-[0.8125rem] font-medium whitespace-nowrap text-inverse-muted-foreground opacity-60"
 							>
 								<Icon class="size-4 shrink-0 stroke-[1.75]" aria-hidden="true" />
-								{item.label}<span class="sr-only">&nbsp;(coming soon)</span>
+								{item.label}<span class="sr-only">&nbsp;{m.nav_coming_soon_suffix()}</span>
 							</span>
 						{:else}
 							<a
@@ -79,7 +77,7 @@
 									<span
 										class="rounded-full bg-signal px-1.5 py-px font-mono text-[0.625rem] font-semibold text-signal-foreground"
 									>
-										{item.count}<span class="sr-only">&nbsp;open</span>
+										{item.count}<span class="sr-only">&nbsp;{m.nav_count_open()}</span>
 									</span>
 								{/if}
 							</a>
@@ -89,18 +87,18 @@
 			</ul>
 		</nav>
 		<div class="ml-auto flex items-center gap-2.5">
-			<LanguageSwitcher bind:lang {onLangChange} />
+			<LanguageSwitcher {returnTo} />
 
 			{@render actions?.()}
 			{#if account}
 				<a
 					href={account.href}
 					aria-current={account.href === currentHref ? 'page' : undefined}
-					title="Settings"
+					title={m.nav_settings()}
 					class="rounded-full border-2 border-transparent outline-none focus-visible:ring-2 focus-visible:ring-inverse-signal aria-[current=page]:border-inverse-foreground"
 				>
 					<AccountAvatar name={account.name} />
-					<span class="sr-only">Settings for {account.name}</span>
+					<span class="sr-only">{m.nav_settings_for({ name: account.name })}</span>
 				</a>
 			{/if}
 		</div>

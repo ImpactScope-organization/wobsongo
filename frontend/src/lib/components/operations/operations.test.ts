@@ -8,6 +8,7 @@ import {
 	OPERATIONS_NOW,
 	priorityPoints
 } from '#lib/fixtures/operations.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
 import DebunkEffectiveness from './debunk-effectiveness.svelte';
 import ExpertCheckList from './expert-check-list.svelte';
@@ -202,5 +203,22 @@ describe('PriorityMatrix', () => {
 
 	it('shows an empty state', () => {
 		expect(renderMatrix([])).toContain('No active narratives.');
+	});
+});
+
+describe('in French', () => {
+	it('words the matrix and the knowledge gaps in French', () => {
+		const [matrix, gaps] = withLocale('fr', () => [
+			stripComments(render(PriorityMatrix, { props: { points: priorityPoints } }).body),
+			render(KnowledgeGapList, {
+				props: { gaps: knowledgeGaps, now: OPERATIONS_NOW, action: '?/gap' }
+			}).body
+		]);
+		expect(matrix).toContain('Démenti urgent');
+		expect(matrix).toMatch(
+			/\(Démenti urgent\u00a0: préjudice 4 sur 5, vitesse de propagation 90%, 2\u202f031 messages en 7 jours\)/
+		);
+		expect(gaps).toContain('première demande');
+		expect(gaps).toContain('il y a 3 j');
 	});
 });

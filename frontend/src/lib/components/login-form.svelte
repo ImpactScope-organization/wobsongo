@@ -9,6 +9,7 @@
 		FieldDescription
 	} from '#lib/components/ui/field/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { optionalEnhance, type FormEnhance } from '#lib/utils/enhance.js';
 	import { cn } from '#lib/utils.js';
 
@@ -48,16 +49,14 @@
 >
 	<FieldGroup>
 		<div class="flex flex-col items-center gap-1 text-center">
-			<h1 class="text-2xl font-bold">Log in to your account</h1>
-			<p class="text-sm text-balance text-muted-foreground">
-				Enter your email and password to continue
-			</p>
+			<h1 class="text-2xl font-bold">{m.login_heading()}</h1>
+			<p class="text-sm text-balance text-muted-foreground">{m.login_intro()}</p>
 		</div>
 		{#if error}
 			<p id="error-{id}" role="alert" class="text-sm font-medium text-destructive">{error}</p>
 		{/if}
 		<Field>
-			<FieldLabel for="email-{id}">Email</FieldLabel>
+			<FieldLabel for="email-{id}">{m.field_email()}</FieldLabel>
 			<Input
 				id="email-{id}"
 				name="email"
@@ -69,7 +68,7 @@
 			/>
 		</Field>
 		<Field>
-			<FieldLabel for="password-{id}">Password</FieldLabel>
+			<FieldLabel for="password-{id}">{m.field_password()}</FieldLabel>
 			<div class="relative">
 				<Input
 					id="password-{id}"
@@ -85,7 +84,7 @@
 					size="icon-sm"
 					class="absolute top-1/2 right-1 -translate-y-1/2 text-muted-foreground hover:text-foreground"
 					onclick={() => (showPassword = !showPassword)}
-					aria-label={showPassword ? 'Hide password' : 'Show password'}
+					aria-label={showPassword ? m.password_hide() : m.password_show()}
 				>
 					{#if showPassword}
 						<EyeOffIcon class="size-4" />
@@ -96,10 +95,10 @@
 			</div>
 		</Field>
 		<Field>
-			<Button type="submit">Log in</Button>
+			<Button type="submit">{m.login_submit()}</Button>
 			<FieldDescription class="text-center">
-				Don't have an account?
-				<a href={signupHref} class="underline underline-offset-4">Sign up</a>
+				{m.login_no_account()}
+				<a href={signupHref} class="underline underline-offset-4">{m.login_signup_link()}</a>
 			</FieldDescription>
 		</Field>
 	</FieldGroup>

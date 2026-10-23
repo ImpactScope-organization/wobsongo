@@ -1,7 +1,8 @@
 <script lang="ts">
 	import type { HarmAlert } from '#lib/domain/high-harm.js';
 	import type { FormEnhance } from '#lib/utils/enhance.js';
-	import { formatAgo, formatLogTime, formatNumber } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
+	import { formatAgo, formatLogTime, formatNumber, plural } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { HARM_RISK_LABEL, PLATFORM_SHORT_LABEL, VERDICT_LABEL } from '../common/labels';
 	import ReviewActions from '../common/review-actions.svelte';
@@ -21,9 +22,14 @@
 	let { alert, now, action, overrideHref, enhance, class: className }: Props = $props();
 
 	const headingId = $props.id();
-	const similar = $derived(
-		`${formatNumber(alert.similarCount)} ${alert.similarCount === 1 ? 'similar message' : 'similar messages'}`
-	);
+	const similar = $derived.by(() => {
+		const count = formatNumber(alert.similarCount);
+		return plural(
+			alert.similarCount,
+			m.high_harm_similar_one({ count }),
+			m.high_harm_similar_other({ count })
+		);
+	});
 	const decision = $derived(alert.review.kind === 'decided' ? alert.review.decision : undefined);
 </script>
 
@@ -41,8 +47,8 @@
 			data-risk={alert.risk}
 			class="rounded px-1.5 py-0.5 font-mono text-[0.65625rem] font-semibold tracking-[0.04em] uppercase data-[risk=critical]:bg-destructive data-[risk=critical]:text-white data-[risk=high]:bg-verdict-misleading data-[risk=high]:text-verdict-misleading-foreground"
 		>
-			<span class="sr-only">Risk:</span>
-			{HARM_RISK_LABEL[alert.risk]}{alert.riskReviewed ? ' · reviewed' : ''}
+			<span class="sr-only">{m.high_harm_risk_sr()}</span>
+			{HARM_RISK_LABEL[alert.risk]}{alert.riskReviewed ? ` · ${m.high_harm_reviewed()}` : ''}
 		</span>
 		<h3 id={headingId} class="font-sans text-xs font-medium">{alert.substance}</h3>
 		<time
@@ -68,9 +74,10 @@
 		<p
 			class="font-mono text-[0.65625rem] font-semibold tracking-[0.04em] text-muted-foreground uppercase"
 		>
-			Engine reply · {VERDICT_LABEL[alert.engine.verdict]} · conf. {alert.engine.confidence.toFixed(
-				2
-			)}
+			{m.high_harm_engine_reply({
+				verdict: VERDICT_LABEL[alert.engine.verdict],
+				confidence: alert.engine.confidence.toFixed(2)
+			})}
 		</p>
 		<p class="text-[0.84375rem]/[1.45] text-pretty text-verdict-unverified-foreground">
 			{alert.engine.explanation}

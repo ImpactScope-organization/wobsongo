@@ -3,6 +3,7 @@
 	import * as Chart from '#lib/components/ui/chart/index.js';
 	import { whatsAppLagHours, type NarrativeSpread } from '#lib/domain/narrative-detail.js';
 	import type { Platform } from '#lib/domain/platform.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { formatDayTime } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
 	import { PLATFORM_SHORT_LABEL } from '../common/labels';
@@ -49,11 +50,19 @@
 
 	const description = $derived(
 		[
-			`Mentions per hour by platform: ${spread.series.map((series) => config[series.platform].label).join(', ')}.`,
-			`First seen on ${config[spread.firstSeen.platform].label}, ${formatDayTime(spread.firstSeen.at)}.`,
+			m.narrative_timeline_mentions({
+				platforms: spread.series.map((series) => config[series.platform].label).join(', ')
+			}),
+			m.narrative_timeline_first_seen_on({
+				platform: config[spread.firstSeen.platform].label,
+				time: formatDayTime(spread.firstSeen.at)
+			}),
 			spread.firstOnWhatsApp
-				? `Reached WhatsApp ${formatDayTime(spread.firstOnWhatsApp)}, ${lag} h later.`
-				: 'Not on WhatsApp yet.'
+				? m.narrative_timeline_reached_whatsapp({
+						time: formatDayTime(spread.firstOnWhatsApp),
+						lag: String(lag)
+					})
+				: m.narrative_timeline_not_on_whatsapp()
 		].join(' ')
 	);
 </script>
@@ -152,7 +161,9 @@
 						{/if}
 
 						<g class="text-[10.5px]">
-							<text x={first + 6} y={14} class="fill-foreground">First seen</text>
+							<text x={first + 6} y={14} class="fill-foreground"
+								>{m.narrative_timeline_first_seen()}</text
+							>
 							<text x={first + 6} y={28} class="fill-muted-foreground">
 								{config[spread.firstSeen.platform].label} · {formatDayTime(spread.firstSeen.at)}
 							</text>
@@ -176,7 +187,7 @@
 										text-anchor="middle"
 										class="fill-muted-foreground text-[10px]"
 									>
-										public → WhatsApp
+										{m.narrative_timeline_public_to_whatsapp()}
 									</text>
 								{/if}
 							{/if}
@@ -189,7 +200,9 @@
 									<text x={x(midnight)} y={bottom + 20}>{formatDayTime(midnight)}</text>
 								{/if}
 							{/each}
-							<text x={context.width} y={bottom + 20} text-anchor="end">Now</text>
+							<text x={context.width} y={bottom + 20} text-anchor="end"
+								>{m.narrative_timeline_now()}</text
+							>
 						</g>
 					</Svg>
 				{/snippet}

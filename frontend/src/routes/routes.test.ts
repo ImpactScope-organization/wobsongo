@@ -16,6 +16,7 @@ import { load as overviewLoad } from './(app)/+page.server';
 import { load as comingSoonLoad } from './(app)/[...path]/+page.server';
 import { actions as settingsActions, load as settingsLoad } from './(app)/settings/+page.server';
 import { actions as loginActions } from './login/+page.server';
+import { POST as setLanguage } from './lang/+server';
 import { POST as logout } from './logout/+server';
 import { actions as signupActions } from './signup/+page.server';
 
@@ -380,5 +381,38 @@ describe('Logout', () => {
 		expect(cookies.get(ACCESS_COOKIE)).toBeUndefined();
 		expect(cookies.get(REFRESH_COOKIE)).toBeUndefined();
 		expect((await backend.services.auth.refresh(refreshToken)).ok).toBe(false);
+	});
+});
+
+describe('Language switch', () => {
+	const choose = (fields: Record<string, string>, initial: Record<string, string> = {}) => {
+		const cookies = createFakeCookies(initial);
+		const request = formRequest(`${ORIGIN}/lang`, fields);
+		return settle(() => setLanguage(event({ cookies, request }))).then((result) => ({
+			...result,
+			cookies
+		}));
+	};
+
+	it('stores the language in a cookie the browser can read, and goes back', async () => {
+		const result = await choose({ lang: 'en', redirectTo: '/settings?tab=bots' });
+		expect(result.redirect).toBe('/settings?tab=bots');
+		expect(result.cookies.get('wobsongo_lang')).toBe('en');
+		expect(result.cookies.options.get('wobsongo_lang')).toMatchObject({
+			path: '/',
+			httpOnly: false,
+			sameSite: 'lax'
+		});
+	});
+
+	it('ignores unknown languages', async () => {
+		const result = await choose({ lang: 'de', redirectTo: '/' }, { wobsongo_lang: 'fr' });
+		expect(result.redirect).toBe('/');
+		expect(result.cookies.get('wobsongo_lang')).toBe('fr');
+	});
+
+	it('never redirects off the site', async () => {
+		const result = await choose({ lang: 'fr', redirectTo: '//evil.example' });
+		expect(result.redirect).toBe('/');
 	});
 });

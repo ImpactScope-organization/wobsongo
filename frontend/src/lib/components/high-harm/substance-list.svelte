@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { isFrequentMention, type SubstanceMention } from '#lib/domain/high-harm.js';
 	import { formatNumber } from '#lib/utils/format.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -13,8 +14,8 @@
 
 	let {
 		substances,
-		caption = 'Substance and practice mentions',
-		emptyText = 'No lexicon matches.',
+		caption = m.high_harm_substances_caption(),
+		emptyText = m.high_harm_substances_empty(),
 		class: className
 	}: Props = $props();
 
@@ -29,8 +30,8 @@
 		<caption class="sr-only">{caption}</caption>
 		<thead class="sr-only">
 			<tr>
-				<th scope="col">Substance or practice</th>
-				<th scope="col">Mentions</th>
+				<th scope="col">{m.high_harm_substance_header()}</th>
+				<th scope="col">{m.high_harm_mentions()}</th>
 			</tr>
 		</thead>
 		<tbody>

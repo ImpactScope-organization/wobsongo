@@ -1,3 +1,5 @@
+import { m } from '#lib/paraglide/messages.js';
+
 /**
  * The signed-in reviewer's account: profile, password rules and the
  * messaging bots they can link to review claims from their phone.
@@ -34,10 +36,10 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** Why a name and email can't be saved, or null if they can. */
 export function profileError({ name, email }: { name: string; email: string }): string | null {
-	if (!name.trim()) return 'Enter your name.';
+	if (!name.trim()) return m.validation_name_required();
 	if (name.trim().length > NAME_MAX_LENGTH)
-		return `Use at most ${NAME_MAX_LENGTH} characters for your name.`;
-	if (!EMAIL_PATTERN.test(email.trim())) return 'Enter a valid email address.';
+		return m.validation_name_too_long({ max: NAME_MAX_LENGTH });
+	if (!EMAIL_PATTERN.test(email.trim())) return m.validation_email_invalid();
 	return null;
 }
 
@@ -50,8 +52,8 @@ export function newPasswordError({
 	confirmPassword: string;
 }): string | null {
 	if (newPassword.length < PASSWORD_MIN_LENGTH)
-		return `Use at least ${PASSWORD_MIN_LENGTH} characters for your password.`;
-	if (newPassword !== confirmPassword) return 'The passwords don’t match.';
+		return m.validation_password_too_short({ min: PASSWORD_MIN_LENGTH });
+	if (newPassword !== confirmPassword) return m.validation_password_mismatch();
 	return null;
 }
 
@@ -61,11 +63,10 @@ export function passwordChangeError(change: {
 	newPassword: string;
 	confirmPassword: string;
 }): string | null {
-	if (!change.currentPassword) return 'Enter your current password.';
+	if (!change.currentPassword) return m.validation_current_password_required();
 	const error = newPasswordError(change);
 	if (error) return error;
-	if (change.newPassword === change.currentPassword)
-		return 'Choose a password different from your current one.';
+	if (change.newPassword === change.currentPassword) return m.validation_password_unchanged();
 	return null;
 }
 

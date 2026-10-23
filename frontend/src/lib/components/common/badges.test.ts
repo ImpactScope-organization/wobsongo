@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { REVIEW_STATUSES, VERDICTS } from '#lib/domain/narrative.js';
 import { toCount } from '#lib/domain/count.js';
+import { withLocale } from '#lib/testing/locale.js';
 import CountValue from './count-value.svelte';
 import HarmScore from './harm-score.svelte';
 import ReviewStatusBadge from './review-status-badge.svelte';
@@ -59,5 +60,22 @@ describe('CountValue', () => {
 		expect(body).not.toContain('>6<');
 		expect(body).toContain('&lt; 10');
 		expect(body).toContain('hidden to protect privacy');
+	});
+});
+
+describe('badges in French', () => {
+	it('words verdicts, harm and suppressed counts', () => {
+		const verdict = withLocale(
+			'fr',
+			() => render(VerdictBadge, { props: { verdict: 'misleading' } }).body
+		);
+		expect(verdict).toContain('Trompeur');
+		const harm = withLocale('fr', () => render(HarmScore, { props: { harm: 3 } }).body);
+		expect(harm).toContain('Nocivité 3/5');
+		const count = withLocale(
+			'fr',
+			() => render(CountValue, { props: { count: { kind: 'suppressed', threshold: 5 } } }).body
+		);
+		expect(count).toContain('Moins de 5\u00a0: masqué pour protéger la vie privée');
 	});
 });

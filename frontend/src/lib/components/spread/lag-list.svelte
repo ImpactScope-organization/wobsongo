@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { NarrativeLag } from '#lib/domain/spread.js';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 	import { PLATFORM_SHORT_LABEL } from '../common/labels';
 	import { PLATFORM_TONE } from '../common/tones';
@@ -18,7 +19,7 @@
 		lags,
 		maxHours = 72,
 		hrefFor = (id) => `/narratives/${encodeURIComponent(id)}`,
-		emptyText = 'No narrative has reached WhatsApp in this window.',
+		emptyText = m.spread_lag_empty(),
 		class: className
 	}: Props = $props();
 
@@ -45,7 +46,7 @@
 			</div>
 		</div>
 
-		<ol aria-label="Public to WhatsApp lag by narrative">
+		<ol aria-label={m.spread_lag_label()}>
 			{#each lags as lag (lag.narrativeId)}
 				{@const at = position(lag.lagHours)}
 				<li class={cn(ROW, 'relative border-t border-rule py-2.5 hover:bg-muted')}>
@@ -60,7 +61,7 @@
 							class="mt-1 flex items-center gap-1.5 text-[0.6875rem] font-medium text-muted-foreground"
 						>
 							<span class={cn('size-2 rounded-[2px]', PLATFORM_TONE[lag.origin].swatch)}></span>
-							First seen on: {PLATFORM_SHORT_LABEL[lag.origin]}
+							{m.spread_lag_first_seen({ platform: PLATFORM_SHORT_LABEL[lag.origin] })}
 						</p>
 					</div>
 					<div
@@ -84,7 +85,7 @@
 							class="absolute top-[0.1875rem] translate-x-2 font-mono text-xs font-semibold whitespace-nowrap data-flip:-translate-x-[calc(100%+0.5rem)] data-flip:rounded-sm data-flip:bg-card data-flip:px-1"
 							style:left="{at}%"
 						>
-							+{lag.lagHours} h<span class="sr-only">&nbsp;to WhatsApp</span>
+							+{lag.lagHours} h<span class="sr-only">&nbsp;{m.spread_lag_to_whatsapp()}</span>
 						</span>
 					</div>
 				</li>
@@ -96,10 +97,10 @@
 			aria-hidden="true"
 		>
 			<li class="flex items-center gap-1.5">
-				<span class="h-2 w-3.5 rounded-[2px] bg-platform-x"></span>Public platforms only
+				<span class="h-2 w-3.5 rounded-[2px] bg-platform-x"></span>{m.spread_lag_public_only()}
 			</li>
 			<li class="flex items-center gap-1.5">
-				<span class="h-3 w-[3px] bg-platform-whatsapp"></span>First WhatsApp question
+				<span class="h-3 w-[3px] bg-platform-whatsapp"></span>{m.spread_lag_first_question()}
 			</li>
 		</ul>
 	</div>

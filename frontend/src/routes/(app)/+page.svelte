@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import OverviewView from '#lib/components/overview/overview-view.svelte';
+	import { m } from '#lib/paraglide/messages.js';
 	import { withSearchParam } from '#lib/utils/url.js';
 	import type { PageProps } from './$types';
 
@@ -8,7 +9,7 @@
 </script>
 
 <svelte:head>
-	<title>Overview · WobSongo</title>
+	<title>{m.page_title({ title: m.nav_overview() })}</title>
 </svelte:head>
 
 <OverviewView

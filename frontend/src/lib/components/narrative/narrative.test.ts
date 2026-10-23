@@ -13,6 +13,7 @@ import {
 	samples,
 	spread
 } from '#lib/fixtures/narrative.js';
+import { withLocale } from '#lib/testing/locale.js';
 import { htmlSnippet } from '#lib/testing/snippet.js';
 import AudienceBreakdown from './audience-breakdown.svelte';
 import DebunkFormats from './debunk-formats.svelte';
@@ -259,5 +260,21 @@ describe('DebunkFormats', () => {
 		expect(body).toContain('58% of messages');
 		expect(body.match(/data-available="false"/g)).toHaveLength(2);
 		expect(body).toContain('Missing');
+	});
+});
+
+describe('in French', () => {
+	it('words the dismiss menu, metrics and timeline in French', () => {
+		const [menu, metrics, timeline] = withLocale('fr', () => [
+			render(DismissMenu, { props: { narrativeId: 'N-0412', action: '?/dismiss' } }).body,
+			render(NarrativeMetrics, { props: { narrative } }).body,
+			render(SpreadTimeline, { props: { spread, now: NARRATIVE_NOW } }).body
+		]);
+		expect(menu).toContain('Écarter le récit comme');
+		expect(menu).toContain('Déjà couvert par un autre récit');
+		expect(metrics).toContain('Score de préjudice');
+		expect(metrics).toContain('Messages, 7 j');
+		expect(timeline).toContain('Mentions par heure et par plateforme\u00a0:');
+		expect(timeline).toContain('Maintenant');
 	});
 });

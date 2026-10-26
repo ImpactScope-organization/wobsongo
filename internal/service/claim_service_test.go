@@ -334,9 +334,9 @@ func TestClaimService_CheckClaim_MultipleSubClaimsJudgedConcurrentlyAndAggregate
 		)
 	}
 
-	wantMessage := "❌ contient des inexactitudes — 2 affirmations vérifiées\n\n" +
-		"✅ 1. claim A\n\n" +
-		"❌ 2. claim B"
+	wantMessage := "🔴 contient des inexactitudes — 2 affirmations vérifiées\n\n" +
+		"🟢 1. claim A\n\n" +
+		"🔴 2. claim B"
 	if result.FormattedMessage != wantMessage {
 		t.Errorf(
 			"expected formatted message %q, got %q",

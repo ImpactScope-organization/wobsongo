@@ -77,14 +77,14 @@ type agentTurnContextData struct {
 	LatestUserText string
 	Transcript     string
 	ExtractionID   string
-	JID				string
+	JID            string
 	// Settings are the chat's bot settings; the zero value (empty Tone and
 	// Length) means the user never set any, so the baseline reply applies.
-	Settings 		model.BotSettings
+	Settings model.BotSettings
 }
 
-func withAgentTurnContext(ctx context.Context, data agentTurnContextData) context.Context {
-	return context.WithValue(ctx, agentTurnContextKey{}, data)
+func withAgentTurnContext(ctx context.Context, data *agentTurnContextData) context.Context {
+	return context.WithValue(ctx, agentTurnContextKey{}, *data)
 }
 
 func agentTurnFromContext(ctx context.Context) agentTurnContextData {
@@ -182,13 +182,13 @@ func (s *AgentService) runAgentHandler(
 	confirmation := ""
 	if s.botSettings != nil && looksLikePreference(userText) {
 		var onlyPreference bool
-		turnData, confirmation, onlyPreference = s.applyPreference(ctx, caps, turnData, userText)
+		confirmation, onlyPreference = s.applyPreference(ctx, caps, &turnData, userText)
 		if onlyPreference {
 			return confirmation, nil
 		}
 		if confirmation != "" {
 			confirmation += "\n\n"
-			ctx = withAgentTurnContext(ctx, turnData)
+			ctx = withAgentTurnContext(ctx, &turnData)
 		}
 	}
 
@@ -440,7 +440,7 @@ func (s *AgentService) runConversationalTurn(
 	}
 
 	prompt := formatConversationTranscript(history)
-	turnCtx := withAgentTurnContext(ctx, agentTurnContextData{
+	turnCtx := withAgentTurnContext(ctx, &agentTurnContextData{
 		LatestUserText: latestUserText,
 		Transcript:     prompt,
 		ExtractionID:   job.ExtractionID,
@@ -489,17 +489,17 @@ func (s *AgentService) loadBotSettings(ctx context.Context, jid string) model.Bo
 func (s *AgentService) applyPreference(
 	ctx context.Context,
 	caps *agenticgokit.Capabilities,
-	turnData agentTurnContextData,
+	turnData *agentTurnContextData,
 	userText string,
-) (agentTurnContextData, string, bool) {
+) (string, bool) {
 	raw, err := caps.LLM(preferenceDetectionPrompt, userText)
 	if err != nil {
 		log.Printf("[AgentService] preference detection failed for JID=%s: %v", turnData.JID, err)
-		return turnData, "", false
+		return "", false
 	}
 	pref, ok := parseBotPreference(raw)
 	if !ok || !pref.isSet() {
-		return turnData, "", false
+		return "", false
 	}
 
 	args := map[string]any{}
@@ -518,12 +518,12 @@ func (s *AgentService) applyPreference(
 			turnData.JID,
 			err,
 		)
-		return turnData, "", false
+		return "", false
 	}
 	confirmation, _ := res.Content.(string)
 
 	turnData.Settings = s.loadBotSettings(ctx, turnData.JID)
-	return turnData, confirmation, !pref.HasQuestion
+	return confirmation, !pref.HasQuestion
 }
 
 // personalizeReply rewrites the original reply in the chat's tone. It never
@@ -543,7 +543,7 @@ func (s *AgentService) personalizeReply(
 		log.Printf("[AgentService] tone rewrite skipped for JID=%s (err=%v)", settings.JID, err)
 		return reply
 	}
-	return rewritten
+	return strings.TrimSpace(stripExtraEmoji(dropInventedCitations(reply, rewritten)))
 }
 
 // formatConversationTranscript renders recent history plus the current

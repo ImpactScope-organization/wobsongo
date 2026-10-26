@@ -378,11 +378,11 @@ func summarizeVerdicts(results []SubClaimResult, language model.Language) string
 // overallEmoji is the color-coding shown alongside the overall rollup in a
 // FormattedMessage, keyed the same way as overallSummaryTemplates.
 var overallEmoji = map[string]string{
-	overallKeyHighRisk:     "🚫",
-	overallKeySupported:    "✅",
-	overallKeyContradicted: "❌",
-	overallKeyInsufficient: "❓",
-	overallKeyPartial:      "⚠️",
+	overallKeyHighRisk:     "❗",
+	overallKeySupported:    "🟢",
+	overallKeyContradicted: "🔴",
+	overallKeyInsufficient: "🟠",
+	overallKeyPartial:      "🟡",
 }
 
 // claimsCheckedLabelTemplates gives the pluralized "N claims checked" label
@@ -471,9 +471,9 @@ func formatClaimMessage(
 		explainer := r.BriefReasoning
 		if fullReasoning {
 			explainer = r.Reasoning
-			if !withCitations {
-				explainer = citationMarkerRegex.ReplaceAllString(explainer, "")
-			}
+		}
+		if !withCitations {
+			explainer = citationMarkerRegex.ReplaceAllString(explainer, "")
 		}
 		switch {
 		case r.HighRiskCaution:

@@ -104,9 +104,9 @@ func botSettingsConfirmation(tone model.BotTone, length model.BotLength) string 
 		parts = append(parts, s)
 	}
 	if len(parts) == 0 {
-		return "C'est noté 👍"
+		return "C'est noté."
 	}
-	return "C'est noté 👍 Je vais répondre de façon " + strings.Join(parts, " et ") + "."
+	return "C'est noté. Je vais répondre de façon " + strings.Join(parts, " et ") + "."
 }
 
 // toneRewriteInstructions describes, per tone, how a finished answer is
@@ -117,7 +117,7 @@ var toneRewriteInstructions = map[model.BotTone]string{
 	model.BotToneAcademic: "formal, and objective, using precise academic language " +
 		"while maintaining clarity and using simple, accessible words",
 	model.BotToneFriendly: "warm, relaxed and conversational, like a kind older sibling: " +
-		"short oral sentences, light emoji, encouraging",
+		"short oral sentences, encouraging",
 }
 
 // toneRewritePrompt builds the instruction for rewriting a finished answer
@@ -126,7 +126,9 @@ func toneRewritePrompt(tone model.BotTone) string {
 	return `You rewrite the reply of a sexual and reproductive health chatbot on WhatsApp. ` +
 		`Rewrite the text below in this style: ` + toneRewriteInstructions[tone] + `. ` +
 		`STRICT RULES: keep exactly the same meaning, verdicts and facts; do not add or remove any ` +
-		`medical information; keep every status emoji (✅ ❌ ⚠️ ❓ 🚫) and every citation like [1]; ` +
+		`medical information; keep every status emoji (🔴 🟠 🟡 🟢 ❗) exactly as it is and never ` +
+		`add, remove or replace any emoji; keep every citation marker like [1] that is already in ` +
+		`the text and never add a new one; ` +
 		`keep the reply in French with the informal "tu" (never "vous"); ` +
 		`keep the phrase "va au centre de santé" when present (never "consulte un professionnel de santé"); ` +
 		`keep it about the same length or shorter. Reply with ONLY the rewritten text.`
@@ -151,7 +153,7 @@ func canRewriteTone(content string, settings model.BotSettings) bool {
 }
 
 // statusEmojis are the verdict markers a rewrite must never lose.
-var statusEmojis = []string{"✅", "❌", "⚠️", "❓", "🚫"}
+var statusEmojis = []string{"🔴", "🟠", "🟡", "🟢", "❗"}
 
 // keepsVerdicts reports whether a rewrite still carries every status emoji
 // and every "[N]" citation marker of the original
@@ -167,4 +169,54 @@ func keepsVerdicts(original, rewritten string) bool {
 		}
 	}
 	return true
+}
+
+var statusEmojiRunes = map[rune]bool{
+	'🔴': true, '🟠': true, '🟡': true, '🟢': true, '❗': true,
+}
+
+// isEmojiRune reports whether r is an emoji or an emoji modifier
+// (variation selector, joiner, keycap).
+func isEmojiRune(r rune) bool {
+	switch {
+	case r == '\uFE0F' || r == '\u200D' || r == '\u20E3':
+		return true
+	case r >= 0x1F000 && r <= 0x1FAFF:
+		return true
+	case r >= 0x2600 && r <= 0x27BF:
+		return true
+	default:
+		return false
+	}
+}
+
+// stripExtraEmoji removes every emoji except the status markers, so a rewrite
+// can never show an emoji the settings did not put there. A space that would
+// be left doubled by a removed emoji is dropped with it.
+func stripExtraEmoji(text string) string {
+	runes := []rune(text)
+	var b strings.Builder
+	last := '\n'
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+		if statusEmojiRunes[r] || !isEmojiRune(r) {
+			b.WriteRune(r)
+			last = r
+			continue
+		}
+		if i+1 < len(runes) && runes[i+1] == ' ' && (last == ' ' || last == '\n') {
+			i++
+		}
+	}
+	return b.String()
+}
+
+// dropInventedCitations removes "[N]" markers from a rewrite when the original
+// had none: only expert replies carry citations, so a marker the LLM adds on
+// its own must never reach the user.
+func dropInventedCitations(original, rewritten string) string {
+	if reCitation.MatchString(original) {
+		return rewritten
+	}
+	return citationMarkerRegex.ReplaceAllString(rewritten, "")
 }

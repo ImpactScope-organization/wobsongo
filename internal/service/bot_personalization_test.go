@@ -97,7 +97,7 @@ func TestBotSettingsConfirmation(t *testing.T) {
 	if strings.Contains(strings.ToLower(got), "vous") {
 		t.Errorf("confirmation must use the informal tu, got %q", got)
 	}
-	if got := botSettingsConfirmation("", ""); got != "C'est noté 👍" {
+	if got := botSettingsConfirmation("", ""); got != "C'est noté." {
 		t.Errorf("unexpected bare confirmation %q", got)
 	}
 }
@@ -110,22 +110,22 @@ func TestCanRewriteTone(t *testing.T) {
 		settings model.BotSettings
 		want     bool
 	}{
-		{"friendly rewrites a verdict", "❌ 1. le citron protège\nNon.", friendly, true},
+		{"friendly rewrites a verdict", "🔴 1. le citron protège\nNon.", friendly, true},
 		{
 			"academic rewrites a verdict",
-			"❌ Non.",
+			"🔴 Non.",
 			model.BotSettings{Tone: model.BotToneAcademic},
 			true,
 		},
 		{
 			"formal is the baseline style, no rewrite",
-			"❌ Non.",
+			"🔴 Non.",
 			model.BotSettings{Tone: model.BotToneFormal},
 			false,
 		},
 		{
 			"no tone set, no rewrite",
-			"❌ Non.",
+			"🔴 Non.",
 			model.BotSettings{Length: model.BotLengthShort},
 			false,
 		},
@@ -133,7 +133,7 @@ func TestCanRewriteTone(t *testing.T) {
 		{"static empty-answer message", internal.MsgEmptyAnswer, friendly, false},
 		{
 			"high-risk caution is never rewritten",
-			"❌ 1. tabac\n" + highRiskCautionTemplates[model.LanguageFrench],
+			"🔴 1. tabac\n" + highRiskCautionTemplates[model.LanguageFrench],
 			friendly,
 			false,
 		},
@@ -149,23 +149,58 @@ func TestCanRewriteTone(t *testing.T) {
 }
 
 func TestKeepsVerdicts(t *testing.T) {
-	original := "✅ 1. A\nvrai [0]\n\n❌ 2. B\nfaux [1]"
+	original := "🟢 1. A\nvrai [0]\n\n🔴 2. B\nfaux [1]"
 	tests := []struct {
 		name      string
 		rewritten string
 		want      bool
 	}{
-		{"same verdicts and citations", "✅ A, c'est vrai [0] !\n❌ B, c'est faux [1]", true},
-		{"extra emoji is fine", "😊 ✅ A [0]\n❌ B [1] 👍", true},
-		{"lost an emoji", "✅ A [0]\nB est faux [1]", false},
-		{"flipped verdict", "✅ A [0]\n✅ B [1]", false},
-		{"lost a citation marker", "✅ A [0]\n❌ B", false},
+		{"same verdicts and citations", "🟢 A, c'est vrai [0] !\n🔴 B, c'est faux [1]", true},
+		{"lost an emoji", "🟢 A [0]\nB est faux [1]", false},
+		{"flipped verdict", "🟢 A [0]\n🟢 B [1]", false},
+		{"lost a citation marker", "🟢 A [0]\n🔴 B", false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := keepsVerdicts(original, tt.rewritten); got != tt.want {
 				t.Errorf("keepsVerdicts(%q) = %v, want %v", tt.rewritten, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDropInventedCitations(t *testing.T) {
+	tests := []struct {
+		name      string
+		original  string
+		rewritten string
+		want      string
+	}{
+		{
+			"original without citations, rewrite invents one",
+			"🟢 1. A\nC'est vrai.",
+			"🟢 1. A\nC'est vrai ! [1].",
+			"🟢 1. A\nC'est vrai !.",
+		},
+		{
+			"several markers are all removed",
+			"🟢 1. A",
+			"🟢 1. A [1] et B [2, 3]",
+			"🟢 1. A et B",
+		},
+		{
+			"original with citations is left untouched",
+			"🟢 1. A [0]",
+			"🟢 1. A, c'est vrai [0]",
+			"🟢 1. A, c'est vrai [0]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := dropInventedCitations(tt.original, tt.rewritten); got != tt.want {
+				t.Errorf("dropInventedCitations() = %q, want %q", got, tt.want)
 			}
 		})
 	}

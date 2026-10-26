@@ -2,8 +2,8 @@ package internal
 
 import (
 	"strings"
-	"time"
 	"testing"
+	"time"
 )
 
 const (

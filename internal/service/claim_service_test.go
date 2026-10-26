@@ -795,3 +795,70 @@ func TestClaimService_CheckClaim_UnvalidatedFoodRemedyClaimIsNotForcedRed(t *tes
 		t.Error("expected HighRiskCaution false for an unvalidated food/herbal remedy claim")
 	}
 }
+
+func TestFormatClaimMessage_Lengths(t *testing.T) {
+	results := []SubClaimResult{{
+		Claim:          "claim A",
+		Verdict:        model.VerdictSupported,
+		BriefReasoning: "the brief sentence",
+		Reasoning:      "the full reasoning [0]",
+		Citations:      []Citation{{Index: 0, Source: "OMS", Text: "evidence text"}},
+	}}
+	format := func(length model.BotLength) string {
+		return formatClaimMessage(results, "summary", model.LanguageFrench, length)
+	}
+
+	short := format(model.BotLengthShort)
+	if short != model.VerdictSupported.Emoji()+" the brief sentence" {
+		t.Errorf("short must be verdict + one sentence, got %q", short)
+	}
+
+	medium := format(model.BotLengthMedium)
+	for _, want := range []string{"summary", "1. claim A", "the brief sentence"} {
+		if !strings.Contains(medium, want) {
+			t.Errorf("medium must contain %q, got %q", want, medium)
+		}
+	}
+	if strings.Contains(medium, "the full reasoning") {
+		t.Errorf("medium must not show the full reasoning, got %q", medium)
+	}
+
+	long := format(model.BotLengthLong)
+	if !strings.Contains(long, "the full reasoning") || strings.Contains(long, "[0]") {
+		t.Errorf("long must show the reasoning without [N] markers, got %q", long)
+	}
+	if strings.Contains(long, "evidence text") {
+		t.Errorf("long must not list the evidence, got %q", long)
+	}
+
+	expert := format(model.BotLengthExpert)
+	if !strings.Contains(expert, "the full reasoning [0]") ||
+		!strings.Contains(expert, "evidence text") {
+		t.Errorf("expert must show the reasoning and the evidence, got %q", expert)
+	}
+}
+
+func TestClaimMessageLength(t *testing.T) {
+	tests := []struct {
+		name string
+		req  dto.CheckClaimDTO
+		want model.BotLength
+	}{
+		{"default", dto.CheckClaimDTO{}, model.BotLengthMedium},
+		{"legacy is_long", dto.CheckClaimDTO{IsLong: true}, model.BotLengthExpert},
+		{
+			"explicit length wins",
+			dto.CheckClaimDTO{IsLong: true, Length: "short"},
+			model.BotLengthShort,
+		},
+		{"unknown length falls back", dto.CheckClaimDTO{Length: "huge"}, model.BotLengthMedium},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := claimMessageLength(&tt.req); got != tt.want {
+				t.Errorf("claimMessageLength() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}

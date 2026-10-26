@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -176,7 +177,7 @@ func (s *ClaimService) CheckClaim(
 			results,
 			overallSummary,
 			replyLanguage,
-			req.IsLong,
+			claimMessageLength(req),
 		),
 		SubClaims: results,
 		Language:  analysis.Language,
@@ -411,6 +412,22 @@ var highRiskCautionTemplates = map[model.Language]string{
 	model.LanguageFrench:  "Attention : ce produit ou cette pratique n'est pas validé(e) et peut présenter des risques pour ta santé. Va au centre de santé.",
 }
 
+// citationMarkerRegex matches the inline "[N]" evidence markers the judge
+// writes into Reasoning, with the space before them.
+var citationMarkerRegex = regexp.MustCompile(`\s?\[\d+(?:\s*[,;-]\s*\d+)*\]`)
+
+// claimMessageLength resolves the shape of a request's FormattedMessage: a
+// valid explicit Length wins, otherwise the legacy IsLong flag decides.
+func claimMessageLength(req *dto.CheckClaimDTO) model.BotLength {
+	if length := model.BotLength(req.Length); length.Valid() {
+		return length
+	}
+	if req.IsLong {
+		return model.BotLengthExpert
+	}
+	return model.BotLengthMedium
+}
+
 // formatClaimMessage renders results and overallSummary into a human-facing,
 // color-coded (emoji-per-verdict) plain-text message meant to be displayed
 // as-is by a chat client — mirrors wobsongo-verify's Telegram bot output,
@@ -418,40 +435,45 @@ var highRiskCautionTemplates = map[model.Language]string{
 // Plain text rather than HTML/Markdown, since this API is transport-agnostic
 // unlike a bot that sends directly to one chat platform.
 //
-// isLong selects between two shapes: false (short, the default) shows each
-// sub-claim's BriefReasoning only; true shows the full Reasoning plus, when
-// present, the evidence/citations it's actually based on.
+// length selects the shape:
+//   - short: no header, the brief explainer per sub-claim only.
+//   - medium: header plus the brief explainer per sub-claim.
+//   - long: header plus the full Reasoning, without its "[N]" markers
+//     (no evidence list is shown for them to point at).
+//   - expert: header plus the full Reasoning and, when present, the
+//     evidence/citations it's actually based on.
 func formatClaimMessage(
 	results []SubClaimResult,
 	overallSummary string,
 	language model.Language,
-	isLong bool,
+	length model.BotLength,
 ) string {
-	label := claimsCheckedLabelTemplates[language].many
-	if len(results) == 1 {
-		label = claimsCheckedLabelTemplates[language].one
-	}
+	fullReasoning := length == model.BotLengthLong || length == model.BotLengthExpert
+	withCitations := length == model.BotLengthExpert
 
 	var b strings.Builder
-	b.WriteString(overallEmoji[overallVerdictKey(results)])
-	b.WriteString(" ")
-	b.WriteString(overallSummary)
-	b.WriteString(" — ")
-	b.WriteString(strconv.Itoa(len(results)))
-	b.WriteString(" ")
-	b.WriteString(label)
-	b.WriteString("\n\n")
+	if length != model.BotLengthShort {
+		label := claimsCheckedLabelTemplates[language].many
+		if len(results) == 1 {
+			label = claimsCheckedLabelTemplates[language].one
+		}
+		b.WriteString(overallEmoji[overallVerdictKey(results)])
+		b.WriteString(" ")
+		b.WriteString(overallSummary)
+		b.WriteString(" — ")
+		b.WriteString(strconv.Itoa(len(results)))
+		b.WriteString(" ")
+		b.WriteString(label)
+		b.WriteString("\n\n")
+	}
 
 	for i, r := range results {
-		b.WriteString(r.Verdict.Emoji())
-		b.WriteString(" ")
-		b.WriteString(strconv.Itoa(i + 1))
-		b.WriteString(". ")
-		b.WriteString(r.Claim)
-
 		explainer := r.BriefReasoning
-		if isLong {
+		if fullReasoning {
 			explainer = r.Reasoning
+			if !withCitations {
+				explainer = citationMarkerRegex.ReplaceAllString(explainer, "")
+			}
 		}
 		switch {
 		case r.HighRiskCaution:
@@ -459,12 +481,27 @@ func formatClaimMessage(
 		case r.Verdict == model.VerdictInsufficientEvidence:
 			explainer = insufficientEvidenceExplainerTemplates[language]
 		}
+
+		// A short answer about a single claim is just "verdict + sentence":
+		// repeating the claim and its number would only add noise.
+		if length == model.BotLengthShort && len(results) == 1 && explainer != "" {
+			b.WriteString(r.Verdict.Emoji())
+			b.WriteString(" ")
+			b.WriteString(explainer)
+			continue
+		}
+
+		b.WriteString(r.Verdict.Emoji())
+		b.WriteString(" ")
+		b.WriteString(strconv.Itoa(i + 1))
+		b.WriteString(". ")
+		b.WriteString(r.Claim)
 		if explainer != "" {
 			b.WriteString("\n")
 			b.WriteString(explainer)
 		}
 
-		if isLong && !r.HighRiskCaution && len(r.Citations) > 0 {
+		if withCitations && !r.HighRiskCaution && len(r.Citations) > 0 {
 			b.WriteString("\n")
 			for _, c := range r.Citations {
 				fmt.Fprintf(&b, "  [%d] (%s) %s\n", c.Index, c.Source, truncateForMessage(c.Text))

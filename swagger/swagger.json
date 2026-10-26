@@ -2406,6 +2406,10 @@
                     "description": "IsLong controls FormattedMessage's verbosity: false (the default —\nnote the zero-value already means short, no need to set this at all\nfor the common case) shows a brief paraphrased explainer per\nsub-claim; true shows the full reasoning plus its evidence/citations.\nOnly affects FormattedMessage — SubClaims/Citations are always fully\npopulated in the structured response either way.",
                     "type": "boolean"
                 },
+                "length": {
+                    "description": "Length picks FormattedMessage's shape: \"short\", \"medium\", \"long\" or\n\"expert\". When empty or unknown, IsLong decides\n(true = \"expert\", false = \"medium\").",
+                    "type": "string"
+                },
                 "text": {
                     "description": "Text is the claim or message to check — may be a direct question, a\ncasual claim, or a sentence pulled from a video transcript.",
                     "type": "string"

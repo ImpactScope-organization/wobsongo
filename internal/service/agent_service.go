@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -28,6 +29,7 @@ var (
 const (
 	toolCheckHealthClaim  = "check_health_claim"
 	componentAgentService = "AgentService"
+	toolUpdateBotSettings = "update_bot_settings"
 
 	// conversationHistoryLimit bounds how many recent messages are fed to
 	// the LLM as context for each turn.
@@ -75,6 +77,10 @@ type agentTurnContextData struct {
 	LatestUserText string
 	Transcript     string
 	ExtractionID   string
+	JID				string
+	// Settings are the chat's bot settings; the zero value (empty Tone and
+	// Length) means the user never set any, so the baseline reply applies.
+	Settings 		model.BotSettings
 }
 
 func withAgentTurnContext(ctx context.Context, data agentTurnContextData) context.Context {
@@ -97,6 +103,7 @@ type AgentService struct {
 	botClient        *external.BotClient
 	agent            agenticgokit.Agent
 	agentEnabled     bool
+	botSettings      *BotSettingsService
 }
 
 // NewAgentService creates an AgentService, registers its tools with
@@ -105,6 +112,7 @@ func NewAgentService(
 	conversationRepo data.ConversationRepoer,
 	apifyService *ApifyService,
 	claimService *ClaimService,
+	botSettings *BotSettingsService,
 	botClient *external.BotClient,
 	enabled bool,
 	llmProvider, llmModel, llmBaseURL, llmAPIKey string,
@@ -113,6 +121,7 @@ func NewAgentService(
 		conversationRepo: conversationRepo,
 		apifyService:     apifyService,
 		claimService:     claimService,
+		botSettings:      botSettings,
 		botClient:        botClient,
 		agentEnabled:     enabled,
 	}
@@ -123,6 +132,12 @@ func NewAgentService(
 	agenticgokit.RegisterInternalTool(toolCheckHealthClaim, func() agenticgokit.Tool {
 		return newCheckHealthClaimTool(claimService)
 	})
+
+	if botSettings != nil {
+		agenticgokit.RegisterInternalTool(toolUpdateBotSettings, func() agenticgokit.Tool {
+			return newUpdateBotSettingsTool(botSettings)
+		})
+	}
 
 	agent, err := agenticgokit.NewBuilder("WobsongoAgent").
 		WithConfig(&agenticgokit.Config{
@@ -149,7 +164,45 @@ func NewAgentService(
 	return s, nil
 }
 
+// runAgentHandler is the agent's single step: it applies an explicit "I
+// prefer ..." message to the chat's bot settings, builds the original reply
+// (answerTurn), then rewrites it in the chat's tone (personalizeReply).
 func (s *AgentService) runAgentHandler(
+	ctx context.Context,
+	input string,
+	caps *agenticgokit.Capabilities,
+) (string, error) {
+	turnData := agentTurnFromContext(ctx)
+
+	userText := turnData.LatestUserText
+	if userText == "" {
+		userText = input
+	}
+
+	confirmation := ""
+	if s.botSettings != nil && looksLikePreference(userText) {
+		var onlyPreference bool
+		turnData, confirmation, onlyPreference = s.applyPreference(ctx, caps, turnData, userText)
+		if onlyPreference {
+			return confirmation, nil
+		}
+		if confirmation != "" {
+			confirmation += "\n\n"
+			ctx = withAgentTurnContext(ctx, turnData)
+		}
+	}
+
+	reply, err := s.answerTurn(ctx, input, caps)
+	if err != nil {
+		return "", err
+	}
+	return confirmation + s.personalizeReply(caps, reply, turnData.Settings), nil
+}
+
+// answerTurn builds the original (not yet personalized) reply: it extracts the
+// claim from the conversation, checks it with the check_health_claim tool and
+// falls back to a direct LLM answer for small talk.
+func (s *AgentService) answerTurn(
 	ctx context.Context,
 	input string,
 	caps *agenticgokit.Capabilities,
@@ -277,7 +330,10 @@ func (s *AgentService) runFallbackReply(
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
 		internal.MsgCheckingClaim)
 
-	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.UserText})
+	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
+		Text:   job.UserText,
+		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+	})
 	if err != nil {
 		return "", fmt.Errorf("claim check failed: %w", err)
 	}
@@ -327,7 +383,10 @@ func (s *AgentService) runVideoContinuation(
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
 		internal.MsgCheckingClaim)
 
-	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.SystemNote})
+	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
+		Text:   job.SystemNote,
+		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+	})
 	if err != nil {
 		return "", fmt.Errorf("claim check failed: %w", err)
 	}
@@ -385,6 +444,8 @@ func (s *AgentService) runConversationalTurn(
 		LatestUserText: latestUserText,
 		Transcript:     prompt,
 		ExtractionID:   job.ExtractionID,
+		JID:            job.JID,
+		Settings:       s.loadBotSettings(ctx, job.JID),
 	})
 	res, err := s.agent.Run(turnCtx, prompt)
 	if err != nil {
@@ -404,6 +465,85 @@ func (s *AgentService) runConversationalTurn(
 	}
 
 	return content, nil
+}
+
+// loadBotSettings returns the chat's bot settings, or the zero value (the
+// baseline reply) when there are none or they cannot be loaded: a settings
+// failure must never fail the turn.
+func (s *AgentService) loadBotSettings(ctx context.Context, jid string) model.BotSettings {
+	if s.botSettings == nil {
+		return model.BotSettings{}
+	}
+	settings, err := s.botSettings.Get(ctx, jid)
+	if err != nil {
+		if !errors.Is(err, data.ErrNotFound) {
+			log.Printf("[AgentService] failed to load bot settings for JID=%s: %v", jid, err)
+		}
+		return model.BotSettings{}
+	}
+	return *settings
+}
+
+// applyPreference asks the LLM whether userText really is a preference about
+// the bot's answers and, if so, saves it through the update_bot_settings tool.
+func (s *AgentService) applyPreference(
+	ctx context.Context,
+	caps *agenticgokit.Capabilities,
+	turnData agentTurnContextData,
+	userText string,
+) (agentTurnContextData, string, bool) {
+	raw, err := caps.LLM(preferenceDetectionPrompt, userText)
+	if err != nil {
+		log.Printf("[AgentService] preference detection failed for JID=%s: %v", turnData.JID, err)
+		return turnData, "", false
+	}
+	pref, ok := parseBotPreference(raw)
+	if !ok || !pref.isSet() {
+		return turnData, "", false
+	}
+
+	args := map[string]any{}
+	if pref.Tone != "" {
+		args["tone"] = string(pref.Tone)
+	}
+	if pref.Length != "" {
+		args["length"] = string(pref.Length)
+	}
+	res, err := agenticgokit.ExecuteToolByName(
+		withAgentTurnContext(ctx, turnData), toolUpdateBotSettings, args,
+	)
+	if err != nil || !res.Success {
+		log.Printf(
+			"[AgentService] saving bot settings failed for JID=%s: err=%v",
+			turnData.JID,
+			err,
+		)
+		return turnData, "", false
+	}
+	confirmation, _ := res.Content.(string)
+
+	turnData.Settings = s.loadBotSettings(ctx, turnData.JID)
+	return turnData, confirmation, !pref.HasQuestion
+}
+
+// personalizeReply rewrites the original reply in the chat's tone. It never
+// fails the turn: when there is nothing to rewrite, the LLM fails, or the
+// rewrite loses a verdict emoji or citation, the original reply is returned.
+func (s *AgentService) personalizeReply(
+	caps *agenticgokit.Capabilities,
+	reply string,
+	settings model.BotSettings,
+) string {
+	if !canRewriteTone(reply, settings) {
+		return reply
+	}
+	rewritten, err := caps.LLM(toneRewritePrompt(settings.Tone), reply)
+	rewritten = strings.TrimSpace(rewritten)
+	if err != nil || rewritten == "" || !keepsVerdicts(reply, rewritten) {
+		log.Printf("[AgentService] tone rewrite skipped for JID=%s (err=%v)", settings.JID, err)
+		return reply
+	}
+	return rewritten
 }
 
 // formatConversationTranscript renders recent history plus the current

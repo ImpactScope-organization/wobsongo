@@ -34,6 +34,14 @@ type AtomicKnowledge struct {
 	FtsFr                interface{}
 }
 
+type BotSetting struct {
+	Jid       string
+	Tone      pgtype.Text
+	Length    pgtype.Text
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
 type ConversationMessage struct {
 	ID        uuid.UUID
 	Jid       string

@@ -153,6 +153,9 @@ var serveCmd = &cobra.Command{
 		agentVideoService := service.NewVideoService(agentVideoRepo)
 		workerConversationRepo := repo.NewConversationRepo(db.New(pool), pool, riverClientFn)
 		workerConversationService := service.NewConversationService(workerConversationRepo)
+		workerBotSettingsService := service.NewBotSettingsService(
+			repo.NewBotSettingsRepo(db.New(pool), pool),
+		)
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -278,6 +281,7 @@ var serveCmd = &cobra.Command{
 			workerConversationService,
 			agentApifyService,
 			workerClaimService,
+			workerBotSettingsService,
 			botClient,
 			agentLLMConfig.Enabled,
 			agentLLMConfig.Provider,

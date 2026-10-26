@@ -15,6 +15,11 @@ type CheckClaimDTO struct {
 	// Only affects FormattedMessage — SubClaims/Citations are always fully
 	// populated in the structured response either way.
 	IsLong bool `json:"is_long,omitempty"`
+
+	// Length picks FormattedMessage's shape: "short", "medium", "long" or
+	// "expert". When empty or unknown, IsLong decides
+	// (true = "expert", false = "medium").
+	Length string `json:"length,omitempty"`
 }
 
 // ClaimCheckResponse represents the outcome of checking a claim.

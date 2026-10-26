@@ -149,6 +149,7 @@ func NewHandlers(repos *Repos) *Handlers {
 		conversationService,
 		apifyService,
 		claimService,
+		nil,
 		botClient,
 		agentLLMConfig.Enabled,
 		agentLLMConfig.Provider,

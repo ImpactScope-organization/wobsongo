@@ -99,6 +99,12 @@ definitions:
           Only affects FormattedMessage — SubClaims/Citations are always fully
           populated in the structured response either way.
         type: boolean
+      length:
+        description: |-
+          Length picks FormattedMessage's shape: "short", "medium", "long" or
+          "expert". When empty or unknown, IsLong decides
+          (true = "expert", false = "medium").
+        type: string
       text:
         description: |-
           Text is the claim or message to check — may be a direct question, a

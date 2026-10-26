@@ -204,8 +204,8 @@ func TestCheckClaimHandler_Success(t *testing.T) {
 	// IsLong wasn't set on the request — default is short, so
 	// FormattedMessage uses BriefReasoning, not the full Reasoning, and
 	// carries no citations.
-	wantMessage := "✅ confirmé — 1 affirmation vérifiée\n\n" +
-		"✅ 1. vitamin C prevents colds\n" +
+	wantMessage := "🟢 confirmé — 1 affirmation vérifiée\n\n" +
+		"🟢 1. vitamin C prevents colds\n" +
 		"supported by the evidence"
 	if resp.Data.FormattedMessage != wantMessage {
 		t.Errorf("expected formatted message %q, got %q", wantMessage, resp.Data.FormattedMessage)
@@ -289,8 +289,8 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 
 	// IsLong was true — FormattedMessage uses the full Reasoning and appends
 	// the cited evidence, unlike the short-mode test above.
-	wantMessage := "✅ confirmé — 1 affirmation vérifiée\n\n" +
-		"✅ 1. vitamin C prevents colds\n" +
+	wantMessage := "🟢 confirmé — 1 affirmation vérifiée\n\n" +
+		"🟢 1. vitamin C prevents colds\n" +
 		"the cited chunk backs this\n" +
 		"  [0] (chunk) relevant passage"
 	if resp.Data.FormattedMessage != wantMessage {

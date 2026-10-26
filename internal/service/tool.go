@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	agenticgokit "github.com/agenticgokit/agenticgokit/v1beta"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
 // Tool is a generic AgenticGoKit tool wrapper. It converts the raw
@@ -76,7 +78,10 @@ func newCheckHealthClaimTool(claimService *ClaimService) agenticgokit.Tool {
 			"required": []string{"claim"},
 		},
 		func(ctx context.Context, args checkHealthClaimArgs) (*agenticgokit.ToolResult, error) {
-			result, err := claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: args.Claim})
+			result, err := claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
+				Text:   args.Claim,
+				Length: string(agentTurnFromContext(ctx).Settings.Length),
+			})
 			if err != nil {
 				return &agenticgokit.ToolResult{Success: false, Error: err.Error()}, err
 			}
@@ -87,6 +92,63 @@ func newCheckHealthClaimTool(claimService *ClaimService) agenticgokit.Tool {
 			}
 
 			return &agenticgokit.ToolResult{Success: true, Content: content}, nil
+		},
+	)
+}
+
+// updateBotSettingsArgs is the argument shape for the update_bot_settings tool.
+// The chat's jid is deliberately not an argument: it comes from the turn
+// context, so the LLM can never write another chat's settings.
+type updateBotSettingsArgs struct {
+	Tone   string `json:"tone,omitempty"`
+	Length string `json:"length,omitempty"`
+}
+
+// newUpdateBotSettingsTool wraps BotSettingsService.Update as an AgenticGoKit
+// tool. On success its content is the confirmation message for the user.
+func newUpdateBotSettingsTool(botSettingsService *BotSettingsService) agenticgokit.Tool {
+	return NewTool[updateBotSettingsArgs](
+		toolUpdateBotSettings,
+		"Save how the user wants the bot to answer (tone and/or length). "+
+			"Only set the fields the user actually asked for.",
+		map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"tone": map[string]any{
+					"type": "string",
+					"enum": []string{
+						string(model.BotToneFormal),
+						string(model.BotToneAcademic),
+						string(model.BotToneFriendly),
+					},
+				},
+				"length": map[string]any{
+					"type": "string",
+					"enum": []string{
+						string(model.BotLengthShort),
+						string(model.BotLengthMedium),
+						string(model.BotLengthLong),
+						string(model.BotLengthExpert),
+					},
+				},
+			},
+		},
+		func(ctx context.Context, args updateBotSettingsArgs) (*agenticgokit.ToolResult, error) {
+			jid := agentTurnFromContext(ctx).JID
+			if jid == "" {
+				err := errors.New("missing jid in turn context")
+				return &agenticgokit.ToolResult{Success: false, Error: err.Error()}, err
+			}
+
+			tone, length := model.BotTone(args.Tone), model.BotLength(args.Length)
+			if _, err := botSettingsService.Update(ctx, jid, tone, length); err != nil {
+				return &agenticgokit.ToolResult{Success: false, Error: err.Error()}, err
+			}
+
+			return &agenticgokit.ToolResult{
+				Success: true,
+				Content: botSettingsConfirmation(tone, length),
+			}, nil
 		},
 	)
 }

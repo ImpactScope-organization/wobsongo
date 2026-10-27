@@ -4,6 +4,7 @@ import LayersIcon from '@lucide/svelte/icons/layers';
 import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
 import MessageSquareTextIcon from '@lucide/svelte/icons/message-square-text';
 import Radar from '@lucide/svelte/icons/radar';
+import ScanSearchIcon from '@lucide/svelte/icons/scan-search';
 import ShieldAlertIcon from '@lucide/svelte/icons/shield-alert';
 import { m } from '#lib/paraglide/messages.js';
 
@@ -22,6 +23,7 @@ export const SETTINGS_HREF = '/settings';
 
 const NAV: readonly (Omit<NavItem, 'label'> & { label: () => string })[] = [
 	{ label: m.nav_overview, href: '/', icon: LayoutDashboardIcon },
+	{ label: m.nav_monitor, href: '/monitor', icon: ScanSearchIcon },
 	{ label: m.nav_narratives, href: '/narratives', disabled: true, icon: MessageSquareTextIcon },
 	{ label: m.nav_spread, href: '/spread', disabled: true, icon: Radar },
 	{ label: m.nav_operations, href: '/ops', disabled: true, icon: ActivityIcon },
@@ -40,6 +42,7 @@ export function resolveNavIcon(item: NavItem): Component {
 	if (item.icon) return item.icon;
 	const path = item.href.replace(/^\//, '').split('/')[0] || '';
 	if (!path || path === 'overview') return LayoutDashboardIcon;
+	if (path === 'monitor') return ScanSearchIcon;
 	if (path === 'narratives') return MessageSquareTextIcon;
 	if (path === 'spread') return Radar;
 	if (path === 'ops') return ActivityIcon;
@@ -47,6 +50,7 @@ export function resolveNavIcon(item: NavItem): Component {
 
 	const label = item.label.toLowerCase();
 	if (label.includes('overview')) return LayoutDashboardIcon;
+	if (label.includes('monitor')) return ScanSearchIcon;
 	if (label.includes('narrative')) return MessageSquareTextIcon;
 	if (label.includes('spread')) return Radar;
 	if (label.includes('operation') || label.includes('ops')) return ActivityIcon;

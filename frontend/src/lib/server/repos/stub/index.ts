@@ -6,6 +6,7 @@ import type { Clock } from '#lib/utils/clock.js';
 import type { Repos } from '../../services/index.js';
 import { createStubAccountRepo } from './account.js';
 import { createStubAuthRepo } from './auth.js';
+import { createStubMonitorRepo } from './monitor.js';
 import { createStubOverviewRepo } from './overview.js';
 import { createStubStore, type StubStore } from './store.js';
 
@@ -13,7 +14,8 @@ export function createStubRepos(clock: Clock, store: StubStore = createStubStore
 	return {
 		auth: createStubAuthRepo(store, clock),
 		account: createStubAccountRepo(store, clock),
-		overview: createStubOverviewRepo(clock)
+		overview: createStubOverviewRepo(clock),
+		monitor: createStubMonitorRepo(store, clock)
 	};
 }
 

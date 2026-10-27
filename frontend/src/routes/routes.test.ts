@@ -14,6 +14,7 @@ import {
 import { load as layoutLoad } from './(app)/+layout.server';
 import { load as overviewLoad } from './(app)/+page.server';
 import { load as comingSoonLoad } from './(app)/[...path]/+page.server';
+import { actions as monitorActions, load as monitorLoad } from './(app)/monitor/+page.server';
 import { actions as settingsActions, load as settingsLoad } from './(app)/settings/+page.server';
 import { actions as loginActions } from './login/+page.server';
 import { POST as setLanguage } from './lang/+server';
@@ -166,6 +167,67 @@ describe('Overview page', () => {
 		} finally {
 			delete process.env.PRIVACY_WHITELIST_EMAILS;
 		}
+	});
+});
+
+describe('Monitor page', () => {
+	const loadAt = async (path: string, backend?: TestBackend) => {
+		const { locals } = await signedIn(backend);
+		return settle(() => monitorLoad(event({ locals, url: new URL(path, ORIGIN) })));
+	};
+
+	it('defaults to the last 24 h with no run picked', async () => {
+		const { value } = await loadAt('/monitor');
+		expect(value).toMatchObject({ range: '24h', selectedRunId: null });
+	});
+
+	it('reads the range and the run from the URL', async () => {
+		const { value } = await loadAt('/monitor?range=7d&run=run-202610121120');
+		expect(value).toMatchObject({ range: '7d', selectedRunId: 'run-202610121120' });
+	});
+
+	it('shows service failures as error pages', async () => {
+		const backend = createTestBackend();
+		const { locals } = await signedIn(backend);
+		const result = await settle(() =>
+			monitorLoad(
+				event({
+					locals: { ...locals, session: { ...locals.session!, scope: { accountId: 'acc-500' } } },
+					url: new URL('/monitor', ORIGIN)
+				})
+			)
+		);
+		expect(result).toMatchObject({ error: 500 });
+	});
+
+	describe('run action', () => {
+		const url = new URL('/monitor?range=7d&/run', ORIGIN);
+
+		it('starts a run by the signed-in person and selects it', async () => {
+			const { locals } = await signedIn();
+			const result = await settle(() => monitorActions.run(event({ locals, url })));
+			expect(result).toEqual({ redirect: '/monitor?run=run-stub-1&range=7d' });
+
+			const data = await monitorLoad(event({ locals, url: new URL('/monitor', ORIGIN) }));
+			assert(data);
+			expect(data.snapshot.runs[0]).toMatchObject({
+				id: 'run-stub-1',
+				type: 'manual',
+				executedBy: profile.name,
+				result: null
+			});
+		});
+
+		it('refuses a second run while one is going', async () => {
+			const { locals } = await signedIn();
+			await settle(() => monitorActions.run(event({ locals, url })));
+			const result = await monitorActions.run(event({ locals, url }));
+			expect(isActionFailure(result)).toBe(true);
+			expect(result).toMatchObject({
+				status: 409,
+				data: { error: 'A run is already in progress. Wait for it to finish.' }
+			});
+		});
 	});
 });
 

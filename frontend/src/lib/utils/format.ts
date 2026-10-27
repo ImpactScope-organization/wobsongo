@@ -182,3 +182,29 @@ export function formatIsoWeek(at: Date): string {
 	const week = 1 + Math.round((day.getTime() - firstThursday.getTime()) / (7 * 86_400_000));
 	return m.time_iso_week({ week });
 }
+
+const usdFormats = new Map<string, Intl.NumberFormat>();
+
+/** US dollars with cents: "$2.84", or "2,84 $US" in French. */
+export function formatUsd(value: number): string {
+	const locale = intlLocale();
+	let format = usdFormats.get(locale);
+	if (!format)
+		usdFormats.set(
+			locale,
+			(format = new Intl.NumberFormat(locale, {
+				style: 'currency',
+				currency: 'USD',
+				minimumFractionDigits: 2,
+				maximumFractionDigits: 2
+			}))
+		);
+	return format.format(value);
+}
+
+/** Day and short month, e.g. "Oct 12" or "12 oct.". */
+export function formatDayMonth(at: Date, timeZone = DEFAULT_TIME_ZONE): string {
+	return new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'short', timeZone }).format(
+		at
+	);
+}

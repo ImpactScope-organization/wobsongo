@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
+	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
 
 	interface Props {
@@ -35,6 +36,15 @@
 		valueTone = 'default',
 		class: className
 	}: Props = $props();
+
+	// A leading ▲ or ▼ is read aloud as "black up-pointing triangle", so screen
+	// readers get a word instead.
+	const trend = $derived.by(() => {
+		const match = caption?.match(/^([▲▼])\s*(.*)$/s);
+		if (!match) return undefined;
+		const [, arrow, rest] = match;
+		return { arrow, rest, word: arrow === '▲' ? m.common_trend_up() : m.common_trend_down() };
+	});
 </script>
 
 <!-- Must sit inside a <dl> (KpiGroup). -->
@@ -63,7 +73,12 @@
 			data-tone={captionTone}
 			class="font-mono text-xs font-medium text-muted-foreground data-[tone=signal]:text-signal"
 		>
-			{caption}
+			{#if trend}
+				<span aria-hidden="true">{trend.arrow}</span><span class="sr-only">{trend.word}</span>
+				{trend.rest}
+			{:else}
+				{caption}
+			{/if}
 		</dd>
 	{/if}
 </div>

@@ -12,6 +12,33 @@ describe('KpiGroup and KpiTile', () => {
 	it('render as a description list', () => {
 		const { body } = render(KpiGroup, { props: { children: htmlSnippet('<div></div>') } });
 		expect(stripComments(body)).toMatch(/^<dl/);
+		expect(body).not.toContain('role=');
+	});
+
+	it('names the strip for screen readers when given a label', () => {
+		const { body } = render(KpiGroup, {
+			props: { label: 'Key figures, last 24 h', children: htmlSnippet('<div></div>') }
+		});
+		expect(stripComments(body)).toMatch(/^<dl role="group" aria-label="Key figures, last 24 h"/);
+	});
+
+	it('reads a trend arrow as a word', () => {
+		const up = stripComments(
+			render(KpiTile, {
+				props: { label: 'Messages', value: '8,412', caption: '▲ 64% vs prev. 24 h' }
+			}).body
+		);
+		expect(up).toMatch(
+			/<span aria-hidden="true">▲<\/span><span class="sr-only">up<\/span>\s*64% vs prev\. 24 h/
+		);
+		const down = render(KpiTile, {
+			props: { label: 'Debunk', value: '9', caption: '▼ 3 min' }
+		}).body;
+		expect(down).toContain('<span class="sr-only">down</span>');
+		const plain = render(KpiTile, {
+			props: { label: 'Active', value: '37', caption: '6 new' }
+		}).body;
+		expect(plain).not.toContain('sr-only');
 	});
 
 	it('pairs the label with its value', () => {

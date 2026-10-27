@@ -28,7 +28,8 @@
 		await expect(
 			canvas.getByRole('heading', { level: 2, name: 'Content creators' })
 		).toBeInTheDocument();
-		await expect(canvas.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+		const nav = within(canvas.getByRole('navigation', { name: 'Main' }));
+		await expect(nav.getByRole('link', { name: 'Overview' })).toHaveAttribute(
 			'aria-current',
 			'page'
 		);

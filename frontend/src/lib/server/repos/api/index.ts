@@ -8,6 +8,7 @@
 import type { Repos } from '../../services/index.js';
 import { createApiAccountRepo } from './account.js';
 import { createApiAuthRepo } from './auth.js';
+import { createApiMonitorRepo } from './monitor.js';
 import { createApiOverviewRepo } from './overview.js';
 
 export interface ApiOptions {
@@ -21,6 +22,7 @@ export function createApiRepos(options: ApiOptions): Repos {
 	return {
 		auth: createApiAuthRepo(options),
 		account: createApiAccountRepo(options),
-		overview: createApiOverviewRepo(options)
+		overview: createApiOverviewRepo(options),
+		monitor: createApiMonitorRepo(options)
 	};
 }

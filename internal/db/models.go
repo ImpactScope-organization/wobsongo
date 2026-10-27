@@ -42,6 +42,27 @@ type BotSetting struct {
 	UpdatedAt time.Time
 }
 
+type Claim struct {
+	ID                      uuid.UUID
+	MessageID               pgtype.UUID
+	Text                    string
+	TopicID                 uuid.UUID
+	Language                int32
+	Platform                string
+	Format                  string
+	OccurredAt              time.Time
+	Verdict                 int32
+	Severity                int32
+	HighRisk                bool
+	HighRiskReason          string
+	RecommendMedicalConsult bool
+	Reasoning               string
+	BriefReasoning          string
+	Citations               []byte
+	JudgedAt                time.Time
+	CreatedAt               time.Time
+}
+
 type ConversationMessage struct {
 	ID        uuid.UUID
 	Jid       string
@@ -129,6 +150,36 @@ type InfluencerVideo struct {
 	VideoCreatedAt time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+type Narrative struct {
+	ID                uuid.UUID
+	TopicID           uuid.UUID
+	Statement         string
+	Harm              pgtype.Int2
+	HarmValidated     bool
+	Status            string
+	IsActive          bool
+	StatementEditedBy pgtype.UUID
+	StatementEditedAt pgtype.Timestamptz
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type NarrativeClaim struct {
+	ID          uuid.UUID
+	ClaimID     uuid.UUID
+	NarrativeID uuid.UUID
+	CreatedAt   time.Time
+}
+
+type Topic struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	IsActive    bool
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 type User struct {

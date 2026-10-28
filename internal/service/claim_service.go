@@ -91,13 +91,6 @@ type ClaimCheckResult struct {
 	Language model.Language
 }
 
-// narrativeRecorder is the narrative flow ClaimService hands its checked
-// claims to.
-type narrativeRecorder interface {
-	ActiveTopics(ctx context.Context) ([]data.AnalyzerTopic, error)
-	RecordClaims(ctx context.Context, claims []model.Claim) error
-}
-
 // ClaimService orchestrates claim-checking as a fixed, bounded pipeline —
 // not an open-ended agentic loop: scope+decompose the raw input once, then
 // for every resulting sub-claim, concurrently retrieve evidence and judge
@@ -106,14 +99,13 @@ type ClaimService struct {
 	analyzer   data.ClaimAnalyzer
 	judge      data.ClaimJudge
 	rag        *RAGService
-	narratives narrativeRecorder
+	narratives *NarrativeService
 }
 
 // WithNarratives turns on the narrative flow: claims checked with a Source are
 // stored and grouped into narratives.
-func (s *ClaimService) WithNarratives(n narrativeRecorder) *ClaimService {
+func (s *ClaimService) WithNarratives(n *NarrativeService) *ClaimService {
 	s.narratives = n
-	log.Printf("[ClaimService] WithNarratives set on %p, nil=%v", s, n == nil)
 	return s
 }
 

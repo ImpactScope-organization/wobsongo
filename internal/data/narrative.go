@@ -11,7 +11,7 @@ import (
 // NarrativeRepoer defines the data operations of the claim-to-narrative flow.
 type NarrativeRepoer interface {
 	// WithTx runs fn inside a transaction.
-	WithTx(ctx context.Context, fn func(NarrativeRepoer) error) error
+	TxAware[NarrativeRepoer]
 
 	// ListActiveTopics returns every active topic, ordered by name.
 	ListActiveTopics(ctx context.Context) ([]model.Topic, error)

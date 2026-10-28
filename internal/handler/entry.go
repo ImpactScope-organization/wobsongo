@@ -87,20 +87,22 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo         data.ApifyRepoer
-	VideoRepo         data.VideoRepoer
-	DocumentRepo      data.DocumentRepoer
-	MediaProvider     data.MediaUploadProvider
-	ChunkRepo         data.DocumentChunkRepoer
-	KnowledgeRepo     data.AtomicKnowledgeRepoer
-	Embedder          data.Embedder
-	ClaimAnalyzer     data.ClaimAnalyzer
-	ClaimJudge        data.ClaimJudge
-	ConversationRepo  data.ConversationRepoer
-	SpeechRepo        data.SpeechRepoer
-	Translator        data.Translator
-	SpeechSynthesizer data.SpeechSynthesizer
-	UserRepo          data.UserRepoer
+	ApifyRepo           data.ApifyRepoer
+	VideoRepo           data.VideoRepoer
+	DocumentRepo        data.DocumentRepoer
+	MediaProvider       data.MediaUploadProvider
+	ChunkRepo           data.DocumentChunkRepoer
+	KnowledgeRepo       data.AtomicKnowledgeRepoer
+	Embedder            data.Embedder
+	ClaimAnalyzer       data.ClaimAnalyzer
+	ClaimJudge          data.ClaimJudge
+	ConversationRepo    data.ConversationRepoer
+	SpeechRepo          data.SpeechRepoer
+	Translator          data.Translator
+	SpeechSynthesizer   data.SpeechSynthesizer
+	UserRepo            data.UserRepoer
+	NarrativeRepo       data.NarrativeRepoer
+	NarrativeStatements data.NarrativeStatementGenerator
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -133,6 +135,14 @@ func NewHandlers(repos *Repos) *Handlers {
 	// Initialize claim-checking services and handlers
 	ragService := service.NewRAGService(repos.ChunkRepo, repos.KnowledgeRepo, repos.Embedder)
 	claimService := service.NewClaimService(repos.ClaimAnalyzer, repos.ClaimJudge, ragService)
+	if repos.NarrativeRepo != nil && repos.NarrativeStatements != nil {
+		claimService = claimService.WithNarratives(service.NewNarrativeService(
+			repos.NarrativeRepo,
+			repos.Embedder,
+			repos.NarrativeStatements,
+			config.NarrativeConfig.MatchThreshold,
+		))
+	}
 	claimHandler := NewClaimHandler(claimService)
 
 	agentLLMConfig, err := internal.NewAgentLLMConfig()

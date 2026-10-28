@@ -56,7 +56,13 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	internal.NotifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
 		internal.MsgCheckingClaim)
 
-	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{Text: job.Args.Text})
+	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
+		Text: job.Args.Text,
+		Source: &dto.ClaimSource{
+			Platform: model.ClaimPlatformWhatsApp,
+			Format:   string(model.ClaimFormatVideo),
+		},
+	})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)
 		internal.NotifyBotFailed(

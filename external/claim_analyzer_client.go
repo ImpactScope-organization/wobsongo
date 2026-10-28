@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
@@ -69,17 +70,20 @@ type subClaimJSON struct {
 	Text           string `json:"text"`
 	HighRisk       bool   `json:"high_risk"`
 	HighRiskReason string `json:"high_risk_reason"`
+	Topic          string `json:"topic"`
 }
 
-// Analyze implements data.ClaimAnalyzer.
-func (c *ClaimAnalyzerClient) Analyze(
+// analyzeOnce makes a single analyzer call. Analyze wraps it with a retry
+// for sub-claims whose topic is outside the closed list.
+func (c *ClaimAnalyzerClient) analyzeOnce(
 	ctx context.Context,
 	message string,
+	topics []data.AnalyzerTopic,
 ) (*data.ClaimAnalysis, error) {
 	payload := extractionCompletionRequest{
 		Model: c.model,
 		Messages: []extractionChatMessage{
-			{Role: "user", Content: buildAnalyzerPrompt(message)},
+			{Role: "user", Content: buildAnalyzerPrompt(message, topics)},
 		},
 		MaxTokens: analyzerMaxTokens,
 	}
@@ -153,6 +157,7 @@ func (c *ClaimAnalyzerClient) Analyze(
 			Text:           sc.Text,
 			HighRisk:       sc.HighRisk,
 			HighRiskReason: sc.HighRiskReason,
+			TopicID:        resolveTopicID(sc.Topic, topics),
 		}
 	}
 
@@ -177,7 +182,7 @@ func (c *ClaimAnalyzerClient) Analyze(
 }
 
 // buildAnalyzerPrompt builds the scope+decomposition instruction.
-func buildAnalyzerPrompt(message string) string {
+func buildAnalyzerPrompt(message string, topics []data.AnalyzerTopic) string {
 	var b strings.Builder
 	b.WriteString("You are the scope gate for a Sexual and Reproductive Health (SRH) ")
 	b.WriteString("fact-checking system. Given a raw input message (which may be a casual ")
@@ -230,18 +235,35 @@ func buildAnalyzerPrompt(message string) string {
 		"When high_risk is true, set high_risk_reason to one short sentence in French saying ",
 	)
 	b.WriteString("which of the above criteria applies; otherwise use \"\".\n\n")
+	if len(topics) > 0 {
+		b.WriteString("5. For each sub-claim, choose exactly ONE topic from this closed list. ")
+		b.WriteString("Copy the topic name exactly as written below, without translating or ")
+		b.WriteString("changing it. Choose based on the claim's meaning. If no topic fits ")
+		b.WriteString(
+			"perfectly, choose the closest one. Never invent a topic or leave it empty:\n",
+		)
+		for _, t := range topics {
+			b.WriteString("- ")
+			b.WriteString(t.Name)
+			b.WriteString(": ")
+			b.WriteString(t.Description)
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+	}
 	b.WriteString(
 		"Respond with ONLY a JSON object (no markdown, no commentary), with this shape:\n",
 	)
 	b.WriteString(
 		`{"in_scope": true/false, "refusal_reason": "...", ` +
 			`"sub_claims": [{"text": "...", "high_risk": true/false, ` +
-			`"high_risk_reason": "..."}], "language": "en"}` + "\n\n",
+			`"high_risk_reason": "...", "topic": "..."}], "language": "en"}` + "\n\n",
 	)
 	b.WriteString("refusal_reason is only used when in_scope is false (briefly explain why); ")
 	b.WriteString(
-		"otherwise use \"\". sub_claims is only used when in_scope is true; otherwise use [].\n",
-	)
+		"otherwise use \"\". sub_claims is only used when in_scope is true; ")
+	b.WriteString("otherwise use []. topic is only used when a topic list is given above; ")
+	b.WriteString("otherwise use \"\".\n")
 	b.WriteString(
 		"Always write each sub-claim's text and refusal_reason in French, regardless of what ",
 	)
@@ -256,4 +278,55 @@ func buildAnalyzerPrompt(message string) string {
 	b.WriteString(message)
 	b.WriteString("\n\"\"\"\n")
 	return b.String()
+}
+
+// Analyze implements data.ClaimAnalyzer. When topics are given and the model
+// answers with a topic outside the list, the analysis is retried once; a
+// sub-claim that still has no valid topic keeps TopicID uuid.Nil.
+func (c *ClaimAnalyzerClient) Analyze(
+	ctx context.Context,
+	message string,
+	topics []data.AnalyzerTopic,
+) (*data.ClaimAnalysis, error) {
+	analysis, err := c.analyzeOnce(ctx, message, topics)
+	if err != nil {
+		return nil, err
+	}
+	if len(topics) == 0 || !hasUnresolvedTopic(analysis) {
+		return analysis, nil
+	}
+
+	log.Printf("[ClaimAnalyzerClient] sub-claim topic outside the closed list, retrying once")
+	retry, err := c.analyzeOnce(ctx, message, topics)
+	if err != nil {
+		// Keep the first analysis: its unresolved sub-claims are skipped downstream.
+		return analysis, nil
+	}
+	return retry, nil
+}
+
+// hasUnresolvedTopic reports whether an in-scope analysis has a sub-claim
+// without a valid topic.
+func hasUnresolvedTopic(a *data.ClaimAnalysis) bool {
+	if !a.InScope {
+		return false
+	}
+	for _, sc := range a.SubClaims {
+		if sc.TopicID == uuid.Nil {
+			return true
+		}
+	}
+	return false
+}
+
+// resolveTopicID maps the topic name the model returned to a topic of the
+// closed list (case-insensitive), or uuid.Nil.
+func resolveTopicID(name string, topics []data.AnalyzerTopic) uuid.UUID {
+	name = strings.TrimSpace(name)
+	for _, t := range topics {
+		if strings.EqualFold(t.Name, name) {
+			return t.ID
+		}
+	}
+	return uuid.Nil
 }

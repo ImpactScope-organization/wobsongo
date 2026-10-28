@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
@@ -42,15 +43,29 @@ func (r *conversationRepo) AppendMessage(
 	role model.ConversationRole,
 	content string,
 ) error {
-	_, err := r.q.InsertConversationMessage(ctx, db.InsertConversationMessageParams{
+	_, err := r.AppendMessageWithID(ctx, jid, role, content)
+	return err
+}
+
+// AppendMessageWithID stores one message for the given jid and returns its id.
+func (r *conversationRepo) AppendMessageWithID(
+	ctx context.Context,
+	jid string,
+	role model.ConversationRole,
+	content string,
+) (uuid.UUID, error) {
+	row, err := r.q.InsertConversationMessage(ctx, db.InsertConversationMessageParams{
 		Jid:     jid,
 		Role:    string(role),
 		Content: content,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to insert conversation message: %w", mapPostgresError(err))
+		return uuid.Nil, fmt.Errorf(
+			"failed to insert conversation message: %w",
+			mapPostgresError(err),
+		)
 	}
-	return nil
+	return row.ID, nil
 }
 
 // RecentMessages returns up to limit most-recent messages for the given

@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
@@ -41,6 +42,7 @@ type SubClaim struct {
 	Text           string
 	HighRisk       bool
 	HighRiskReason string
+	TopicID        uuid.UUID
 }
 
 // ClaimAnalyzer scopes and decomposes a raw input message before retrieval:
@@ -50,5 +52,12 @@ type SubClaim struct {
 // implementation.
 type ClaimAnalyzer interface {
 	// Analyze returns the scoping/decomposition result for message.
-	Analyze(ctx context.Context, message string) (*ClaimAnalysis, error)
+	Analyze(ctx context.Context, message string, topics []AnalyzerTopic) (*ClaimAnalysis, error)
+}
+
+// AnalyzerTopic is one entry of the closed topic list offered to the analyzer.
+type AnalyzerTopic struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
 }

@@ -38,7 +38,11 @@ func (s *stubEmbedder) Embed(_ context.Context, texts []string) ([][]float32, er
 
 type stubAnalyzer struct{ analysis *data.ClaimAnalysis }
 
-func (s *stubAnalyzer) Analyze(context.Context, string) (*data.ClaimAnalysis, error) {
+func (s *stubAnalyzer) Analyze(
+	ctx context.Context,
+	message string,
+	_ []data.AnalyzerTopic,
+) (*data.ClaimAnalysis, error) {
 	return s.analysis, nil
 }
 

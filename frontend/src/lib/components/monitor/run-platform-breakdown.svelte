@@ -52,7 +52,7 @@
 <div class={cn('flex flex-wrap items-center gap-6', className)}>
 	<Chart.Container
 		{config}
-		class="relative aspect-square shrink-0"
+		class="relative mx-auto aspect-square shrink-0"
 		style="width: {size}px; height: {size}px"
 		role="img"
 		aria-label={total > 0

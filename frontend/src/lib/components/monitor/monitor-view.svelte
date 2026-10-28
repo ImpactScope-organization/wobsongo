@@ -188,11 +188,11 @@
 			description={snapshot.volume.bucketHours >= 24
 				? m.monitor_volume_description_day()
 				: m.monitor_volume_description_window({ hours: formatNumber(snapshot.volume.bucketHours) })}
-			class="flex-[2_1_35rem]"
+			class="flex-[2_1_35rem] [&>header]:flex-nowrap"
 		>
 			{#snippet actions()}
 				<div class="text-right">
-					<div class="font-mono text-xl font-semibold">{formatNumber(totals.processed)}</div>
+					<div class="font-mono font-semibold md:text-xl">{formatNumber(totals.processed)}</div>
 					<div class="text-[0.6875rem] font-medium text-muted-foreground">
 						{m.monitor_volume_total_label({ window: windowLabel })}
 					</div>

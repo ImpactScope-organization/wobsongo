@@ -6,6 +6,7 @@
  */
 import type { AccountRole, BotPlatform } from '#lib/domain/account.js';
 import type { HarmRisk } from '#lib/domain/high-harm.js';
+import type { CrawledPlatform, ProcessingStatus, RunType } from '#lib/domain/monitor.js';
 import type { CheckReason, PriorityQuadrant } from '#lib/domain/operations.js';
 import type { DismissReason, MessageFormat } from '#lib/domain/narrative-detail.js';
 import type { RatingOutcome, ReviewStatus, Verdict } from '#lib/domain/narrative.js';
@@ -163,4 +164,42 @@ export const TIME_RANGE_LABEL: Record<TimeRange, string> = localized({
 export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = localized({
 	misinfo: m.label_topic_misinfo,
 	all: m.label_topic_all
+});
+
+export const RUN_TYPE_LABEL: Record<RunType, string> = localized({
+	automatic: m.monitor_run_type_automatic,
+	manual: m.monitor_run_type_manual
+});
+
+export const CRAWLED_PLATFORM_LABEL: Record<CrawledPlatform, string> = {
+	facebook: 'Facebook',
+	tiktok: 'TikTok',
+	x: 'X',
+	instagram: 'Instagram',
+	youtube: 'YouTube'
+};
+
+export const PROCESSING_STATUS_LABEL: Record<ProcessingStatus, string> = localized({
+	discovered: m.monitor_status_discovered,
+	screened_out: m.monitor_status_screened_out,
+	screened_in: m.monitor_status_screened_in,
+	transcribed: m.monitor_status_transcribed,
+	out_of_scope: m.monitor_status_out_of_scope,
+	analyzed: m.monitor_status_analyzed,
+	verified: m.monitor_status_verified,
+	clustered: m.monitor_status_clustered,
+	failed: m.monitor_status_failed
+});
+
+/** What each status means, e.g. "Out of SRH scope". */
+export const PROCESSING_STATUS_DESCRIPTION: Record<ProcessingStatus, string> = localized({
+	discovered: m.monitor_status_discovered_description,
+	screened_out: m.monitor_status_screened_out_description,
+	screened_in: m.monitor_status_screened_in_description,
+	transcribed: m.monitor_status_transcribed_description,
+	out_of_scope: m.monitor_status_out_of_scope_description,
+	analyzed: m.monitor_status_analyzed_description,
+	verified: m.monitor_status_verified_description,
+	clustered: m.monitor_status_clustered_description,
+	failed: m.monitor_status_failed_description
 });

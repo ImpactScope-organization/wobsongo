@@ -38,7 +38,10 @@
 		const nav = within(canvasElement).getByRole('navigation', { name: 'Main' });
 		const current = within(nav).getByRole('link', { current: 'page' });
 		await expect(current).toHaveTextContent('Overview');
-		const brand = within(canvasElement).getByRole('link', { name: 'Monitor' });
+		// The logo links home too, so it shares Overview's name; it's the one outside the nav.
+		const brand = within(canvasElement)
+			.getAllByRole('link', { name: 'Overview' })
+			.find((link) => !nav.contains(link))!;
 		const logoImg = brand.querySelector('img')!;
 		// Proves the asset path resolves: a broken image has no natural size.
 		await waitFor(() => expect(logoImg.naturalWidth).toBeGreaterThan(0));

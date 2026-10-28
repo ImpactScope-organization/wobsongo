@@ -4,6 +4,8 @@
 
 	interface Props {
 		title: string;
+		/** Small line above the title, e.g. which run the card is about; read after the title. */
+		eyebrow?: string;
 		description?: string;
 		/** Heading level; keep the page outline correct. */
 		level?: 2 | 3;
@@ -19,6 +21,7 @@
 
 	let {
 		title,
+		eyebrow,
 		description,
 		level = 2,
 		actions,
@@ -37,12 +40,23 @@
 >
 	<header class="flex flex-wrap items-baseline justify-between gap-3 px-5 pt-[1.125rem] pb-3.5">
 		<div class="min-w-0">
+			<!--
+				The eyebrow is part of the heading, so moving by headings also says
+				which item the card is about. It comes after the title in reading
+				order, and shows above it.
+			-->
 			<svelte:element
 				this={`h${level}`}
 				id={headingId}
-				class="text-lg font-bold tracking-[-0.01em]"
+				class={cn('text-lg font-bold tracking-[-0.01em]', eyebrow && 'flex flex-col-reverse')}
 			>
-				{title}
+				{#if eyebrow}
+					<span>{title}</span>
+					<span class="sr-only">, </span>
+					<span class="text-eyebrow mb-1 text-muted-foreground">{eyebrow}</span>
+				{:else}
+					{title}
+				{/if}
 			</svelte:element>
 			{#if description}
 				<p class="mt-1 text-[0.8125rem] text-muted-foreground">{description}</p>

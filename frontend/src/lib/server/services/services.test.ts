@@ -13,7 +13,9 @@ import {
 import { createTestBackend } from '../testing/fakes.js';
 import { describeFailure } from './failures.js';
 import { createServices } from './index.js';
+import { MONITOR_RUN_LIMIT } from './monitor.js';
 import { OVERVIEW_NARRATIVE_LIMIT } from './overview.js';
+import { STUB_RUN_MS } from '../repos/stub/monitor.js';
 
 const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
 
@@ -92,6 +94,66 @@ describe('OverviewService', () => {
 		expect(
 			await apiServices.overview.getOverview(demo, { range: '24h', topic: 'misinfo' })
 		).toEqual(failure(501, 'Overview is not available yet.'));
+	});
+});
+
+describe('MonitorService', () => {
+	it('lists the most recent runs, newest first', async () => {
+		const { services } = createTestBackend();
+		const result = await services.monitor.getMonitor(demo, { range: '24h' });
+		if (!result.ok) throw new Error(result.message);
+
+		const times = result.data.runs.map((run) => run.startedAt.getTime());
+		expect(times).toEqual(times.toSorted((a, b) => b - a));
+		expect(result.data.runs.length).toBeLessThanOrEqual(MONITOR_RUN_LIMIT);
+	});
+
+	it('gives each time range its own figures', async () => {
+		const { services } = createTestBackend();
+		const day = await services.monitor.getMonitor(demo, { range: '24h' });
+		const month = await services.monitor.getMonitor(demo, { range: '30d' });
+		if (!day.ok || !month.ok) throw new Error('expected data');
+		expect(day.data.volume).toMatchObject({ bucketHours: 2 });
+		expect(month.data.volume.buckets).toHaveLength(30);
+		expect(month.data.runCount).toBeGreaterThan(day.data.runCount);
+	});
+
+	it('starts a manual run, which the stub finishes after a while', async () => {
+		const { clock, services } = createTestBackend();
+		const started = await services.monitor.startRun(demo, { executedBy: 'Admin 1' });
+		if (!started.ok) throw new Error(started.message);
+		expect(started.data).toMatchObject({ type: 'manual', executedBy: 'Admin 1', result: null });
+		expect(started.data.startedAt).toEqual(OVERVIEW_NOW);
+
+		clock.advance(STUB_RUN_MS);
+		const result = await services.monitor.getMonitor(demo, { range: '24h' });
+		if (!result.ok) throw new Error(result.message);
+		expect(result.data.runs[0].id).toBe(started.data.id);
+		expect(result.data.runs[0].result).not.toBeNull();
+	});
+
+	it('refuses to start a run while another is going', async () => {
+		const { services } = createTestBackend();
+		await services.monitor.startRun(demo, { executedBy: 'Admin 1' });
+		expect(await services.monitor.startRun(demo, { executedBy: 'Admin 2' })).toEqual(
+			failure(409, 'A run is already in progress. Wait for it to finish.')
+		);
+	});
+
+	it('follows the stub id conventions for the account', async () => {
+		const { services } = createTestBackend();
+		expect(await services.monitor.getMonitor({ accountId: 'acc-404' }, { range: '24h' })).toEqual(
+			failure(404, 'No monitoring data for this account.')
+		);
+		expect(
+			await services.monitor.startRun({ accountId: 'acc-500' }, { executedBy: 'Admin 1' })
+		).toEqual(failure(500, SERVER_ERROR_MESSAGE));
+	});
+
+	it('is not available yet on the backend', async () => {
+		expect(await apiServices.monitor.getMonitor(demo, { range: '24h' })).toEqual(
+			failure(501, 'Monitor is not available yet.')
+		);
 	});
 });
 

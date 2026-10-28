@@ -4,6 +4,7 @@
  * create their own.
  */
 import type { AccountProfile } from '#lib/domain/account.js';
+import type { ProcessingRun } from '#lib/domain/monitor.js';
 import { passwordChangedAt, profile } from '#lib/fixtures/settings.js';
 import { failure, type Failure } from '../../result.js';
 
@@ -25,6 +26,8 @@ export interface StubStore {
 	accounts: Map<string, StubAccount>;
 	accessTokens: Map<string, StubToken>;
 	refreshTokens: Map<string, StubToken>;
+	/** Manual Monitor runs started in this process, newest first. */
+	monitorRuns: ProcessingRun[];
 	/** Last number used for a new account id. */
 	sequence: number;
 }
@@ -45,6 +48,7 @@ export function createStubStore(): StubStore {
 		accounts: new Map([[demo.id, demo]]),
 		accessTokens: new Map(),
 		refreshTokens: new Map(),
+		monitorRuns: [],
 		sequence: 0
 	};
 }

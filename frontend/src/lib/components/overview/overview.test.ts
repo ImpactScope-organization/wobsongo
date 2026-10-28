@@ -260,10 +260,11 @@ describe('OverviewView', () => {
 		expect(body).toContain('Burkina Faso · updated 14:05 GMT');
 		expect(body).toContain('Messages received, 24 h');
 		expect(body).toContain('8,412');
-		expect(body).toContain('▲ 64% vs prev. 24 h');
+		expect(body).toContain('<dl role="group" aria-label="Key figures, last 24 h"');
+		expect(body).toMatch(/▲<\/span><span class="sr-only">up<\/span>\s*64% vs prev\. 24 h/);
 		expect(body).toContain('6 new in the last 24 h');
 		expect(body).toMatch(/>21<span[^>]*>(&nbsp;|\u00a0)\/ 37</);
-		expect(body).toContain('▲ 18 min vs prev. 24 h');
+		expect(body).toMatch(/▲<\/span><span class="sr-only">up<\/span>\s*18 min vs prev\. 24 h/);
 	});
 
 	it('says when things fell or held steady', () => {
@@ -276,7 +277,7 @@ describe('OverviewView', () => {
 			'7d'
 		);
 		expect(body).toContain('No change vs prev. 7 d');
-		expect(body).toContain('▼ 20 min vs prev. 7 d');
+		expect(body).toMatch(/▼<\/span><span class="sr-only">down<\/span>\s*20 min vs prev\. 7 d/);
 	});
 
 	it('links the range and topic options, marking the current ones', () => {

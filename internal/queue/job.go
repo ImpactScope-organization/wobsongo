@@ -61,9 +61,6 @@ const (
 	// into a narrative.
 	JobTypeClusterClaim BackgroundJobType = "cluster_claim"
 
-	// QueueNarrativeClustering represents a job queue for clustering claims into narratives.
-	QueueNarrativeClustering = "narrative_clustering"
-
 	// JobTypeDeactivateNarratives represents a job type for deactivating
 	// narratives without recent claims.
 	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"
@@ -104,4 +101,8 @@ const (
 
 	// QueueMaintenance is used by housekeeping jobs such as TTSAudioCleanupJob.
 	QueueMaintenance = "maintenance"
+
+	// Queue for claim clustering, kept small to prevent database pool exhaustion
+	// while jobs wait for per-topic advisory locks.
+	QueueNarrativeClustering = "narrative_clustering"
 )

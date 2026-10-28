@@ -300,6 +300,7 @@ func (c *ClaimAnalyzerClient) Analyze(
 	retry, err := c.analyzeOnce(ctx, message, topics)
 	if err != nil {
 		// Keep the first analysis: its unresolved sub-claims are skipped downstream.
+		log.Printf("[ClaimAnalyzerClient] topic retry failed, keeping first analysis: %v", err)
 		return analysis, nil
 	}
 	return retry, nil

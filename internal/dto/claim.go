@@ -118,3 +118,16 @@ type ClaimSource struct {
 	// Format is "text", "audio" or "video", "text" when empty.
 	Format string
 }
+
+// NewClaimSource builds the source of a claim. messageID may be empty or not a
+// valid UUID, the claim is then stored without a link to a message.
+func NewClaimSource(platform, messageID, format string) *ClaimSource {
+	src := &ClaimSource{Platform: platform, Format: format}
+
+	id, err := uuid.Parse(messageID)
+	if err != nil {
+		return src
+	}
+	src.MessageID = &id
+	return src
+}

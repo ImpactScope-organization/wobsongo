@@ -607,9 +607,5 @@ func (s *AgentService) HandleInboundVoice(
 
 // claimSource builds the narrative-flow source of a claim from a message id.
 func claimSource(messageID, format string) *dto.ClaimSource {
-	src := &dto.ClaimSource{Platform: model.ClaimPlatformWhatsApp, Format: format}
-	if id, err := uuid.Parse(messageID); err == nil {
-		src.MessageID = &id
-	}
-	return src
+	return dto.NewClaimSource(model.ClaimPlatformWhatsApp, messageID, format)
 }

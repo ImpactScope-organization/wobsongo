@@ -90,12 +90,12 @@ func (s *NarrativeService) ClusterClaim(ctx context.Context, claimID uuid.UUID) 
 			return err
 		}
 
-		narrative, err := s.findMatch(ctx, claim, narratives)
+		narrative, found, err := s.findMatch(ctx, claim, narratives)
 		if err != nil {
 			return err
 		}
 
-		if narrative == nil {
+		if !found {
 			statement, err := s.generator.Generate(ctx, claim.Text)
 			if err != nil {
 				return fmt.Errorf("failed to write narrative statement: %w", err)
@@ -126,15 +126,15 @@ func (s *NarrativeService) DeactivateStale(
 }
 
 // findMatch embeds the claim and the narrative statements (nothing is stored)
-// and returns the narrative closest to the claim, or nil when none reaches the
-// threshold.
+// and returns the narrative closest to the claim, or false when none reaches
+// the threshold.
 func (s *NarrativeService) findMatch(
 	ctx context.Context,
 	claim *model.Claim,
 	narratives []model.Narrative,
-) (*model.Narrative, error) {
+) (*model.Narrative, bool, error) {
 	if len(narratives) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	texts := make([]string, 0, len(narratives)+1)
@@ -145,10 +145,10 @@ func (s *NarrativeService) findMatch(
 
 	vectors, err := s.embedder.Embed(ctx, texts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to embed claim and narratives: %w", err)
+		return nil, false, fmt.Errorf("failed to embed claim and narratives: %w", err)
 	}
 	if len(vectors) != len(texts) {
-		return nil, fmt.Errorf(
+		return nil, false, fmt.Errorf(
 			"embedder returned %d vectors for %d texts",
 			len(vectors),
 			len(texts),
@@ -168,9 +168,9 @@ func (s *NarrativeService) findMatch(
 		claim.ID, bestScore, s.matchThreshold,
 	)
 	if bestScore < s.matchThreshold {
-		return nil, nil
+		return nil, false, nil
 	}
-	return &narratives[best], nil
+	return &narratives[best], true, nil
 }
 
 // refreshNarrative recomputes the harm estimate and status of a narrative from

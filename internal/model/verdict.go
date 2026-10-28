@@ -68,10 +68,11 @@ func ParseVerdict(s string) (Verdict, error) {
 
 // verdictEmoji is the color-coding shown alongside each Verdict in a
 // human-facing rendered message (e.g. a chat bot reply).
-//		🟢 Verified
-//		🟡 Partially verified
-//		🟠 Not found, unsure
-//		🔴 Incorrect, misinformation
+//
+//	🟢 Verified
+//	🟡 Partially verified
+//	🟠 Not found, unsure
+//	🔴 Incorrect, misinformation
 var verdictEmoji = map[Verdict]string{
 	VerdictSupported:            "🟢",
 	VerdictContradicted:         "🔴",

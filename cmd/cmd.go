@@ -41,6 +41,8 @@ func Execute() {
 	rootCmd.AddCommand(createSuperadminCmd)
 	rootCmd.AddCommand(influencerMonitorCmd)
 	rootCmd.AddCommand(influencerDiscoverCmd)
+	rootCmd.AddCommand(fakeTopicsCmd)
+	rootCmd.AddCommand(fakeNarrativesCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

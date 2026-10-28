@@ -8,6 +8,15 @@ import {
 	profileError
 } from './account';
 import { toCount, toTotal } from './count';
+import {
+	costPerRun,
+	hasPendingPosts,
+	isFinalStatus,
+	latestFinishedRun,
+	selectRun,
+	successRate,
+	volumeTotals
+} from './monitor';
 import { isHighHarm, isSpiking } from './narrative';
 import {
 	growthPct,
@@ -23,6 +32,7 @@ import { parseTimeRange } from './time-range';
 import { whatsAppLagHours } from './narrative-detail';
 import { fixedClock } from '../utils/clock';
 import { narratives, sampleCreators } from '../fixtures/overview';
+import { processingRuns, runningRun } from '../fixtures/monitor';
 
 describe('toCount', () => {
 	it('suppresses counts below the minimum cell size', () => {
@@ -292,5 +302,59 @@ describe('passwordChangeError', () => {
 				confirmPassword: change.currentPassword
 			})
 		).toMatch(/different/);
+	});
+});
+
+describe('monitor', () => {
+	const runs = [runningRun, ...processingRuns];
+
+	it('selects the run by id, else the newest', () => {
+		expect(selectRun(runs, processingRuns[2].id)).toBe(processingRuns[2]);
+		expect(selectRun(runs, 'run-missing')).toBe(runningRun);
+		expect(selectRun(runs, null)).toBe(runningRun);
+		expect(selectRun([], null)).toBeUndefined();
+	});
+
+	it('finds the newest finished run', () => {
+		expect(latestFinishedRun(runs)).toBe(processingRuns[0]);
+		expect(latestFinishedRun([runningRun])).toBeUndefined();
+	});
+
+	it('knows which statuses are final', () => {
+		expect(isFinalStatus('clustered')).toBe(true);
+		expect(isFinalStatus('failed')).toBe(true);
+		expect(isFinalStatus('transcribed')).toBe(false);
+	});
+
+	it('spots runs whose posts are still being processed', () => {
+		expect(hasPendingPosts(processingRuns[0].result!)).toBe(true);
+		expect(hasPendingPosts(processingRuns[1].result!)).toBe(false);
+	});
+
+	it('keeps every fixture run consistent', () => {
+		for (const { result } of processingRuns) {
+			const sum = (counts: Record<string, number>) =>
+				Object.values(counts).reduce((total, count) => total + count, 0);
+			expect(sum(result!.statusCounts)).toBe(result!.newPosts);
+			expect(sum(result!.platformCounts)).toBe(result!.newPosts);
+			expect(result!.statusCounts.failed).toBe(result!.failed);
+		}
+	});
+
+	it('totals the volume and rates a bucket', () => {
+		const start = new Date(0);
+		expect(
+			volumeTotals([
+				{ start, processed: 90, failed: 10 },
+				{ start, processed: 5, failed: 0 }
+			])
+		).toEqual({ processed: 95, failed: 10 });
+		expect(successRate({ start, processed: 90, failed: 10 })).toBe(90);
+		expect(successRate({ start, processed: 0, failed: 0 })).toBeNull();
+	});
+
+	it('averages the cost per run', () => {
+		expect(costPerRun({ costUsd: 24, runCount: 12 })).toBe(2);
+		expect(costPerRun({ costUsd: 0, runCount: 0 })).toBe(0);
 	});
 });

@@ -83,6 +83,12 @@
 	--platform-tiktok: #1c1b18;
 	--platform-x: #8c877c;
 	--platform-other: #cfc8b8;
+	--platform-instagram: #a33b66;
+	--platform-youtube: #b4441c;
+
+	/* Monitor pipeline stages that have no other token to borrow. */
+	--pipeline-out-of-scope: #e2ddd1;
+	--pipeline-verified: #7fa88e;
 
 	/* Dark panels on the light page: app header, high-harm card. */
 	--inverse: #1c1b18;
@@ -138,6 +144,10 @@
 	--status-verified-foreground: #ddebe2;
 
 	--platform-tiktok: #e7e3da;
+	--platform-instagram: #d77a9c;
+	--platform-youtube: #f08a5d;
+
+	--pipeline-out-of-scope: #4f4b43;
 
 	--inverse: #262521;
 	--inverse-raised: #2e2c27;
@@ -202,6 +212,10 @@
 	--color-platform-tiktok: var(--platform-tiktok);
 	--color-platform-x: var(--platform-x);
 	--color-platform-other: var(--platform-other);
+	--color-platform-instagram: var(--platform-instagram);
+	--color-platform-youtube: var(--platform-youtube);
+	--color-pipeline-out-of-scope: var(--pipeline-out-of-scope);
+	--color-pipeline-verified: var(--pipeline-verified);
 	--color-inverse: var(--inverse);
 	--color-inverse-raised: var(--inverse-raised);
 	--color-inverse-border: var(--inverse-border);

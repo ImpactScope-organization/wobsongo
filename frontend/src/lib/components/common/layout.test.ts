@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { render } from 'svelte/server';
 import { withLocale } from '#lib/testing/locale.js';
-import { htmlSnippet } from '#lib/testing/snippet.js';
+import { htmlSnippet, stripComments } from '#lib/testing/snippet.js';
 import { anomaly } from '#lib/fixtures/overview.js';
 import AnomalyBanner from './anomaly-banner.svelte';
 import AppHeader from './app-header.svelte';
@@ -16,9 +16,10 @@ import SegmentedLinks from './segmented-links.svelte';
 
 describe('SectionCard', () => {
 	it('labels the section with its heading', () => {
-		const { body } = render(SectionCard, {
+		const rendered = render(SectionCard, {
 			props: { title: 'Where claims come from', children: htmlSnippet('<p>Body</p>') }
 		});
+		const body = stripComments(rendered.body);
 		const id = body.match(/aria-labelledby="([^"]+)"/)?.[1];
 		expect(id).toBeTruthy();
 		expect(body).toMatch(new RegExp(`<h2[^>]*id="${id}"[^>]*>\\s*Where claims come from`));

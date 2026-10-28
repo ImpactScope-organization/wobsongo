@@ -20,7 +20,7 @@
 	const spiking = $derived(isSpiking((narrative.growthFactor6h - 1) * 100));
 </script>
 
-<KpiGroup class={className}>
+<KpiGroup label={m.narrative_metrics_group()} class={className}>
 	<KpiTile
 		size="sm"
 		label={m.narrative_metric_messages_7d()}

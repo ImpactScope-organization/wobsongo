@@ -110,7 +110,7 @@
 		{/snippet}
 	</PageHeader>
 
-	<KpiGroup>
+	<KpiGroup label={m.overview_kpi_group({ window: windowLabel })}>
 		<KpiTile
 			label={m.overview_kpi_messages({ window: windowLabel })}
 			value={formatNumber(snapshot.messages.current)}

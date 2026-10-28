@@ -18,6 +18,10 @@ const (
 
 	// NarrativeDeactivateInterval is how often the deactivation job runs.
 	NarrativeDeactivateInterval = time.Hour
+
+	// DefaultNarrativeClusteringMaxWorkers is how many cluster-claim jobs may
+	// run at once.
+	DefaultNarrativeClusteringMaxWorkers = 2
 )
 
 // ClusterClaimJob groups one stored claim into a narrative of its topic.
@@ -33,7 +37,7 @@ func (ClusterClaimJob) Kind() string { return string(JobTypeClusterClaim) }
 // once even if the job is enqueued twice.
 func (ClusterClaimJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		Queue:      QueueMediaProcessing,
+		Queue:      QueueNarrativeClustering,
 		UniqueOpts: river.UniqueOpts{ByArgs: true},
 	}
 }

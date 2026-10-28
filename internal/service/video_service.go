@@ -32,6 +32,7 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 	items []dto.ApifyTikTokItem,
 	extractionID string,
 	jid string,
+	messageID string,
 	viaAgent bool,
 ) error {
 	var errs []error
@@ -74,6 +75,7 @@ func (s *VideoService) ProcessAndSaveApifyItems(
 					VideoID:      videoData.ID,
 					DownloadURL:  item.MediaUrls[0],
 					Jid:          jid,
+					MessageID:    messageID,
 					ViaAgent:     viaAgent,
 				}
 				if err := txRepo.EnqueueTranscriptionJob(ctx, payload); err != nil {

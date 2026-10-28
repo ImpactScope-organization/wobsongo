@@ -61,6 +61,9 @@ const (
 	// into a narrative.
 	JobTypeClusterClaim BackgroundJobType = "cluster_claim"
 
+	// QueueNarrativeClustering represents a job queue for clustering claims into narratives.
+	QueueNarrativeClustering = "narrative_clustering"
+
 	// JobTypeDeactivateNarratives represents a job type for deactivating
 	// narratives without recent claims.
 	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"

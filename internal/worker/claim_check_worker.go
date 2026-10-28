@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
@@ -56,12 +57,17 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	internal.NotifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
 		internal.MsgCheckingClaim)
 
+	source := &dto.ClaimSource{
+		Platform: model.ClaimPlatformWhatsApp,
+		Format:   string(model.ClaimFormatVideo),
+	}
+	if id, err := uuid.Parse(job.Args.MessageID); err == nil {
+		source.MessageID = &id
+	}
+
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
-		Text: job.Args.Text,
-		Source: &dto.ClaimSource{
-			Platform: model.ClaimPlatformWhatsApp,
-			Format:   string(model.ClaimFormatVideo),
-		},
+		Text:   job.Args.Text,
+		Source: source,
 	})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)

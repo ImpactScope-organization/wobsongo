@@ -346,6 +346,9 @@ var serveCmd = &cobra.Command{
 				},
 				queue.QueueSpeechSynthesis: {MaxWorkers: config.TTSConfig.MaxWorkers},
 				queue.QueueMaintenance:     {MaxWorkers: queue.MaintenanceMaxWorkers},
+				queue.QueueNarrativeClustering: {
+					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
+				},
 			},
 			Workers: workers,
 			PeriodicJobs: []*river.PeriodicJob{

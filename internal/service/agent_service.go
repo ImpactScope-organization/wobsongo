@@ -277,7 +277,14 @@ func (s *AgentService) HandleInboundMessage(
 	}
 
 	if match := bareURLRegex.FindStringSubmatch(text); match != nil {
-		resp, err := s.apifyService.TriggerExtraction(ctx, match[1], "", jid, false)
+		resp, err := s.apifyService.TriggerExtraction(
+			ctx,
+			match[1],
+			"",
+			jid,
+			messageID.String(),
+			false,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger fast-path extraction: %w", err)
 		}
@@ -285,7 +292,7 @@ func (s *AgentService) HandleInboundMessage(
 	}
 
 	if url := embeddedURLRegex.FindString(text); url != "" {
-		resp, err := s.apifyService.TriggerExtraction(ctx, url, "", jid, true)
+		resp, err := s.apifyService.TriggerExtraction(ctx, url, "", jid, messageID.String(), true)
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger video extraction: %w", err)
 		}

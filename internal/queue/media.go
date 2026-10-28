@@ -28,6 +28,7 @@ type TranscriptionJob struct {
 	VideoID      uuid.UUID `json:"video_id"`
 	DownloadURL  string    `json:"download_url"`
 	Jid          string    `json:"jid,omitempty"`
+	MessageID    string    `json:"message_id,omitempty"`
 	ViaAgent     bool      `json:"via_agent,omitempty"`
 }
 

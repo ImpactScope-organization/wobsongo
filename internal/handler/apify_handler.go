@@ -61,6 +61,7 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 		req.URL,
 		req.Question,
 		"",
+		"",
 		false,
 	)
 	if err != nil {
@@ -92,6 +93,7 @@ func (h *ApifyHandler) extractMediaHandler(c echo.Context) error {
 func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 	extractionID := c.QueryParam("extractionId")
 	jid := c.QueryParam("jid")
+	messageID := c.QueryParam("messageId")
 	viaAgent := c.QueryParam("viaAgent") == "true"
 
 	payload := new(dto.ApifyWebhookPayload)
@@ -115,6 +117,7 @@ func (h *ApifyHandler) webhookHandler(c echo.Context) error {
 		payload,
 		extractionID,
 		jid,
+		messageID,
 		viaAgent,
 	)
 	if err != nil {

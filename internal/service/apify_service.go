@@ -61,6 +61,7 @@ func (s *ApifyService) TriggerExtraction(
 	targetURL string,
 	question string,
 	jid string,
+	messageID string,
 	viaAgent bool,
 ) (*dto.ExtractResponse, error) {
 	if question != "" {
@@ -69,6 +70,7 @@ func (s *ApifyService) TriggerExtraction(
 			ExtractionID: extractionID,
 			Text:         question,
 			JID:          jid,
+			MessageID:    messageID,
 		}); err != nil {
 			return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 		}
@@ -82,7 +84,7 @@ func (s *ApifyService) TriggerExtraction(
 	}
 
 	if video != nil && video.TranscriptionText != nil && *video.TranscriptionText != "" {
-		return s.handleCachedTranscript(ctx, video, jid)
+		return s.handleCachedTranscript(ctx, video, jid, messageID)
 	}
 
 	// If Cache miss generate a new extraction ID and construct the ExtractionRequest.
@@ -94,6 +96,9 @@ func (s *ApifyService) TriggerExtraction(
 	)
 	if jid != "" {
 		webhookURL += "&jid=" + url.QueryEscape(jid)
+	}
+	if messageID != "" {
+		webhookURL += "&messageId=" + url.QueryEscape(messageID)
 	}
 	if viaAgent {
 		webhookURL += "&viaAgent=true"
@@ -119,6 +124,7 @@ func (s *ApifyService) handleCachedTranscript(
 	ctx context.Context,
 	video *model.Video,
 	jid string,
+	messageID string,
 ) (*dto.ExtractResponse, error) {
 	extractionID := video.ID.String()
 
@@ -126,6 +132,7 @@ func (s *ApifyService) handleCachedTranscript(
 		ExtractionID: extractionID,
 		Text:         *video.TranscriptionText,
 		JID:          jid,
+		MessageID:    messageID,
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue claim check: %w", err)
 	}
@@ -140,6 +147,7 @@ func (s *ApifyService) ProcessWebhook(
 	payload *dto.ApifyWebhookPayload,
 	extractionID string,
 	jid string,
+	messageID string,
 	viaAgent bool,
 ) (string, error) {
 	if payload.EventType != apifyEventRunSucceeded ||
@@ -166,6 +174,7 @@ func (s *ApifyService) ProcessWebhook(
 		items,
 		extractionID,
 		jid,
+		messageID,
 		viaAgent,
 	); err != nil {
 		return "", fmt.Errorf("failed to save items to database: %w", err)

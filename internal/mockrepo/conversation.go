@@ -5,6 +5,7 @@ package mockrepo
 
 import (
 	"context"
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
@@ -23,6 +24,9 @@ var _ data.ConversationRepoer = &ConversationRepoerMock{}
 //		mockedConversationRepoer := &ConversationRepoerMock{
 //			AppendMessageFunc: func(ctx context.Context, jid string, role model.ConversationRole, content string) error {
 //				panic("mock out the AppendMessage method")
+//			},
+//			AppendMessageWithIDFunc: func(ctx context.Context, jid string, role model.ConversationRole, content string) (uuid.UUID, error) {
+//				panic("mock out the AppendMessageWithID method")
 //			},
 //			EnqueueAgentTurnFunc: func(ctx context.Context, payload queue.AgentTurnJob) error {
 //				panic("mock out the EnqueueAgentTurn method")
@@ -43,6 +47,9 @@ type ConversationRepoerMock struct {
 	// AppendMessageFunc mocks the AppendMessage method.
 	AppendMessageFunc func(ctx context.Context, jid string, role model.ConversationRole, content string) error
 
+	// AppendMessageWithIDFunc mocks the AppendMessageWithID method.
+	AppendMessageWithIDFunc func(ctx context.Context, jid string, role model.ConversationRole, content string) (uuid.UUID, error)
+
 	// EnqueueAgentTurnFunc mocks the EnqueueAgentTurn method.
 	EnqueueAgentTurnFunc func(ctx context.Context, payload queue.AgentTurnJob) error
 
@@ -56,6 +63,17 @@ type ConversationRepoerMock struct {
 	calls struct {
 		// AppendMessage holds details about calls to the AppendMessage method.
 		AppendMessage []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Jid is the jid argument value.
+			Jid string
+			// Role is the role argument value.
+			Role model.ConversationRole
+			// Content is the content argument value.
+			Content string
+		}
+		// AppendMessageWithID holds details about calls to the AppendMessageWithID method.
+		AppendMessageWithID []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Jid is the jid argument value.
@@ -90,6 +108,7 @@ type ConversationRepoerMock struct {
 		}
 	}
 	lockAppendMessage             sync.RWMutex
+	lockAppendMessageWithID       sync.RWMutex
 	lockEnqueueAgentTurn          sync.RWMutex
 	lockEnqueueVoiceTranscription sync.RWMutex
 	lockRecentMessages            sync.RWMutex
@@ -136,6 +155,50 @@ func (mock *ConversationRepoerMock) AppendMessageCalls() []struct {
 	mock.lockAppendMessage.RLock()
 	calls = mock.calls.AppendMessage
 	mock.lockAppendMessage.RUnlock()
+	return calls
+}
+
+// AppendMessageWithID calls AppendMessageWithIDFunc.
+func (mock *ConversationRepoerMock) AppendMessageWithID(ctx context.Context, jid string, role model.ConversationRole, content string) (uuid.UUID, error) {
+	if mock.AppendMessageWithIDFunc == nil {
+		panic("ConversationRepoerMock.AppendMessageWithIDFunc: method is nil but ConversationRepoer.AppendMessageWithID was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		Jid     string
+		Role    model.ConversationRole
+		Content string
+	}{
+		Ctx:     ctx,
+		Jid:     jid,
+		Role:    role,
+		Content: content,
+	}
+	mock.lockAppendMessageWithID.Lock()
+	mock.calls.AppendMessageWithID = append(mock.calls.AppendMessageWithID, callInfo)
+	mock.lockAppendMessageWithID.Unlock()
+	return mock.AppendMessageWithIDFunc(ctx, jid, role, content)
+}
+
+// AppendMessageWithIDCalls gets all the calls that were made to AppendMessageWithID.
+// Check the length with:
+//
+//	len(mockedConversationRepoer.AppendMessageWithIDCalls())
+func (mock *ConversationRepoerMock) AppendMessageWithIDCalls() []struct {
+	Ctx     context.Context
+	Jid     string
+	Role    model.ConversationRole
+	Content string
+} {
+	var calls []struct {
+		Ctx     context.Context
+		Jid     string
+		Role    model.ConversationRole
+		Content string
+	}
+	mock.lockAppendMessageWithID.RLock()
+	calls = mock.calls.AppendMessageWithID
+	mock.lockAppendMessageWithID.RUnlock()
 	return calls
 }
 

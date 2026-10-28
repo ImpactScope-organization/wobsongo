@@ -7,10 +7,64 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const deactivateStaleNarratives = `-- name: DeactivateStaleNarratives :execrows
+UPDATE narratives n SET is_active = false, updated_at = NOW()
+WHERE n.is_active
+  AND NOT EXISTS (
+      SELECT 1
+      FROM narrative_claims nc
+      JOIN claims c ON c.id = nc.claim_id
+      WHERE nc.narrative_id = n.id AND c.occurred_at >= $1
+  )
+`
+
+func (q *Queries) DeactivateStaleNarratives(ctx context.Context, occurredAt time.Time) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateStaleNarratives, occurredAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getNewestClaimForNarrative = `-- name: GetNewestClaimForNarrative :one
+SELECT c.id, c.message_id, c.text, c.topic_id, c.language, c.platform, c.format, c.occurred_at, c.verdict, c.severity, c.high_risk, c.high_risk_reason, c.recommend_medical_consult, c.reasoning, c.brief_reasoning, c.citations, c.judged_at, c.created_at FROM claims c
+JOIN narrative_claims nc ON nc.claim_id = c.id
+WHERE nc.narrative_id = $1
+ORDER BY c.occurred_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetNewestClaimForNarrative(ctx context.Context, narrativeID uuid.UUID) (Claim, error) {
+	row := q.db.QueryRow(ctx, getNewestClaimForNarrative, narrativeID)
+	var i Claim
+	err := row.Scan(
+		&i.ID,
+		&i.MessageID,
+		&i.Text,
+		&i.TopicID,
+		&i.Language,
+		&i.Platform,
+		&i.Format,
+		&i.OccurredAt,
+		&i.Verdict,
+		&i.Severity,
+		&i.HighRisk,
+		&i.HighRiskReason,
+		&i.RecommendMedicalConsult,
+		&i.Reasoning,
+		&i.BriefReasoning,
+		&i.Citations,
+		&i.JudgedAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const insertNarrative = `-- name: InsertNarrative :one
 INSERT INTO narratives (
@@ -56,6 +110,67 @@ func (q *Queries) InsertNarrative(ctx context.Context, arg InsertNarrativeParams
 	return i, err
 }
 
+const insertNarrativeClaim = `-- name: InsertNarrativeClaim :exec
+INSERT INTO narrative_claims (claim_id, narrative_id)
+VALUES ($1, $2)
+ON CONFLICT (claim_id, narrative_id) DO NOTHING
+`
+
+type InsertNarrativeClaimParams struct {
+	ClaimID     uuid.UUID
+	NarrativeID uuid.UUID
+}
+
+func (q *Queries) InsertNarrativeClaim(ctx context.Context, arg InsertNarrativeClaimParams) error {
+	_, err := q.db.Exec(ctx, insertNarrativeClaim, arg.ClaimID, arg.NarrativeID)
+	return err
+}
+
+const listNarrativesByTopic = `-- name: ListNarrativesByTopic :many
+SELECT id, topic_id, statement, harm, harm_validated, status, is_active, statement_edited_by, statement_edited_at, created_at, updated_at FROM narratives WHERE topic_id = $1 ORDER BY created_at
+`
+
+func (q *Queries) ListNarrativesByTopic(ctx context.Context, topicID uuid.UUID) ([]Narrative, error) {
+	rows, err := q.db.Query(ctx, listNarrativesByTopic, topicID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Narrative
+	for rows.Next() {
+		var i Narrative
+		if err := rows.Scan(
+			&i.ID,
+			&i.TopicID,
+			&i.Statement,
+			&i.Harm,
+			&i.HarmValidated,
+			&i.Status,
+			&i.IsActive,
+			&i.StatementEditedBy,
+			&i.StatementEditedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const lockTopicForClustering = `-- name: LockTopicForClustering :exec
+SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))
+`
+
+func (q *Queries) LockTopicForClustering(ctx context.Context, dollar_1 string) error {
+	_, err := q.db.Exec(ctx, lockTopicForClustering, dollar_1)
+	return err
+}
+
 const narrativeExistsForTopic = `-- name: NarrativeExistsForTopic :one
 SELECT EXISTS (
     SELECT 1 FROM narratives WHERE topic_id = $1 AND statement = $2
@@ -72,4 +187,24 @@ func (q *Queries) NarrativeExistsForTopic(ctx context.Context, arg NarrativeExis
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const updateNarrativeFromNewestClaim = `-- name: UpdateNarrativeFromNewestClaim :exec
+UPDATE narratives SET
+    harm = CASE WHEN harm_validated THEN harm ELSE $1::smallint END,
+    status = CASE WHEN status = 'expert_verified' THEN status ELSE $2::varchar END,
+    is_active = true,
+    updated_at = NOW()
+WHERE id = $3
+`
+
+type UpdateNarrativeFromNewestClaimParams struct {
+	Harm   pgtype.Int2
+	Status string
+	ID     uuid.UUID
+}
+
+func (q *Queries) UpdateNarrativeFromNewestClaim(ctx context.Context, arg UpdateNarrativeFromNewestClaimParams) error {
+	_, err := q.db.Exec(ctx, updateNarrativeFromNewestClaim, arg.Harm, arg.Status, arg.ID)
+	return err
 }

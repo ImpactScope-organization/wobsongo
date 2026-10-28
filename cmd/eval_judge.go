@@ -135,7 +135,7 @@ func evalAnalyzerFixture(
 	client *external.ClaimAnalyzerClient,
 	fixture analyzerEvalFixture,
 ) (bool, string) {
-	analysis, err := client.Analyze(ctx, fixture.Message)
+	analysis, err := client.Analyze(ctx, fixture.Message, nil)
 	if err != nil {
 		return false, fmt.Sprintf("analyze call failed: %s", err.Error())
 	}

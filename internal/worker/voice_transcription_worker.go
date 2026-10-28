@@ -127,16 +127,21 @@ func (w *VoiceTranscriptionWorker) Work(
 		return nil
 	}
 
-	if err := w.conversationService.AppendMessage(
+	messageID, err := w.conversationService.AppendMessageWithID(
 		ctx, args.JID, model.ConversationRoleUser, transcript,
-	); err != nil {
+	)
+	if err != nil {
 		err = fmt.Errorf("failed to store voice transcript: %w", err)
 		w.fail(ctx, args.ExtractionID, err, voiceFailureMessage)
 		return err
 	}
 
 	if err := w.conversationService.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-		JID: args.JID, ExtractionID: args.ExtractionID, UserText: transcript,
+		JID:          args.JID,
+		ExtractionID: args.ExtractionID,
+		UserText:     transcript,
+		MessageID:    messageID.String(),
+		Format:       string(model.ClaimFormatAudio),
 	}); err != nil {
 		err = fmt.Errorf("failed to enqueue agent turn: %w", err)
 		w.fail(ctx, args.ExtractionID, err, voiceFailureMessage)

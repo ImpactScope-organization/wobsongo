@@ -17,11 +17,13 @@ import (
 // cmd/server.go for the River workers and are reused here as-is (RAGService
 // only calls their read methods), rather than building second instances.
 type buildAppClaimCheckDeps struct {
-	chunkRepo     data.DocumentChunkRepoer
-	knowledgeRepo data.AtomicKnowledgeRepoer
-	embedder      data.Embedder
-	claimAnalyzer data.ClaimAnalyzer
-	claimJudge    data.ClaimJudge
+	chunkRepo           data.DocumentChunkRepoer
+	knowledgeRepo       data.AtomicKnowledgeRepoer
+	embedder            data.Embedder
+	claimAnalyzer       data.ClaimAnalyzer
+	claimJudge          data.ClaimJudge
+	narrativeRepo       data.NarrativeRepoer
+	narrativeStatements data.NarrativeStatementGenerator
 }
 
 // buildAppSpeechDeps bundles the speech (voice reply) feature's dependencies
@@ -75,5 +77,7 @@ func buildApp(
 		core.WithSpeechRepo(speechRepo),
 		core.WithTranslator(speech.translator),
 		core.WithSpeechSynthesizer(speech.synthesizer),
+		core.WithNarrativeRepo(claimCheck.narrativeRepo),
+		core.WithNarrativeStatements(claimCheck.narrativeStatements),
 	)
 }

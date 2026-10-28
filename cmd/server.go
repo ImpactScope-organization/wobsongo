@@ -250,11 +250,23 @@ var serveCmd = &cobra.Command{
 		river.AddWorker(workers, translateChunksWorker)
 
 		workerRAGService := service.NewRAGService(chunkRepo, atomicKnowledgeRepo, embeddingClient)
+		narrativeRepo := repo.NewNarrativeRepo(db.New(pool), pool, riverClientFn)
+		narrativeStatementClient := external.NewNarrativeStatementClient(
+			config.ClaimCheckConfig.BaseURL,
+			config.ClaimCheckConfig.Model,
+			config.ClaimCheckConfig.APIKey,
+		)
+		narrativeService := service.NewNarrativeService(
+			narrativeRepo,
+			embeddingClient,
+			narrativeStatementClient,
+			config.NarrativeConfig.MatchThreshold,
+		)
 		workerClaimService := service.NewClaimService(
 			claimAnalyzerClient,
 			judgeClient,
 			workerRAGService,
-		)
+		).WithNarratives(narrativeService)
 		claimCheckWorker := worker.NewClaimCheckWorker(
 			workerClaimService,
 			botClient,
@@ -310,6 +322,12 @@ var serveCmd = &cobra.Command{
 		)
 		river.AddWorker(workers, speechWorker)
 
+		river.AddWorker(workers, worker.NewClusterClaimWorker(narrativeService))
+		river.AddWorker(workers, worker.NewDeactivateNarrativesWorker(
+			narrativeService,
+			config.NarrativeConfig.ActiveWindow,
+		))
+
 		river.AddWorker(workers, worker.NewTTSAudioCleanupWorker(mediaProvider))
 
 		// Initialize River client with the database pool and registered workers.
@@ -328,6 +346,9 @@ var serveCmd = &cobra.Command{
 				},
 				queue.QueueSpeechSynthesis: {MaxWorkers: config.TTSConfig.MaxWorkers},
 				queue.QueueMaintenance:     {MaxWorkers: queue.MaintenanceMaxWorkers},
+				queue.QueueNarrativeClustering: {
+					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
+				},
 			},
 			Workers: workers,
 			PeriodicJobs: []*river.PeriodicJob{
@@ -335,6 +356,13 @@ var serveCmd = &cobra.Command{
 					river.PeriodicInterval(queue.TTSAudioCleanupInterval),
 					func() (river.JobArgs, *river.InsertOpts) {
 						return queue.TTSAudioCleanupJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.NarrativeDeactivateInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.DeactivateNarrativesJob{}, nil
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
@@ -361,11 +389,13 @@ var serveCmd = &cobra.Command{
 
 		// Build and start HTTP API server.
 		app := buildApp(config, pool, riverClient, mediaProvider, buildAppClaimCheckDeps{
-			chunkRepo:     chunkRepo,
-			knowledgeRepo: atomicKnowledgeRepo,
-			embedder:      embeddingClient,
-			claimAnalyzer: claimAnalyzerClient,
-			claimJudge:    judgeClient,
+			chunkRepo:           chunkRepo,
+			knowledgeRepo:       atomicKnowledgeRepo,
+			embedder:            embeddingClient,
+			claimAnalyzer:       claimAnalyzerClient,
+			claimJudge:          judgeClient,
+			narrativeRepo:       narrativeRepo,
+			narrativeStatements: narrativeStatementClient,
 		}, buildAppSpeechDeps{
 			translator:  translationClient,
 			synthesizer: newSpeechSynthesizer(config),

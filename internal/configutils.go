@@ -283,6 +283,20 @@ func getEnvInt(key string, defaultValue int) int {
 	return parsed
 }
 
+// getEnvFloat returns the float value of an environment variable.
+// If the variable is unset or cannot be parsed, defaultValue is returned.
+func getEnvFloat(key string, defaultValue float64) float64 {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return parsed
+}
+
 // getEnvSlice reads a comma-separated environment variable into a string
 // slice, trimming whitespace and dropping empty entries. Returns
 // defaultValue if the variable is unset or ends up empty.

@@ -78,9 +78,11 @@ func newCheckHealthClaimTool(claimService *ClaimService) agenticgokit.Tool {
 			"required": []string{"claim"},
 		},
 		func(ctx context.Context, args checkHealthClaimArgs) (*agenticgokit.ToolResult, error) {
+			turn := agentTurnFromContext(ctx)
 			result, err := claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 				Text:   args.Claim,
-				Length: string(agentTurnFromContext(ctx).Settings.Length),
+				Length: string(turn.Settings.Length),
+				Source: claimSource(turn.MessageID, turn.Format),
 			})
 			if err != nil {
 				return &agenticgokit.ToolResult{Success: false, Error: err.Error()}, err

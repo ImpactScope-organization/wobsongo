@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -63,6 +64,10 @@ type SubClaimResult struct {
 	// Citations is the evidence the judge actually cited — empty whenever
 	// Verdict is InsufficientEvidence.
 	Citations []Citation
+	// TopicID is the topic the analyzer assigned. uuid.Nil when unassigned.
+	TopicID uuid.UUID
+	// HighRiskReason is the analyzer's reason for the high-risk flag.
+	HighRiskReason string
 }
 
 // ClaimCheckResult is the overall outcome of checking one input message,
@@ -91,9 +96,17 @@ type ClaimCheckResult struct {
 // for every resulting sub-claim, concurrently retrieve evidence and judge
 // it, and aggregate the results.
 type ClaimService struct {
-	analyzer data.ClaimAnalyzer
-	judge    data.ClaimJudge
-	rag      *RAGService
+	analyzer   data.ClaimAnalyzer
+	judge      data.ClaimJudge
+	rag        *RAGService
+	narratives *NarrativeService
+}
+
+// WithNarratives turns on the narrative flow: claims checked with a Source are
+// stored and grouped into narratives.
+func (s *ClaimService) WithNarratives(n *NarrativeService) *ClaimService {
+	s.narratives = n
+	return s
 }
 
 // NewClaimService is a constructor for ClaimService.
@@ -112,7 +125,21 @@ func (s *ClaimService) CheckClaim(
 	req *dto.CheckClaimDTO,
 ) (*ClaimCheckResult, error) {
 	message := req.Text
-	analysis, err := s.analyzer.Analyze(ctx, message)
+	record := req.Source != nil && s.narratives != nil
+	log.Printf("[ClaimService] narrative: svc=%p source=%v narratives=%v record=%v",
+		s, req.Source != nil, s.narratives != nil, record)
+	var topics []data.AnalyzerTopic
+	if record {
+		var topicsErr error
+		topics, topicsErr = s.narratives.ActiveTopics(ctx)
+		if topicsErr != nil {
+			log.Printf("[ClaimService] failed to load topics, skipping narratives: %v", topicsErr)
+			record = false
+			topics = nil
+		}
+	}
+
+	analysis, err := s.analyzer.Analyze(ctx, message, topics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze claim: %w", err)
 	}
@@ -161,6 +188,8 @@ func (s *ClaimService) CheckClaim(
 			if err != nil {
 				return err
 			}
+			result.TopicID = sc.TopicID
+			result.HighRiskReason = sc.HighRiskReason
 			results[i] = *result
 			return nil
 		})
@@ -170,6 +199,9 @@ func (s *ClaimService) CheckClaim(
 	}
 
 	overallSummary := summarizeVerdicts(results, replyLanguage)
+	if record {
+		s.recordClaims(ctx, req.Source, analysis.Language, results)
+	}
 	return &ClaimCheckResult{
 		InScope:        true,
 		OverallSummary: overallSummary,
@@ -182,6 +214,74 @@ func (s *ClaimService) CheckClaim(
 		SubClaims: results,
 		Language:  analysis.Language,
 	}, nil
+}
+
+// recordClaims hands the checked sub-claims to the narrative flow. Failures
+// are only logged: they must never fail the reply to the user. Sub-claims
+// without a valid topic are skipped.
+func (s *ClaimService) recordClaims(
+	ctx context.Context,
+	source *dto.ClaimSource,
+	language model.Language,
+	results []SubClaimResult,
+) {
+	platform := source.Platform
+	if platform == "" {
+		platform = model.ClaimPlatformWhatsApp
+	}
+	format := model.ClaimFormat(source.Format)
+	switch format {
+	case model.ClaimFormatText, model.ClaimFormatAudio, model.ClaimFormatVideo:
+	default:
+		format = model.ClaimFormatText
+	}
+
+	now := time.Now()
+	claims := make([]model.Claim, 0, len(results))
+	for i := range results {
+		r := &results[i]
+		if r.TopicID == uuid.Nil {
+			log.Printf("[ClaimService] claim has no valid topic, not stored: %q", r.Claim)
+			continue
+		}
+
+		citations := make([]model.ClaimCitation, len(r.Citations))
+		for j, c := range r.Citations {
+			citations[j] = model.ClaimCitation{
+				Index:      c.Index,
+				Source:     c.Source,
+				DocumentID: c.DocumentID,
+				ChunkID:    c.ChunkID,
+				Text:       c.Text,
+			}
+		}
+
+		claims = append(claims, model.Claim{
+			MessageID:               source.MessageID,
+			Text:                    r.Claim,
+			TopicID:                 r.TopicID,
+			Language:                language,
+			Platform:                platform,
+			Format:                  format,
+			OccurredAt:              now,
+			Verdict:                 r.Verdict,
+			Severity:                r.Severity,
+			HighRisk:                r.HighRiskCaution,
+			HighRiskReason:          r.HighRiskReason,
+			RecommendMedicalConsult: r.RecommendMedicalConsult,
+			Reasoning:               r.Reasoning,
+			BriefReasoning:          r.BriefReasoning,
+			Citations:               citations,
+			JudgedAt:                now,
+		})
+	}
+	if len(claims) == 0 {
+		return
+	}
+
+	if err := s.narratives.RecordClaims(ctx, claims); err != nil {
+		log.Printf("[ClaimService] failed to store %d claim(s): %v", len(claims), err)
+	}
 }
 
 // checkSubClaim retrieves evidence for one sub-claim and judges it. A

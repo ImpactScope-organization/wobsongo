@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
@@ -18,6 +19,15 @@ type ConversationRepoer interface {
 		role model.ConversationRole,
 		content string,
 	) error
+
+	// AppendMessageWithID is AppendMessage that also returns the new
+	// message's id.
+	AppendMessageWithID(
+		ctx context.Context,
+		jid string,
+		role model.ConversationRole,
+		content string,
+	) (uuid.UUID, error)
 
 	// RecentMessages returns up to limit most-recent messages for the
 	// given jid, in chronological order (oldest first) — ready to feed

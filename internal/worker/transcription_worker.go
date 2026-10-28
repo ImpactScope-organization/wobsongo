@@ -139,6 +139,7 @@ func (w *TranscriptionWorker) dispatchFollowUp(
 			ExtractionID: args.ExtractionID,
 			Text:         transcript,
 			JID:          args.Jid,
+			MessageID:    args.MessageID,
 		}); err != nil {
 			err = fmt.Errorf("failed to enqueue claim check: %w", err)
 			internal.NotifyBotFailed(

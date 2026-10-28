@@ -277,6 +277,16 @@ type TTSConfig struct {
 	MaxWorkers int `json:"max_workers"`
 }
 
+// NarrativeConfig holds the configuration of the claim-to-narrative flow.
+type NarrativeConfig struct {
+	// ActiveWindow is how long a narrative stays active without new claims.
+	ActiveWindow time.Duration `json:"active_window"`
+
+	// MatchThreshold is the minimum cosine similarity between a claim and a
+	// narrative statement for the claim to join that narrative.
+	MatchThreshold float64 `json:"match_threshold"`
+}
+
 // MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
 // mock synthesizer instead of the real Modal endpoint
 const MockTTSEndpointPrefix = "mock://"
@@ -344,6 +354,7 @@ type Config struct {
 	ExtractionConfig   *ExtractionConfig  `json:"extraction_config"`    // Extraction configuration for atomic knowledge
 	TranslationConfig  *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
 	ClaimCheckConfig   *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
+	NarrativeConfig    *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -456,7 +467,7 @@ func (c *Config) IsOK() error {
 	if err := c.voiceMediaOK(); err != nil {
 		return err
 	}
-	return c.ttsOK()
+	return c.narrativeOK()
 }
 
 // asrOK checks the Modal ASR configuration.
@@ -503,6 +514,20 @@ func (c *Config) ttsOK() error {
 		)
 	}
 	return validateModalEndpoint("MODAL_TTS_ENDPOINT", tts.Endpoint)
+}
+
+// narrativeOK checks the claim-to-narrative configuration.
+func (c *Config) narrativeOK() error {
+	if c.NarrativeConfig == nil {
+		return errors.New("NarrativeConfig is not set")
+	}
+	if c.NarrativeConfig.ActiveWindow < time.Hour {
+		return errors.New("NARRATIVE_ACTIVE_WINDOW_HOURS must be at least 1")
+	}
+	if t := c.NarrativeConfig.MatchThreshold; t <= 0 || t > 1 {
+		return fmt.Errorf("NARRATIVE_MATCH_THRESHOLD must be in (0, 1], got %v", t)
+	}
+	return nil
 }
 
 func validateModalEndpoint(name, rawURL string) error {
@@ -664,6 +689,16 @@ func NewConfig(envs ...string) *Config {
 		MaxPendingJobs: getEnvInt("TTS_MAX_PENDING_JOBS", queue.DefaultSpeechMaxPendingJobs),
 	}
 
+	narrativeConfig := &NarrativeConfig{
+		ActiveWindow: time.Duration(
+			getEnvInt("NARRATIVE_ACTIVE_WINDOW_HOURS", queue.DefaultNarrativeActiveWindowHours),
+		) * time.Hour,
+		MatchThreshold: getEnvFloat(
+			"NARRATIVE_MATCH_THRESHOLD",
+			queue.DefaultNarrativeMatchThreshold,
+		),
+	}
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -712,6 +747,7 @@ func NewConfig(envs ...string) *Config {
 		ApifyConfig:             apifyConfig,
 		ASRConfig:               asrConfig,
 		TTSConfig:               ttsConfig,
+		NarrativeConfig:         narrativeConfig,
 		VoiceMediaConfig:        voiceMediaConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,

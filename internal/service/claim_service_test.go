@@ -20,7 +20,11 @@ type stubClaimAnalyzer struct {
 	err      error
 }
 
-func (s *stubClaimAnalyzer) Analyze(context.Context, string) (*data.ClaimAnalysis, error) {
+func (s *stubClaimAnalyzer) Analyze(
+	ctx context.Context,
+	message string,
+	topics []data.AnalyzerTopic,
+) (*data.ClaimAnalysis, error) {
 	if s.err != nil {
 		return nil, s.err
 	}

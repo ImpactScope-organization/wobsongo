@@ -32,7 +32,7 @@ func TestClaimAnalyzerClient_Analyze_Success(t *testing.T) {
 	defer server.Close()
 
 	client := external.NewClaimAnalyzerClient(server.URL, "test-model", "test-api-key")
-	analysis, err := client.Analyze(t.Context(), "does vitamin C prevent colds?")
+	analysis, err := client.Analyze(t.Context(), "does vitamin C prevent colds?", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -65,6 +65,7 @@ func TestClaimAnalyzerClient_Analyze_ParsesHighRiskFlag(t *testing.T) {
 	analysis, err := client.Analyze(
 		t.Context(),
 		"l'alcool augmente la fertilité et le folate prévient les anomalies",
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -94,7 +95,7 @@ func TestClaimAnalyzerClient_Analyze_MissingHighRiskDefaultsFalse(t *testing.T) 
 	defer server.Close()
 
 	client := external.NewClaimAnalyzerClient(server.URL, "test-model", "test-api-key")
-	analysis, err := client.Analyze(t.Context(), "does vitamin C prevent colds?")
+	analysis, err := client.Analyze(t.Context(), "does vitamin C prevent colds?", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,7 +122,7 @@ func TestClaimAnalyzerClient_Analyze_OutOfScope(t *testing.T) {
 	defer server.Close()
 
 	client := external.NewClaimAnalyzerClient(server.URL, "test-model", "test-api-key")
-	analysis, err := client.Analyze(t.Context(), "what's the capital of France?")
+	analysis, err := client.Analyze(t.Context(), "what's the capital of France?", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestClaimAnalyzerClient_Analyze_CapsSubClaimsAtMax(t *testing.T) {
 	defer server.Close()
 
 	client := external.NewClaimAnalyzerClient(server.URL, "test-model", "test-api-key")
-	analysis, err := client.Analyze(t.Context(), "a compound claim with many parts")
+	analysis, err := client.Analyze(t.Context(), "a compound claim with many parts", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

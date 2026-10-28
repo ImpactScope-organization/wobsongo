@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
@@ -52,4 +53,14 @@ func (s *ConversationService) EnqueueVoiceTranscription(
 	payload *queue.VoiceTranscriptionJob,
 ) error {
 	return s.conversationRepo.EnqueueVoiceTranscription(ctx, payload)
+}
+
+// AppendMessageWithID is AppendMessage that also returns the new message's id.
+func (s *ConversationService) AppendMessageWithID(
+	ctx context.Context,
+	jid string,
+	role model.ConversationRole,
+	content string,
+) (uuid.UUID, error) {
+	return s.conversationRepo.AppendMessageWithID(ctx, jid, role, content)
 }

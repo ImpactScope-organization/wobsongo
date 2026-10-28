@@ -20,6 +20,9 @@ type CheckClaimDTO struct {
 	// "expert". When empty or unknown, IsLong decides
 	// (true = "expert", false = "medium").
 	Length string `json:"length,omitempty"`
+
+	// Source says where the text came from.
+	Source *ClaimSource `json:"-"`
 }
 
 // ClaimCheckResponse represents the outcome of checking a claim.
@@ -101,4 +104,30 @@ type CitationResponse struct {
 
 	// Text is the matched text — a chunk's text, or a fact's subject-predicate-object.
 	Text string `json:"text"`
+}
+
+// ClaimSource describes the user message a checked text came from.
+type ClaimSource struct {
+	// MessageID is the conversation message the claims come from. Nil when
+	// unknown.
+	MessageID *uuid.UUID
+
+	// Platform is where the message came from, "whatsapp" when empty.
+	Platform string
+
+	// Format is "text", "audio" or "video", "text" when empty.
+	Format string
+}
+
+// NewClaimSource builds the source of a claim. messageID may be empty or not a
+// valid UUID, the claim is then stored without a link to a message.
+func NewClaimSource(platform, messageID, format string) *ClaimSource {
+	src := &ClaimSource{Platform: platform, Format: format}
+
+	id, err := uuid.Parse(messageID)
+	if err != nil {
+		return src
+	}
+	src.MessageID = &id
+	return src
 }

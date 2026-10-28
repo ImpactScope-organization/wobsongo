@@ -81,6 +81,9 @@ type agentTurnContextData struct {
 	// Settings are the chat's bot settings; the zero value (empty Tone and
 	// Length) means the user never set any, so the baseline reply applies.
 	Settings model.BotSettings
+	// MessageID and Format describe the user message the turn answers.
+	MessageID string
+	Format    string
 }
 
 func withAgentTurnContext(ctx context.Context, data *agentTurnContextData) context.Context {
@@ -263,17 +266,25 @@ func (s *AgentService) HandleInboundMessage(
 	ctx context.Context,
 	jid, text string,
 ) (*dto.AgentInboundResponse, error) {
-	if err := s.conversationRepo.AppendMessage(
+	messageID, err := s.conversationRepo.AppendMessageWithID(
 		ctx,
 		jid,
 		model.ConversationRoleUser,
 		text,
-	); err != nil {
+	)
+	if err != nil {
 		return nil, fmt.Errorf("failed to store inbound message: %w", err)
 	}
 
 	if match := bareURLRegex.FindStringSubmatch(text); match != nil {
-		resp, err := s.apifyService.TriggerExtraction(ctx, match[1], "", jid, false)
+		resp, err := s.apifyService.TriggerExtraction(
+			ctx,
+			match[1],
+			"",
+			jid,
+			messageID.String(),
+			false,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger fast-path extraction: %w", err)
 		}
@@ -281,7 +292,7 @@ func (s *AgentService) HandleInboundMessage(
 	}
 
 	if url := embeddedURLRegex.FindString(text); url != "" {
-		resp, err := s.apifyService.TriggerExtraction(ctx, url, "", jid, true)
+		resp, err := s.apifyService.TriggerExtraction(ctx, url, "", jid, messageID.String(), true)
 		if err != nil {
 			return nil, fmt.Errorf("failed to trigger video extraction: %w", err)
 		}
@@ -303,7 +314,7 @@ func (s *AgentService) HandleInboundMessage(
 
 	extractionID := uuid.New().String()
 	if err := s.conversationRepo.EnqueueAgentTurn(ctx, queue.AgentTurnJob{
-		JID: jid, ExtractionID: extractionID, UserText: text,
+		JID: jid, ExtractionID: extractionID, UserText: text, MessageID: messageID.String(),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to enqueue agent turn: %w", err)
 	}
@@ -333,6 +344,7 @@ func (s *AgentService) runFallbackReply(
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.UserText,
 		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Source: claimSource(job.MessageID, job.Format),
 	})
 	if err != nil {
 		return "", fmt.Errorf("claim check failed: %w", err)
@@ -372,9 +384,11 @@ func (s *AgentService) runVideoContinuation(
 	}
 
 	originalClaim := ""
+	originalMessageID := ""
 	for _, msg := range slices.Backward(history) {
 		if msg.Role == model.ConversationRoleUser {
 			originalClaim = msg.Content
+			originalMessageID = msg.ID.String()
 			break
 		}
 	}
@@ -386,6 +400,7 @@ func (s *AgentService) runVideoContinuation(
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.SystemNote,
 		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Source: claimSource(originalMessageID, string(model.ClaimFormatVideo)),
 	})
 	if err != nil {
 		return "", fmt.Errorf("claim check failed: %w", err)
@@ -446,6 +461,8 @@ func (s *AgentService) runConversationalTurn(
 		ExtractionID:   job.ExtractionID,
 		JID:            job.JID,
 		Settings:       s.loadBotSettings(ctx, job.JID),
+		MessageID:      job.MessageID,
+		Format:         job.Format,
 	})
 	res, err := s.agent.Run(turnCtx, prompt)
 	if err != nil {
@@ -586,4 +603,9 @@ func (s *AgentService) HandleInboundVoice(
 		return nil, fmt.Errorf("failed to enqueue voice transcription: %w", err)
 	}
 	return &dto.AgentInboundResponse{Status: dto.StatusProcessing, JobID: extractionID}, nil
+}
+
+// claimSource builds the narrative-flow source of a claim from a message id.
+func claimSource(messageID, format string) *dto.ClaimSource {
+	return dto.NewClaimSource(model.ClaimPlatformWhatsApp, messageID, format)
 }

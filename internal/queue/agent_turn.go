@@ -24,6 +24,13 @@ type AgentTurnJob struct {
 	// is ready") instead of a user message. It is stored as a system-role
 	// entry before the turn runs.
 	SystemNote string `json:"system_note,omitempty"`
+
+	// MessageID is the conversation_messages.id of the user message this turn
+	// answers. Empty for system-triggered turns.
+	MessageID string `json:"message_id,omitempty"`
+
+	// Format is how the user message reached the system.
+	Format string `json:"format,omitempty"`
 }
 
 // CurrentTurnInput returns whichever of UserText/SystemNote is set for this turn

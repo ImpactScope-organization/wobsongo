@@ -56,6 +56,14 @@ const (
 	// JobTypeCleanupTTSAudio represents a job type for deleting expired
 	// synthesized voice replies from S3.
 	JobTypeCleanupTTSAudio BackgroundJobType = "cleanup_tts_audio"
+
+	// JobTypeClusterClaim represents a job type for grouping a stored claim
+	// into a narrative.
+	JobTypeClusterClaim BackgroundJobType = "cluster_claim"
+
+	// JobTypeDeactivateNarratives represents a job type for deactivating
+	// narratives without recent claims.
+	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"
 )
 
 // BackgroundJob represents a generic background job.
@@ -93,4 +101,8 @@ const (
 
 	// QueueMaintenance is used by housekeeping jobs such as TTSAudioCleanupJob.
 	QueueMaintenance = "maintenance"
+
+	// Queue for claim clustering, kept small to prevent database pool exhaustion
+	// while jobs wait for per-topic advisory locks.
+	QueueNarrativeClustering = "narrative_clustering"
 )

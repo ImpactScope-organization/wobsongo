@@ -22,23 +22,25 @@ const (
 )
 
 type App struct {
-	config            *internal.Config
-	echoApp           *echo.Echo
-	apiGroup          *echo.Group
-	apifyRepo         data.ApifyRepoer
-	videoRepo         data.VideoRepoer
-	documentRepo      data.DocumentRepoer
-	mediaProvider     data.MediaUploadProvider
-	chunkRepo         data.DocumentChunkRepoer
-	knowledgeRepo     data.AtomicKnowledgeRepoer
-	embedder          data.Embedder
-	claimAnalyzer     data.ClaimAnalyzer
-	claimJudge        data.ClaimJudge
-	userRepo          data.UserRepoer
-	conversationRepo  data.ConversationRepoer
-	speechRepo        data.SpeechRepoer
-	translator        data.Translator
-	speechSynthesizer data.SpeechSynthesizer
+	config              *internal.Config
+	echoApp             *echo.Echo
+	apiGroup            *echo.Group
+	apifyRepo           data.ApifyRepoer
+	videoRepo           data.VideoRepoer
+	documentRepo        data.DocumentRepoer
+	mediaProvider       data.MediaUploadProvider
+	chunkRepo           data.DocumentChunkRepoer
+	knowledgeRepo       data.AtomicKnowledgeRepoer
+	embedder            data.Embedder
+	claimAnalyzer       data.ClaimAnalyzer
+	claimJudge          data.ClaimJudge
+	userRepo            data.UserRepoer
+	conversationRepo    data.ConversationRepoer
+	speechRepo          data.SpeechRepoer
+	translator          data.Translator
+	speechSynthesizer   data.SpeechSynthesizer
+	narrativeRepo       data.NarrativeRepoer
+	narrativeStatements data.NarrativeStatementGenerator
 }
 
 // Echo returns the Echo instance of the application.
@@ -167,6 +169,21 @@ func WithSpeechSynthesizer(synthesizer data.SpeechSynthesizer) AppOption {
 	}
 }
 
+// WithNarrativeRepo sets the repository of the claim-to-narrative flow.
+func WithNarrativeRepo(repo data.NarrativeRepoer) AppOption {
+	return func(a *App) {
+		a.narrativeRepo = repo
+	}
+}
+
+// WithNarrativeStatements sets the generator that writes the statement of a
+// new narrative.
+func WithNarrativeStatements(generator data.NarrativeStatementGenerator) AppOption {
+	return func(a *App) {
+		a.narrativeStatements = generator
+	}
+}
+
 // General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
 //
 // @title						WobSongo API
@@ -224,6 +241,8 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.Translator = app.translator
 	repos.SpeechSynthesizer = app.speechSynthesizer
 	repos.UserRepo = app.userRepo
+	repos.NarrativeRepo = app.narrativeRepo
+	repos.NarrativeStatements = app.narrativeStatements
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

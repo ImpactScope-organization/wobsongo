@@ -464,6 +464,9 @@ func (c *Config) IsOK() error {
 	if err := c.asrOK(); err != nil {
 		return err
 	}
+	if err := c.ttsOK(); err != nil {
+		return err
+	}
 	if err := c.voiceMediaOK(); err != nil {
 		return err
 	}

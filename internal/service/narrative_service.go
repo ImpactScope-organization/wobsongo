@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
@@ -171,6 +172,19 @@ func (s *NarrativeService) findMatch(
 		return nil, false, nil
 	}
 	return &narratives[best], true, nil
+}
+
+// List returns one page of narratives, newest first.
+func (s *NarrativeService) List(
+	ctx context.Context,
+	pagination *dto.PaginationDTO,
+) (*dto.PaginationResults[model.Narrative], error) {
+	return s.repo.PaginateNarratives(ctx, pagination)
+}
+
+// GetByID returns the narrative with the given id.
+func (s *NarrativeService) GetByID(ctx context.Context, id uuid.UUID) (*model.Narrative, error) {
+	return s.repo.GetNarrative(ctx, id)
 }
 
 // refreshNarrative recomputes the harm estimate and status of a narrative from

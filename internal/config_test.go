@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 const (
@@ -49,6 +51,13 @@ func validVoiceMediaConfig() *VoiceMediaConfig {
 	return &VoiceMediaConfig{TelegramBotToken: "telegram-token"}
 }
 
+func validNarrativeConfig() *NarrativeConfig {
+	return &NarrativeConfig{
+		ActiveWindow:   queue.DefaultNarrativeActiveWindowHours * time.Hour,
+		MatchThreshold: queue.DefaultNarrativeMatchThreshold,
+	}
+}
+
 // validConfig returns a Config that passes IsOK. Tests break one field at a
 // time to prove the server refuses to start.
 func validConfig() *Config {
@@ -63,6 +72,7 @@ func validConfig() *Config {
 		ASRConfig:        validASRConfig(),
 		TTSConfig:        validTTSConfig(),
 		VoiceMediaConfig: validVoiceMediaConfig(),
+		NarrativeConfig:  validNarrativeConfig(),
 	}
 }
 
@@ -301,6 +311,45 @@ func TestConfig_IsOK_VoiceSettings(t *testing.T) {
 			c := validConfig()
 			tt.mutate(c)
 			requireErrContains(t, c.IsOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestConfig_narrativeOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"valid config", func(*Config) {}, ""},
+		{"nil config", func(c *Config) { c.NarrativeConfig = nil }, "NarrativeConfig is not set"},
+		{
+			"active window below one hour",
+			func(c *Config) { c.NarrativeConfig.ActiveWindow = 30 * time.Minute },
+			"NARRATIVE_ACTIVE_WINDOW_HOURS",
+		},
+		{
+			"zero threshold",
+			func(c *Config) { c.NarrativeConfig.MatchThreshold = 0 },
+			"NARRATIVE_MATCH_THRESHOLD",
+		},
+		{
+			"threshold above one",
+			func(c *Config) { c.NarrativeConfig.MatchThreshold = 1.5 },
+			"NARRATIVE_MATCH_THRESHOLD",
+		},
+		{
+			"threshold of exactly one is accepted",
+			func(c *Config) { c.NarrativeConfig.MatchThreshold = 1 },
+			"",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.narrativeOK(), tt.wantErr)
 		})
 	}
 }

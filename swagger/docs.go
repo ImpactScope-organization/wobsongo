@@ -2176,6 +2176,251 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/narratives": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves a paginated list of narratives, newest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "narratives"
+                ],
+                "summary": "List narratives",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Items per page",
+                        "name": "per_page",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.PaginationResults-model_Narrative"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/narratives/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves a single narrative by its ID.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "narratives"
+                ],
+                "summary": "Get a narrative by ID",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Narrative ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.Narrative"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/webhooks/apify": {
             "post": {
                 "description": "Receives successful run notifications from Apify.",
@@ -2682,6 +2927,36 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.PaginationResults-model_Narrative": {
+            "type": "object",
+            "required": [
+                "page",
+                "per_page",
+                "total_items"
+            ],
+            "properties": {
+                "items": {
+                    "description": "Items contains the paginated data items",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.Narrative"
+                    }
+                },
+                "page": {
+                    "description": "Page is the current page number",
+                    "type": "integer"
+                },
+                "per_page": {
+                    "description": "PerPage is the number of items per page",
+                    "type": "integer",
+                    "maximum": 100
+                },
+                "total_items": {
+                    "description": "TotalItems is the total number of items available",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.PresignedURL": {
             "type": "object",
             "properties": {
@@ -2970,6 +3245,77 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "LanguageEnglish",
                 "LanguageFrench"
+            ]
+        },
+        "model.Narrative": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "CreatedAt is the time the narrative was created.",
+                    "type": "string"
+                },
+                "harm": {
+                    "description": "Harm is the harm level between NarrativeHarmMin and NarrativeHarmMax.\nUntil an expert validates it, the system estimates it from the severity\nand high-risk flag of the newest claim. Nil while there is no estimate.",
+                    "type": "integer"
+                },
+                "harm_validated": {
+                    "description": "HarmValidated is true once an expert confirmed or set Harm. The system\nthen stops recomputing Harm.",
+                    "type": "boolean"
+                },
+                "id": {
+                    "description": "ID is the unique identifier of the narrative.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "is_active": {
+                    "description": "IsActive reports whether the narrative is still actively discussed,\nbased on activity observed within a defined time period: it is true\nwhile a linked claim occurred inside the activity window. The system\nsets it to true when a claim joins the narrative, and back to false when\nthe window passes without new claims.",
+                    "type": "boolean"
+                },
+                "statement": {
+                    "description": "Statement describes the narrative. An LLM writes it, deliberately broad,\nwhen the narrative is created, and an admin may edit it afterwards.",
+                    "type": "string"
+                },
+                "statement_edited_at": {
+                    "description": "StatementEditedAt is when Statement was last edited by an admin.",
+                    "type": "string"
+                },
+                "statement_edited_by": {
+                    "description": "StatementEditedBy is the admin who last edited Statement. Nil while the\nLLM-written statement is untouched.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "description": "Status is the narrative's fact-check status.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/model.NarrativeStatus"
+                        }
+                    ]
+                },
+                "topic_id": {
+                    "description": "TopicID is the topic the narrative belongs to. A claim is only matched\nagainst narratives of its own topic.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "updated_at": {
+                    "description": "UpdatedAt is the time the narrative was last modified.",
+                    "type": "string"
+                }
+            }
+        },
+        "model.NarrativeStatus": {
+            "type": "string",
+            "enum": [
+                "needs_check",
+                "auto_checked",
+                "not_in_kb",
+                "expert_verified"
+            ],
+            "x-enum-varnames": [
+                "NarrativeStatusNeedsCheck",
+                "NarrativeStatusAutoChecked",
+                "NarrativeStatusNotInKB",
+                "NarrativeStatusExpertVerified"
             ]
         },
         "model.POSTUploadPolicy": {

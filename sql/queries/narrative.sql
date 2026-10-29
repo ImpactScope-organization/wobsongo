@@ -46,3 +46,12 @@ WHERE n.is_active
       JOIN claims c ON c.id = nc.claim_id
       WHERE nc.narrative_id = n.id AND c.occurred_at >= $1
   );
+
+-- name: GetNarrative :one
+SELECT * FROM narratives WHERE id = $1;
+
+-- name: PaginateNarratives :many
+SELECT * FROM narratives ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2;
+
+-- name: CountNarratives :one
+SELECT count(*) FROM narratives;

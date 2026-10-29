@@ -321,6 +321,28 @@ definitions:
     - per_page
     - total_items
     type: object
+  dto.PaginationResults-model_Narrative:
+    properties:
+      items:
+        description: Items contains the paginated data items
+        items:
+          $ref: '#/definitions/model.Narrative'
+        type: array
+      page:
+        description: Page is the current page number
+        type: integer
+      per_page:
+        description: PerPage is the number of items per page
+        maximum: 100
+        type: integer
+      total_items:
+        description: TotalItems is the total number of items available
+        type: integer
+    required:
+    - page
+    - per_page
+    - total_items
+    type: object
   dto.PresignedURL:
     properties:
       presigned_url:
@@ -553,6 +575,74 @@ definitions:
     x-enum-varnames:
     - LanguageEnglish
     - LanguageFrench
+  model.Narrative:
+    properties:
+      created_at:
+        description: CreatedAt is the time the narrative was created.
+        type: string
+      harm:
+        description: |-
+          Harm is the harm level between NarrativeHarmMin and NarrativeHarmMax.
+          Until an expert validates it, the system estimates it from the severity
+          and high-risk flag of the newest claim. Nil while there is no estimate.
+        type: integer
+      harm_validated:
+        description: |-
+          HarmValidated is true once an expert confirmed or set Harm. The system
+          then stops recomputing Harm.
+        type: boolean
+      id:
+        description: ID is the unique identifier of the narrative.
+        format: uuid
+        type: string
+      is_active:
+        description: |-
+          IsActive reports whether the narrative is still actively discussed,
+          based on activity observed within a defined time period: it is true
+          while a linked claim occurred inside the activity window. The system
+          sets it to true when a claim joins the narrative, and back to false when
+          the window passes without new claims.
+        type: boolean
+      statement:
+        description: |-
+          Statement describes the narrative. An LLM writes it, deliberately broad,
+          when the narrative is created, and an admin may edit it afterwards.
+        type: string
+      statement_edited_at:
+        description: StatementEditedAt is when Statement was last edited by an admin.
+        type: string
+      statement_edited_by:
+        description: |-
+          StatementEditedBy is the admin who last edited Statement. Nil while the
+          LLM-written statement is untouched.
+        format: uuid
+        type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/model.NarrativeStatus'
+        description: Status is the narrative's fact-check status.
+      topic_id:
+        description: |-
+          TopicID is the topic the narrative belongs to. A claim is only matched
+          against narratives of its own topic.
+        format: uuid
+        type: string
+      updated_at:
+        description: UpdatedAt is the time the narrative was last modified.
+        type: string
+    type: object
+  model.NarrativeStatus:
+    enum:
+    - needs_check
+    - auto_checked
+    - not_in_kb
+    - expert_verified
+    type: string
+    x-enum-varnames:
+    - NarrativeStatusNeedsCheck
+    - NarrativeStatusAutoChecked
+    - NarrativeStatusNotInKB
+    - NarrativeStatusExpertVerified
   model.POSTUploadPolicy:
     properties:
       formFields:
@@ -1749,6 +1839,137 @@ paths:
       summary: Get presigned POST URL for media upload
       tags:
       - media
+  /api/v1/narratives:
+    get:
+      description: Retrieves a paginated list of narratives, newest first.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: per_page
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PaginationResults-model_Narrative'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List narratives
+      tags:
+      - narratives
+  /api/v1/narratives/{id}:
+    get:
+      description: Retrieves a single narrative by its ID.
+      parameters:
+      - description: Narrative ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Narrative'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get a narrative by ID
+      tags:
+      - narratives
   /api/webhooks/apify:
     post:
       consumes:

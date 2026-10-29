@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/jackc/pgx/v5"
@@ -173,6 +174,53 @@ func (r *narrativeRepo) ListNarrativesByTopic(
 		narratives[i] = *toModelNarrative(&rows[i])
 	}
 	return narratives, nil
+}
+
+// GetNarrative returns the narrative with the given id.
+func (r *narrativeRepo) GetNarrative(ctx context.Context, id uuid.UUID) (*model.Narrative, error) {
+	row, err := r.q.GetNarrative(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get narrative: %w", mapPostgresError(err))
+	}
+	return toModelNarrative(&row), nil
+}
+
+// PaginateNarratives returns one page of narratives, newest first.
+func (r *narrativeRepo) PaginateNarratives(
+	ctx context.Context,
+	q data.SupportsPagination,
+) (*dto.PaginationResults[model.Narrative], error) {
+	limit, offset := q.Limit(), q.Offset()
+
+	rows, err := r.q.PaginateNarratives(
+		ctx,
+		db.PaginateNarrativesParams{Limit: limit, Offset: offset},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to paginate narratives: %w", mapPostgresError(err))
+	}
+
+	total, err := r.q.CountNarratives(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count narratives: %w", mapPostgresError(err))
+	}
+
+	items := make([]model.Narrative, len(rows))
+	for i := range rows {
+		items[i] = *toModelNarrative(&rows[i])
+	}
+
+	page := int32(1)
+	if limit > 0 {
+		page = offset/limit + 1
+	}
+
+	return &dto.PaginationResults[model.Narrative]{
+		Page:       int(page),
+		PerPage:    int(limit),
+		TotalItems: int(total),
+		Items:      items,
+	}, nil
 }
 
 // CreateNarrative stores a new active narrative.

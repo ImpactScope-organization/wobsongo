@@ -13,6 +13,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countNarratives = `-- name: CountNarratives :one
+SELECT count(*) FROM narratives
+`
+
+func (q *Queries) CountNarratives(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countNarratives)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deactivateStaleNarratives = `-- name: DeactivateStaleNarratives :execrows
 UPDATE narratives n SET is_active = false, updated_at = NOW()
 WHERE n.is_active
@@ -30,6 +41,29 @@ func (q *Queries) DeactivateStaleNarratives(ctx context.Context, occurredAt time
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getNarrative = `-- name: GetNarrative :one
+SELECT id, topic_id, statement, harm, harm_validated, status, is_active, statement_edited_by, statement_edited_at, created_at, updated_at FROM narratives WHERE id = $1
+`
+
+func (q *Queries) GetNarrative(ctx context.Context, id uuid.UUID) (Narrative, error) {
+	row := q.db.QueryRow(ctx, getNarrative, id)
+	var i Narrative
+	err := row.Scan(
+		&i.ID,
+		&i.TopicID,
+		&i.Statement,
+		&i.Harm,
+		&i.HarmValidated,
+		&i.Status,
+		&i.IsActive,
+		&i.StatementEditedBy,
+		&i.StatementEditedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getNewestClaimForNarrative = `-- name: GetNewestClaimForNarrative :one
@@ -187,6 +221,47 @@ func (q *Queries) NarrativeExistsForTopic(ctx context.Context, arg NarrativeExis
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const paginateNarratives = `-- name: PaginateNarratives :many
+SELECT id, topic_id, statement, harm, harm_validated, status, is_active, statement_edited_by, statement_edited_at, created_at, updated_at FROM narratives ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2
+`
+
+type PaginateNarrativesParams struct {
+	Limit  int32
+	Offset int32
+}
+
+func (q *Queries) PaginateNarratives(ctx context.Context, arg PaginateNarrativesParams) ([]Narrative, error) {
+	rows, err := q.db.Query(ctx, paginateNarratives, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Narrative
+	for rows.Next() {
+		var i Narrative
+		if err := rows.Scan(
+			&i.ID,
+			&i.TopicID,
+			&i.Statement,
+			&i.Harm,
+			&i.HarmValidated,
+			&i.Status,
+			&i.IsActive,
+			&i.StatementEditedBy,
+			&i.StatementEditedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateNarrativeFromNewestClaim = `-- name: UpdateNarrativeFromNewestClaim :exec

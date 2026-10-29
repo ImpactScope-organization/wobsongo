@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
@@ -33,6 +34,16 @@ type NarrativeRepoer interface {
 
 	// ListNarrativesByTopic returns every narrative of a topic, active or not.
 	ListNarrativesByTopic(ctx context.Context, topicID uuid.UUID) ([]model.Narrative, error)
+
+	// GetNarrative returns the narrative with the given id, or ErrNotFound.
+	GetNarrative(ctx context.Context, id uuid.UUID) (*model.Narrative, error)
+
+	// PaginateNarratives returns one page of narratives, newest first, with
+	// the total number of narratives.
+	PaginateNarratives(
+		ctx context.Context,
+		q SupportsPagination,
+	) (*dto.PaginationResults[model.Narrative], error)
 
 	// CreateNarrative stores a new active narrative with the given topic and
 	// statement, no harm estimate and the needs_check status.

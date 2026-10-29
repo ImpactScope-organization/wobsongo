@@ -7,6 +7,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"sync"
 	"time"
@@ -37,6 +38,9 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //			GetClaimFunc: func(ctx context.Context, id uuid.UUID) (*model.Claim, error) {
 //				panic("mock out the GetClaim method")
 //			},
+//			GetNarrativeFunc: func(ctx context.Context, id uuid.UUID) (*model.Narrative, error) {
+//				panic("mock out the GetNarrative method")
+//			},
 //			GetNewestClaimFunc: func(ctx context.Context, narrativeID uuid.UUID) (*model.Claim, error) {
 //				panic("mock out the GetNewestClaim method")
 //			},
@@ -51,6 +55,9 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //			},
 //			LockTopicFunc: func(ctx context.Context, topicID uuid.UUID) error {
 //				panic("mock out the LockTopic method")
+//			},
+//			PaginateNarrativesFunc: func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error) {
+//				panic("mock out the PaginateNarratives method")
 //			},
 //			UpdateNarrativeEstimateFunc: func(ctx context.Context, narrativeID uuid.UUID, harm *int, status model.NarrativeStatus) error {
 //				panic("mock out the UpdateNarrativeEstimate method")
@@ -80,6 +87,9 @@ type NarrativeRepoerMock struct {
 	// GetClaimFunc mocks the GetClaim method.
 	GetClaimFunc func(ctx context.Context, id uuid.UUID) (*model.Claim, error)
 
+	// GetNarrativeFunc mocks the GetNarrative method.
+	GetNarrativeFunc func(ctx context.Context, id uuid.UUID) (*model.Narrative, error)
+
 	// GetNewestClaimFunc mocks the GetNewestClaim method.
 	GetNewestClaimFunc func(ctx context.Context, narrativeID uuid.UUID) (*model.Claim, error)
 
@@ -94,6 +104,9 @@ type NarrativeRepoerMock struct {
 
 	// LockTopicFunc mocks the LockTopic method.
 	LockTopicFunc func(ctx context.Context, topicID uuid.UUID) error
+
+	// PaginateNarrativesFunc mocks the PaginateNarratives method.
+	PaginateNarrativesFunc func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error)
 
 	// UpdateNarrativeEstimateFunc mocks the UpdateNarrativeEstimate method.
 	UpdateNarrativeEstimateFunc func(ctx context.Context, narrativeID uuid.UUID, harm *int, status model.NarrativeStatus) error
@@ -138,6 +151,13 @@ type NarrativeRepoerMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// GetNarrative holds details about calls to the GetNarrative method.
+		GetNarrative []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ID is the id argument value.
+			ID uuid.UUID
+		}
 		// GetNewestClaim holds details about calls to the GetNewestClaim method.
 		GetNewestClaim []struct {
 			// Ctx is the ctx argument value.
@@ -173,6 +193,15 @@ type NarrativeRepoerMock struct {
 			// TopicID is the topicID argument value.
 			TopicID uuid.UUID
 		}
+		// PaginateNarratives holds details about calls to the PaginateNarratives method.
+		PaginateNarratives []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Q is the q argument value.
+			Q data.SupportsPagination
+			// Filter is the filter argument value.
+			Filter data.NarrativeFilter
+		}
 		// UpdateNarrativeEstimate holds details about calls to the UpdateNarrativeEstimate method.
 		UpdateNarrativeEstimate []struct {
 			// Ctx is the ctx argument value.
@@ -197,11 +226,13 @@ type NarrativeRepoerMock struct {
 	lockDeactivateStaleNarratives sync.RWMutex
 	lockEnqueueClusterClaim       sync.RWMutex
 	lockGetClaim                  sync.RWMutex
+	lockGetNarrative              sync.RWMutex
 	lockGetNewestClaim            sync.RWMutex
 	lockLinkClaim                 sync.RWMutex
 	lockListActiveTopics          sync.RWMutex
 	lockListNarrativesByTopic     sync.RWMutex
 	lockLockTopic                 sync.RWMutex
+	lockPaginateNarratives        sync.RWMutex
 	lockUpdateNarrativeEstimate   sync.RWMutex
 	lockWithTx                    sync.RWMutex
 }
@@ -386,6 +417,42 @@ func (mock *NarrativeRepoerMock) GetClaimCalls() []struct {
 	return calls
 }
 
+// GetNarrative calls GetNarrativeFunc.
+func (mock *NarrativeRepoerMock) GetNarrative(ctx context.Context, id uuid.UUID) (*model.Narrative, error) {
+	if mock.GetNarrativeFunc == nil {
+		panic("NarrativeRepoerMock.GetNarrativeFunc: method is nil but NarrativeRepoer.GetNarrative was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}{
+		Ctx: ctx,
+		ID:  id,
+	}
+	mock.lockGetNarrative.Lock()
+	mock.calls.GetNarrative = append(mock.calls.GetNarrative, callInfo)
+	mock.lockGetNarrative.Unlock()
+	return mock.GetNarrativeFunc(ctx, id)
+}
+
+// GetNarrativeCalls gets all the calls that were made to GetNarrative.
+// Check the length with:
+//
+//	len(mockedNarrativeRepoer.GetNarrativeCalls())
+func (mock *NarrativeRepoerMock) GetNarrativeCalls() []struct {
+	Ctx context.Context
+	ID  uuid.UUID
+} {
+	var calls []struct {
+		Ctx context.Context
+		ID  uuid.UUID
+	}
+	mock.lockGetNarrative.RLock()
+	calls = mock.calls.GetNarrative
+	mock.lockGetNarrative.RUnlock()
+	return calls
+}
+
 // GetNewestClaim calls GetNewestClaimFunc.
 func (mock *NarrativeRepoerMock) GetNewestClaim(ctx context.Context, narrativeID uuid.UUID) (*model.Claim, error) {
 	if mock.GetNewestClaimFunc == nil {
@@ -563,6 +630,46 @@ func (mock *NarrativeRepoerMock) LockTopicCalls() []struct {
 	mock.lockLockTopic.RLock()
 	calls = mock.calls.LockTopic
 	mock.lockLockTopic.RUnlock()
+	return calls
+}
+
+// PaginateNarratives calls PaginateNarrativesFunc.
+func (mock *NarrativeRepoerMock) PaginateNarratives(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error) {
+	if mock.PaginateNarrativesFunc == nil {
+		panic("NarrativeRepoerMock.PaginateNarrativesFunc: method is nil but NarrativeRepoer.PaginateNarratives was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.NarrativeFilter
+	}{
+		Ctx:    ctx,
+		Q:      q,
+		Filter: filter,
+	}
+	mock.lockPaginateNarratives.Lock()
+	mock.calls.PaginateNarratives = append(mock.calls.PaginateNarratives, callInfo)
+	mock.lockPaginateNarratives.Unlock()
+	return mock.PaginateNarrativesFunc(ctx, q, filter)
+}
+
+// PaginateNarrativesCalls gets all the calls that were made to PaginateNarratives.
+// Check the length with:
+//
+//	len(mockedNarrativeRepoer.PaginateNarrativesCalls())
+func (mock *NarrativeRepoerMock) PaginateNarrativesCalls() []struct {
+	Ctx    context.Context
+	Q      data.SupportsPagination
+	Filter data.NarrativeFilter
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.NarrativeFilter
+	}
+	mock.lockPaginateNarratives.RLock()
+	calls = mock.calls.PaginateNarratives
+	mock.lockPaginateNarratives.RUnlock()
 	return calls
 }
 

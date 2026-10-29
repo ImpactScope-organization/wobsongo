@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/external"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
@@ -127,6 +128,7 @@ type voiceFixture struct {
 	presigner   *stubPresigner
 	transcriber *stubTranscriber
 	bot         *botCallbacks
+	messageID   uuid.UUID
 	appended    []string
 	turns       []queue.AgentTurnJob
 }
@@ -138,15 +140,16 @@ func newVoiceFixture(t *testing.T) *voiceFixture {
 		store:       &stubVoiceStore{puts: map[string][]byte{}},
 		presigner:   &stubPresigner{},
 		transcriber: &stubTranscriber{transcript: "bonjour"},
+		messageID:   uuid.New(),
 	}
 	f.downloader.Audio = []byte("OggS-test-audio")
 
 	repo := &mockrepo.ConversationRepoerMock{}
-	repo.AppendMessageFunc = func(
+	repo.AppendMessageWithIDFunc = func(
 		_ context.Context, jid string, role model.ConversationRole, content string,
-	) error {
+	) (uuid.UUID, error) {
 		f.appended = append(f.appended, fmt.Sprintf("%s|%v|%s", jid, role, content))
-		return nil
+		return f.messageID, nil
 	}
 	repo.EnqueueAgentTurnFunc = func(_ context.Context, payload queue.AgentTurnJob) error {
 		f.turns = append(f.turns, payload)
@@ -225,7 +228,9 @@ func TestVoiceTranscriptionWorker_Work_Success(t *testing.T) {
 	if len(f.turns) != 1 ||
 		f.turns[0].JID != "22500000000" ||
 		f.turns[0].ExtractionID != "job-1" ||
-		f.turns[0].UserText != "bonjour" {
+		f.turns[0].UserText != "bonjour" ||
+		f.turns[0].MessageID != f.messageID.String() ||
+		f.turns[0].Format != string(model.ClaimFormatAudio) {
 		t.Errorf("unexpected agent turns: %+v", f.turns)
 	}
 	if calls := f.bot.snapshot(); len(calls) != 0 {

@@ -13,6 +13,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countNarratives = `-- name: CountNarratives :one
+SELECT count(*) FROM narratives n
+WHERE ($1::boolean IS NULL OR n.is_active = $1::boolean)
+  AND ($2::varchar IS NULL OR n.status = $2::varchar)
+`
+
+type CountNarrativesParams struct {
+	IsActive pgtype.Bool
+	Status   pgtype.Text
+}
+
+func (q *Queries) CountNarratives(ctx context.Context, arg CountNarrativesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countNarratives, arg.IsActive, arg.Status)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deactivateStaleNarratives = `-- name: DeactivateStaleNarratives :execrows
 UPDATE narratives n SET is_active = false, updated_at = NOW()
 WHERE n.is_active
@@ -30,6 +48,51 @@ func (q *Queries) DeactivateStaleNarratives(ctx context.Context, occurredAt time
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const getNarrative = `-- name: GetNarrative :one
+SELECT
+    n.id, n.topic_id, n.statement, n.harm, n.harm_validated, n.status, n.is_active, n.statement_edited_by, n.statement_edited_at, n.created_at, n.updated_at,
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE n.id = $1
+`
+
+type GetNarrativeRow struct {
+	Narrative Narrative
+	TopicName string
+	Verdict   int32
+}
+
+func (q *Queries) GetNarrative(ctx context.Context, id uuid.UUID) (GetNarrativeRow, error) {
+	row := q.db.QueryRow(ctx, getNarrative, id)
+	var i GetNarrativeRow
+	err := row.Scan(
+		&i.Narrative.ID,
+		&i.Narrative.TopicID,
+		&i.Narrative.Statement,
+		&i.Narrative.Harm,
+		&i.Narrative.HarmValidated,
+		&i.Narrative.Status,
+		&i.Narrative.IsActive,
+		&i.Narrative.StatementEditedBy,
+		&i.Narrative.StatementEditedAt,
+		&i.Narrative.CreatedAt,
+		&i.Narrative.UpdatedAt,
+		&i.TopicName,
+		&i.Verdict,
+	)
+	return i, err
 }
 
 const getNewestClaimForNarrative = `-- name: GetNewestClaimForNarrative :one
@@ -187,6 +250,79 @@ func (q *Queries) NarrativeExistsForTopic(ctx context.Context, arg NarrativeExis
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const paginateNarratives = `-- name: PaginateNarratives :many
+SELECT
+    n.id, n.topic_id, n.statement, n.harm, n.harm_validated, n.status, n.is_active, n.statement_edited_by, n.statement_edited_at, n.created_at, n.updated_at,
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE ($1::boolean IS NULL OR n.is_active = $1::boolean)
+  AND ($2::varchar IS NULL OR n.status = $2::varchar)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $4 OFFSET $3
+`
+
+type PaginateNarrativesParams struct {
+	IsActive pgtype.Bool
+	Status   pgtype.Text
+	Offset   int32
+	Limit    int32
+}
+
+type PaginateNarrativesRow struct {
+	Narrative Narrative
+	TopicName string
+	Verdict   int32
+}
+
+func (q *Queries) PaginateNarratives(ctx context.Context, arg PaginateNarrativesParams) ([]PaginateNarrativesRow, error) {
+	rows, err := q.db.Query(ctx, paginateNarratives,
+		arg.IsActive,
+		arg.Status,
+		arg.Offset,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PaginateNarrativesRow
+	for rows.Next() {
+		var i PaginateNarrativesRow
+		if err := rows.Scan(
+			&i.Narrative.ID,
+			&i.Narrative.TopicID,
+			&i.Narrative.Statement,
+			&i.Narrative.Harm,
+			&i.Narrative.HarmValidated,
+			&i.Narrative.Status,
+			&i.Narrative.IsActive,
+			&i.Narrative.StatementEditedBy,
+			&i.Narrative.StatementEditedAt,
+			&i.Narrative.CreatedAt,
+			&i.Narrative.UpdatedAt,
+			&i.TopicName,
+			&i.Verdict,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateNarrativeFromNewestClaim = `-- name: UpdateNarrativeFromNewestClaim :exec

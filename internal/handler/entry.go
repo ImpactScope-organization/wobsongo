@@ -16,16 +16,17 @@ import (
 
 // Handlers struct holds references to all the individual handler structs.
 type Handlers struct {
-	apifyHandler    *ApifyHandler
-	documentHandler *DocumentHandler
-	mediaHandler    *MediaHandler
-	botExtractPSK   string
-	claimHandler    *ClaimHandler
-	agentHandler    *AgentHandler
-	ttsHandler      *TTSHandler
-	authHandler     *AuthHandler
-	jwtAuth         *auth.Auth
-	config          *internal.Config
+	apifyHandler     *ApifyHandler
+	documentHandler  *DocumentHandler
+	mediaHandler     *MediaHandler
+	botExtractPSK    string
+	claimHandler     *ClaimHandler
+	agentHandler     *AgentHandler
+	ttsHandler       *TTSHandler
+	authHandler      *AuthHandler
+	jwtAuth          *auth.Auth
+	config           *internal.Config
+	narrativeHandler *NarrativeHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -83,6 +84,9 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	)
 
 	v1.POST("/claims/check", h.claimHandler.checkClaimHandler, signedIn)
+
+	v1.GET("/narratives", h.narrativeHandler.listNarrativesHandler, signedIn)
+	v1.GET("/narratives/:id", h.narrativeHandler.getNarrativeHandler, signedIn)
 }
 
 // Repos holds the repository interfaces required by the handlers.
@@ -135,15 +139,25 @@ func NewHandlers(repos *Repos) *Handlers {
 	// Initialize claim-checking services and handlers
 	ragService := service.NewRAGService(repos.ChunkRepo, repos.KnowledgeRepo, repos.Embedder)
 	claimService := service.NewClaimService(repos.ClaimAnalyzer, repos.ClaimJudge, ragService)
-	if repos.NarrativeRepo != nil && repos.NarrativeStatements != nil {
-		claimService = claimService.WithNarratives(service.NewNarrativeService(
+
+	var narrativeService *service.NarrativeService
+	if repos.NarrativeRepo != nil {
+		narrativeService = service.NewNarrativeService(
 			repos.NarrativeRepo,
 			repos.Embedder,
 			repos.NarrativeStatements,
 			config.NarrativeConfig.MatchThreshold,
-		))
+		)
+	}
+	if narrativeService != nil && repos.NarrativeStatements != nil {
+		claimService = claimService.WithNarratives(narrativeService)
 	}
 	claimHandler := NewClaimHandler(claimService)
+
+	var narrativeHandler *NarrativeHandler
+	if narrativeService != nil {
+		narrativeHandler = NewNarrativeHandler(narrativeService)
+	}
 
 	agentLLMConfig, err := internal.NewAgentLLMConfig()
 	if err != nil {
@@ -184,16 +198,17 @@ func NewHandlers(repos *Repos) *Handlers {
 	authHandler := NewAuthHandler(service.NewAuthService(repos.UserRepo, jwtAuth))
 
 	return &Handlers{
-		apifyHandler:    apifyHandler,
-		documentHandler: documentHandler,
-		mediaHandler:    mediaHandler,
-		ttsHandler:      ttsHandler,
-		botExtractPSK:   config.BotExtractPSK,
-		claimHandler:    claimHandler,
-		agentHandler:    agentHandler,
-		authHandler:     authHandler,
-		jwtAuth:         jwtAuth,
-		config:          config,
+		apifyHandler:     apifyHandler,
+		documentHandler:  documentHandler,
+		mediaHandler:     mediaHandler,
+		ttsHandler:       ttsHandler,
+		botExtractPSK:    config.BotExtractPSK,
+		claimHandler:     claimHandler,
+		agentHandler:     agentHandler,
+		authHandler:      authHandler,
+		jwtAuth:          jwtAuth,
+		config:           config,
+		narrativeHandler: narrativeHandler,
 	}
 }
 

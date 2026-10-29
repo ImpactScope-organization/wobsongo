@@ -28,6 +28,8 @@ func NewNarrativeHandler(service *service.NarrativeService) *NarrativeHandler {
 // @Produce		json
 // @Param			page		query	int	false	"Page number"		minimum(1)
 // @Param			per_page	query	int	false	"Items per page"	minimum(1)	maximum(100)
+// @Param			is_active	query	bool	false	"Filter by active state"
+// @Param			status		query	string	false	"Filter by status"	Enums(needs_check, auto_checked, not_in_kb, expert_verified)
 // @Success		200		{object}	model.APIResponse{data=dto.PaginationResults[model.Narrative]}
 // @Failure		400		{object}	model.APIResponse{error=string}
 // @Failure		401		{object}	model.APIResponse{error=string}
@@ -36,15 +38,15 @@ func NewNarrativeHandler(service *service.NarrativeService) *NarrativeHandler {
 // @Security	BearerAuth
 // @Router			/api/v1/narratives [get]
 func (h *NarrativeHandler) listNarrativesHandler(c echo.Context) error {
-	pagination := new(dto.PaginationDTO)
-	if err := c.Bind(pagination); err != nil {
+	query := new(dto.NarrativeListDTO)
+	if err := c.Bind(query); err != nil {
 		return &model.APIError{
 			Code:     http.StatusBadRequest,
 			Internal: err,
 			Public:   msgInvalidQueryParams,
 		}
 	}
-	if err := c.Validate(pagination); err != nil {
+	if err := c.Validate(query); err != nil {
 		return &model.APIError{
 			Code:     http.StatusUnprocessableEntity,
 			Internal: err,
@@ -52,7 +54,7 @@ func (h *NarrativeHandler) listNarrativesHandler(c echo.Context) error {
 		}
 	}
 
-	results, err := h.service.List(c.Request().Context(), pagination)
+	results, err := h.service.List(c.Request().Context(), query)
 	if err != nil {
 		status, message := mapDataErrorToHTTP(err)
 		return &model.APIError{Code: status, Internal: err, Public: message}

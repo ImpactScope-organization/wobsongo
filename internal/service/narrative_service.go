@@ -174,12 +174,15 @@ func (s *NarrativeService) findMatch(
 	return &narratives[best], true, nil
 }
 
-// List returns one page of narratives, newest first.
+// List returns one page of narratives matching the filters in query.
 func (s *NarrativeService) List(
 	ctx context.Context,
-	pagination *dto.PaginationDTO,
+	query *dto.NarrativeListDTO,
 ) (*dto.PaginationResults[model.Narrative], error) {
-	return s.repo.PaginateNarratives(ctx, pagination)
+	return s.repo.PaginateNarratives(ctx, &query.PaginationDTO, data.NarrativeFilter{
+		IsActive: query.IsActive,
+		Status:   query.Status,
+	})
 }
 
 // GetByID returns the narrative with the given id.

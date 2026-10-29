@@ -48,10 +48,43 @@ WHERE n.is_active
   );
 
 -- name: GetNarrative :one
-SELECT * FROM narratives WHERE id = $1;
+SELECT
+    sqlc.embed(n),
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE n.id = $1;
 
 -- name: PaginateNarratives :many
-SELECT * FROM narratives ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2;
+SELECT
+    sqlc.embed(n),
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE (sqlc.narg('is_active')::boolean IS NULL OR n.is_active = sqlc.narg('is_active')::boolean)
+  AND (sqlc.narg('status')::varchar IS NULL OR n.status = sqlc.narg('status')::varchar)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT sqlc.arg('limit') OFFSET sqlc.arg('offset');
 
 -- name: CountNarratives :one
-SELECT count(*) FROM narratives;
+SELECT count(*) FROM narratives n
+WHERE (sqlc.narg('is_active')::boolean IS NULL OR n.is_active = sqlc.narg('is_active')::boolean)
+  AND (sqlc.narg('status')::varchar IS NULL OR n.status = sqlc.narg('status')::varchar);

@@ -182,32 +182,51 @@ func (r *narrativeRepo) GetNarrative(ctx context.Context, id uuid.UUID) (*model.
 	if err != nil {
 		return nil, fmt.Errorf("failed to get narrative: %w", mapPostgresError(err))
 	}
-	return toModelNarrative(&row), nil
+	return toModelNarrativeDetail(&row.Narrative, row.TopicName, row.Verdict), nil
 }
 
-// PaginateNarratives returns one page of narratives, newest first.
+// PaginateNarratives returns one page of narratives matching filter, newest first.
 func (r *narrativeRepo) PaginateNarratives(
 	ctx context.Context,
 	q data.SupportsPagination,
+	filter data.NarrativeFilter,
 ) (*dto.PaginationResults[model.Narrative], error) {
 	limit, offset := q.Limit(), q.Offset()
 
-	rows, err := r.q.PaginateNarratives(
-		ctx,
-		db.PaginateNarrativesParams{Limit: limit, Offset: offset},
-	)
+	var isActive pgtype.Bool
+	if filter.IsActive != nil {
+		isActive = pgtype.Bool{Bool: *filter.IsActive, Valid: true}
+	}
+	var status pgtype.Text
+	if filter.Status != "" {
+		status = pgtype.Text{String: filter.Status, Valid: true}
+	}
+
+	rows, err := r.q.PaginateNarratives(ctx, db.PaginateNarrativesParams{
+		IsActive: isActive,
+		Status:   status,
+		Limit:    limit,
+		Offset:   offset,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to paginate narratives: %w", mapPostgresError(err))
 	}
 
-	total, err := r.q.CountNarratives(ctx)
+	total, err := r.q.CountNarratives(ctx, db.CountNarrativesParams{
+		IsActive: isActive,
+		Status:   status,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to count narratives: %w", mapPostgresError(err))
 	}
 
 	items := make([]model.Narrative, len(rows))
 	for i := range rows {
-		items[i] = *toModelNarrative(&rows[i])
+		items[i] = *toModelNarrativeDetail(
+			&rows[i].Narrative,
+			rows[i].TopicName,
+			rows[i].Verdict,
+		)
 	}
 
 	page := int32(1)
@@ -221,6 +240,26 @@ func (r *narrativeRepo) PaginateNarratives(
 		TotalItems: int(total),
 		Items:      items,
 	}, nil
+}
+
+// noVerdict is what the narrative queries return as verdict when a narrative
+// has no claim yet.
+const noVerdict = -1
+
+// toModelNarrativeDetail maps a narrative together with its topic name and the
+// verdict of its newest claim.
+func toModelNarrativeDetail(
+	row *db.Narrative,
+	topicName string,
+	verdict int32,
+) *model.Narrative {
+	n := toModelNarrative(row)
+	n.TopicName = topicName
+	if verdict != noVerdict {
+		v := model.Verdict(verdict).String()
+		n.Verdict = &v
+	}
+	return n
 }
 
 // CreateNarrative stores a new active narrative.

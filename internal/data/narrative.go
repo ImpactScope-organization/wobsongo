@@ -43,6 +43,7 @@ type NarrativeRepoer interface {
 	PaginateNarratives(
 		ctx context.Context,
 		q SupportsPagination,
+		filter NarrativeFilter,
 	) (*dto.PaginationResults[model.Narrative], error)
 
 	// CreateNarrative stores a new active narrative with the given topic and
@@ -77,4 +78,13 @@ type NarrativeStatementGenerator interface {
 	// Generate returns one broad statement describing the narrative claim
 	// belongs to.
 	Generate(ctx context.Context, claim string) (string, error)
+}
+
+// NarrativeFilter narrows a narrative list. A nil or empty field is not filtered.
+type NarrativeFilter struct {
+	// // IsActive filters narratives by their active state
+	IsActive *bool
+
+	// Status filters narratives by status (needs_check, not_in_kb, auto_checked, expert_verified).
+	Status string
 }

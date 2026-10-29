@@ -46,6 +46,14 @@ type Narrative struct {
 	// when the narrative is created, and an admin may edit it afterwards.
 	Statement string `json:"statement"`
 
+	// TopicName is the name of the narrative's topic.
+	TopicName string `json:"topic_name"`
+
+	// Verdict is the verdict of the narrative's newest claim (supported,
+	// contradicted, partially_supported, mixed or insufficient_evidence).
+	// Nil while the narrative has no claim.
+	Verdict *string `json:"verdict,omitempty"`
+
 	// Harm is the harm level between NarrativeHarmMin and NarrativeHarmMax.
 	// Until an expert validates it, the system estimates it from the severity
 	// and high-risk flag of the newest claim. Nil while there is no estimate.

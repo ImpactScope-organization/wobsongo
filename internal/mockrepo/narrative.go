@@ -56,7 +56,7 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //			LockTopicFunc: func(ctx context.Context, topicID uuid.UUID) error {
 //				panic("mock out the LockTopic method")
 //			},
-//			PaginateNarrativesFunc: func(ctx context.Context, q data.SupportsPagination) (*dto.PaginationResults[model.Narrative], error) {
+//			PaginateNarrativesFunc: func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error) {
 //				panic("mock out the PaginateNarratives method")
 //			},
 //			UpdateNarrativeEstimateFunc: func(ctx context.Context, narrativeID uuid.UUID, harm *int, status model.NarrativeStatus) error {
@@ -106,7 +106,7 @@ type NarrativeRepoerMock struct {
 	LockTopicFunc func(ctx context.Context, topicID uuid.UUID) error
 
 	// PaginateNarrativesFunc mocks the PaginateNarratives method.
-	PaginateNarrativesFunc func(ctx context.Context, q data.SupportsPagination) (*dto.PaginationResults[model.Narrative], error)
+	PaginateNarrativesFunc func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error)
 
 	// UpdateNarrativeEstimateFunc mocks the UpdateNarrativeEstimate method.
 	UpdateNarrativeEstimateFunc func(ctx context.Context, narrativeID uuid.UUID, harm *int, status model.NarrativeStatus) error
@@ -199,6 +199,8 @@ type NarrativeRepoerMock struct {
 			Ctx context.Context
 			// Q is the q argument value.
 			Q data.SupportsPagination
+			// Filter is the filter argument value.
+			Filter data.NarrativeFilter
 		}
 		// UpdateNarrativeEstimate holds details about calls to the UpdateNarrativeEstimate method.
 		UpdateNarrativeEstimate []struct {
@@ -632,21 +634,23 @@ func (mock *NarrativeRepoerMock) LockTopicCalls() []struct {
 }
 
 // PaginateNarratives calls PaginateNarrativesFunc.
-func (mock *NarrativeRepoerMock) PaginateNarratives(ctx context.Context, q data.SupportsPagination) (*dto.PaginationResults[model.Narrative], error) {
+func (mock *NarrativeRepoerMock) PaginateNarratives(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error) {
 	if mock.PaginateNarrativesFunc == nil {
 		panic("NarrativeRepoerMock.PaginateNarrativesFunc: method is nil but NarrativeRepoer.PaginateNarratives was just called")
 	}
 	callInfo := struct {
-		Ctx context.Context
-		Q   data.SupportsPagination
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.NarrativeFilter
 	}{
-		Ctx: ctx,
-		Q:   q,
+		Ctx:    ctx,
+		Q:      q,
+		Filter: filter,
 	}
 	mock.lockPaginateNarratives.Lock()
 	mock.calls.PaginateNarratives = append(mock.calls.PaginateNarratives, callInfo)
 	mock.lockPaginateNarratives.Unlock()
-	return mock.PaginateNarrativesFunc(ctx, q)
+	return mock.PaginateNarrativesFunc(ctx, q, filter)
 }
 
 // PaginateNarrativesCalls gets all the calls that were made to PaginateNarratives.
@@ -654,12 +658,14 @@ func (mock *NarrativeRepoerMock) PaginateNarratives(ctx context.Context, q data.
 //
 //	len(mockedNarrativeRepoer.PaginateNarrativesCalls())
 func (mock *NarrativeRepoerMock) PaginateNarrativesCalls() []struct {
-	Ctx context.Context
-	Q   data.SupportsPagination
+	Ctx    context.Context
+	Q      data.SupportsPagination
+	Filter data.NarrativeFilter
 } {
 	var calls []struct {
-		Ctx context.Context
-		Q   data.SupportsPagination
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.NarrativeFilter
 	}
 	mock.lockPaginateNarratives.RLock()
 	calls = mock.calls.PaginateNarratives

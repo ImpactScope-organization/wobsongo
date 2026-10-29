@@ -14,11 +14,18 @@ import (
 )
 
 const countNarratives = `-- name: CountNarratives :one
-SELECT count(*) FROM narratives
+SELECT count(*) FROM narratives n
+WHERE ($1::boolean IS NULL OR n.is_active = $1::boolean)
+  AND ($2::varchar IS NULL OR n.status = $2::varchar)
 `
 
-func (q *Queries) CountNarratives(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countNarratives)
+type CountNarrativesParams struct {
+	IsActive pgtype.Bool
+	Status   pgtype.Text
+}
+
+func (q *Queries) CountNarratives(ctx context.Context, arg CountNarrativesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countNarratives, arg.IsActive, arg.Status)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -44,24 +51,46 @@ func (q *Queries) DeactivateStaleNarratives(ctx context.Context, occurredAt time
 }
 
 const getNarrative = `-- name: GetNarrative :one
-SELECT id, topic_id, statement, harm, harm_validated, status, is_active, statement_edited_by, statement_edited_at, created_at, updated_at FROM narratives WHERE id = $1
+SELECT
+    n.id, n.topic_id, n.statement, n.harm, n.harm_validated, n.status, n.is_active, n.statement_edited_by, n.statement_edited_at, n.created_at, n.updated_at,
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE n.id = $1
 `
 
-func (q *Queries) GetNarrative(ctx context.Context, id uuid.UUID) (Narrative, error) {
+type GetNarrativeRow struct {
+	Narrative Narrative
+	TopicName string
+	Verdict   int32
+}
+
+func (q *Queries) GetNarrative(ctx context.Context, id uuid.UUID) (GetNarrativeRow, error) {
 	row := q.db.QueryRow(ctx, getNarrative, id)
-	var i Narrative
+	var i GetNarrativeRow
 	err := row.Scan(
-		&i.ID,
-		&i.TopicID,
-		&i.Statement,
-		&i.Harm,
-		&i.HarmValidated,
-		&i.Status,
-		&i.IsActive,
-		&i.StatementEditedBy,
-		&i.StatementEditedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.Narrative.ID,
+		&i.Narrative.TopicID,
+		&i.Narrative.Statement,
+		&i.Narrative.Harm,
+		&i.Narrative.HarmValidated,
+		&i.Narrative.Status,
+		&i.Narrative.IsActive,
+		&i.Narrative.StatementEditedBy,
+		&i.Narrative.StatementEditedAt,
+		&i.Narrative.CreatedAt,
+		&i.Narrative.UpdatedAt,
+		&i.TopicName,
+		&i.Verdict,
 	)
 	return i, err
 }
@@ -224,35 +253,67 @@ func (q *Queries) NarrativeExistsForTopic(ctx context.Context, arg NarrativeExis
 }
 
 const paginateNarratives = `-- name: PaginateNarratives :many
-SELECT id, topic_id, statement, harm, harm_validated, status, is_active, statement_edited_by, statement_edited_at, created_at, updated_at FROM narratives ORDER BY created_at DESC, id DESC LIMIT $1 OFFSET $2
+SELECT
+    n.id, n.topic_id, n.statement, n.harm, n.harm_validated, n.status, n.is_active, n.statement_edited_by, n.statement_edited_at, n.created_at, n.updated_at,
+    t.name AS topic_name,
+    COALESCE(latest.verdict, -1)::integer AS verdict
+FROM narratives n
+JOIN topics t ON t.id = n.topic_id
+LEFT JOIN LATERAL (
+    SELECT c.verdict
+    FROM narrative_claims nc
+    JOIN claims c ON c.id = nc.claim_id
+    WHERE nc.narrative_id = n.id
+    ORDER BY c.occurred_at DESC
+    LIMIT 1
+) latest ON true
+WHERE ($1::boolean IS NULL OR n.is_active = $1::boolean)
+  AND ($2::varchar IS NULL OR n.status = $2::varchar)
+ORDER BY n.created_at DESC, n.id DESC
+LIMIT $4 OFFSET $3
 `
 
 type PaginateNarrativesParams struct {
-	Limit  int32
-	Offset int32
+	IsActive pgtype.Bool
+	Status   pgtype.Text
+	Offset   int32
+	Limit    int32
 }
 
-func (q *Queries) PaginateNarratives(ctx context.Context, arg PaginateNarrativesParams) ([]Narrative, error) {
-	rows, err := q.db.Query(ctx, paginateNarratives, arg.Limit, arg.Offset)
+type PaginateNarrativesRow struct {
+	Narrative Narrative
+	TopicName string
+	Verdict   int32
+}
+
+func (q *Queries) PaginateNarratives(ctx context.Context, arg PaginateNarrativesParams) ([]PaginateNarrativesRow, error) {
+	rows, err := q.db.Query(ctx, paginateNarratives,
+		arg.IsActive,
+		arg.Status,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Narrative
+	var items []PaginateNarrativesRow
 	for rows.Next() {
-		var i Narrative
+		var i PaginateNarrativesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.TopicID,
-			&i.Statement,
-			&i.Harm,
-			&i.HarmValidated,
-			&i.Status,
-			&i.IsActive,
-			&i.StatementEditedBy,
-			&i.StatementEditedAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
+			&i.Narrative.ID,
+			&i.Narrative.TopicID,
+			&i.Narrative.Statement,
+			&i.Narrative.Harm,
+			&i.Narrative.HarmValidated,
+			&i.Narrative.Status,
+			&i.Narrative.IsActive,
+			&i.Narrative.StatementEditedBy,
+			&i.Narrative.StatementEditedAt,
+			&i.Narrative.CreatedAt,
+			&i.Narrative.UpdatedAt,
+			&i.TopicName,
+			&i.Verdict,
 		); err != nil {
 			return nil, err
 		}

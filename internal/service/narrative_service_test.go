@@ -145,7 +145,11 @@ func TestNarrativeService_ClusterClaim(t *testing.T) {
 			t.Errorf("expected harm 3 for a serious claim, got %v", updates[0].Harm)
 		}
 		if updates[0].Status != model.NarrativeStatusAutoChecked {
-			t.Errorf("expected status %q, got %q", model.NarrativeStatusAutoChecked, updates[0].Status)
+			t.Errorf(
+				"expected status %q, got %q",
+				model.NarrativeStatusAutoChecked,
+				updates[0].Status,
+			)
 		}
 	})
 
@@ -265,7 +269,12 @@ func TestNarrativeService_ClusterClaim(t *testing.T) {
 		s := NewNarrativeService(f.repo, embedder, f.generator, testMatchThreshold)
 
 		err := s.ClusterClaim(t.Context(), f.claim.ID)
-		if got := fmt.Sprint(err); !strings.Contains(got, "embedder returned 1 vectors for 2 texts") {
+		if got := fmt.Sprint(
+			err,
+		); !strings.Contains(
+			got,
+			"embedder returned 1 vectors for 2 texts",
+		) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		if n := len(f.repo.LinkClaimCalls()); n != 0 {
@@ -368,7 +377,12 @@ func TestNarrativeService_RecordClaims(t *testing.T) {
 			return &stored, nil
 		}
 		repo.EnqueueClusterClaimFunc = func(context.Context, uuid.UUID) error { return nil }
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		err := s.RecordClaims(t.Context(), newClaims())
 		if err != nil {
@@ -401,7 +415,12 @@ func TestNarrativeService_RecordClaims(t *testing.T) {
 			return &stored, nil
 		}
 		repo.EnqueueClusterClaimFunc = func(context.Context, uuid.UUID) error { return nil }
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		err := s.RecordClaims(t.Context(), newClaims())
 		if err != nil {
@@ -418,7 +437,12 @@ func TestNarrativeService_RecordClaims(t *testing.T) {
 		repo.CreateClaimFunc = func(context.Context, *model.Claim) (*model.Claim, error) {
 			return nil, data.ErrInternal
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		err := s.RecordClaims(t.Context(), newClaims())
 		if !errors.Is(err, data.ErrInternal) {
@@ -439,7 +463,12 @@ func TestNarrativeService_RecordClaims(t *testing.T) {
 		repo.EnqueueClusterClaimFunc = func(context.Context, uuid.UUID) error {
 			return data.ErrQueueFull
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		err := s.RecordClaims(t.Context(), newClaims())
 		if !errors.Is(err, data.ErrQueueFull) {
@@ -449,7 +478,12 @@ func TestNarrativeService_RecordClaims(t *testing.T) {
 
 	t.Run("NoClaims", func(t *testing.T) {
 		repo := newNarrativeRepoMock()
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		err := s.RecordClaims(t.Context(), nil)
 		if err != nil {
@@ -468,7 +502,12 @@ func TestNarrativeService_ActiveTopics(t *testing.T) {
 		repo.ListActiveTopicsFunc = func(context.Context) ([]model.Topic, error) {
 			return []model.Topic{topic}, nil
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		got, err := s.ActiveTopics(t.Context())
 		if err != nil {
@@ -486,7 +525,12 @@ func TestNarrativeService_ActiveTopics(t *testing.T) {
 		repo.ListActiveTopicsFunc = func(context.Context) ([]model.Topic, error) {
 			return nil, data.ErrInternal
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		got, err := s.ActiveTopics(t.Context())
 		if !errors.Is(err, data.ErrInternal) {
@@ -506,7 +550,12 @@ func TestNarrativeService_DeactivateStale(t *testing.T) {
 		repo.DeactivateStaleNarrativesFunc = func(context.Context, time.Time) (int64, error) {
 			return 4, nil
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		before := time.Now()
 		count, err := s.DeactivateStale(t.Context(), window)
@@ -532,7 +581,12 @@ func TestNarrativeService_DeactivateStale(t *testing.T) {
 		repo.DeactivateStaleNarrativesFunc = func(context.Context, time.Time) (int64, error) {
 			return 0, data.ErrInternal
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		_, err := s.DeactivateStale(t.Context(), window)
 		if !errors.Is(err, data.ErrInternal) {
@@ -554,13 +608,22 @@ func TestNarrativeService_List(t *testing.T) {
 		repo.PaginateNarrativesFunc = func(
 			_ context.Context,
 			q data.SupportsPagination,
+			_ data.NarrativeFilter,
 		) (*dto.PaginationResults[model.Narrative], error) {
 			captured = q
 			return page, nil
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
-		got, err := s.List(t.Context(), &dto.PaginationDTO{Page: 2, PerPage: 5})
+		got, err := s.List(
+			t.Context(),
+			&dto.NarrativeListDTO{PaginationDTO: dto.PaginationDTO{Page: 2, PerPage: 5}},
+		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -578,12 +641,18 @@ func TestNarrativeService_List(t *testing.T) {
 		repo.PaginateNarrativesFunc = func(
 			context.Context,
 			data.SupportsPagination,
+			data.NarrativeFilter,
 		) (*dto.PaginationResults[model.Narrative], error) {
 			return nil, data.ErrInternal
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
-		_, err := s.List(t.Context(), &dto.PaginationDTO{})
+		_, err := s.List(t.Context(), &dto.NarrativeListDTO{})
 		if !errors.Is(err, data.ErrInternal) {
 			t.Fatalf("expected %v, got %v", data.ErrInternal, err)
 		}
@@ -597,7 +666,12 @@ func TestNarrativeService_GetByID(t *testing.T) {
 		repo.GetNarrativeFunc = func(_ context.Context, got uuid.UUID) (*model.Narrative, error) {
 			return &model.Narrative{ID: got, Statement: "a narrative"}, nil
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		narrative, err := s.GetByID(t.Context(), id)
 		if err != nil {
@@ -614,7 +688,12 @@ func TestNarrativeService_GetByID(t *testing.T) {
 		repo.GetNarrativeFunc = func(context.Context, uuid.UUID) (*model.Narrative, error) {
 			return nil, data.ErrNotFound
 		}
-		s := NewNarrativeService(repo, &narrativeStubEmbedder{}, &stubStatementGenerator{}, testMatchThreshold)
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
 
 		_, err := s.GetByID(t.Context(), uuid.New())
 		if !errors.Is(err, data.ErrNotFound) {
@@ -655,7 +734,11 @@ func TestNarrativeStatusFor(t *testing.T) {
 		verdict model.Verdict
 		want    model.NarrativeStatus
 	}{
-		{"InsufficientEvidenceIsNotInKB", model.VerdictInsufficientEvidence, model.NarrativeStatusNotInKB},
+		{
+			"InsufficientEvidenceIsNotInKB",
+			model.VerdictInsufficientEvidence,
+			model.NarrativeStatusNotInKB,
+		},
 		{"SupportedIsAutoChecked", model.VerdictSupported, model.NarrativeStatusAutoChecked},
 		{"ContradictedIsAutoChecked", model.VerdictContradicted, model.NarrativeStatusAutoChecked},
 		{"MixedIsAutoChecked", model.VerdictMixed, model.NarrativeStatusAutoChecked},

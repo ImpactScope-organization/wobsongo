@@ -627,8 +627,17 @@ definitions:
           against narratives of its own topic.
         format: uuid
         type: string
+      topic_name:
+        description: TopicName is the name of the narrative's topic.
+        type: string
       updated_at:
         description: UpdatedAt is the time the narrative was last modified.
+        type: string
+      verdict:
+        description: |-
+          Verdict is the verdict of the narrative's newest claim (supported,
+          contradicted, partially_supported, mixed or insufficient_evidence).
+          Nil while the narrative has no claim.
         type: string
     type: object
   model.NarrativeStatus:
@@ -1854,6 +1863,19 @@ paths:
         minimum: 1
         name: per_page
         type: integer
+      - description: Filter by active state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Filter by status
+        enum:
+        - needs_check
+        - auto_checked
+        - not_in_kb
+        - expert_verified
+        in: query
+        name: status
+        type: string
       produces:
       - application/json
       responses:

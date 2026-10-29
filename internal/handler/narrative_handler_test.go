@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/testhelpers"
+	"github.com/impactscope-organization/wobsongo/internal/utils"
 	"github.com/labstack/echo/v4"
 )
 
@@ -36,17 +38,25 @@ func newNarrativeTestApp(t *testing.T, repo data.NarrativeRepoer) *echo.Echo {
 func TestListNarrativesHandler(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		var capturedQuery data.SupportsPagination
+		var capturedFilter data.NarrativeFilter
 		repo := &mockrepo.NarrativeRepoerMock{
 			PaginateNarrativesFunc: func(
 				_ context.Context,
 				q data.SupportsPagination,
+				filter data.NarrativeFilter,
 			) (*dto.PaginationResults[model.Narrative], error) {
 				capturedQuery = q
+				capturedFilter = filter
 				return &dto.PaginationResults[model.Narrative]{
 					Page:       2,
 					PerPage:    5,
 					TotalItems: 6,
-					Items:      []model.Narrative{{ID: uuid.New(), Statement: "A narrative"}},
+					Items: []model.Narrative{{
+						ID:        uuid.New(),
+						Statement: "A narrative",
+						TopicName: "Family planning",
+						Verdict:   utils.PtrOf("contradicted"),
+					}},
 				}, nil
 			},
 		}
@@ -76,6 +86,16 @@ func TestListNarrativesHandler(t *testing.T) {
 		if resp.Data.TotalItems != 6 {
 			t.Errorf("expected total items 6, got %d", resp.Data.TotalItems)
 		}
+		if capturedFilter.IsActive != nil || capturedFilter.Status != "" {
+			t.Errorf("expected no filter, got %+v", capturedFilter)
+		}
+		item := resp.Data.Items[0]
+		if item.TopicName != "Family planning" {
+			t.Errorf("expected topic_name %q, got %q", "Family planning", item.TopicName)
+		}
+		if item.Verdict == nil || *item.Verdict != "contradicted" {
+			t.Errorf("expected verdict %q, got %v", "contradicted", item.Verdict)
+		}
 	})
 
 	t.Run("MalformedQuery", func(t *testing.T) {
@@ -92,6 +112,63 @@ func TestListNarrativesHandler(t *testing.T) {
 				rec.Code,
 				rec.Body.String(),
 			)
+		}
+	})
+
+	t.Run("Filters_ReachRepo", func(t *testing.T) {
+		var capturedFilter data.NarrativeFilter
+		repo := &mockrepo.NarrativeRepoerMock{
+			PaginateNarrativesFunc: func(
+				_ context.Context,
+				_ data.SupportsPagination,
+				filter data.NarrativeFilter,
+			) (*dto.PaginationResults[model.Narrative], error) {
+				capturedFilter = filter
+				return &dto.PaginationResults[model.Narrative]{}, nil
+			},
+		}
+		app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)
+
+		req := httptest.NewRequest(
+			http.MethodGet,
+			narrativesBasePath+"?is_active=false&status=expert_verified",
+			nil,
+		)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+		}
+		if capturedFilter.IsActive == nil || *capturedFilter.IsActive {
+			t.Errorf("expected is_active=false to reach the repo, got %v", capturedFilter.IsActive)
+		}
+		if capturedFilter.Status != "expert_verified" {
+			t.Errorf("expected status %q, got %q", "expert_verified", capturedFilter.Status)
+		}
+	})
+
+	t.Run("ValidationFailure_UnknownStatus", func(t *testing.T) {
+		app := signInAs(t, newNarrativeTestApp(t, &mockrepo.NarrativeRepoerMock{}), model.RoleUser)
+
+		req := httptest.NewRequest(http.MethodGet, narrativesBasePath+"?status=bogus", nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf("expected status %d, got %d", http.StatusUnprocessableEntity, rec.Code)
+		}
+	})
+
+	t.Run("MalformedQuery_IsActiveNotBool", func(t *testing.T) {
+		app := signInAs(t, newNarrativeTestApp(t, &mockrepo.NarrativeRepoerMock{}), model.RoleUser)
+
+		req := httptest.NewRequest(http.MethodGet, narrativesBasePath+"?is_active=maybe", nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 		}
 	})
 
@@ -117,8 +194,9 @@ func TestListNarrativesHandler(t *testing.T) {
 			PaginateNarrativesFunc: func(
 				context.Context,
 				data.SupportsPagination,
+				data.NarrativeFilter,
 			) (*dto.PaginationResults[model.Narrative], error) {
-				return nil, data.ErrInternal
+				return nil, errors.New("internal error")
 			},
 		}
 		app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)

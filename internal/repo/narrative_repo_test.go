@@ -562,7 +562,11 @@ func TestNarrativeRepo(t *testing.T) {
 		}
 		oldest, middle, newest := narratives[0], narratives[1], narratives[2]
 
-		first, err := env.repo.PaginateNarratives(env.ctx, &dto.PaginationDTO{Page: 1, PerPage: 2})
+		first, err := env.repo.PaginateNarratives(
+			env.ctx,
+			&dto.PaginationDTO{Page: 1, PerPage: 2},
+			data.NarrativeFilter{},
+		)
 		if err != nil {
 			t.Fatalf("unexpected error on page 1: %v", err)
 		}
@@ -578,7 +582,11 @@ func TestNarrativeRepo(t *testing.T) {
 			t.Errorf("expected at least 3 narratives in total, got %d", first.TotalItems)
 		}
 
-		second, err := env.repo.PaginateNarratives(env.ctx, &dto.PaginationDTO{Page: 2, PerPage: 2})
+		second, err := env.repo.PaginateNarratives(
+			env.ctx,
+			&dto.PaginationDTO{Page: 2, PerPage: 2},
+			data.NarrativeFilter{},
+		)
 		if err != nil {
 			t.Fatalf("unexpected error on page 2: %v", err)
 		}
@@ -588,6 +596,127 @@ func TestNarrativeRepo(t *testing.T) {
 		if second.Page != 2 {
 			t.Errorf("expected page 2, got %d", second.Page)
 		}
+	})
+
+	t.Run("PaginateNarratives_FiltersByIsActiveAndStatus", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		active := env.newNarrative(t, topic.ID) // active, needs_check
+		inactive := env.newNarrative(t, topic.ID)
+		verified := env.newNarrative(t, topic.ID)
+		_, err := env.tx.Exec(env.ctx,
+			"update narratives set is_active = false where id = $1", inactive.ID)
+		if err != nil {
+			t.Fatalf("failed to deactivate narrative: %v", err)
+		}
+		_, err = env.tx.Exec(env.ctx,
+			"update narratives set status = 'expert_verified' where id = $1", verified.ID)
+		if err != nil {
+			t.Fatalf("failed to set status: %v", err)
+		}
+
+		ids := func(res *dto.PaginationResults[model.Narrative]) map[uuid.UUID]bool {
+			m := make(map[uuid.UUID]bool, len(res.Items))
+			for i := range res.Items {
+				m[res.Items[i].ID] = true
+			}
+			return m
+		}
+		all := &dto.PaginationDTO{Page: 1, PerPage: 100}
+
+		off := false
+		got, err := env.repo.PaginateNarratives(env.ctx, all, data.NarrativeFilter{IsActive: &off})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if m := ids(got); !m[inactive.ID] || m[active.ID] || m[verified.ID] {
+			t.Errorf(
+				"is_active=false should return only the inactive narrative, got %+v",
+				got.Items,
+			)
+		}
+
+		got, err = env.repo.PaginateNarratives(
+			env.ctx, all, data.NarrativeFilter{Status: string(model.NarrativeStatusExpertVerified)},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if m := ids(got); !m[verified.ID] || m[active.ID] || m[inactive.ID] {
+			t.Errorf("status filter should return only the verified narrative, got %+v", got.Items)
+		}
+		if got.TotalItems != len(got.Items) {
+			t.Errorf(
+				"total_items %d should count only matching rows (%d)",
+				got.TotalItems,
+				len(got.Items),
+			)
+		}
+	})
+
+	t.Run("Narrative_TopicNameAndNewestClaimVerdict", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		narrative := env.newNarrative(t, topic.ID)
+
+		// No claim yet: topic name is there, verdict is not.
+		got, err := env.repo.GetNarrative(env.ctx, narrative.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.TopicName != topic.Name {
+			t.Errorf("expected topic_name %q, got %q", topic.Name, got.TopicName)
+		}
+		if got.Verdict != nil {
+			t.Errorf("expected no verdict without claims, got %q", *got.Verdict)
+		}
+
+		// Two claims: the verdict must come from the newest one.
+		now := time.Now()
+		older := newNarrativeTestClaim(topic.ID, "older "+uuid.NewString(), now.Add(-2*time.Hour))
+		older.Verdict = model.VerdictSupported
+		newer := newNarrativeTestClaim(topic.ID, "newer "+uuid.NewString(), now.Add(-1*time.Hour))
+		newer.Verdict = model.VerdictContradicted
+		for _, c := range []*model.Claim{older, newer} {
+			created, err := env.repo.CreateClaim(env.ctx, c)
+			if err != nil {
+				t.Fatalf("failed to create claim: %v", err)
+			}
+			if err := env.repo.LinkClaim(env.ctx, created.ID, narrative.ID); err != nil {
+				t.Fatalf("failed to link claim: %v", err)
+			}
+		}
+
+		got, err = env.repo.GetNarrative(env.ctx, narrative.ID)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got.Verdict == nil || *got.Verdict != model.VerdictContradicted.String() {
+			t.Errorf(
+				"expected verdict %q from the newest claim, got %v",
+				"contradicted",
+				got.Verdict,
+			)
+		}
+
+		// The paginated list must carry the same fields.
+		list, err := env.repo.PaginateNarratives(
+			env.ctx, &dto.PaginationDTO{Page: 1, PerPage: 100}, data.NarrativeFilter{},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		for i := range list.Items {
+			if list.Items[i].ID != narrative.ID {
+				continue
+			}
+			if list.Items[i].TopicName != topic.Name || list.Items[i].Verdict == nil ||
+				*list.Items[i].Verdict != "contradicted" {
+				t.Errorf("list item missing topic_name/verdict: %+v", list.Items[i])
+			}
+			return
+		}
+		t.Error("narrative not found in the paginated list")
 	})
 }
 

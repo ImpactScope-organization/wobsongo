@@ -2199,6 +2199,24 @@
                         "description": "Items per page",
                         "name": "per_page",
                         "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by active state",
+                        "name": "is_active",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "needs_check",
+                            "auto_checked",
+                            "not_in_kb",
+                            "expert_verified"
+                        ],
+                        "type": "string",
+                        "description": "Filter by status",
+                        "name": "status",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3290,8 +3308,16 @@
                     "type": "string",
                     "format": "uuid"
                 },
+                "topic_name": {
+                    "description": "TopicName is the name of the narrative's topic.",
+                    "type": "string"
+                },
                 "updated_at": {
                     "description": "UpdatedAt is the time the narrative was last modified.",
+                    "type": "string"
+                },
+                "verdict": {
+                    "description": "Verdict is the verdict of the narrative's newest claim (supported,\ncontradicted, partially_supported, mixed or insufficient_evidence).\nNil while the narrative has no claim.",
                     "type": "string"
                 }
             }

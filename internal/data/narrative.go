@@ -82,7 +82,7 @@ type NarrativeStatementGenerator interface {
 
 // NarrativeFilter narrows a narrative list. A nil or empty field is not filtered.
 type NarrativeFilter struct {
-	// // IsActive filters narratives by their active state
+	// IsActive filters narratives by their active state
 	IsActive *bool
 
 	// Status filters narratives by status (needs_check, not_in_kb, auto_checked, expert_verified).

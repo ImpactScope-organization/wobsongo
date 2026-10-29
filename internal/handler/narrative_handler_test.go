@@ -3,7 +3,6 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -196,7 +195,7 @@ func TestListNarrativesHandler(t *testing.T) {
 				data.SupportsPagination,
 				data.NarrativeFilter,
 			) (*dto.PaginationResults[model.Narrative], error) {
-				return nil, errors.New("internal error")
+				return nil, data.ErrInternal
 			},
 		}
 		app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)

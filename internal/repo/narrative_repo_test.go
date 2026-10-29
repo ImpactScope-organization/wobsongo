@@ -654,6 +654,110 @@ func TestNarrativeRepo(t *testing.T) {
 		}
 	})
 
+	t.Run("PaginateNarratives_IsActiveTrue", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		active := env.newNarrative(t, topic.ID)
+		inactive := env.newNarrative(t, topic.ID)
+		_, err := env.tx.Exec(env.ctx,
+			"update narratives set is_active = false where id = $1", inactive.ID)
+		if err != nil {
+			t.Fatalf("failed to deactivate narrative: %v", err)
+		}
+
+		on := true
+		got, err := env.repo.PaginateNarratives(
+			env.ctx,
+			&dto.PaginationDTO{Page: 1, PerPage: 100},
+			data.NarrativeFilter{IsActive: &on},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		foundActive := false
+		for i := range got.Items {
+			if got.Items[i].ID == inactive.ID {
+				t.Errorf("is_active=true must not return the inactive narrative")
+			}
+			if !got.Items[i].IsActive {
+				t.Errorf("is_active=true returned an inactive item: %s", got.Items[i].ID)
+			}
+			if got.Items[i].ID == active.ID {
+				foundActive = true
+			}
+		}
+		if !foundActive {
+			t.Errorf("expected the active narrative %s in the result", active.ID)
+		}
+	})
+
+	t.Run("PaginateNarratives_CombinedFilters", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		both := env.newNarrative(t, topic.ID)         // inactive + expert_verified
+		onlyInactive := env.newNarrative(t, topic.ID) // inactive + needs_check
+		onlyVerified := env.newNarrative(t, topic.ID) // active + expert_verified
+
+		exec := func(query string, id uuid.UUID) {
+			t.Helper()
+			if _, err := env.tx.Exec(env.ctx, query, id); err != nil {
+				t.Fatalf("failed to prepare narrative: %v", err)
+			}
+		}
+		exec(
+			"update narratives set is_active = false, status = 'expert_verified' where id = $1",
+			both.ID,
+		)
+		exec("update narratives set is_active = false where id = $1", onlyInactive.ID)
+		exec("update narratives set status = 'expert_verified' where id = $1", onlyVerified.ID)
+
+		off := false
+		got, err := env.repo.PaginateNarratives(
+			env.ctx,
+			&dto.PaginationDTO{Page: 1, PerPage: 100},
+			data.NarrativeFilter{
+				IsActive: &off,
+				Status:   string(model.NarrativeStatusExpertVerified),
+			},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		seen := make(map[uuid.UUID]bool, len(got.Items))
+		for i := range got.Items {
+			seen[got.Items[i].ID] = true
+		}
+		if !seen[both.ID] {
+			t.Errorf("expected the narrative matching both filters (%s) in the result", both.ID)
+		}
+		if seen[onlyInactive.ID] || seen[onlyVerified.ID] {
+			t.Errorf("a narrative matching only one filter leaked into the result: %+v", got.Items)
+		}
+	})
+
+	t.Run("PaginateNarratives_PageBeyondEnd_ReturnsEmptyItems", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+
+		got, err := env.repo.PaginateNarratives(
+			env.ctx,
+			&dto.PaginationDTO{Page: 1_000_000, PerPage: 20},
+			data.NarrativeFilter{},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Items must be an empty slice, not nil, so the JSON is [] and not null.
+		if got.Items == nil || len(got.Items) != 0 {
+			t.Errorf("expected an empty non-nil Items, got %#v", got.Items)
+		}
+		if got.Page != 1_000_000 {
+			t.Errorf("expected page 1000000, got %d", got.Page)
+		}
+	})
+
 	t.Run("Narrative_TopicNameAndNewestClaimVerdict", func(t *testing.T) {
 		env := newNarrativeTestEnv(t, pool)
 		topic := env.newTopic(t, true)

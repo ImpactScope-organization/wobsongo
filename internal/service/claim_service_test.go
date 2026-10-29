@@ -866,3 +866,206 @@ func TestClaimMessageLength(t *testing.T) {
 		})
 	}
 }
+
+// newRecordingNarrativeRepo returns a narrative repo mock whose happy path
+// stores every claim and enqueues its cluster job.
+func newRecordingNarrativeRepo(topicID uuid.UUID) *mockrepo.NarrativeRepoerMock {
+	repo := newNarrativeRepoMock()
+	repo.ListActiveTopicsFunc = func(context.Context) ([]model.Topic, error) {
+		return []model.Topic{{ID: topicID, Name: "contraception"}}, nil
+	}
+	repo.CreateClaimFunc = func(_ context.Context, c *model.Claim) (*model.Claim, error) {
+		stored := *c
+		stored.ID = uuid.New()
+		return &stored, nil
+	}
+	repo.EnqueueClusterClaimFunc = func(context.Context, uuid.UUID) error { return nil }
+	return repo
+}
+
+// newNarrativeClaimService wires a ClaimService whose narrative flow is on and
+// whose retrieval and judge always succeed, so only recording is under test.
+func newNarrativeClaimService(
+	repo *mockrepo.NarrativeRepoerMock,
+	subClaims []data.SubClaim,
+) *ClaimService {
+	analyzer := &stubClaimAnalyzer{
+		analysis: &data.ClaimAnalysis{InScope: true, SubClaims: subClaims},
+	}
+	judge := &stubClaimJudge{
+		judgeFunc: func(*data.JudgeRequest) (*data.JudgeVerdict, error) {
+			return &data.JudgeVerdict{
+				Verdict:        model.VerdictContradicted,
+				Severity:       model.SeveritySerious,
+				Reasoning:      "the evidence contradicts the claim",
+				BriefReasoning: "contradicted",
+				CitedEvidence:  []int{0},
+			}, nil
+		},
+	}
+	narratives := NewNarrativeService(
+		repo,
+		&narrativeStubEmbedder{},
+		&stubStatementGenerator{},
+		testMatchThreshold,
+	)
+	return NewClaimService(analyzer, judge, ragServiceWithAnyHit()).WithNarratives(narratives)
+}
+
+func TestClaimService_CheckClaim_Narratives(t *testing.T) {
+	const claimText = "drinking lemon water cures infections"
+
+	t.Run("RecordsClaimsWithSource", func(t *testing.T) {
+		topicID := uuid.New()
+		messageID := uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text: claimText,
+			Source: &dto.ClaimSource{
+				MessageID: &messageID,
+				Platform:  "telegram",
+				Format:    string(model.ClaimFormatAudio),
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.InScope || len(result.SubClaims) != 1 {
+			t.Fatalf("expected one checked sub-claim, got %+v", result)
+		}
+
+		created := repo.CreateClaimCalls()
+		if len(created) != 1 {
+			t.Fatalf("expected 1 claim stored, got %d", len(created))
+		}
+		got := created[0].Claim
+		if got.Text != claimText || got.TopicID != topicID {
+			t.Errorf("unexpected stored claim: %+v", got)
+		}
+		if got.MessageID == nil || *got.MessageID != messageID {
+			t.Errorf("expected message id %s, got %v", messageID, got.MessageID)
+		}
+		if got.Platform != "telegram" || got.Format != model.ClaimFormatAudio {
+			t.Errorf("expected telegram/audio, got %s/%s", got.Platform, got.Format)
+		}
+		if n := len(repo.EnqueueClusterClaimCalls()); n != 1 {
+			t.Errorf("expected 1 cluster job, got %d", n)
+		}
+	})
+
+	t.Run("DefaultsPlatformAndFormat", func(t *testing.T) {
+		topicID := uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		_, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: &dto.ClaimSource{Format: "not-a-format"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		created := repo.CreateClaimCalls()
+		if len(created) != 1 {
+			t.Fatalf("expected 1 claim stored, got %d", len(created))
+		}
+		if created[0].Claim.Platform != model.ClaimPlatformWhatsApp {
+			t.Errorf("expected default platform %q, got %q",
+				model.ClaimPlatformWhatsApp, created[0].Claim.Platform)
+		}
+		if created[0].Claim.Format != model.ClaimFormatText {
+			t.Errorf("expected unknown format to fall back to text, got %q",
+				created[0].Claim.Format)
+		}
+	})
+
+	t.Run("SubClaimWithoutTopicIsNotStored", func(t *testing.T) {
+		repo := newRecordingNarrativeRepo(uuid.New())
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: &dto.ClaimSource{},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(result.SubClaims) != 1 {
+			t.Fatalf("expected the sub-claim to still be checked, got %d", len(result.SubClaims))
+		}
+
+		if n := len(repo.CreateClaimCalls()); n != 0 {
+			t.Errorf("expected no claim stored without a topic, got %d", n)
+		}
+		if n := len(repo.WithTxCalls()); n != 0 {
+			t.Errorf("expected no transaction without claims to store, got %d", n)
+		}
+	})
+
+	t.Run("NoSourceDoesNotRecord", func(t *testing.T) {
+		topicID := uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		_, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: claimText})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if n := len(repo.ListActiveTopicsCalls()); n != 0 {
+			t.Errorf("expected topics not to be loaded without a source, got %d call(s)", n)
+		}
+		if n := len(repo.CreateClaimCalls()); n != 0 {
+			t.Errorf("expected nothing stored without a source, got %d", n)
+		}
+	})
+
+	t.Run("RecordingFailureDoesNotFailTheReply", func(t *testing.T) {
+		topicID := uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		repo.CreateClaimFunc = func(context.Context, *model.Claim) (*model.Claim, error) {
+			return nil, data.ErrInternal
+		}
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: &dto.ClaimSource{},
+		})
+		if err != nil {
+			t.Fatalf("a storage failure must not fail the reply, got: %v", err)
+		}
+		if !result.InScope || len(result.SubClaims) != 1 || result.FormattedMessage == "" {
+			t.Errorf("expected a full reply despite the storage failure, got %+v", result)
+		}
+		if n := len(repo.EnqueueClusterClaimCalls()); n != 0 {
+			t.Errorf("expected no cluster job after a failed store, got %d", n)
+		}
+	})
+
+	t.Run("TopicsLoadFailureSkipsRecording", func(t *testing.T) {
+		topicID := uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		repo.ListActiveTopicsFunc = func(context.Context) ([]model.Topic, error) {
+			return nil, data.ErrInternal
+		}
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: &dto.ClaimSource{},
+		})
+		if err != nil {
+			t.Fatalf("a topic-loading failure must not fail the reply, got: %v", err)
+		}
+		if !result.InScope || len(result.SubClaims) != 1 {
+			t.Errorf("expected the claim to still be checked, got %+v", result)
+		}
+		if n := len(repo.CreateClaimCalls()); n != 0 {
+			t.Errorf("expected recording to be skipped, got %d stored claim(s)", n)
+		}
+	})
+}

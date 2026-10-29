@@ -657,6 +657,69 @@ func TestNarrativeService_List(t *testing.T) {
 			t.Fatalf("expected %v, got %v", data.ErrInternal, err)
 		}
 	})
+
+	t.Run("PassesFiltersToRepo", func(t *testing.T) {
+		active := true
+		var captured data.NarrativeFilter
+		repo := newNarrativeRepoMock()
+		repo.PaginateNarrativesFunc = func(
+			_ context.Context,
+			_ data.SupportsPagination,
+			filter data.NarrativeFilter,
+		) (*dto.PaginationResults[model.Narrative], error) {
+			captured = filter
+			return &dto.PaginationResults[model.Narrative]{}, nil
+		}
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
+
+		_, err := s.List(t.Context(), &dto.NarrativeListDTO{
+			IsActive: &active,
+			Status:   string(model.NarrativeStatusNotInKB),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if captured.IsActive == nil || !*captured.IsActive {
+			t.Errorf("expected is_active=true to reach the repo, got %v", captured.IsActive)
+		}
+		if captured.Status != string(model.NarrativeStatusNotInKB) {
+			t.Errorf("expected status %q, got %q", model.NarrativeStatusNotInKB, captured.Status)
+		}
+	})
+
+	t.Run("NoFiltersWhenQueryIsEmpty", func(t *testing.T) {
+		var captured data.NarrativeFilter
+		repo := newNarrativeRepoMock()
+		repo.PaginateNarrativesFunc = func(
+			_ context.Context,
+			_ data.SupportsPagination,
+			filter data.NarrativeFilter,
+		) (*dto.PaginationResults[model.Narrative], error) {
+			captured = filter
+			return &dto.PaginationResults[model.Narrative]{}, nil
+		}
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
+
+		_, err := s.List(t.Context(), &dto.NarrativeListDTO{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if captured.IsActive != nil || captured.Status != "" {
+			t.Errorf("expected no filter, got %+v", captured)
+		}
+	})
 }
 
 func TestNarrativeService_GetByID(t *testing.T) {

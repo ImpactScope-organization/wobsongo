@@ -24,7 +24,10 @@
 	play={async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByRole('heading', { level: 1 })).toHaveTextContent('Overview');
-		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(4);
+		await expect(canvas.getAllByRole('heading', { level: 2 })).toHaveLength(5);
+		await expect(
+			canvas.getByRole('heading', { level: 2, name: 'Chatbot engagement' })
+		).toBeInTheDocument();
 		await expect(
 			canvas.getByRole('heading', { level: 2, name: 'Content creators' })
 		).toBeInTheDocument();

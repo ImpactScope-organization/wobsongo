@@ -21,11 +21,12 @@
 	import SegmentedLinks from '../common/segmented-links.svelte';
 	import Sparkline from '../common/sparkline.svelte';
 	import VerdictMeter from '../common/verdict-meter.svelte';
+	import ChatbotEngagement from './chatbot-engagement.svelte';
 	import HighHarmSummary from './high-harm-summary.svelte';
 	import NarrativeList from './narrative-list.svelte';
 	import CreatorList from './creator-list.svelte';
 	import PlatformBreakdown from './platform-breakdown.svelte';
-	import { sampleCreators } from '#lib/fixtures/overview.js';
+	import { sampleCreators, sampleUserQuestions } from '#lib/fixtures/overview.js';
 
 	interface Props {
 		snapshot: OverviewSnapshot;
@@ -82,6 +83,7 @@
 	);
 	const rated = $derived(misinfoShare(snapshot.rated));
 	const visibleCreators = $derived(topCreators(snapshot.creators ?? sampleCreators, topic));
+	const userQuestions = $derived(snapshot.userQuestions ?? sampleUserQuestions);
 </script>
 
 {#if snapshot.anomaly}
@@ -155,8 +157,8 @@
 		/>
 	</KpiGroup>
 
-	<div class="flex flex-wrap items-start gap-5">
-		<div class="grid min-w-0 flex-[2_1_35rem] gap-5">
+	<div class="flex flex-col gap-5 lg:flex-row lg:items-start">
+		<div class="contents lg:grid lg:min-w-0 lg:flex-[2_1_35rem] lg:gap-5">
 			<SectionCard
 				title={topic === 'misinfo' ? m.overview_top_misinfo() : m.overview_top()}
 				description={m.overview_narratives_description({ window: windowLabel })}
@@ -186,7 +188,13 @@
 			</SectionCard>
 		</div>
 
-		<div class="flex min-w-0 flex-[1_1_20rem] flex-col gap-5">
+		<div class="contents lg:flex lg:min-w-0 lg:flex-[1_1_20rem] lg:flex-col lg:gap-5">
+			<ChatbotEngagement
+				stats={userQuestions}
+				defaultWindow={range}
+				class="order-first lg:order-none"
+			/>
+
 			<SectionCard
 				title={m.overview_sources_title()}
 				description={m.overview_sources_description()}

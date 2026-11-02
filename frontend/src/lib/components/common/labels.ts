@@ -11,7 +11,7 @@ import type { CheckReason, PriorityQuadrant } from '#lib/domain/operations.js';
 import type { DismissReason, MessageFormat } from '#lib/domain/narrative-detail.js';
 import type { RatingOutcome, ReviewStatus, Verdict } from '#lib/domain/narrative.js';
 import type { Platform } from '#lib/domain/platform.js';
-import type { OverviewTopic } from '#lib/domain/overview.js';
+import type { EngagementWindow, OverviewTopic } from '#lib/domain/overview.js';
 import type { ReviewDecision } from '#lib/domain/review.js';
 import type { MessageIntent } from '#lib/domain/spread.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
@@ -159,6 +159,22 @@ export const TIME_RANGE_LABEL: Record<TimeRange, string> = localized({
 	'24h': m.label_time_range_24h,
 	'7d': m.label_time_range_7d,
 	'30d': m.label_time_range_30d
+});
+
+/** Short pill labels for engagement windows ("7 d", "15 d", "30 d", "All time"). */
+export const ENGAGEMENT_WINDOW_LABEL: Record<EngagementWindow, string> = localized({
+	'7d': m.label_time_range_7d,
+	'15d': m.label_time_range_15d,
+	'30d': m.label_time_range_30d,
+	all: m.label_time_range_all
+});
+
+/** Full phrase labels for engagement windows ("Last 7 days", "Last 15 days", etc.). */
+export const ENGAGEMENT_WINDOW_LONG_LABEL: Record<EngagementWindow, string> = localized({
+	'7d': m.overview_user_questions_window_7d,
+	'15d': m.overview_user_questions_window_15d,
+	'30d': m.overview_user_questions_window_30d,
+	all: m.overview_user_questions_window_all
 });
 
 export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = localized({

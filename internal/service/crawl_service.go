@@ -164,13 +164,11 @@ func (s *CrawlService) RunDiscovery(
 	}
 
 	var failures []string
-	interrupted := false
 	authors := make(map[string]uuid.UUID)
 
 	for i, kw := range keywords {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			failures = append(failures, interruptedMessage(len(keywords)-i, len(keywords), ctxErr))
-			interrupted = true
 			break
 		}
 
@@ -187,7 +185,7 @@ func (s *CrawlService) RunDiscovery(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(keywords), failures, interrupted)
+	return s.finishRun(ctx, run, len(keywords), failures)
 }
 
 // RunMonitor checks creators for new videos. With influencerID set it checks
@@ -237,12 +235,10 @@ func (s *CrawlService) RunMonitor(
 	}
 
 	var failures []string
-	interrupted := false
 
 	for i, creator := range creators {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			failures = append(failures, interruptedMessage(len(creators)-i, len(creators), ctxErr))
-			interrupted = true
 			break
 		}
 
@@ -254,7 +250,7 @@ func (s *CrawlService) RunMonitor(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(creators), failures, interrupted)
+	return s.finishRun(ctx, run, len(creators), failures)
 }
 
 // discoverKeyword searches one keyword and stores each author and video. The
@@ -430,7 +426,10 @@ func (s *CrawlService) scheduleNextCheck(
 	id uuid.UUID,
 	after time.Duration,
 ) error {
-	err := s.influencerRepo.SetNextCheckAt(ctx, id, s.now().Add(after))
+	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+
+	err := s.influencerRepo.SetNextCheckAt(saveCtx, id, s.now().Add(after))
 	if err != nil {
 		return fmt.Errorf("failed to schedule next check of %s: %w", id, err)
 	}
@@ -550,7 +549,6 @@ func (s *CrawlService) finishRun(
 	run *model.CrawlRun,
 	total int,
 	failures []string,
-	interrupted bool,
 ) error {
 	run.Status = model.CrawlStatusSucceeded
 
@@ -559,7 +557,7 @@ func (s *CrawlService) finishRun(
 		msg := truncateUTF8(strings.Join(failures, "; "), maxRunErrorLength)
 		run.Error = &msg
 
-		if interrupted || len(failures) >= total {
+		if ctx.Err() != nil || len(failures) >= total {
 			run.Status = model.CrawlStatusFailed
 			runErr = fmt.Errorf("%s run %s failed: %s", run.Kind, run.ID, msg)
 		}

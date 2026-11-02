@@ -51,6 +51,10 @@ const (
 	// land a few seconds before last+interval and the run is skipped until
 	// the tick after that (a 24h interval silently becomes 48h).
 	dueTolerance = 5 * time.Minute
+
+	// saveTimeout bounds the writes that must still happen after the run's
+	// context is canceled (server shutdown or job timeout).
+	saveTimeout = 10 * time.Second
 )
 
 // CrawlService runs the discovery (by keyword) and monitoring (by creator)
@@ -155,11 +159,11 @@ func (s *CrawlService) RunDiscovery(
 
 	run, err := s.startRun(ctx, model.CrawlKindDiscover, trigger, triggeredBy,
 		discoverRunParams{Keywords: names, MaxResults: setting.MaxResultsKeyword})
-	if errors.Is(err, data.ErrConflict) {
-		log.Printf("[CrawlService] discovery skipped: a run is already in progress")
-		return nil
-	}
 	if err != nil {
+		if errors.Is(err, data.ErrConflict) {
+			log.Printf("[CrawlService] discovery skipped: a run is already in progress")
+			return nil
+		}
 		return err
 	}
 
@@ -226,11 +230,11 @@ func (s *CrawlService) RunMonitor(
 
 	run, err := s.startRun(ctx, model.CrawlKindMonitor, trigger, triggeredBy,
 		monitorRunParams{Influencers: usernames, MaxResults: setting.MaxResultsInfluencer})
-	if errors.Is(err, data.ErrConflict) {
-		log.Printf("[CrawlService] monitor skipped: a run is already in progress")
-		return nil
-	}
 	if err != nil {
+		if errors.Is(err, data.ErrConflict) {
+			log.Printf("[CrawlService] monitor skipped: a run is already in progress")
+			return nil
+		}
 		return err
 	}
 
@@ -368,9 +372,12 @@ func (s *CrawlService) handleEmptyCheck(
 	ctx context.Context,
 	creator *model.Influencer,
 ) error {
+	saveCtx, cancel := saveContext(ctx)
+	defer cancel()
+
 	nextCheckAt := s.now().Add(monitorRetryDelay)
 	stillActive, err := s.influencerRepo.RecordEmptyCheck(
-		ctx, creator.ID, monitorMaxEmptyChecks, nextCheckAt,
+		saveCtx, creator.ID, monitorMaxEmptyChecks, nextCheckAt,
 	)
 	if err != nil {
 		return err
@@ -405,9 +412,12 @@ func (s *CrawlService) updateCadence(ctx context.Context, creator *model.Influen
 		avgHours = &h
 	}
 
+	saveCtx, cancel := saveContext(ctx)
+	defer cancel()
+
 	var errs []error
 	err = s.influencerRepo.UpdateAggregates(
-		ctx, creator.ID, firstAt, lastAt, avgHours, int64(len(times)),
+		saveCtx, creator.ID, firstAt, lastAt, avgHours, int64(len(times)),
 	)
 	if err != nil {
 		errs = append(
@@ -426,7 +436,7 @@ func (s *CrawlService) scheduleNextCheck(
 	id uuid.UUID,
 	after time.Duration,
 ) error {
-	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	saveCtx, cancel := saveContext(ctx)
 	defer cancel()
 
 	err := s.influencerRepo.SetNextCheckAt(saveCtx, id, s.now().Add(after))
@@ -473,10 +483,10 @@ func (s *CrawlService) upsertAuthor(
 // ID) means the video is already known, so it is skipped without an error.
 func (s *CrawlService) saveVideo(ctx context.Context, v *model.Video) (bool, error) {
 	isNew, err := s.videoRepo.UpsertDiscoveredVideo(ctx, v)
-	if errors.Is(err, data.ErrConflict) {
-		return false, nil
-	}
 	if err != nil {
+		if errors.Is(err, data.ErrConflict) {
+			return false, nil
+		}
 		return false, fmt.Errorf("failed to save video %s: %w", v.VideoURL, err)
 	}
 
@@ -500,10 +510,10 @@ func (s *CrawlService) isDue(
 	interval time.Duration,
 ) (bool, error) {
 	last, err := s.crawlerRepo.GetLastRunStartedAt(ctx, kind)
-	if errors.Is(err, data.ErrNotFound) {
-		return true, nil
-	}
 	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			return true, nil
+		}
 		return false, fmt.Errorf("failed to check last %s run: %w", kind, err)
 	}
 
@@ -563,7 +573,7 @@ func (s *CrawlService) finishRun(
 		}
 	}
 
-	saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	saveCtx, cancel := saveContext(ctx)
 	defer cancel()
 
 	if err := s.crawlerRepo.FinishRun(saveCtx, run); err != nil {
@@ -659,6 +669,14 @@ func truncateUTF8(s string, maxBytes int) string {
 		cut--
 	}
 	return s[:cut]
+}
+
+// saveContext returns a context that is not canceled together with ctx but
+// has its own timeout. It is for writes that record the outcome of work that
+// has already been paid for (next check time, run result), so a canceled run
+// does not leave the creator due again or the run stuck as 'running'.
+func saveContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), saveTimeout)
 }
 
 // DiscoveryIntervalHours returns how often, in hours, the discovery job

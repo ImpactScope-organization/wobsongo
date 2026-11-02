@@ -89,6 +89,32 @@ type monitorRunParams struct {
 	MaxResults  int      `json:"max_results"`
 }
 
+// errorCollector gathers the errors of one keyword or creator so that the
+// item can be reported as a single failure with a count and the first cause.
+type errorCollector struct {
+	count int
+	first error
+}
+
+func (c *errorCollector) add(err error) {
+	if c.count == 0 {
+		c.first = err
+	}
+	c.count++
+}
+
+// err returns nil when nothing was added.
+func (c *errorCollector) err() error {
+	if c.count == 0 {
+		return nil
+	}
+	return fmt.Errorf("%d error(s), first: %w", c.count, c.first)
+}
+
+func interruptedMessage(remaining, total int, cause error) string {
+	return fmt.Sprintf("interrupted: %d of %d items not processed: %v", remaining, total, cause)
+}
+
 // RunDiscovery searches every active keyword and stores the creators and
 // videos it finds. A scheduled run is skipped until the discovery interval
 // has passed since the last run; a manual run always goes ahead.
@@ -138,11 +164,13 @@ func (s *CrawlService) RunDiscovery(
 	}
 
 	var failures []string
+	interrupted := false
 	authors := make(map[string]uuid.UUID)
 
-	for _, kw := range keywords {
-		if err := ctx.Err(); err != nil {
-			failures = append(failures, "interrupted: "+err.Error())
+	for i, kw := range keywords {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			failures = append(failures, interruptedMessage(len(keywords)-i, len(keywords), ctxErr))
+			interrupted = true
 			break
 		}
 
@@ -159,7 +187,7 @@ func (s *CrawlService) RunDiscovery(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(keywords), failures)
+	return s.finishRun(ctx, run, len(keywords), failures, interrupted)
 }
 
 // RunMonitor checks creators for new videos. With influencerID set it checks
@@ -209,10 +237,12 @@ func (s *CrawlService) RunMonitor(
 	}
 
 	var failures []string
+	interrupted := false
 
-	for _, creator := range creators {
-		if err := ctx.Err(); err != nil {
-			failures = append(failures, "interrupted: "+err.Error())
+	for i, creator := range creators {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			failures = append(failures, interruptedMessage(len(creators)-i, len(creators), ctxErr))
+			interrupted = true
 			break
 		}
 
@@ -224,10 +254,12 @@ func (s *CrawlService) RunMonitor(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(creators), failures)
+	return s.finishRun(ctx, run, len(creators), failures, interrupted)
 }
 
-// discoverKeyword searches one keyword and stores each author and video.
+// discoverKeyword searches one keyword and stores each author and video. The
+// returned error reports save failures; the videos that could be saved are
+// still counted in found and created.
 func (s *CrawlService) discoverKeyword(
 	ctx context.Context,
 	kw *model.DiscoveryKeyword,
@@ -239,6 +271,7 @@ func (s *CrawlService) discoverKeyword(
 		return 0, 0, fmt.Errorf("apify search failed: %w", err)
 	}
 
+	var failed errorCollector
 	for i := range items {
 		item := &items[i]
 		if !isUsableItem(item) || item.AuthorMeta.Name == "" {
@@ -246,15 +279,26 @@ func (s *CrawlService) discoverKeyword(
 		}
 		found++
 
-		influencerID := s.upsertAuthor(ctx, item, kw.Keyword, authors)
+		// The video is still saved when the author cannot be, just without a
+		// creator link.
+		influencerID, authorErr := s.upsertAuthor(ctx, item, kw.Keyword, authors)
+		if authorErr != nil {
+			failed.add(authorErr)
+		}
+
 		video := itemToDiscoveredVideo(
 			item, item.AuthorMeta.Name, influencerID, model.VideoOriginDiscovery, kw.Keyword,
 		)
-		if s.saveVideo(ctx, video) {
+		isNew, saveErr := s.saveVideo(ctx, video)
+		if saveErr != nil {
+			failed.add(saveErr)
+			continue
+		}
+		if isNew {
 			created++
 		}
 	}
-	return found, created, nil
+	return found, created, failed.err()
 }
 
 // monitorCreator fetches one creator's latest videos, stores them and
@@ -266,8 +310,15 @@ func (s *CrawlService) monitorCreator(
 ) (found, created int, err error) {
 	items, err := s.scraper.FetchProfileVideos(ctx, creator.Username, limit)
 	if err != nil {
-		s.scheduleNextCheck(ctx, creator.ID, monitorRetryDelay)
-		return 0, 0, fmt.Errorf("apify profile fetch failed: %w", err)
+		fetchErr := fmt.Errorf("apify profile fetch failed: %w", err)
+		if scheduleErr := s.scheduleNextCheck(
+			ctx,
+			creator.ID,
+			monitorRetryDelay,
+		); scheduleErr != nil {
+			return 0, 0, fmt.Errorf("%w; also failed to schedule retry: %w", fetchErr, scheduleErr)
+		}
+		return 0, 0, fetchErr
 	}
 
 	usable := make([]*dto.TikTokScraperItem, 0, len(items))
@@ -283,10 +334,12 @@ func (s *CrawlService) monitorCreator(
 		return 0, 0, nil
 	}
 
+	var failed errorCollector
+
 	profile := *creator
 	applyAuthorMeta(&profile, &usable[0].AuthorMeta)
 	if err := s.influencerRepo.UpsertInfluencer(ctx, &profile); err != nil {
-		log.Printf("[CrawlService] failed to refresh profile @%s: %v", creator.Username, err)
+		failed.add(fmt.Errorf("failed to refresh profile: %w", err))
 	}
 
 	creatorID := creator.ID
@@ -296,13 +349,20 @@ func (s *CrawlService) monitorCreator(
 		video := itemToDiscoveredVideo(
 			item, creator.Username, &creatorID, model.VideoOriginMonitor, "",
 		)
-		if s.saveVideo(ctx, video) {
+		isNew, saveErr := s.saveVideo(ctx, video)
+		if saveErr != nil {
+			failed.add(saveErr)
+			continue
+		}
+		if isNew {
 			created++
 		}
 	}
 
-	s.updateCadence(ctx, creator)
-	return found, created, nil
+	if err := s.updateCadence(ctx, creator); err != nil {
+		failed.add(err)
+	}
+	return found, created, failed.err()
 }
 
 // handleEmptyCheck deals with a check that found no usable video: it counts
@@ -330,13 +390,15 @@ func (s *CrawlService) handleEmptyCheck(
 }
 
 // updateCadence recomputes the creator's upload cadence from every stored
-// video and schedules the next check.
-func (s *CrawlService) updateCadence(ctx context.Context, creator *model.Influencer) {
+// video and schedules the next check. The next check is scheduled even when
+// the cadence cannot be saved, so the creator is not scraped again at the
+// next tick.
+func (s *CrawlService) updateCadence(ctx context.Context, creator *model.Influencer) error {
 	times, err := s.videoRepo.ListVideoTimesByInfluencerID(ctx, creator.ID)
 	if err != nil {
-		log.Printf("[CrawlService] failed to list videos of @%s: %v", creator.Username, err)
-		s.scheduleNextCheck(ctx, creator.ID, monitorDefaultInterval)
-		return
+		listErr := fmt.Errorf("failed to list videos of @%s: %w", creator.Username, err)
+		scheduleErr := s.scheduleNextCheck(ctx, creator.ID, monitorDefaultInterval)
+		return errors.Join(listErr, scheduleErr)
 	}
 
 	firstAt, lastAt, avg := cadenceFromTimes(times)
@@ -346,35 +408,47 @@ func (s *CrawlService) updateCadence(ctx context.Context, creator *model.Influen
 		h := avg.Hours()
 		avgHours = &h
 	}
+
+	var errs []error
 	err = s.influencerRepo.UpdateAggregates(
 		ctx, creator.ID, firstAt, lastAt, avgHours, int64(len(times)),
 	)
 	if err != nil {
-		log.Printf("[CrawlService] failed to update aggregates of @%s: %v", creator.Username, err)
+		errs = append(
+			errs,
+			fmt.Errorf("failed to update aggregates of @%s: %w", creator.Username, err),
+		)
 	}
 
-	s.scheduleNextCheck(ctx, creator.ID, nextCheckInterval(avg))
+	errs = append(errs, s.scheduleNextCheck(ctx, creator.ID, nextCheckInterval(avg)))
+	return errors.Join(errs...)
 }
 
 // scheduleNextCheck sets the influencer's next check time.
-func (s *CrawlService) scheduleNextCheck(ctx context.Context, id uuid.UUID, after time.Duration) {
-	if err := s.influencerRepo.SetNextCheckAt(ctx, id, s.now().Add(after)); err != nil {
-		log.Printf("[CrawlService] failed to schedule next check of %s: %v", id, err)
+func (s *CrawlService) scheduleNextCheck(
+	ctx context.Context,
+	id uuid.UUID,
+	after time.Duration,
+) error {
+	err := s.influencerRepo.SetNextCheckAt(ctx, id, s.now().Add(after))
+	if err != nil {
+		return fmt.Errorf("failed to schedule next check of %s: %w", id, err)
 	}
+	return nil
 }
 
 // upsertAuthor stores the author of a discovered video once per run and
-// returns their ID. It returns nil if the author could not be saved; the
-// video is still stored, just without a creator link.
+// returns their ID. On failure it returns a nil ID and the error; the caller
+// still stores the video, just without a creator link.
 func (s *CrawlService) upsertAuthor(
 	ctx context.Context,
 	item *dto.TikTokScraperItem,
 	keyword string,
 	cache map[string]uuid.UUID,
-) *uuid.UUID {
+) (*uuid.UUID, error) {
 	name := item.AuthorMeta.Name
 	if id, ok := cache[name]; ok {
-		return &id
+		return &id, nil
 	}
 
 	influencer := &model.Influencer{
@@ -387,30 +461,30 @@ func (s *CrawlService) upsertAuthor(
 	applyAuthorMeta(influencer, &item.AuthorMeta)
 
 	if err := s.influencerRepo.UpsertInfluencer(ctx, influencer); err != nil {
-		log.Printf("[CrawlService] failed to save author @%s: %v", name, err)
-		return nil
+		return nil, fmt.Errorf("failed to save author @%s: %w", name, err)
 	}
 
 	cache[name] = influencer.ID
 	id := influencer.ID
-	return &id
+	return &id, nil
 }
 
 // saveVideo stores one video and reports whether it was new. A conflict with
 // another unique key (for example the same URL under a different external
-// ID) means the video is already known, so it is skipped quietly.
-func (s *CrawlService) saveVideo(ctx context.Context, v *model.Video) bool {
+// ID) means the video is already known, so it is skipped without an error.
+func (s *CrawlService) saveVideo(ctx context.Context, v *model.Video) (bool, error) {
 	isNew, err := s.videoRepo.UpsertDiscoveredVideo(ctx, v)
-	if err != nil {
-		if !errors.Is(err, data.ErrConflict) {
-			log.Printf("[CrawlService] failed to save video %s: %v", v.VideoURL, err)
-		}
-		return false
+	if errors.Is(err, data.ErrConflict) {
+		return false, nil
 	}
+	if err != nil {
+		return false, fmt.Errorf("failed to save video %s: %w", v.VideoURL, err)
+	}
+
 	if isNew {
 		s.onNewVideo(ctx, v)
 	}
-	return isNew
+	return isNew, nil
 }
 
 // onNewVideo runs for every video stored for the first time.
@@ -419,18 +493,19 @@ func (s *CrawlService) onNewVideo(_ context.Context, _ *model.Video) {
 }
 
 // isDue checks whether enough time has passed since the last run,
-// allowing a small delay in the scheduler's execution time.
+// allowing a small delay in the scheduler's execution time. A kind that
+// has never run is always due.
 func (s *CrawlService) isDue(
 	ctx context.Context,
 	kind model.CrawlKind,
 	interval time.Duration,
 ) (bool, error) {
 	last, err := s.crawlerRepo.GetLastRunStartedAt(ctx, kind)
+	if errors.Is(err, data.ErrNotFound) {
+		return true, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("failed to check last %s run: %w", kind, err)
-	}
-	if last == nil {
-		return true, nil
 	}
 
 	tolerance := min(dueTolerance, interval/2)
@@ -467,23 +542,24 @@ func (s *CrawlService) startRun(
 	return run, nil
 }
 
-// finishRun saves the outcome. The run fails only when every item failed;
-// otherwise it succeeds and keeps the partial failures in its error field.
+// finishRun saves the outcome. The run fails when every item failed or when
+// it was interrupted; otherwise it succeeds and keeps the partial failures
+// in its error field.
 func (s *CrawlService) finishRun(
 	ctx context.Context,
 	run *model.CrawlRun,
 	total int,
 	failures []string,
+	interrupted bool,
 ) error {
 	run.Status = model.CrawlStatusSucceeded
 
 	var runErr error
 	if len(failures) > 0 {
-		msg := strings.Join(failures, "; ")
-		msg = truncateUTF8(msg, maxRunErrorLength)
+		msg := truncateUTF8(strings.Join(failures, "; "), maxRunErrorLength)
 		run.Error = &msg
 
-		if len(failures) >= total {
+		if interrupted || len(failures) >= total {
 			run.Status = model.CrawlStatusFailed
 			runErr = fmt.Errorf("%s run %s failed: %s", run.Kind, run.ID, msg)
 		}
@@ -585,4 +661,14 @@ func truncateUTF8(s string, maxBytes int) string {
 		cut--
 	}
 	return s[:cut]
+}
+
+// DiscoveryIntervalHours returns how often, in hours, the discovery job
+// should run, as configured in the crawler setting.
+func (s *CrawlService) DiscoveryIntervalHours(ctx context.Context) (int, error) {
+	setting, err := s.crawlerRepo.GetSetting(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load crawler setting: %w", err)
+	}
+	return setting.DiscoveryIntervalHours, nil
 }

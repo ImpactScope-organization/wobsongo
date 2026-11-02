@@ -334,11 +334,13 @@ var serveCmd = &cobra.Command{
 		// neither registered nor scheduled.
 		crawlEnabled := config.ApifyConfig.Token != "" &&
 			config.ApifyConfig.TikTokActorID != ""
-		crawlerRepo := repo.NewCrawlerRepo(db.New(pool))
-		var crawlScheduler *worker.CrawlScheduler
+		var (
+			crawlService   *service.CrawlService
+			crawlScheduler *worker.CrawlScheduler
+		)
 		if crawlEnabled {
-			crawlService := service.NewCrawlService(
-				crawlerRepo,
+			crawlService = service.NewCrawlService(
+				repo.NewCrawlerRepo(db.New(pool)),
 				repo.NewInfluencerRepo(db.New(pool), pool),
 				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
 				external.NewTikTokScraperClient(
@@ -416,13 +418,13 @@ var serveCmd = &cobra.Command{
 			return
 		}
 		if crawlScheduler != nil {
-			setting, err := crawlerRepo.GetSetting(cmd.Context())
+			intervalHours, err := crawlService.DiscoveryIntervalHours(cmd.Context())
 			if err != nil {
-				cmd.PrintErrf("Failed to load crawler setting: %s\n", err.Error())
+				cmd.PrintErrf("Failed to load discovery interval: %s\n", err.Error())
 				os.Exit(1)
 				return
 			}
-			crawlScheduler.Reschedule(setting.DiscoveryIntervalHours, true)
+			crawlScheduler.Reschedule(intervalHours, true)
 		}
 		defer func() {
 			if err := riverClient.Stop(cmd.Context()); err != nil {

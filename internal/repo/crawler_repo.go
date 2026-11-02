@@ -2,7 +2,6 @@ package repo
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -10,7 +9,6 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -80,16 +78,14 @@ func (r *crawlerRepo) MarkKeywordRun(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// GetLastRunStartedAt returns when the latest run of a kind started, or nil.
+// GetLastRunStartedAt returns when the latest run of a kind started. It
+// returns data.ErrNotFound when there has been no run of that kind yet.
 func (r *crawlerRepo) GetLastRunStartedAt(
 	ctx context.Context,
 	kind model.CrawlKind,
 ) (*time.Time, error) {
 	startedAt, err := r.q.GetLastCrawlRunStartedAt(ctx, string(kind))
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil
-		}
 		return nil, fmt.Errorf("failed to get last crawl run: %w", mapPostgresError(err))
 	}
 	return &startedAt, nil

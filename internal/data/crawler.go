@@ -21,8 +21,8 @@ type CrawlerRepoer interface {
 	// MarkKeywordRun stamps last_run_at on a keyword.
 	MarkKeywordRun(ctx context.Context, id uuid.UUID) error
 
-	// GetLastRunStartedAt returns when the latest run of a kind started, or
-	// nil (with no error) if there was none.
+	// GetLastRunStartedAt returns when the latest run of a kind started. It
+	// returns ErrNotFound if there has been no run of that kind yet.
 	GetLastRunStartedAt(ctx context.Context, kind model.CrawlKind) (*time.Time, error)
 
 	// FailStaleRuns marks runs of a kind that are still 'running' after

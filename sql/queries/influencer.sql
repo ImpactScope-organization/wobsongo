@@ -35,3 +35,18 @@ SET
     last_checked_at = NOW(),
     updated_at = NOW()
 WHERE id = $5;
+
+
+-- name: GetInfluencerByID :one
+SELECT * FROM influencers WHERE id = $1;
+
+-- name: ListDueInfluencers :many
+SELECT * FROM influencers
+WHERE is_active AND (next_check_at IS NULL OR next_check_at <= NOW())
+ORDER BY next_check_at ASC NULLS FIRST
+LIMIT $1;
+
+-- name: SetInfluencerNextCheckAt :exec
+UPDATE influencers
+SET next_check_at = $1, updated_at = NOW()
+WHERE id = $2;

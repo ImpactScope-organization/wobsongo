@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/model"
@@ -27,6 +28,15 @@ type VideoRepoer interface {
 
 	// EnqueueClaimCheckJob adds a new claim-check job to the River queue.
 	EnqueueClaimCheckJob(ctx context.Context, payload queue.ClaimCheckJob) error
+
+	// UpsertDiscoveredVideo inserts a video found by discovery or creator
+	// monitoring, or refreshes the counters of one that is already known
+	// (matched by platform + external ID). isNew reports whether it was inserted.
+	UpsertDiscoveredVideo(ctx context.Context, video *model.Video) (isNew bool, err error)
+
+	// ListVideoTimesByInfluencerID returns the publish time of every stored
+	// video of an influencer, oldest first.
+	ListVideoTimesByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]time.Time, error)
 
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]

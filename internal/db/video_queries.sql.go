@@ -76,7 +76,7 @@ func (q *Queries) CreateVideos(ctx context.Context, arg CreateVideosParams) (Cre
 }
 
 const getVideoByURL = `-- name: GetVideoByURL :one
-SELECT id, video_url, author_username, author_profile_url, caption, play_count, like_count, thumbnail_url, location_created, video_created_at, transcription_text, hashtags, video_type, created_at, updated_at FROM videos WHERE video_url = $1 LIMIT 1
+SELECT id, video_url, author_username, author_profile_url, caption, play_count, like_count, thumbnail_url, location_created, video_created_at, transcription_text, hashtags, video_type, created_at, updated_at, influencer_id, external_id, comment_count, share_count, collect_count, media_url, origin, status, failed_stage, error, discovered_via_keyword, analyzed_at FROM videos WHERE video_url = $1 LIMIT 1
 `
 
 func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, error) {
@@ -98,8 +98,47 @@ func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, er
 		&i.VideoType,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.InfluencerID,
+		&i.ExternalID,
+		&i.CommentCount,
+		&i.ShareCount,
+		&i.CollectCount,
+		&i.MediaUrl,
+		&i.Origin,
+		&i.Status,
+		&i.FailedStage,
+		&i.Error,
+		&i.DiscoveredViaKeyword,
+		&i.AnalyzedAt,
 	)
 	return i, err
+}
+
+const listVideoCreatedAtByInfluencerID = `-- name: ListVideoCreatedAtByInfluencerID :many
+SELECT video_created_at FROM videos
+WHERE influencer_id = $1::uuid
+  AND video_created_at IS NOT NULL
+ORDER BY video_created_at ASC
+`
+
+func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]pgtype.Timestamptz, error) {
+	rows, err := q.db.Query(ctx, listVideoCreatedAtByInfluencerID, influencerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.Timestamptz
+	for rows.Next() {
+		var video_created_at pgtype.Timestamptz
+		if err := rows.Scan(&video_created_at); err != nil {
+			return nil, err
+		}
+		items = append(items, video_created_at)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateVideoTranscription = `-- name: UpdateVideoTranscription :exec
@@ -118,4 +157,83 @@ type UpdateVideoTranscriptionParams struct {
 func (q *Queries) UpdateVideoTranscription(ctx context.Context, arg UpdateVideoTranscriptionParams) error {
 	_, err := q.db.Exec(ctx, updateVideoTranscription, arg.TranscriptionText, arg.ID)
 	return err
+}
+
+const upsertDiscoveredVideo = `-- name: UpsertDiscoveredVideo :one
+INSERT INTO videos (
+    video_url, author_username, author_profile_url, caption,
+    play_count, like_count, comment_count, share_count, collect_count,
+    hashtags, video_created_at, video_type, influencer_id, external_id,
+    origin, status, discovered_via_keyword
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    'discovered', $16
+)
+ON CONFLICT (video_type, external_id) WHERE external_id IS NOT NULL DO UPDATE SET
+    play_count = EXCLUDED.play_count,
+    like_count = EXCLUDED.like_count,
+    comment_count = EXCLUDED.comment_count,
+    share_count = EXCLUDED.share_count,
+    collect_count = EXCLUDED.collect_count,
+    influencer_id = COALESCE(videos.influencer_id, EXCLUDED.influencer_id),
+    updated_at = NOW()
+RETURNING id, created_at, updated_at, (xmax = 0)::boolean AS is_new
+`
+
+type UpsertDiscoveredVideoParams struct {
+	VideoUrl             string
+	AuthorUsername       string
+	AuthorProfileUrl     string
+	Caption              pgtype.Text
+	PlayCount            pgtype.Int8
+	LikeCount            pgtype.Int8
+	CommentCount         int64
+	ShareCount           int64
+	CollectCount         int64
+	Hashtags             []string
+	VideoCreatedAt       pgtype.Timestamptz
+	VideoType            string
+	InfluencerID         pgtype.UUID
+	ExternalID           pgtype.Text
+	Origin               string
+	DiscoveredViaKeyword pgtype.Text
+}
+
+type UpsertDiscoveredVideoRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	IsNew     bool
+}
+
+// Videos from discovery/monitoring are identified by (video_type, external_id).
+// origin and status are only set on insert, so a video that came from
+// WhatsApp keeps its origin and stays out of the pipeline.
+func (q *Queries) UpsertDiscoveredVideo(ctx context.Context, arg UpsertDiscoveredVideoParams) (UpsertDiscoveredVideoRow, error) {
+	row := q.db.QueryRow(ctx, upsertDiscoveredVideo,
+		arg.VideoUrl,
+		arg.AuthorUsername,
+		arg.AuthorProfileUrl,
+		arg.Caption,
+		arg.PlayCount,
+		arg.LikeCount,
+		arg.CommentCount,
+		arg.ShareCount,
+		arg.CollectCount,
+		arg.Hashtags,
+		arg.VideoCreatedAt,
+		arg.VideoType,
+		arg.InfluencerID,
+		arg.ExternalID,
+		arg.Origin,
+		arg.DiscoveredViaKeyword,
+	)
+	var i UpsertDiscoveredVideoRow
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.IsNew,
+	)
+	return i, err
 }

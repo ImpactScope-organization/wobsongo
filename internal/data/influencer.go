@@ -30,6 +30,15 @@ type InfluencerRepoer interface {
 		trackedVideoCount int64,
 	) error
 
+	// GetByID returns the influencer with the given ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Influencer, error)
+
+	// ListDue returns active influencers whose next check is due.
+	ListDue(ctx context.Context, limit int) ([]*model.Influencer, error)
+
+	// SetNextCheckAt schedules the next monitor check of an influencer.
+	SetNextCheckAt(ctx context.Context, id uuid.UUID, at time.Time) error
+
 	// WithTx executes a function within a database transaction.
 	TxAware[InfluencerRepoer]
 }

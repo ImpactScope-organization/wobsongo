@@ -13,8 +13,44 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getInfluencerByID = `-- name: GetInfluencerByID :one
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers WHERE id = $1
+`
+
+func (q *Queries) GetInfluencerByID(ctx context.Context, id uuid.UUID) (Influencer, error) {
+	row := q.db.QueryRow(ctx, getInfluencerByID, id)
+	var i Influencer
+	err := row.Scan(
+		&i.ID,
+		&i.Platform,
+		&i.Username,
+		&i.ProfileUrl,
+		&i.Nickname,
+		&i.Bio,
+		&i.AvatarUrl,
+		&i.Verified,
+		&i.FollowersCount,
+		&i.FollowingCount,
+		&i.HeartsCount,
+		&i.ReportedVideoCount,
+		&i.TrackedVideoCount,
+		&i.Source,
+		&i.DiscoveredViaKeyword,
+		&i.DiscoveredFromVideoUrl,
+		&i.FirstVideoAt,
+		&i.LastVideoAt,
+		&i.AvgUploadIntervalHours,
+		&i.LastCheckedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.NextCheckAt,
+		&i.IsActive,
+	)
+	return i, err
+}
+
 const getInfluencerByUsername = `-- name: GetInfluencerByUsername :one
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at FROM influencers WHERE platform = $1 AND username = $2 LIMIT 1
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers WHERE platform = $1 AND username = $2 LIMIT 1
 `
 
 type GetInfluencerByUsernameParams struct {
@@ -48,12 +84,66 @@ func (q *Queries) GetInfluencerByUsername(ctx context.Context, arg GetInfluencer
 		&i.LastCheckedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.NextCheckAt,
+		&i.IsActive,
 	)
 	return i, err
 }
 
+const listDueInfluencers = `-- name: ListDueInfluencers :many
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers
+WHERE is_active AND (next_check_at IS NULL OR next_check_at <= NOW())
+ORDER BY next_check_at ASC NULLS FIRST
+LIMIT $1
+`
+
+func (q *Queries) ListDueInfluencers(ctx context.Context, limit int32) ([]Influencer, error) {
+	rows, err := q.db.Query(ctx, listDueInfluencers, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Influencer
+	for rows.Next() {
+		var i Influencer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Platform,
+			&i.Username,
+			&i.ProfileUrl,
+			&i.Nickname,
+			&i.Bio,
+			&i.AvatarUrl,
+			&i.Verified,
+			&i.FollowersCount,
+			&i.FollowingCount,
+			&i.HeartsCount,
+			&i.ReportedVideoCount,
+			&i.TrackedVideoCount,
+			&i.Source,
+			&i.DiscoveredViaKeyword,
+			&i.DiscoveredFromVideoUrl,
+			&i.FirstVideoAt,
+			&i.LastVideoAt,
+			&i.AvgUploadIntervalHours,
+			&i.LastCheckedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.NextCheckAt,
+			&i.IsActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInfluencers = `-- name: ListInfluencers :many
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at FROM influencers ORDER BY username
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers ORDER BY username
 `
 
 func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
@@ -88,6 +178,8 @@ func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
 			&i.LastCheckedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.NextCheckAt,
+			&i.IsActive,
 		); err != nil {
 			return nil, err
 		}
@@ -97,6 +189,22 @@ func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setInfluencerNextCheckAt = `-- name: SetInfluencerNextCheckAt :exec
+UPDATE influencers
+SET next_check_at = $1, updated_at = NOW()
+WHERE id = $2
+`
+
+type SetInfluencerNextCheckAtParams struct {
+	NextCheckAt pgtype.Timestamptz
+	ID          uuid.UUID
+}
+
+func (q *Queries) SetInfluencerNextCheckAt(ctx context.Context, arg SetInfluencerNextCheckAtParams) error {
+	_, err := q.db.Exec(ctx, setInfluencerNextCheckAt, arg.NextCheckAt, arg.ID)
+	return err
 }
 
 const updateInfluencerAggregates = `-- name: UpdateInfluencerAggregates :exec

@@ -64,6 +64,14 @@ const (
 	// JobTypeDeactivateNarratives represents a job type for deactivating
 	// narratives without recent claims.
 	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"
+
+	// JobTypeDiscoverVideos represents a job type for discovering new videos
+	// by keyword.
+	JobTypeDiscoverVideos BackgroundJobType = "discover_videos"
+
+	// JobTypeMonitorCreator represents a job type for checking tracked
+	// creators for new videos.
+	JobTypeMonitorCreator BackgroundJobType = "monitor_creator"
 )
 
 // BackgroundJob represents a generic background job.
@@ -105,4 +113,7 @@ const (
 	// Queue for claim clustering, kept small to prevent database pool exhaustion
 	// while jobs wait for per-topic advisory locks.
 	QueueNarrativeClustering = "narrative_clustering"
+
+	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
+	QueueCrawler = "crawler"
 )

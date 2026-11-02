@@ -79,6 +79,13 @@ type Influencer struct {
 	// LastCheckedAt is the last time the influencer was checked for new videos.
 	LastCheckedAt *time.Time `json:"last_checked_at,omitempty"`
 
+	// NextCheckAt is when the influencer should next be checked for new
+	// videos, based on their average upload interval.
+	NextCheckAt *time.Time `json:"next_check_at,omitempty"`
+
+	// IsActive reports whether the influencer is monitored.
+	IsActive bool `json:"is_active"`
+
 	// CreatedAt is the time when the record was created.
 	CreatedAt time.Time `json:"created_at"`
 

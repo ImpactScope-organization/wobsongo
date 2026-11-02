@@ -61,6 +61,7 @@ type Claim struct {
 	Citations               []byte
 	JudgedAt                time.Time
 	CreatedAt               time.Time
+	VideoID                 pgtype.UUID
 }
 
 type ConversationMessage struct {
@@ -69,6 +70,41 @@ type ConversationMessage struct {
 	Role      string
 	Content   string
 	CreatedAt time.Time
+}
+
+type CrawlRun struct {
+	ID          uuid.UUID
+	Kind        string
+	Trigger     string
+	TriggeredBy pgtype.UUID
+	Status      string
+	StartedAt   time.Time
+	FinishedAt  pgtype.Timestamptz
+	VideoFound  int32
+	VideoNew    int32
+	Cost        pgtype.Numeric
+	Params      []byte
+	Error       pgtype.Text
+}
+
+type CrawlerSetting struct {
+	ID                     int16
+	DiscoveryIntervalHours int32
+	MaxResultsKeyword      int32
+	MaxResultsInfluencer   int32
+	MaxCostPerRun          pgtype.Numeric
+	UpdatedBy              pgtype.UUID
+	UpdatedAt              time.Time
+}
+
+type DiscoveryKeyword struct {
+	ID        uuid.UUID
+	Keyword   string
+	Language  int32
+	IsActive  bool
+	LastRunAt pgtype.Timestamptz
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
 type Document struct {
@@ -133,6 +169,8 @@ type Influencer struct {
 	LastCheckedAt          pgtype.Timestamptz
 	CreatedAt              time.Time
 	UpdatedAt              time.Time
+	NextCheckAt            pgtype.Timestamptz
+	IsActive               bool
 }
 
 type InfluencerVideo struct {
@@ -194,19 +232,31 @@ type User struct {
 }
 
 type Video struct {
-	ID                uuid.UUID
-	VideoUrl          string
-	AuthorUsername    string
-	AuthorProfileUrl  string
-	Caption           pgtype.Text
-	PlayCount         pgtype.Int8
-	LikeCount         pgtype.Int8
-	ThumbnailUrl      string
-	LocationCreated   pgtype.Text
-	VideoCreatedAt    pgtype.Timestamptz
-	TranscriptionText pgtype.Text
-	Hashtags          []string
-	VideoType         string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                   uuid.UUID
+	VideoUrl             string
+	AuthorUsername       string
+	AuthorProfileUrl     string
+	Caption              pgtype.Text
+	PlayCount            pgtype.Int8
+	LikeCount            pgtype.Int8
+	ThumbnailUrl         string
+	LocationCreated      pgtype.Text
+	VideoCreatedAt       pgtype.Timestamptz
+	TranscriptionText    pgtype.Text
+	Hashtags             []string
+	VideoType            string
+	CreatedAt            time.Time
+	UpdatedAt            time.Time
+	InfluencerID         pgtype.UUID
+	ExternalID           pgtype.Text
+	CommentCount         int64
+	ShareCount           int64
+	CollectCount         int64
+	MediaUrl             pgtype.Text
+	Origin               string
+	Status               pgtype.Text
+	FailedStage          pgtype.Text
+	Error                pgtype.Text
+	DiscoveredViaKeyword pgtype.Text
+	AnalyzedAt           pgtype.Timestamptz
 }

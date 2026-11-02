@@ -157,6 +157,7 @@ func dbInfluencerToModel(row *db.Influencer) *model.Influencer {
 		ReportedVideoCount: row.ReportedVideoCount,
 		TrackedVideoCount:  row.TrackedVideoCount,
 		Source:             model.InfluencerSource(row.Source),
+		IsActive:           row.IsActive,
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}
@@ -182,5 +183,44 @@ func dbInfluencerToModel(row *db.Influencer) *model.Influencer {
 		t := row.LastCheckedAt.Time
 		m.LastCheckedAt = &t
 	}
+	if row.NextCheckAt.Valid {
+		t := row.NextCheckAt.Time
+		m.NextCheckAt = &t
+	}
 	return m
+}
+
+// GetByID returns the influencer with the given ID.
+func (r *influencerRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Influencer, error) {
+	row, err := r.q.GetInfluencerByID(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get influencer by id: %w", mapPostgresError(err))
+	}
+	return dbInfluencerToModel(&row), nil
+}
+
+// ListDue returns up to limit active influencers whose next check is due.
+func (r *influencerRepo) ListDue(ctx context.Context, limit int) ([]*model.Influencer, error) {
+	rows, err := r.q.ListDueInfluencers(ctx, int32(limit))
+	if err != nil {
+		return nil, fmt.Errorf("failed to list due influencers: %w", mapPostgresError(err))
+	}
+
+	influencers := make([]*model.Influencer, 0, len(rows))
+	for i := range rows {
+		influencers = append(influencers, dbInfluencerToModel(&rows[i]))
+	}
+	return influencers, nil
+}
+
+// SetNextCheckAt schedules the next monitor check of an influencer.
+func (r *influencerRepo) SetNextCheckAt(ctx context.Context, id uuid.UUID, at time.Time) error {
+	err := r.q.SetInfluencerNextCheckAt(ctx, db.SetInfluencerNextCheckAtParams{
+		NextCheckAt: pgtype.Timestamptz{Time: at, Valid: true},
+		ID:          id,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set influencer next check: %w", mapPostgresError(err))
+	}
+	return nil
 }

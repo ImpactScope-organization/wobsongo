@@ -2,7 +2,8 @@ BEGIN;
 
 ALTER TABLE influencers
     ADD COLUMN next_check_at TIMESTAMPTZ,
-    ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true;
+    ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN empty_check_count INTEGER NOT NULL DEFAULT 0;
 
 -- Existing influencers are checked on the next monitor run.
 UPDATE influencers SET next_check_at = NOW();

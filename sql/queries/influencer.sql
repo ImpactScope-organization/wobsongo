@@ -32,6 +32,7 @@ SET
     last_video_at = $2,
     avg_upload_interval_hours = $3,
     tracked_video_count = $4,
+    empty_check_count = 0,
     last_checked_at = NOW(),
     updated_at = NOW()
 WHERE id = $5;
@@ -50,3 +51,16 @@ LIMIT $1;
 UPDATE influencers
 SET next_check_at = $1, updated_at = NOW()
 WHERE id = $2;
+
+
+-- name: RecordInfluencerEmptyCheck :one
+-- Counts one more empty check and schedules the next check in the same
+-- statement. The influencer is deactivated once the count reaches the limit.
+UPDATE influencers
+SET empty_check_count = empty_check_count + 1,
+    is_active = is_active AND (empty_check_count + 1) < sqlc.arg(max_empty_checks)::int,
+    next_check_at = sqlc.arg(next_check_at)::timestamptz,
+    last_checked_at = NOW(),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING empty_check_count, is_active;

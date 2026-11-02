@@ -86,6 +86,10 @@ type Influencer struct {
 	// IsActive reports whether the influencer is monitored.
 	IsActive bool `json:"is_active"`
 
+	// EmptyCheckCount is how many checks in a row found no usable video. The
+	// influencer is deactivated when it reaches the limit.
+	EmptyCheckCount int `json:"empty_check_count"`
+
 	// CreatedAt is the time when the record was created.
 	CreatedAt time.Time `json:"created_at"`
 

@@ -158,6 +158,7 @@ func dbInfluencerToModel(row *db.Influencer) *model.Influencer {
 		TrackedVideoCount:  row.TrackedVideoCount,
 		Source:             model.InfluencerSource(row.Source),
 		IsActive:           row.IsActive,
+		EmptyCheckCount:    int(row.EmptyCheckCount),
 		CreatedAt:          row.CreatedAt,
 		UpdatedAt:          row.UpdatedAt,
 	}
@@ -223,4 +224,23 @@ func (r *influencerRepo) SetNextCheckAt(ctx context.Context, id uuid.UUID, at ti
 		return fmt.Errorf("failed to set influencer next check: %w", mapPostgresError(err))
 	}
 	return nil
+}
+
+// RecordEmptyCheck counts one more empty check and deactivates the influencer
+// once maxEmptyChecks in a row is reached.
+func (r *influencerRepo) RecordEmptyCheck(
+	ctx context.Context,
+	id uuid.UUID,
+	maxEmptyChecks int,
+	nextCheckAt time.Time,
+) (bool, error) {
+	row, err := r.q.RecordInfluencerEmptyCheck(ctx, db.RecordInfluencerEmptyCheckParams{
+		MaxEmptyChecks: int32(maxEmptyChecks),
+		NextCheckAt:    nextCheckAt,
+		ID:             id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to record empty check: %w", mapPostgresError(err))
+	}
+	return row.IsActive, nil
 }

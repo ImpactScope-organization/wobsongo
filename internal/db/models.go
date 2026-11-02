@@ -171,6 +171,7 @@ type Influencer struct {
 	UpdatedAt              time.Time
 	NextCheckAt            pgtype.Timestamptz
 	IsActive               bool
+	EmptyCheckCount        int32
 }
 
 type InfluencerVideo struct {

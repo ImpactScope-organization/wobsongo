@@ -14,7 +14,7 @@ import (
 )
 
 const getInfluencerByID = `-- name: GetInfluencerByID :one
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers WHERE id = $1
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers WHERE id = $1
 `
 
 func (q *Queries) GetInfluencerByID(ctx context.Context, id uuid.UUID) (Influencer, error) {
@@ -45,12 +45,13 @@ func (q *Queries) GetInfluencerByID(ctx context.Context, id uuid.UUID) (Influenc
 		&i.UpdatedAt,
 		&i.NextCheckAt,
 		&i.IsActive,
+		&i.EmptyCheckCount,
 	)
 	return i, err
 }
 
 const getInfluencerByUsername = `-- name: GetInfluencerByUsername :one
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers WHERE platform = $1 AND username = $2 LIMIT 1
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers WHERE platform = $1 AND username = $2 LIMIT 1
 `
 
 type GetInfluencerByUsernameParams struct {
@@ -86,12 +87,13 @@ func (q *Queries) GetInfluencerByUsername(ctx context.Context, arg GetInfluencer
 		&i.UpdatedAt,
 		&i.NextCheckAt,
 		&i.IsActive,
+		&i.EmptyCheckCount,
 	)
 	return i, err
 }
 
 const listDueInfluencers = `-- name: ListDueInfluencers :many
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers
 WHERE is_active AND (next_check_at IS NULL OR next_check_at <= NOW())
 ORDER BY next_check_at ASC NULLS FIRST
 LIMIT $1
@@ -131,6 +133,7 @@ func (q *Queries) ListDueInfluencers(ctx context.Context, limit int32) ([]Influe
 			&i.UpdatedAt,
 			&i.NextCheckAt,
 			&i.IsActive,
+			&i.EmptyCheckCount,
 		); err != nil {
 			return nil, err
 		}
@@ -143,7 +146,7 @@ func (q *Queries) ListDueInfluencers(ctx context.Context, limit int32) ([]Influe
 }
 
 const listInfluencers = `-- name: ListInfluencers :many
-SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active FROM influencers ORDER BY username
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers ORDER BY username
 `
 
 func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
@@ -180,6 +183,7 @@ func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
 			&i.UpdatedAt,
 			&i.NextCheckAt,
 			&i.IsActive,
+			&i.EmptyCheckCount,
 		); err != nil {
 			return nil, err
 		}
@@ -189,6 +193,37 @@ func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const recordInfluencerEmptyCheck = `-- name: RecordInfluencerEmptyCheck :one
+UPDATE influencers
+SET empty_check_count = empty_check_count + 1,
+    is_active = is_active AND (empty_check_count + 1) < $1::int,
+    next_check_at = $2::timestamptz,
+    last_checked_at = NOW(),
+    updated_at = NOW()
+WHERE id = $3
+RETURNING empty_check_count, is_active
+`
+
+type RecordInfluencerEmptyCheckParams struct {
+	MaxEmptyChecks int32
+	NextCheckAt    time.Time
+	ID             uuid.UUID
+}
+
+type RecordInfluencerEmptyCheckRow struct {
+	EmptyCheckCount int32
+	IsActive        bool
+}
+
+// Counts one more empty check and schedules the next check in the same
+// statement. The influencer is deactivated once the count reaches the limit.
+func (q *Queries) RecordInfluencerEmptyCheck(ctx context.Context, arg RecordInfluencerEmptyCheckParams) (RecordInfluencerEmptyCheckRow, error) {
+	row := q.db.QueryRow(ctx, recordInfluencerEmptyCheck, arg.MaxEmptyChecks, arg.NextCheckAt, arg.ID)
+	var i RecordInfluencerEmptyCheckRow
+	err := row.Scan(&i.EmptyCheckCount, &i.IsActive)
+	return i, err
 }
 
 const setInfluencerNextCheckAt = `-- name: SetInfluencerNextCheckAt :exec
@@ -214,6 +249,7 @@ SET
     last_video_at = $2,
     avg_upload_interval_hours = $3,
     tracked_video_count = $4,
+    empty_check_count = 0,
     last_checked_at = NOW(),
     updated_at = NOW()
 WHERE id = $5

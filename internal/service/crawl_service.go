@@ -8,6 +8,7 @@ import (
 	"log"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -18,7 +19,6 @@ import (
 const (
 	// crawlStaleAfter is how long a run may stay 'running' before it is
 	// considered dead (for example after a server crash).
-	// Will be configurable via an environment variable in a follow-up PR.
 	crawlStaleAfter = 2 * time.Hour
 
 	// maxRunErrorLength caps the error text stored on a crawl run.
@@ -36,13 +36,21 @@ const (
 	// creator, so a creator who rarely posts is still checked at least once
 	// in this period.
 	// Will be configurable via an environment variable in a follow-up PR.
-
 	monitorMaxInterval = 7 * 24 * time.Hour
 
 	// monitorRetryDelay is how long to wait before checking a creator again
 	// after a failed or empty fetch.
-	// Will be configurable via an environment variable in a follow-up PR.
-	monitorRetryDelay = time.Hour
+	monitorRetryDelay = 24 * time.Hour
+
+	// monitorMaxEmptyChecks is how many checks in a row may find no usable
+	// video before the creator is deactivated.
+	monitorMaxEmptyChecks = 3
+
+	// dueTolerance absorbs the small delay between a periodic tick and the
+	// moment a run records its started_at. Without it, the next tick can
+	// land a few seconds before last+interval and the run is skipped until
+	// the tick after that (a 24h interval silently becomes 48h).
+	dueTolerance = 5 * time.Minute
 )
 
 // CrawlService runs the discovery (by keyword) and monitoring (by creator)
@@ -261,23 +269,28 @@ func (s *CrawlService) monitorCreator(
 		s.scheduleNextCheck(ctx, creator.ID, monitorRetryDelay)
 		return 0, 0, fmt.Errorf("apify profile fetch failed: %w", err)
 	}
-	if len(items) == 0 {
-		s.scheduleNextCheck(ctx, creator.ID, monitorRetryDelay)
+
+	usable := make([]*dto.TikTokScraperItem, 0, len(items))
+	for i := range items {
+		if isUsableItem(&items[i]) {
+			usable = append(usable, &items[i])
+		}
+	}
+	if len(usable) == 0 {
+		if err := s.handleEmptyCheck(ctx, creator); err != nil {
+			return 0, 0, fmt.Errorf("failed to record empty check: %w", err)
+		}
 		return 0, 0, nil
 	}
 
 	profile := *creator
-	applyAuthorMeta(&profile, &items[0].AuthorMeta)
+	applyAuthorMeta(&profile, &usable[0].AuthorMeta)
 	if err := s.influencerRepo.UpsertInfluencer(ctx, &profile); err != nil {
 		log.Printf("[CrawlService] failed to refresh profile @%s: %v", creator.Username, err)
 	}
 
 	creatorID := creator.ID
-	for i := range items {
-		item := &items[i]
-		if !isUsableItem(item) {
-			continue
-		}
+	for _, item := range usable {
 		found++
 
 		video := itemToDiscoveredVideo(
@@ -290,6 +303,30 @@ func (s *CrawlService) monitorCreator(
 
 	s.updateCadence(ctx, creator)
 	return found, created, nil
+}
+
+// handleEmptyCheck deals with a check that found no usable video: it counts
+// the miss and either retries later or, after monitorMaxEmptyChecks in a row,
+// stops monitoring the creator.
+func (s *CrawlService) handleEmptyCheck(
+	ctx context.Context,
+	creator *model.Influencer,
+) error {
+	nextCheckAt := s.now().Add(monitorRetryDelay)
+	stillActive, err := s.influencerRepo.RecordEmptyCheck(
+		ctx, creator.ID, monitorMaxEmptyChecks, nextCheckAt,
+	)
+	if err != nil {
+		return err
+	}
+
+	if !stillActive {
+		log.Printf(
+			"[CrawlService] @%s deactivated: no usable video in %d checks in a row",
+			creator.Username, monitorMaxEmptyChecks,
+		)
+	}
+	return nil
 }
 
 // updateCadence recomputes the creator's upload cadence from every stored
@@ -381,7 +418,8 @@ func (s *CrawlService) onNewVideo(_ context.Context, _ *model.Video) {
 	// TODO(screen): enqueue ScreenVideoJob{VideoID: v.ID} once step 3 exists.
 }
 
-// isDue reports whether the interval since the last run of a kind has passed.
+// isDue checks whether enough time has passed since the last run,
+// allowing a small delay in the scheduler's execution time.
 func (s *CrawlService) isDue(
 	ctx context.Context,
 	kind model.CrawlKind,
@@ -391,7 +429,12 @@ func (s *CrawlService) isDue(
 	if err != nil {
 		return false, fmt.Errorf("failed to check last %s run: %w", kind, err)
 	}
-	return last == nil || !s.now().Before(last.Add(interval)), nil
+	if last == nil {
+		return true, nil
+	}
+
+	tolerance := min(dueTolerance, interval/2)
+	return !s.now().Before(last.Add(interval - tolerance)), nil
 }
 
 // startRun fails runs that look dead, then records a new running run. It
@@ -437,9 +480,7 @@ func (s *CrawlService) finishRun(
 	var runErr error
 	if len(failures) > 0 {
 		msg := strings.Join(failures, "; ")
-		if len(msg) > maxRunErrorLength {
-			msg = msg[:maxRunErrorLength]
-		}
+		msg = truncateUTF8(msg, maxRunErrorLength)
 		run.Error = &msg
 
 		if len(failures) >= total {
@@ -531,4 +572,17 @@ func nextCheckInterval(avg *time.Duration) time.Duration {
 		return monitorDefaultInterval
 	}
 	return min(*avg, monitorMaxInterval)
+}
+
+// truncateUTF8 shortens s to at most maxBytes without cutting a multi-byte
+// character in half, which Postgres would reject as invalid UTF-8.
+func truncateUTF8(s string, maxBytes int) string {
+	if len(s) <= maxBytes {
+		return s
+	}
+	cut := maxBytes
+	for cut > 0 && !utf8.RuneStart(s[cut]) {
+		cut--
+	}
+	return s[:cut]
 }

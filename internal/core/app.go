@@ -22,25 +22,27 @@ const (
 )
 
 type App struct {
-	config              *internal.Config
-	echoApp             *echo.Echo
-	apiGroup            *echo.Group
-	apifyRepo           data.ApifyRepoer
-	videoRepo           data.VideoRepoer
-	documentRepo        data.DocumentRepoer
-	mediaProvider       data.MediaUploadProvider
-	chunkRepo           data.DocumentChunkRepoer
-	knowledgeRepo       data.AtomicKnowledgeRepoer
-	embedder            data.Embedder
-	claimAnalyzer       data.ClaimAnalyzer
-	claimJudge          data.ClaimJudge
-	userRepo            data.UserRepoer
-	conversationRepo    data.ConversationRepoer
-	speechRepo          data.SpeechRepoer
-	translator          data.Translator
-	speechSynthesizer   data.SpeechSynthesizer
-	narrativeRepo       data.NarrativeRepoer
-	narrativeStatements data.NarrativeStatementGenerator
+	config               *internal.Config
+	echoApp              *echo.Echo
+	apiGroup             *echo.Group
+	apifyRepo            data.ApifyRepoer
+	videoRepo            data.VideoRepoer
+	documentRepo         data.DocumentRepoer
+	mediaProvider        data.MediaUploadProvider
+	chunkRepo            data.DocumentChunkRepoer
+	knowledgeRepo        data.AtomicKnowledgeRepoer
+	embedder             data.Embedder
+	claimAnalyzer        data.ClaimAnalyzer
+	claimJudge           data.ClaimJudge
+	userRepo             data.UserRepoer
+	conversationRepo     data.ConversationRepoer
+	speechRepo           data.SpeechRepoer
+	translator           data.Translator
+	speechSynthesizer    data.SpeechSynthesizer
+	narrativeRepo        data.NarrativeRepoer
+	narrativeStatements  data.NarrativeStatementGenerator
+	crawlerRepo          data.CrawlerRepoer
+	discoveryRescheduler data.DiscoveryRescheduler
 }
 
 // Echo returns the Echo instance of the application.
@@ -184,6 +186,21 @@ func WithNarrativeStatements(generator data.NarrativeStatementGenerator) AppOpti
 	}
 }
 
+// WithCrawlerRepo sets the repository of the crawler settings.
+func WithCrawlerRepo(repo data.CrawlerRepoer) AppOption {
+	return func(a *App) {
+		a.crawlerRepo = repo
+	}
+}
+
+// WithDiscoveryRescheduler sets the scheduler that replaces the periodic
+// discovery job when an admin changes the discovery interval.
+func WithDiscoveryRescheduler(rescheduler data.DiscoveryRescheduler) AppOption {
+	return func(a *App) {
+		a.discoveryRescheduler = rescheduler
+	}
+}
+
 // General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
 //
 // @title						WobSongo API
@@ -243,6 +260,8 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.UserRepo = app.userRepo
 	repos.NarrativeRepo = app.narrativeRepo
 	repos.NarrativeStatements = app.narrativeStatements
+	repos.CrawlerRepo = app.crawlerRepo
+	repos.DiscoveryRescheduler = app.discoveryRescheduler
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

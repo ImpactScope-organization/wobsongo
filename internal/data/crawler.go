@@ -36,4 +36,14 @@ type CrawlerRepoer interface {
 
 	// FinishRun saves the final status, counts and error of a run.
 	FinishRun(ctx context.Context, run *model.CrawlRun) error
+
+	// UpdateSetting saves the crawler configuration, creating the row if it
+	// does not exist yet, and fills setting.UpdatedAt.
+	UpdateSetting(ctx context.Context, setting *model.CrawlerSetting) error
+}
+
+// DiscoveryRescheduler defines an interface for updating the schedule
+// of the periodic discovery job.
+type DiscoveryRescheduler interface {
+	Reschedule(intervalHours int, runOnStart bool)
 }

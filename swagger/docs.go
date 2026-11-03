@@ -930,6 +930,236 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/crawler/settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The configuration of video discovery and creator monitoring.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "crawler"
+                ],
+                "summary": "Get crawler settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CrawlerSetting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Replaces the whole configuration. A new discovery interval replaces the periodic discovery job right away. max_cost_per_run is stored but not enforced yet.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "crawler"
+                ],
+                "summary": "Update crawler settings",
+                "parameters": [
+                    {
+                        "description": "Crawler settings",
+                        "name": "form",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/dto.UpdateCrawlerSettingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.CrawlerSetting"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/documents": {
             "get": {
                 "security": [
@@ -3118,6 +3348,39 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.UpdateCrawlerSettingRequest": {
+            "type": "object",
+            "required": [
+                "discovery_interval_hours",
+                "max_results_influencer",
+                "max_results_keyword"
+            ],
+            "properties": {
+                "discovery_interval_hours": {
+                    "description": "DiscoveryIntervalHours defines the interval between scheduled discovery runs in hours.",
+                    "type": "integer",
+                    "maximum": 720,
+                    "minimum": 1
+                },
+                "max_cost_per_run": {
+                    "description": "MaxCostPerRun defines the maximum allowed cost per crawler run.",
+                    "type": "number",
+                    "maximum": 1000
+                },
+                "max_results_influencer": {
+                    "description": "MaxResultsInfluencer defines the maximum number of posts to retrieve per influencer.",
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 1
+                },
+                "max_results_keyword": {
+                    "description": "MaxResultsKeyword defines the maximum number of posts to retrieve per keyword.",
+                    "type": "integer",
+                    "maximum": 100,
+                    "minimum": 1
+                }
+            }
+        },
         "dto.UpdateDocumentDTO": {
             "type": "object",
             "required": [
@@ -3174,6 +3437,33 @@ const docTemplate = `{
                     "type": "integer",
                     "maximum": 599,
                     "minimum": 100
+                }
+            }
+        },
+        "model.CrawlerSetting": {
+            "type": "object",
+            "properties": {
+                "discovery_interval_hours": {
+                    "type": "integer"
+                },
+                "max_cost_per_run": {
+                    "description": "MaxCostPerRun is the maximum cost (USD) allowed for a single discovery or\nmonitoring run. If the Apify actor reports a higher cost, the run is\nconsidered failed.",
+                    "type": "number"
+                },
+                "max_results_influencer": {
+                    "description": "MaxResultsInfluencer is how many recent videos to fetch per creator check.",
+                    "type": "integer"
+                },
+                "max_results_keyword": {
+                    "description": "MaxResultsKeyword is how many videos to fetch per discovery keyword.",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },

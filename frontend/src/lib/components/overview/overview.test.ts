@@ -7,10 +7,12 @@ import {
 	narratives,
 	platformCounts,
 	overviewSnapshot,
-	sampleCreators
+	sampleCreators,
+	sampleUserQuestions
 } from '#lib/fixtures/overview.js';
 import { withLocale } from '#lib/testing/locale.js';
 import { stripComments } from '#lib/testing/snippet.js';
+import ChatbotEngagement from './chatbot-engagement.svelte';
 import CreatorList from './creator-list.svelte';
 import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
@@ -244,6 +246,39 @@ describe('HighHarmSummary', () => {
 	});
 });
 
+describe('ChatbotEngagement', () => {
+	it('renders each time window with unique users and questions', () => {
+		const w7 = render(ChatbotEngagement, {
+			props: { stats: sampleUserQuestions, defaultWindow: '7d' }
+		}).body;
+		expect(w7).toContain('Chatbot engagement');
+		expect(w7).toContain('Total unique users and questions · Last 7 days');
+		expect(w7).toContain('>2<');
+		expect(w7).toContain('>24<');
+
+		const w15 = render(ChatbotEngagement, {
+			props: { stats: sampleUserQuestions, defaultWindow: '15d' }
+		}).body;
+		expect(w15).toContain('Total unique users and questions · Last 15 days');
+		expect(w15).toContain('>4<');
+		expect(w15).toContain('>33<');
+
+		const w30 = render(ChatbotEngagement, {
+			props: { stats: sampleUserQuestions, defaultWindow: '30d' }
+		}).body;
+		expect(w30).toContain('Total unique users and questions · Last 30 days');
+		expect(w30).toContain('>14<');
+		expect(w30).toContain('>159<');
+
+		const wall = render(ChatbotEngagement, {
+			props: { stats: sampleUserQuestions, defaultWindow: 'all' }
+		}).body;
+		expect(wall).toContain('Total unique users and questions · All time');
+		expect(wall).toContain('>59<');
+		expect(wall).toContain('>502<');
+	});
+});
+
 describe('OverviewView', () => {
 	const hrefs = {
 		rangeHref: (range: string) => `?range=${range}&topic=misinfo`,
@@ -301,6 +336,23 @@ describe('OverviewView', () => {
 		expect(view({ ...overviewSnapshot, narratives: [] })).toContain(
 			'No narratives in this window.'
 		);
+	});
+
+	it('displays unique users and questions with time filter pills', () => {
+		const body7d = view(overviewSnapshot, '7d');
+		expect(body7d).toContain('Chatbot engagement');
+		expect(body7d).toContain('Total unique users and questions · Last 7 days');
+		expect(body7d).toContain('Unique users');
+		expect(body7d).toContain('Questions');
+		expect(body7d).toContain('>2<');
+		expect(body7d).toContain('>24<');
+		expect(body7d).toContain('15 d');
+		expect(body7d).toContain('All time');
+
+		const body30d = view(overviewSnapshot, '30d');
+		expect(body30d).toContain('Total unique users and questions · Last 30 days');
+		expect(body30d).toContain('>14<');
+		expect(body30d).toContain('>159<');
 	});
 });
 

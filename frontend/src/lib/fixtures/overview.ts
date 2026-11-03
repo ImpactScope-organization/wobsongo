@@ -5,7 +5,12 @@
  */
 import type { Anomaly, HighHarmSummary, NarrativeSummary } from '#lib/domain/narrative.js';
 import type { PlatformCount } from '#lib/domain/platform.js';
-import type { ContentCreator, OverviewSnapshot } from '#lib/domain/overview.js';
+import type {
+	ContentCreator,
+	EngagementWindow,
+	OverviewSnapshot,
+	UserQuestionStats
+} from '#lib/domain/overview.js';
 import type { ActivityEntry } from '#lib/domain/review.js';
 
 /** "Now" for every Overview fixture: Monday 12 Oct 2026, 14:05 GMT. */
@@ -87,6 +92,13 @@ export const platformCounts: PlatformCount[] = [
 
 export const highHarmSummary: HighHarmSummary = { awaitingReview: 2, fastTracked: 1 };
 
+export const sampleUserQuestions: Record<EngagementWindow, UserQuestionStats> = {
+	'7d': { users: 2, questions: 24 },
+	'15d': { users: 4, questions: 33 },
+	'30d': { users: 14, questions: 159 },
+	all: { users: 59, questions: 502 }
+};
+
 /** Sample creators across TikTok, Instagram, Facebook, and X */
 export const sampleCreators: ContentCreator[] = [
 	{
@@ -167,6 +179,7 @@ export const overviewSnapshot: OverviewSnapshot = {
 	medianDebunkMinutes: { current: 142, previous: 124 },
 	narratives,
 	creators: sampleCreators,
+	userQuestions: sampleUserQuestions,
 	anomaly,
 	platformCounts,
 	highHarm: highHarmSummary

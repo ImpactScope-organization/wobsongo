@@ -38,6 +38,16 @@ export interface Comparison {
 /** Supported creator platforms */
 export type CreatorPlatform = 'tiktok' | 'instagram' | 'facebook' | 'x';
 
+/** Reporting windows for unique users and questions. */
+export type EngagementWindow = '7d' | '15d' | '30d' | 'all';
+
+export const ENGAGEMENT_WINDOWS: readonly EngagementWindow[] = ['7d', '15d', '30d', 'all'];
+
+export interface UserQuestionStats {
+	users: number;
+	questions: number;
+}
+
 export interface ContentCreator {
 	id: string;
 	name: string;
@@ -68,6 +78,8 @@ export interface OverviewSnapshot {
 	narratives: NarrativeSummary[];
 	/** Top content creators detected across monitored platforms. */
 	creators?: ContentCreator[];
+	/** Total unique users and questions across reporting windows. */
+	userQuestions?: Record<EngagementWindow, UserQuestionStats>;
 	/** The most unusual jump in volume, if any narrative has one. */
 	anomaly: Anomaly | null;
 	platformCounts: PlatformCount[];

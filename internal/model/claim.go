@@ -60,6 +60,10 @@ type Claim struct {
 	// usable because it keeps its own text, platform and timestamp.
 	MessageID *uuid.UUID `json:"message_id,omitempty" format:"uuid"`
 
+	// VideoID is the video the claim came from. Nil for claims that came from
+	// a chat message.
+	VideoID *uuid.UUID `json:"video_id,omitempty" format:"uuid"`
+
 	// Text is the sub-claim produced by the analyzer.
 	Text string `json:"text"`
 

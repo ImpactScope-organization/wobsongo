@@ -96,7 +96,7 @@ func (q *Queries) GetNarrative(ctx context.Context, id uuid.UUID) (GetNarrativeR
 }
 
 const getNewestClaimForNarrative = `-- name: GetNewestClaimForNarrative :one
-SELECT c.id, c.message_id, c.text, c.topic_id, c.language, c.platform, c.format, c.occurred_at, c.verdict, c.severity, c.high_risk, c.high_risk_reason, c.recommend_medical_consult, c.reasoning, c.brief_reasoning, c.citations, c.judged_at, c.created_at FROM claims c
+SELECT c.id, c.message_id, c.text, c.topic_id, c.language, c.platform, c.format, c.occurred_at, c.verdict, c.severity, c.high_risk, c.high_risk_reason, c.recommend_medical_consult, c.reasoning, c.brief_reasoning, c.citations, c.judged_at, c.created_at, c.video_id FROM claims c
 JOIN narrative_claims nc ON nc.claim_id = c.id
 WHERE nc.narrative_id = $1
 ORDER BY c.occurred_at DESC
@@ -125,6 +125,7 @@ func (q *Queries) GetNewestClaimForNarrative(ctx context.Context, narrativeID uu
 		&i.Citations,
 		&i.JudgedAt,
 		&i.CreatedAt,
+		&i.VideoID,
 	)
 	return i, err
 }

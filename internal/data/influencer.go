@@ -30,6 +30,26 @@ type InfluencerRepoer interface {
 		trackedVideoCount int64,
 	) error
 
+	// GetByID returns the influencer with the given ID.
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Influencer, error)
+
+	// ListDue returns active influencers whose next check is due.
+	ListDue(ctx context.Context, limit int) ([]*model.Influencer, error)
+
+	// SetNextCheckAt schedules the next monitor check of an influencer.
+	SetNextCheckAt(ctx context.Context, id uuid.UUID, at time.Time) error
+
+	// RecordEmptyCheck counts one more check that found no usable video,
+	// schedules the next check at nextCheckAt, and deactivates the influencer
+	// once maxEmptyChecks in a row is reached. It reports whether the
+	// influencer is still active. All of this happens in one statement.
+	RecordEmptyCheck(
+		ctx context.Context,
+		id uuid.UUID,
+		maxEmptyChecks int,
+		nextCheckAt time.Time,
+	) (stillActive bool, err error)
+
 	// WithTx executes a function within a database transaction.
 	TxAware[InfluencerRepoer]
 }

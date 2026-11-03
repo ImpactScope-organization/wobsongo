@@ -330,6 +330,58 @@ var serveCmd = &cobra.Command{
 
 		river.AddWorker(workers, worker.NewTTSAudioCleanupWorker(mediaProvider))
 
+		// The crawl jobs need the Apify TikTok actor; without it they are
+		// neither registered nor scheduled.
+		crawlEnabled := config.ApifyConfig.Token != "" &&
+			config.ApifyConfig.TikTokActorID != ""
+		var (
+			crawlService   *service.CrawlService
+			crawlScheduler *worker.CrawlScheduler
+		)
+		if crawlEnabled {
+			crawlService = service.NewCrawlService(
+				repo.NewCrawlerRepo(db.New(pool)),
+				repo.NewInfluencerRepo(db.New(pool), pool),
+				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
+				external.NewTikTokScraperClient(
+					config.ApifyConfig.Token,
+					config.ApifyConfig.TikTokActorID,
+				),
+			)
+			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
+			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
+			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
+		}
+
+		// Scheduled periodic jobs by River.
+		periodicJobs := []*river.PeriodicJob{
+			river.NewPeriodicJob(
+				river.PeriodicInterval(queue.TTSAudioCleanupInterval),
+				func() (river.JobArgs, *river.InsertOpts) {
+					return queue.TTSAudioCleanupJob{}, nil
+				},
+				&river.PeriodicJobOpts{RunOnStart: true},
+			),
+			river.NewPeriodicJob(
+				river.PeriodicInterval(queue.NarrativeDeactivateInterval),
+				func() (river.JobArgs, *river.InsertOpts) {
+					return queue.DeactivateNarrativesJob{}, nil
+				},
+				&river.PeriodicJobOpts{RunOnStart: true},
+			),
+		}
+		if crawlEnabled {
+			periodicJobs = append(periodicJobs,
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.MonitorCheckInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.MonitorCreatorJob{Trigger: queue.CrawlTriggerScheduled}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
+			)
+		}
+
 		// Initialize River client with the database pool and registered workers.
 		// Document ingestion, media (video) processing, voice transcription,
 		// speech synthesis and maintenance each get their own queue (see each
@@ -349,24 +401,10 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
+				queue.QueueCrawler: {MaxWorkers: queue.CrawlerMaxWorkers},
 			},
-			Workers: workers,
-			PeriodicJobs: []*river.PeriodicJob{
-				river.NewPeriodicJob(
-					river.PeriodicInterval(queue.TTSAudioCleanupInterval),
-					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.TTSAudioCleanupJob{}, nil
-					},
-					&river.PeriodicJobOpts{RunOnStart: true},
-				),
-				river.NewPeriodicJob(
-					river.PeriodicInterval(queue.NarrativeDeactivateInterval),
-					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.DeactivateNarrativesJob{}, nil
-					},
-					&river.PeriodicJobOpts{RunOnStart: true},
-				),
-			},
+			Workers:      workers,
+			PeriodicJobs: periodicJobs,
 		})
 		if err != nil {
 			cmd.PrintErrf("Failed to initialize job queue: %s\n", err.Error())
@@ -378,6 +416,15 @@ var serveCmd = &cobra.Command{
 			cmd.PrintErrf("Failed to start job queue: %s\n", err.Error())
 			os.Exit(1)
 			return
+		}
+		if crawlScheduler != nil {
+			intervalHours, err := crawlService.DiscoveryIntervalHours(cmd.Context())
+			if err != nil {
+				cmd.PrintErrf("Failed to load discovery interval: %s\n", err.Error())
+				os.Exit(1)
+				return
+			}
+			crawlScheduler.Reschedule(intervalHours, true)
 		}
 		defer func() {
 			if err := riverClient.Stop(cmd.Context()); err != nil {

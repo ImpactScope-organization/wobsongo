@@ -14,7 +14,7 @@ import (
 )
 
 const getClaim = `-- name: GetClaim :one
-SELECT id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at FROM claims WHERE id = $1
+SELECT id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at, video_id FROM claims WHERE id = $1
 `
 
 func (q *Queries) GetClaim(ctx context.Context, id uuid.UUID) (Claim, error) {
@@ -39,6 +39,7 @@ func (q *Queries) GetClaim(ctx context.Context, id uuid.UUID) (Claim, error) {
 		&i.Citations,
 		&i.JudgedAt,
 		&i.CreatedAt,
+		&i.VideoID,
 	)
 	return i, err
 }
@@ -52,7 +53,7 @@ INSERT INTO claims (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
 )
 ON CONFLICT (message_id, text) DO NOTHING
-RETURNING id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at
+RETURNING id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at, video_id
 `
 
 type InsertClaimParams struct {
@@ -113,6 +114,7 @@ func (q *Queries) InsertClaim(ctx context.Context, arg InsertClaimParams) (Claim
 		&i.Citations,
 		&i.JudgedAt,
 		&i.CreatedAt,
+		&i.VideoID,
 	)
 	return i, err
 }

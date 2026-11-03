@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -228,4 +229,74 @@ func (r *videoRepo) EnqueueClaimCheckJob(
 		return fmt.Errorf("failed to execute claim check job with tx: %w", err)
 	}
 	return nil
+}
+
+// UpsertDiscoveredVideo inserts a video found by discovery or monitoring, or
+// refreshes the counters of one already known. isNew reports whether the row
+// was newly inserted.
+func (r *videoRepo) UpsertDiscoveredVideo(ctx context.Context, v *model.Video) (bool, error) {
+	var influencerID pgtype.UUID
+	if v.InfluencerID != nil {
+		influencerID = pgtype.UUID{Bytes: *v.InfluencerID, Valid: true}
+	}
+
+	var externalID pgtype.Text
+	if v.ExternalID != nil {
+		externalID = pgtype.Text{String: *v.ExternalID, Valid: true}
+	}
+
+	var keyword pgtype.Text
+	if v.DiscoveredViaKeyword != nil {
+		keyword = pgtype.Text{String: *v.DiscoveredViaKeyword, Valid: true}
+	}
+
+	row, err := r.q.UpsertDiscoveredVideo(ctx, db.UpsertDiscoveredVideoParams{
+		VideoUrl:         v.VideoURL,
+		AuthorUsername:   v.AuthorUsername,
+		AuthorProfileUrl: v.AuthorProfileURL,
+		Caption:          pgtype.Text{String: v.Caption, Valid: v.Caption != ""},
+		PlayCount:        pgtype.Int8{Int64: v.PlayCount, Valid: true},
+		LikeCount:        pgtype.Int8{Int64: v.LikeCount, Valid: true},
+		CommentCount:     v.CommentCount,
+		ShareCount:       v.ShareCount,
+		CollectCount:     v.CollectCount,
+		Hashtags:         v.Hashtags,
+		VideoCreatedAt: pgtype.Timestamptz{
+			Time:  v.VideoCreatedAt,
+			Valid: !v.VideoCreatedAt.IsZero(),
+		},
+		VideoType:            v.VideoType,
+		InfluencerID:         influencerID,
+		ExternalID:           externalID,
+		Origin:               string(v.Origin),
+		DiscoveredViaKeyword: keyword,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to upsert discovered video: %w", mapPostgresError(err))
+	}
+
+	v.ID = row.ID
+	v.CreatedAt = row.CreatedAt
+	v.UpdatedAt = row.UpdatedAt
+	return row.IsNew, nil
+}
+
+// ListVideoTimesByInfluencerID returns the publish time of every stored
+// video of an influencer, oldest first.
+func (r *videoRepo) ListVideoTimesByInfluencerID(
+	ctx context.Context,
+	influencerID uuid.UUID,
+) ([]time.Time, error) {
+	rows, err := r.q.ListVideoCreatedAtByInfluencerID(ctx, influencerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list video times: %w", mapPostgresError(err))
+	}
+
+	times := make([]time.Time, 0, len(rows))
+	for _, row := range rows {
+		if row.Valid {
+			times = append(times, row.Time)
+		}
+	}
+	return times, nil
 }

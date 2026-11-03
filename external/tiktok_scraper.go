@@ -71,9 +71,8 @@ func (c *TikTokScraperClient) run(
 	}
 
 	apiURL := fmt.Sprintf(
-		"https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items?token=%s",
+		"https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items",
 		c.actorID,
-		c.apiToken,
 	)
 
 	httpReq, err := http.NewRequestWithContext(
@@ -85,6 +84,7 @@ func (c *TikTokScraperClient) run(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
 	}
+	httpReq.Header.Set("Authorization", "Bearer "+c.apiToken)
 	httpReq.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(httpReq)

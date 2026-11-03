@@ -10,43 +10,44 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
-// CrawlSettingService lets an admin read and change the crawler configuration.
-type CrawlSettingService struct {
+// AdminSettingService lets an admin read and change the settings of video
+// discovery and creator monitoring.
+type AdminSettingService struct {
 	crawlerRepo data.CrawlerRepoer
 	rescheduler data.DiscoveryRescheduler
 }
 
-// NewCrawlSettingService constructs a CrawlSettingService.
-func NewCrawlSettingService(
+// NewAdminSettingService constructs an AdminSettingService.
+func NewAdminSettingService(
 	crawlerRepo data.CrawlerRepoer,
 	rescheduler data.DiscoveryRescheduler,
-) *CrawlSettingService {
-	return &CrawlSettingService{crawlerRepo: crawlerRepo, rescheduler: rescheduler}
+) *AdminSettingService {
+	return &AdminSettingService{crawlerRepo: crawlerRepo, rescheduler: rescheduler}
 }
 
-// Get returns the current crawler configuration.
-func (s *CrawlSettingService) Get(ctx context.Context) (*model.CrawlerSetting, error) {
+// Get returns the current settings.
+func (s *AdminSettingService) Get(ctx context.Context) (*model.AdminSetting, error) {
 	setting, err := s.crawlerRepo.GetSetting(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get crawler setting: %w", err)
+		return nil, fmt.Errorf("failed to get admin setting: %w", err)
 	}
 	return setting, nil
 }
 
-// Update replaces the crawler configuration and records who changed it. When
-// the discovery interval changed, the periodic discovery job is replaced so
-// the new interval applies right away.
-func (s *CrawlSettingService) Update(
+// Update replaces the settings and records who changed them. When the
+// discovery interval changed, the periodic discovery job is replaced so the
+// new interval applies right away.
+func (s *AdminSettingService) Update(
 	ctx context.Context,
 	updatedBy uuid.UUID,
-	req *dto.UpdateCrawlerSettingRequest,
-) (*model.CrawlerSetting, error) {
+	req *dto.UpdateAdminSettingRequest,
+) (*model.AdminSetting, error) {
 	current, err := s.crawlerRepo.GetSetting(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get crawler setting: %w", err)
+		return nil, fmt.Errorf("failed to get admin setting: %w", err)
 	}
 
-	setting := &model.CrawlerSetting{
+	setting := &model.AdminSetting{
 		DiscoveryIntervalHours: req.DiscoveryIntervalHours,
 		MaxResultsKeyword:      req.MaxResultsKeyword,
 		MaxResultsInfluencer:   req.MaxResultsInfluencer,
@@ -54,7 +55,7 @@ func (s *CrawlSettingService) Update(
 		UpdatedBy:              &updatedBy,
 	}
 	if err := s.crawlerRepo.UpdateSetting(ctx, setting); err != nil {
-		return nil, fmt.Errorf("failed to update crawler setting: %w", err)
+		return nil, fmt.Errorf("failed to update admin setting: %w", err)
 	}
 
 	if s.rescheduler != nil && setting.DiscoveryIntervalHours != current.DiscoveryIntervalHours {

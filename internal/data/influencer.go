@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
@@ -49,6 +50,22 @@ type InfluencerRepoer interface {
 		maxEmptyChecks int,
 		nextCheckAt time.Time,
 	) (stillActive bool, err error)
+
+	// Paginate returns a filtered page of influencers, newest first.
+	Paginate(
+		ctx context.Context,
+		q SupportsPagination,
+		filter InfluencerListFilter,
+	) (*dto.PaginationResults[model.Influencer], error)
+
+	// Create inserts a new influencer and fills the stored fields. It returns
+	// ErrConflict when the username already exists (compared ignoring case).
+	Create(ctx context.Context, influencer *model.Influencer) error
+
+	// SetActive turns monitoring of an influencer on or off. Turning it on
+	// again resets the empty-check counter and schedules a check right away.
+	// Influencers are never deleted, because videos reference them.
+	SetActive(ctx context.Context, id uuid.UUID, active bool) (*model.Influencer, error)
 
 	// WithTx executes a function within a database transaction.
 	TxAware[InfluencerRepoer]

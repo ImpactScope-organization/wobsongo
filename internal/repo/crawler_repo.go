@@ -23,13 +23,13 @@ func NewCrawlerRepo(q *db.Queries) data.CrawlerRepoer {
 }
 
 // GetSetting returns the crawler configuration.
-func (r *crawlerRepo) GetSetting(ctx context.Context) (*model.CrawlerSetting, error) {
+func (r *crawlerRepo) GetSetting(ctx context.Context) (*model.AdminSetting, error) {
 	row, err := r.q.GetCrawlerSetting(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get crawler setting: %w", mapPostgresError(err))
 	}
 
-	setting := &model.CrawlerSetting{
+	setting := &model.AdminSetting{
 		DiscoveryIntervalHours: int(row.DiscoveryIntervalHours),
 		MaxResultsKeyword:      int(row.MaxResultsKeyword),
 		MaxResultsInfluencer:   int(row.MaxResultsInfluencer),
@@ -157,7 +157,7 @@ func (r *crawlerRepo) FinishRun(ctx context.Context, run *model.CrawlRun) error 
 }
 
 // UpdateSetting saves the crawler configuration.
-func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.CrawlerSetting) error {
+func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.AdminSetting) error {
 	var updatedBy pgtype.UUID
 	if setting.UpdatedBy != nil {
 		updatedBy = pgtype.UUID{Bytes: *setting.UpdatedBy, Valid: true}

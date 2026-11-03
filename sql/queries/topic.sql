@@ -12,3 +12,35 @@ RETURNING *;
 
 -- name: ListActiveTopics :many
 SELECT * FROM topics WHERE is_active = true ORDER BY name;
+
+
+-- name: PaginateTopics :many
+SELECT * FROM topics
+WHERE (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(name), lower(sqlc.narg(search)::text)) > 0)
+ORDER BY name
+LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: CountTopics :one
+SELECT count(*) FROM topics
+WHERE (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(name), lower(sqlc.narg(search)::text)) > 0);
+
+-- name: CountActiveTopics :one
+SELECT count(*) FROM topics WHERE is_active;
+
+-- name: GetTopicByID :one
+SELECT * FROM topics WHERE id = $1;
+
+-- name: CreateTopic :one
+INSERT INTO topics (name, description, is_active)
+VALUES ($1, $2, $3)
+RETURNING *;
+
+-- name: UpdateTopic :one
+UPDATE topics
+SET name = $2, description = $3, is_active = $4, updated_at = NOW()
+WHERE id = $1
+RETURNING *;

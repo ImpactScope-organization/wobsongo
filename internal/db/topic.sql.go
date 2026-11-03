@@ -7,7 +7,84 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countActiveTopics = `-- name: CountActiveTopics :one
+SELECT count(*) FROM topics WHERE is_active
+`
+
+func (q *Queries) CountActiveTopics(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countActiveTopics)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countTopics = `-- name: CountTopics :one
+SELECT count(*) FROM topics
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL
+       OR strpos(lower(name), lower($2::text)) > 0)
+`
+
+type CountTopicsParams struct {
+	IsActive pgtype.Bool
+	Search   pgtype.Text
+}
+
+func (q *Queries) CountTopics(ctx context.Context, arg CountTopicsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTopics, arg.IsActive, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createTopic = `-- name: CreateTopic :one
+INSERT INTO topics (name, description, is_active)
+VALUES ($1, $2, $3)
+RETURNING id, name, description, is_active, created_at, updated_at
+`
+
+type CreateTopicParams struct {
+	Name        string
+	Description string
+	IsActive    bool
+}
+
+func (q *Queries) CreateTopic(ctx context.Context, arg CreateTopicParams) (Topic, error) {
+	row := q.db.QueryRow(ctx, createTopic, arg.Name, arg.Description, arg.IsActive)
+	var i Topic
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTopicByID = `-- name: GetTopicByID :one
+SELECT id, name, description, is_active, created_at, updated_at FROM topics WHERE id = $1
+`
+
+func (q *Queries) GetTopicByID(ctx context.Context, id uuid.UUID) (Topic, error) {
+	row := q.db.QueryRow(ctx, getTopicByID, id)
+	var i Topic
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const listActiveTopics = `-- name: ListActiveTopics :many
 SELECT id, name, description, is_active, created_at, updated_at FROM topics WHERE is_active = true ORDER BY name
@@ -38,6 +115,87 @@ func (q *Queries) ListActiveTopics(ctx context.Context) ([]Topic, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const paginateTopics = `-- name: PaginateTopics :many
+SELECT id, name, description, is_active, created_at, updated_at FROM topics
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL
+       OR strpos(lower(name), lower($2::text)) > 0)
+ORDER BY name
+LIMIT $4::int OFFSET $3::int
+`
+
+type PaginateTopicsParams struct {
+	IsActive   pgtype.Bool
+	Search     pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) PaginateTopics(ctx context.Context, arg PaginateTopicsParams) ([]Topic, error) {
+	rows, err := q.db.Query(ctx, paginateTopics,
+		arg.IsActive,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Topic
+	for rows.Next() {
+		var i Topic
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateTopic = `-- name: UpdateTopic :one
+UPDATE topics
+SET name = $2, description = $3, is_active = $4, updated_at = NOW()
+WHERE id = $1
+RETURNING id, name, description, is_active, created_at, updated_at
+`
+
+type UpdateTopicParams struct {
+	ID          uuid.UUID
+	Name        string
+	Description string
+	IsActive    bool
+}
+
+func (q *Queries) UpdateTopic(ctx context.Context, arg UpdateTopicParams) (Topic, error) {
+	row := q.db.QueryRow(ctx, updateTopic,
+		arg.ID,
+		arg.Name,
+		arg.Description,
+		arg.IsActive,
+	)
+	var i Topic
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertTopicByName = `-- name: UpsertTopicByName :one

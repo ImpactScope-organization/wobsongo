@@ -13,7 +13,7 @@ import (
 type CrawlerRepoer interface {
 	// GetSetting returns the crawler configuration, creating the default
 	// row on first use.
-	GetSetting(ctx context.Context) (*model.CrawlerSetting, error)
+	GetSetting(ctx context.Context) (*model.AdminSetting, error)
 
 	// ListActiveKeywords returns every enabled discovery keyword.
 	ListActiveKeywords(ctx context.Context) ([]*model.DiscoveryKeyword, error)
@@ -39,7 +39,7 @@ type CrawlerRepoer interface {
 
 	// UpdateSetting saves the crawler configuration, creating the row if it
 	// does not exist yet, and fills setting.UpdatedAt.
-	UpdateSetting(ctx context.Context, setting *model.CrawlerSetting) error
+	UpdateSetting(ctx context.Context, setting *model.AdminSetting) error
 }
 
 // DiscoveryRescheduler defines an interface for updating the schedule

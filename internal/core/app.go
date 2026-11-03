@@ -11,9 +11,11 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/handler"
 	"github.com/impactscope-organization/wobsongo/internal/validation"
 	"github.com/impactscope-organization/wobsongo/internal/webhandler"
+	_ "github.com/impactscope-organization/wobsongo/swagger"
 	"github.com/impactscope-organization/wobsongo/ui"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	echoSwagger "github.com/swaggo/echo-swagger"
 )
 
 const (
@@ -43,6 +45,9 @@ type App struct {
 	narrativeStatements  data.NarrativeStatementGenerator
 	crawlerRepo          data.CrawlerRepoer
 	discoveryRescheduler data.DiscoveryRescheduler
+	keywordRepo          data.KeywordRepoer
+	topicRepo            data.TopicRepoer
+	influencerRepo       data.InfluencerRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -201,6 +206,27 @@ func WithDiscoveryRescheduler(rescheduler data.DiscoveryRescheduler) AppOption {
 	}
 }
 
+// WithKeywordRepo sets the repository of the admin-managed discovery keywords.
+func WithKeywordRepo(repo data.KeywordRepoer) AppOption {
+	return func(a *App) {
+		a.keywordRepo = repo
+	}
+}
+
+// WithTopicRepo sets the repository of the admin-managed topics.
+func WithTopicRepo(repo data.TopicRepoer) AppOption {
+	return func(a *App) {
+		a.topicRepo = repo
+	}
+}
+
+// WithInfluencerRepo sets the repository of the admin-managed influencers.
+func WithInfluencerRepo(repo data.InfluencerRepoer) AppOption {
+	return func(a *App) {
+		a.influencerRepo = repo
+	}
+}
+
 // General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
 //
 // @title						WobSongo API
@@ -237,6 +263,10 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 		panic(fmt.Errorf("failed to register DTO validator: %w", err))
 	}
 
+	if !config.IsProduction() {
+		e.GET("/swagger/*", echoSwagger.WrapHandler)
+	}
+
 	// Run option functions to set optional dependencies.
 	for _, optionFunc := range optionFuncs {
 		optionFunc(app)
@@ -262,6 +292,9 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.NarrativeStatements = app.narrativeStatements
 	repos.CrawlerRepo = app.crawlerRepo
 	repos.DiscoveryRescheduler = app.discoveryRescheduler
+	repos.KeywordRepo = app.keywordRepo
+	repos.TopicRepo = app.topicRepo
+	repos.InfluencerRepo = app.influencerRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

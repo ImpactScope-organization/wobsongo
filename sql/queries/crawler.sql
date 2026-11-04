@@ -41,6 +41,9 @@ SET status = $2,
 WHERE id = $1;
 
 -- name: UpdateCrawlerSetting :one
+WITH previous AS (
+    SELECT discovery_interval_hours FROM crawler_setting WHERE id = 1
+)
 INSERT INTO crawler_setting (
     id, discovery_interval_hours, max_results_keyword,
     max_results_influencer, max_cost_per_run, updated_by
@@ -59,4 +62,6 @@ ON CONFLICT (id) DO UPDATE SET
     max_cost_per_run = EXCLUDED.max_cost_per_run,
     updated_by = EXCLUDED.updated_by,
     updated_at = NOW()
-RETURNING updated_at;
+RETURNING
+    updated_at,
+    COALESCE((SELECT discovery_interval_hours FROM previous), 0)::int AS previous_interval_hours;

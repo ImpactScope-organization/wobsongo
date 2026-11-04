@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -132,6 +134,13 @@ func (h *AdminTopicHandler) updateTopicHandler(c echo.Context) error {
 	}
 
 	topic, err := h.service.Update(c.Request().Context(), id, req)
+	if errors.Is(err, service.ErrLastActiveTopic) {
+		return &model.APIError{
+			Code:     http.StatusConflict,
+			Internal: err,
+			Public:   msgLastActiveTopic,
+		}
+	}
 	if err != nil {
 		return dataAPIError(err)
 	}

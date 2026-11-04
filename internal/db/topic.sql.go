@@ -167,24 +167,32 @@ func (q *Queries) PaginateTopics(ctx context.Context, arg PaginateTopicsParams) 
 
 const updateTopic = `-- name: UpdateTopic :one
 UPDATE topics
-SET name = $2, description = $3, is_active = $4, updated_at = NOW()
-WHERE id = $1
+SET name = $1,
+    description = $2,
+    is_active = $3::boolean,
+    updated_at = NOW()
+WHERE topics.id = $4
+  AND ($3::boolean
+       OR NOT topics.is_active
+       OR EXISTS (
+           SELECT 1 FROM topics AS other
+           WHERE other.is_active AND other.id <> $4))
 RETURNING id, name, description, is_active, created_at, updated_at
 `
 
 type UpdateTopicParams struct {
-	ID          uuid.UUID
 	Name        string
 	Description string
 	IsActive    bool
+	ID          uuid.UUID
 }
 
 func (q *Queries) UpdateTopic(ctx context.Context, arg UpdateTopicParams) (Topic, error) {
 	row := q.db.QueryRow(ctx, updateTopic,
-		arg.ID,
 		arg.Name,
 		arg.Description,
 		arg.IsActive,
+		arg.ID,
 	)
 	var i Topic
 	err := row.Scan(

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,10 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
+
+// ErrLastActiveTopic is returned when an update would deactivate the last
+// active topic.
+var ErrLastActiveTopic = fmt.Errorf("%w: at least one topic must stay active", data.ErrConflict)
 
 // AdminTopicService lets an admin manage the closed list of claim topics.
 type AdminTopicService struct {
@@ -60,29 +65,22 @@ func (s *AdminTopicService) Update(
 	id uuid.UUID,
 	req *dto.UpdateTopicRequest,
 ) (*model.Topic, error) {
-	current, err := s.repo.GetByID(ctx, id)
-	if err != nil {
+	if _, err := s.repo.GetByID(ctx, id); err != nil {
 		return nil, err
-	}
-
-	isActive := *req.IsActive
-	if current.IsActive && !isActive {
-		active, err := s.repo.CountActive(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if active <= 1 {
-			return nil, fmt.Errorf("%w: at least one topic must stay active", data.ErrConflict)
-		}
 	}
 
 	topic := &model.Topic{
 		ID:          id,
 		Name:        strings.TrimSpace(req.Name),
 		Description: strings.TrimSpace(req.Description),
-		IsActive:    isActive,
+		IsActive:    *req.IsActive,
 	}
-	if err := s.repo.Update(ctx, topic); err != nil {
+
+	err := s.repo.Update(ctx, topic)
+	if errors.Is(err, data.ErrNotFound) {
+		return nil, ErrLastActiveTopic
+	}
+	if err != nil {
 		return nil, err
 	}
 	return topic, nil

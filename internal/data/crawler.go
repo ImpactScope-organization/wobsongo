@@ -38,8 +38,9 @@ type CrawlerRepoer interface {
 	FinishRun(ctx context.Context, run *model.CrawlRun) error
 
 	// UpdateSetting saves the crawler configuration, creating the row if it
-	// does not exist yet, and fills setting.UpdatedAt.
-	UpdateSetting(ctx context.Context, setting *model.AdminSetting) error
+	// does not exist yet, and fills setting.UpdatedAt. It returns the
+	// discovery interval stored before the update, or 0 when there was none.
+	UpdateSetting(ctx context.Context, setting *model.AdminSetting) (int, error)
 }
 
 // DiscoveryRescheduler defines an interface for updating the schedule

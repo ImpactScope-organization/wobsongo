@@ -157,13 +157,13 @@ func (r *crawlerRepo) FinishRun(ctx context.Context, run *model.CrawlRun) error 
 }
 
 // UpdateSetting saves the crawler configuration.
-func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.AdminSetting) error {
+func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.AdminSetting) (int, error) {
 	var updatedBy pgtype.UUID
 	if setting.UpdatedBy != nil {
 		updatedBy = pgtype.UUID{Bytes: *setting.UpdatedBy, Valid: true}
 	}
 
-	updatedAt, err := r.q.UpdateCrawlerSetting(ctx, db.UpdateCrawlerSettingParams{
+	row, err := r.q.UpdateCrawlerSetting(ctx, db.UpdateCrawlerSettingParams{
 		DiscoveryIntervalHours: int32(setting.DiscoveryIntervalHours),
 		MaxResultsKeyword:      int32(setting.MaxResultsKeyword),
 		MaxResultsInfluencer:   int32(setting.MaxResultsInfluencer),
@@ -171,9 +171,9 @@ func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.AdminSet
 		UpdatedBy:              updatedBy,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update crawler setting: %w", mapPostgresError(err))
+		return 0, fmt.Errorf("failed to update crawler setting: %w", mapPostgresError(err))
 	}
 
-	setting.UpdatedAt = updatedAt
-	return nil
+	setting.UpdatedAt = row.UpdatedAt
+	return int(row.PreviousIntervalHours), nil
 }

@@ -41,6 +41,14 @@ RETURNING *;
 
 -- name: UpdateTopic :one
 UPDATE topics
-SET name = $2, description = $3, is_active = $4, updated_at = NOW()
-WHERE id = $1
+SET name = sqlc.arg(name),
+    description = sqlc.arg(description),
+    is_active = sqlc.arg(is_active)::boolean,
+    updated_at = NOW()
+WHERE topics.id = sqlc.arg(id)
+  AND (sqlc.arg(is_active)::boolean
+       OR NOT topics.is_active
+       OR EXISTS (
+           SELECT 1 FROM topics AS other
+           WHERE other.is_active AND other.id <> sqlc.arg(id)))
 RETURNING *;

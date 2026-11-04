@@ -12,6 +12,7 @@ const (
 	msgInvalidKeywordID    = "invalid keyword id"
 	msgInvalidTopicID      = "invalid topic id"
 	msgInvalidInfluencerID = "invalid influencer id"
+	msgLastActiveTopic     = "at least one topic must stay active"
 )
 
 // parseIDParam reads the :id path parameter as a UUID.

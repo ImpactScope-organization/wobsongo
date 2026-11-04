@@ -46,15 +46,6 @@ func (r *topicRepo) GetByID(ctx context.Context, id uuid.UUID) (*model.Topic, er
 	return toModelTopic(&row), nil
 }
 
-// CountActive returns how many topics are active.
-func (r *topicRepo) CountActive(ctx context.Context) (int64, error) {
-	count, err := r.q.CountActiveTopics(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to count active topics: %w", mapPostgresError(err))
-	}
-	return count, nil
-}
-
 // Create inserts a topic.
 func (r *topicRepo) Create(ctx context.Context, topic *model.Topic) error {
 	row, err := r.q.CreateTopic(ctx, db.CreateTopicParams{

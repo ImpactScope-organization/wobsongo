@@ -58,14 +58,13 @@ type TopicRepoer interface {
 
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Topic, error)
 
-	// CountActive returns how many topics are active.
-	CountActive(ctx context.Context) (int64, error)
-
 	// Create inserts the topic and fills the stored fields. It returns
 	// ErrConflict when the name is taken.
 	Create(ctx context.Context, topic *model.Topic) error
 
 	// Update replaces name, description and is_active of topic.ID and fills
-	// the stored fields. It returns ErrNotFound or ErrConflict.
+	// the stored fields. It returns ErrNotFound when the topic does not exist
+	// or when this would deactivate the last active topic, and ErrConflict
+	// when the name is taken.
 	Update(ctx context.Context, topic *model.Topic) error
 }

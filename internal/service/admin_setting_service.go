@@ -37,11 +37,6 @@ func (s *AdminSettingService) Update(
 	updatedBy uuid.UUID,
 	req *dto.UpdateAdminSettingRequest,
 ) (*model.AdminSetting, error) {
-	current, err := s.crawlerRepo.GetSetting(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	setting := &model.AdminSetting{
 		DiscoveryIntervalHours: req.DiscoveryIntervalHours,
 		MaxResultsKeyword:      req.MaxResultsKeyword,
@@ -49,11 +44,13 @@ func (s *AdminSettingService) Update(
 		MaxCostPerRun:          req.MaxCostPerRun,
 		UpdatedBy:              &updatedBy,
 	}
-	if err := s.crawlerRepo.UpdateSetting(ctx, setting); err != nil {
+
+	previousInterval, err := s.crawlerRepo.UpdateSetting(ctx, setting)
+	if err != nil {
 		return nil, err
 	}
 
-	if s.rescheduler != nil && setting.DiscoveryIntervalHours != current.DiscoveryIntervalHours {
+	if s.rescheduler != nil && setting.DiscoveryIntervalHours != previousInterval {
 		s.rescheduler.Reschedule(setting.DiscoveryIntervalHours, false)
 	}
 	return setting, nil

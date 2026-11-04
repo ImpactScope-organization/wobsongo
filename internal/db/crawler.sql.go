@@ -144,6 +144,9 @@ func (q *Queries) GetLastCrawlRunStartedAt(ctx context.Context, kind string) (ti
 }
 
 const updateCrawlerSetting = `-- name: UpdateCrawlerSetting :one
+WITH previous AS (
+    SELECT discovery_interval_hours FROM crawler_setting WHERE id = 1
+)
 INSERT INTO crawler_setting (
     id, discovery_interval_hours, max_results_keyword,
     max_results_influencer, max_cost_per_run, updated_by
@@ -162,7 +165,9 @@ ON CONFLICT (id) DO UPDATE SET
     max_cost_per_run = EXCLUDED.max_cost_per_run,
     updated_by = EXCLUDED.updated_by,
     updated_at = NOW()
-RETURNING updated_at
+RETURNING
+    updated_at,
+    COALESCE((SELECT discovery_interval_hours FROM previous), 0)::int AS previous_interval_hours
 `
 
 type UpdateCrawlerSettingParams struct {
@@ -173,7 +178,12 @@ type UpdateCrawlerSettingParams struct {
 	UpdatedBy              pgtype.UUID
 }
 
-func (q *Queries) UpdateCrawlerSetting(ctx context.Context, arg UpdateCrawlerSettingParams) (time.Time, error) {
+type UpdateCrawlerSettingRow struct {
+	UpdatedAt             time.Time
+	PreviousIntervalHours int32
+}
+
+func (q *Queries) UpdateCrawlerSetting(ctx context.Context, arg UpdateCrawlerSettingParams) (UpdateCrawlerSettingRow, error) {
 	row := q.db.QueryRow(ctx, updateCrawlerSetting,
 		arg.DiscoveryIntervalHours,
 		arg.MaxResultsKeyword,
@@ -181,7 +191,7 @@ func (q *Queries) UpdateCrawlerSetting(ctx context.Context, arg UpdateCrawlerSet
 		arg.MaxCostPerRun,
 		arg.UpdatedBy,
 	)
-	var updated_at time.Time
-	err := row.Scan(&updated_at)
-	return updated_at, err
+	var i UpdateCrawlerSettingRow
+	err := row.Scan(&i.UpdatedAt, &i.PreviousIntervalHours)
+	return i, err
 }

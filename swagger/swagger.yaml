@@ -216,6 +216,29 @@ definitions:
     - sha256
     - title
     type: object
+  dto.CreateKeywordRequest:
+    properties:
+      is_active:
+        description: IsActive defaults to true when left out.
+        example: true
+        type: boolean
+      keyword:
+        description: Keyword is the search text used on the platform.
+        example: vaccin
+        maxLength: 100
+        minLength: 2
+        type: string
+      language:
+        description: Language is the language of the keyword, "en" or "fr".
+        enum:
+        - en
+        - fr
+        example: fr
+        type: string
+    required:
+    - keyword
+    - language
+    type: object
   dto.ExtractAPIRequest:
     properties:
       question:
@@ -298,6 +321,28 @@ definitions:
     - name
     - password_changed_at
     - role
+    type: object
+  dto.PaginationResults-model_DiscoveryKeyword:
+    properties:
+      items:
+        description: Items contains the paginated data items
+        items:
+          $ref: '#/definitions/model.DiscoveryKeyword'
+        type: array
+      page:
+        description: Page is the current page number
+        type: integer
+      per_page:
+        description: PerPage is the number of items per page
+        maximum: 100
+        type: integer
+      total_items:
+        description: TotalItems is the total number of items available
+        type: integer
+    required:
+    - page
+    - per_page
+    - total_items
     type: object
   dto.PaginationResults-model_Document:
     properties:
@@ -506,6 +551,27 @@ definitions:
     required:
     - title
     type: object
+  dto.UpdateKeywordRequest:
+    properties:
+      is_active:
+        example: true
+        type: boolean
+      keyword:
+        example: vaccin
+        maxLength: 100
+        minLength: 2
+        type: string
+      language:
+        enum:
+        - en
+        - fr
+        example: fr
+        type: string
+    required:
+    - is_active
+    - keyword
+    - language
+    type: object
   dto.UpdateProfileRequest:
     properties:
       email:
@@ -555,6 +621,26 @@ definitions:
         type: string
       updated_by:
         format: uuid
+        type: string
+    type: object
+  model.DiscoveryKeyword:
+    properties:
+      created_at:
+        type: string
+      id:
+        format: uuid
+        type: string
+      is_active:
+        type: boolean
+      keyword:
+        type: string
+      language:
+        $ref: '#/definitions/model.Language'
+      language_code:
+        type: string
+      last_run_at:
+        type: string
+      updated_at:
         type: string
     type: object
   model.Document:
@@ -975,6 +1061,403 @@ paths:
       summary: Start synthesizing a bot reply as a voice message
       tags:
       - agent
+  /api/v1/admin/keywords:
+    get:
+      description: Retrieves a paginated list of discovery keywords.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: per_page
+        type: integer
+      - description: Filter by active state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Text the keyword contains
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PaginationResults-model_DiscoveryKeyword'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List discovery keywords
+      tags:
+      - admin
+    post:
+      consumes:
+      - application/json
+      description: Adds a keyword used to discover new videos. The same keyword in
+        the same language cannot be added twice.
+      parameters:
+      - description: Keyword
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.CreateKeywordRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.DiscoveryKeyword'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Create a discovery keyword
+      tags:
+      - admin
+  /api/v1/admin/keywords/{id}:
+    delete:
+      parameters:
+      - description: Keyword ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Delete a discovery keyword
+      tags:
+      - admin
+    get:
+      parameters:
+      - description: Keyword ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.DiscoveryKeyword'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get a discovery keyword
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: Replaces the keyword, language and active state.
+      parameters:
+      - description: Keyword ID
+        format: uuid
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Keyword
+        in: body
+        name: form
+        required: true
+        schema:
+          $ref: '#/definitions/dto.UpdateKeywordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.DiscoveryKeyword'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "409":
+          description: Conflict
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update a discovery keyword
+      tags:
+      - admin
   /api/v1/admin/settings:
     get:
       description: The settings of video discovery and creator monitoring.

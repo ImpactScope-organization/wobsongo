@@ -61,6 +61,7 @@ func buildApp(
 	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
 	speechRepo := repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs)
 	crawlerRepo := repo.NewCrawlerRepo(queries, pool)
+	keywordRepo := repo.NewKeywordRepo(queries)
 
 	return core.NewApp(
 		echo.New(),
@@ -83,5 +84,6 @@ func buildApp(
 		core.WithNarrativeStatements(claimCheck.narrativeStatements),
 		core.WithCrawlerRepo(crawlerRepo),
 		core.WithDiscoveryRescheduler(discoveryRescheduler),
+		core.WithKeywordRepo(keywordRepo),
 	)
 }

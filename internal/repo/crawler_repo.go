@@ -77,20 +77,7 @@ func (r *crawlerRepo) ListActiveKeywords(ctx context.Context) ([]*model.Discover
 
 	keywords := make([]*model.DiscoveryKeyword, 0, len(rows))
 	for i := range rows {
-		row := &rows[i]
-		keyword := &model.DiscoveryKeyword{
-			ID:        row.ID,
-			Keyword:   row.Keyword,
-			Language:  model.Language(row.Language),
-			IsActive:  row.IsActive,
-			CreatedAt: row.CreatedAt,
-			UpdatedAt: row.UpdatedAt,
-		}
-		if row.LastRunAt.Valid {
-			t := row.LastRunAt.Time
-			keyword.LastRunAt = &t
-		}
-		keywords = append(keywords, keyword)
+		keywords = append(keywords, toModelKeyword(&rows[i]))
 	}
 	return keywords, nil
 }

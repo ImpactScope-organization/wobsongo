@@ -26,38 +26,15 @@ func (r *keywordRepo) Paginate(
 	q data.SupportsPagination,
 	filter data.AdminListFilter,
 ) (*dto.PaginationResults[model.DiscoveryKeyword], error) {
-	limit, offset := q.Limit(), q.Offset()
-	isActive, search := filterBool(filter.IsActive), filterText(filter.Search)
-
-	rows, err := r.q.PaginateDiscoveryKeywords(ctx, db.PaginateDiscoveryKeywordsParams{
-		IsActive:   isActive,
-		Search:     search,
-		PageLimit:  limit,
-		PageOffset: offset,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list discovery keywords: %w", mapPostgresError(err))
-	}
-
-	total, err := r.q.CountDiscoveryKeywords(ctx, db.CountDiscoveryKeywordsParams{
-		IsActive: isActive,
-		Search:   search,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to count discovery keywords: %w", mapPostgresError(err))
-	}
-
-	items := make([]model.DiscoveryKeyword, 0, len(rows))
-	for i := range rows {
-		items = append(items, *toModelKeyword(&rows[i]))
-	}
-
-	return &dto.PaginationResults[model.DiscoveryKeyword]{
-		Page:       pageOf(limit, offset),
-		PerPage:    int(limit),
-		TotalItems: int(total),
-		Items:      items,
-	}, nil
+	return paginateAdmin(q, filter, "discovery keywords",
+		func(a adminPageArgs) ([]db.DiscoveryKeyword, error) {
+			return r.q.PaginateDiscoveryKeywords(ctx, db.PaginateDiscoveryKeywordsParams(a))
+		},
+		func(a adminCountArgs) (int64, error) {
+			return r.q.CountDiscoveryKeywords(ctx, db.CountDiscoveryKeywordsParams(a))
+		},
+		toModelKeyword,
+	)
 }
 
 // GetByID returns the keyword with the given ID.

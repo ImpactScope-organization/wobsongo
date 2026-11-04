@@ -26,35 +26,15 @@ func (r *topicRepo) Paginate(
 	q data.SupportsPagination,
 	filter data.AdminListFilter,
 ) (*dto.PaginationResults[model.Topic], error) {
-	limit, offset := q.Limit(), q.Offset()
-	isActive, search := filterBool(filter.IsActive), filterText(filter.Search)
-
-	rows, err := r.q.PaginateTopics(ctx, db.PaginateTopicsParams{
-		IsActive:   isActive,
-		Search:     search,
-		PageLimit:  limit,
-		PageOffset: offset,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list topics: %w", mapPostgresError(err))
-	}
-
-	total, err := r.q.CountTopics(ctx, db.CountTopicsParams{IsActive: isActive, Search: search})
-	if err != nil {
-		return nil, fmt.Errorf("failed to count topics: %w", mapPostgresError(err))
-	}
-
-	items := make([]model.Topic, 0, len(rows))
-	for i := range rows {
-		items = append(items, *toModelTopic(&rows[i]))
-	}
-
-	return &dto.PaginationResults[model.Topic]{
-		Page:       pageOf(limit, offset),
-		PerPage:    int(limit),
-		TotalItems: int(total),
-		Items:      items,
-	}, nil
+	return paginateAdmin(q, filter, "topics",
+		func(a adminPageArgs) ([]db.Topic, error) {
+			return r.q.PaginateTopics(ctx, db.PaginateTopicsParams(a))
+		},
+		func(a adminCountArgs) (int64, error) {
+			return r.q.CountTopics(ctx, db.CountTopicsParams(a))
+		},
+		toModelTopic,
+	)
 }
 
 // GetByID returns the topic with the given ID.

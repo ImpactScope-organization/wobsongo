@@ -6,6 +6,8 @@
 //go:generate go tool moq -out internal/mockrepo/bot_settings.go -pkg mockrepo internal/data BotSettingsRepoer
 //go:generate go tool moq -out internal/mockrepo/speech.go -pkg mockrepo internal/data SpeechRepoer
 //go:generate go tool moq -out internal/mockrepo/narrative.go -pkg mockrepo internal/data NarrativeRepoer
+//go:generate go tool moq -out internal/mockrepo/crawler.go -pkg mockrepo internal/data CrawlerRepoer
+//go:generate go tool moq -out internal/mockrepo/discovery_rescheduler.go -pkg mockrepo internal/data DiscoveryRescheduler
 //go:generate go tool sqlc generate
 
 package main

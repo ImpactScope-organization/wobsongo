@@ -16,17 +16,18 @@ import (
 
 // Handlers struct holds references to all the individual handler structs.
 type Handlers struct {
-	apifyHandler     *ApifyHandler
-	documentHandler  *DocumentHandler
-	mediaHandler     *MediaHandler
-	botExtractPSK    string
-	claimHandler     *ClaimHandler
-	agentHandler     *AgentHandler
-	ttsHandler       *TTSHandler
-	authHandler      *AuthHandler
-	jwtAuth          *auth.Auth
-	config           *internal.Config
-	narrativeHandler *NarrativeHandler
+	apifyHandler        *ApifyHandler
+	documentHandler     *DocumentHandler
+	mediaHandler        *MediaHandler
+	botExtractPSK       string
+	claimHandler        *ClaimHandler
+	agentHandler        *AgentHandler
+	ttsHandler          *TTSHandler
+	authHandler         *AuthHandler
+	jwtAuth             *auth.Auth
+	config              *internal.Config
+	narrativeHandler    *NarrativeHandler
+	adminSettingHandler *AdminSettingHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -87,26 +88,34 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 	v1.GET("/narratives", h.narrativeHandler.listNarrativesHandler, signedIn)
 	v1.GET("/narratives/:id", h.narrativeHandler.getNarrativeHandler, signedIn)
+
+	adminAuth := []echo.MiddlewareFunc{signedIn, admin}
+	adminRoutes := v1.Group("/admin")
+
+	adminRoutes.GET("/settings", h.adminSettingHandler.getSettingHandler, adminAuth...)
+	adminRoutes.PUT("/settings", h.adminSettingHandler.updateSettingHandler, adminAuth...)
 }
 
 // Repos holds the repository interfaces required by the handlers.
 type Repos struct {
-	ApifyRepo           data.ApifyRepoer
-	VideoRepo           data.VideoRepoer
-	DocumentRepo        data.DocumentRepoer
-	MediaProvider       data.MediaUploadProvider
-	ChunkRepo           data.DocumentChunkRepoer
-	KnowledgeRepo       data.AtomicKnowledgeRepoer
-	Embedder            data.Embedder
-	ClaimAnalyzer       data.ClaimAnalyzer
-	ClaimJudge          data.ClaimJudge
-	ConversationRepo    data.ConversationRepoer
-	SpeechRepo          data.SpeechRepoer
-	Translator          data.Translator
-	SpeechSynthesizer   data.SpeechSynthesizer
-	UserRepo            data.UserRepoer
-	NarrativeRepo       data.NarrativeRepoer
-	NarrativeStatements data.NarrativeStatementGenerator
+	ApifyRepo            data.ApifyRepoer
+	VideoRepo            data.VideoRepoer
+	DocumentRepo         data.DocumentRepoer
+	MediaProvider        data.MediaUploadProvider
+	ChunkRepo            data.DocumentChunkRepoer
+	KnowledgeRepo        data.AtomicKnowledgeRepoer
+	Embedder             data.Embedder
+	ClaimAnalyzer        data.ClaimAnalyzer
+	ClaimJudge           data.ClaimJudge
+	ConversationRepo     data.ConversationRepoer
+	SpeechRepo           data.SpeechRepoer
+	Translator           data.Translator
+	SpeechSynthesizer    data.SpeechSynthesizer
+	UserRepo             data.UserRepoer
+	NarrativeRepo        data.NarrativeRepoer
+	NarrativeStatements  data.NarrativeStatementGenerator
+	CrawlerRepo          data.CrawlerRepoer
+	DiscoveryRescheduler data.DiscoveryRescheduler
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -197,18 +206,26 @@ func NewHandlers(repos *Repos) *Handlers {
 	jwtAuth := auth.New(config.JWTSecret, config.JWTAccessTTL, config.JWTRefreshTTL)
 	authHandler := NewAuthHandler(service.NewAuthService(repos.UserRepo, jwtAuth))
 
+	var adminSettingHandler *AdminSettingHandler
+	if repos.CrawlerRepo != nil {
+		adminSettingHandler = NewAdminSettingHandler(
+			service.NewAdminSettingService(repos.CrawlerRepo, repos.DiscoveryRescheduler),
+		)
+	}
+
 	return &Handlers{
-		apifyHandler:     apifyHandler,
-		documentHandler:  documentHandler,
-		mediaHandler:     mediaHandler,
-		ttsHandler:       ttsHandler,
-		botExtractPSK:    config.BotExtractPSK,
-		claimHandler:     claimHandler,
-		agentHandler:     agentHandler,
-		authHandler:      authHandler,
-		jwtAuth:          jwtAuth,
-		config:           config,
-		narrativeHandler: narrativeHandler,
+		apifyHandler:        apifyHandler,
+		documentHandler:     documentHandler,
+		mediaHandler:        mediaHandler,
+		ttsHandler:          ttsHandler,
+		botExtractPSK:       config.BotExtractPSK,
+		claimHandler:        claimHandler,
+		agentHandler:        agentHandler,
+		authHandler:         authHandler,
+		jwtAuth:             jwtAuth,
+		config:              config,
+		narrativeHandler:    narrativeHandler,
+		adminSettingHandler: adminSettingHandler,
 	}
 }
 

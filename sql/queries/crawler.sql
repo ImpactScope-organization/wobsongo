@@ -39,3 +39,29 @@ SET status = $2,
     video_new = $4,
     error = $5
 WHERE id = $1;
+
+-- name: UpdateCrawlerSetting :one
+WITH previous AS (
+    SELECT discovery_interval_hours FROM crawler_setting WHERE id = 1
+)
+INSERT INTO crawler_setting (
+    id, discovery_interval_hours, max_results_keyword,
+    max_results_influencer, max_cost_per_run, updated_by
+) VALUES (
+    1,
+    sqlc.arg(discovery_interval_hours),
+    sqlc.arg(max_results_keyword),
+    sqlc.arg(max_results_influencer),
+    sqlc.arg(max_cost_per_run)::float8,
+    sqlc.arg(updated_by)
+)
+ON CONFLICT (id) DO UPDATE SET
+    discovery_interval_hours = EXCLUDED.discovery_interval_hours,
+    max_results_keyword = EXCLUDED.max_results_keyword,
+    max_results_influencer = EXCLUDED.max_results_influencer,
+    max_cost_per_run = EXCLUDED.max_cost_per_run,
+    updated_by = EXCLUDED.updated_by,
+    updated_at = NOW()
+RETURNING
+    updated_at,
+    COALESCE((SELECT discovery_interval_hours FROM previous), 0)::int AS previous_interval_hours;

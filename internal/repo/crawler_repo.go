@@ -9,27 +9,52 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type crawlerRepo struct {
-	q *db.Queries
+	q    *db.Queries
+	pool *pgxpool.Pool
+	tx   pgx.Tx
 }
 
 // NewCrawlerRepo creates a repository for the crawler settings, discovery
 // keywords and crawl runs.
-func NewCrawlerRepo(q *db.Queries) data.CrawlerRepoer {
-	return &crawlerRepo{q: q}
+func NewCrawlerRepo(q *db.Queries, pool *pgxpool.Pool) data.CrawlerRepoer {
+	return &crawlerRepo{q: q, pool: pool}
+}
+
+// WithTx runs fn inside a transaction.
+func (r *crawlerRepo) WithTx(ctx context.Context, fn func(data.CrawlerRepoer) error) error {
+	if r.tx != nil {
+		return fn(r)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	repoWithTx := &crawlerRepo{q: r.q.WithTx(tx), pool: r.pool, tx: tx}
+	if err := fn(repoWithTx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // GetSetting returns the crawler configuration.
-func (r *crawlerRepo) GetSetting(ctx context.Context) (*model.CrawlerSetting, error) {
+func (r *crawlerRepo) GetSetting(ctx context.Context) (*model.AdminSetting, error) {
 	row, err := r.q.GetCrawlerSetting(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get crawler setting: %w", mapPostgresError(err))
 	}
 
-	setting := &model.CrawlerSetting{
+	setting := &model.AdminSetting{
 		DiscoveryIntervalHours: int(row.DiscoveryIntervalHours),
 		MaxResultsKeyword:      int(row.MaxResultsKeyword),
 		MaxResultsInfluencer:   int(row.MaxResultsInfluencer),
@@ -70,10 +95,15 @@ func (r *crawlerRepo) ListActiveKeywords(ctx context.Context) ([]*model.Discover
 	return keywords, nil
 }
 
-// MarkKeywordRun stamps last_run_at on a keyword.
+// MarkKeywordRun stamps last_run_at on a keyword. It returns data.ErrNotFound
+// when no keyword has that ID.
 func (r *crawlerRepo) MarkKeywordRun(ctx context.Context, id uuid.UUID) error {
-	if err := r.q.MarkDiscoveryKeywordRun(ctx, id); err != nil {
+	updated, err := r.q.MarkDiscoveryKeywordRun(ctx, id)
+	if err != nil {
 		return fmt.Errorf("failed to mark keyword run: %w", mapPostgresError(err))
+	}
+	if updated == 0 {
+		return fmt.Errorf("failed to mark keyword run: %w", data.ErrNotFound)
 	}
 	return nil
 }
@@ -154,4 +184,26 @@ func (r *crawlerRepo) FinishRun(ctx context.Context, run *model.CrawlRun) error 
 		return fmt.Errorf("failed to finish crawl run: %w", mapPostgresError(err))
 	}
 	return nil
+}
+
+// UpdateSetting saves the crawler configuration.
+func (r *crawlerRepo) UpdateSetting(ctx context.Context, setting *model.AdminSetting) (int, error) {
+	var updatedBy pgtype.UUID
+	if setting.UpdatedBy != nil {
+		updatedBy = pgtype.UUID{Bytes: *setting.UpdatedBy, Valid: true}
+	}
+
+	row, err := r.q.UpdateCrawlerSetting(ctx, db.UpdateCrawlerSettingParams{
+		DiscoveryIntervalHours: int32(setting.DiscoveryIntervalHours),
+		MaxResultsKeyword:      int32(setting.MaxResultsKeyword),
+		MaxResultsInfluencer:   int32(setting.MaxResultsInfluencer),
+		MaxCostPerRun:          setting.MaxCostPerRun,
+		UpdatedBy:              updatedBy,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to update crawler setting: %w", mapPostgresError(err))
+	}
+
+	setting.UpdatedAt = row.UpdatedAt
+	return int(row.PreviousIntervalHours), nil
 }

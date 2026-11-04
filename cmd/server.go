@@ -340,7 +340,7 @@ var serveCmd = &cobra.Command{
 		)
 		if crawlEnabled {
 			crawlService = service.NewCrawlService(
-				repo.NewCrawlerRepo(db.New(pool)),
+				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
 				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
 				external.NewTikTokScraperClient(
@@ -434,6 +434,11 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
+		var discoveryRescheduler data.DiscoveryRescheduler
+		if crawlScheduler != nil {
+			discoveryRescheduler = crawlScheduler
+		}
+
 		// Build and start HTTP API server.
 		app := buildApp(config, pool, riverClient, mediaProvider, buildAppClaimCheckDeps{
 			chunkRepo:           chunkRepo,
@@ -446,7 +451,7 @@ var serveCmd = &cobra.Command{
 		}, buildAppSpeechDeps{
 			translator:  translationClient,
 			synthesizer: newSpeechSynthesizer(config),
-		})
+		}, discoveryRescheduler)
 
 		cmd.Printf("Starting the server at %s\n", config.APIHost)
 		if err := app.Start(); err != nil {

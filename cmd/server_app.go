@@ -45,6 +45,7 @@ func buildApp(
 	mediaProvider data.MediaUploadProvider,
 	claimCheck buildAppClaimCheckDeps,
 	speech buildAppSpeechDeps,
+	discoveryRescheduler data.DiscoveryRescheduler,
 ) *core.App {
 	queries := db.New(pool)
 	riverClientFn := func() *river.Client[pgx.Tx] { return riverClient }
@@ -59,6 +60,7 @@ func buildApp(
 	userRepo := repo.NewUserRepo(queries, pool)
 	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
 	speechRepo := repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs)
+	crawlerRepo := repo.NewCrawlerRepo(queries, pool)
 
 	return core.NewApp(
 		echo.New(),
@@ -79,5 +81,7 @@ func buildApp(
 		core.WithSpeechSynthesizer(speech.synthesizer),
 		core.WithNarrativeRepo(claimCheck.narrativeRepo),
 		core.WithNarrativeStatements(claimCheck.narrativeStatements),
+		core.WithCrawlerRepo(crawlerRepo),
+		core.WithDiscoveryRescheduler(discoveryRescheduler),
 	)
 }

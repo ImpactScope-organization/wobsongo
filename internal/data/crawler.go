@@ -13,7 +13,7 @@ import (
 type CrawlerRepoer interface {
 	// GetSetting returns the crawler configuration, creating the default
 	// row on first use.
-	GetSetting(ctx context.Context) (*model.CrawlerSetting, error)
+	GetSetting(ctx context.Context) (*model.AdminSetting, error)
 
 	// ListActiveKeywords returns every enabled discovery keyword.
 	ListActiveKeywords(ctx context.Context) ([]*model.DiscoveryKeyword, error)
@@ -36,4 +36,18 @@ type CrawlerRepoer interface {
 
 	// FinishRun saves the final status, counts and error of a run.
 	FinishRun(ctx context.Context, run *model.CrawlRun) error
+
+	// UpdateSetting saves the crawler configuration, creating the row if it
+	// does not exist yet, and fills setting.UpdatedAt. It returns the
+	// discovery interval stored before the update, or 0 when there was none.
+	UpdateSetting(ctx context.Context, setting *model.AdminSetting) (int, error)
+
+	// WithTx executes a function within a database transaction.
+	TxAware[CrawlerRepoer]
+}
+
+// DiscoveryRescheduler defines an interface for updating the schedule
+// of the periodic discovery job.
+type DiscoveryRescheduler interface {
+	Reschedule(intervalHours int, runOnStart bool)
 }

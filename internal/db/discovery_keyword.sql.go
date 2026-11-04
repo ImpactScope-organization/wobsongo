@@ -43,13 +43,16 @@ func (q *Queries) ListActiveDiscoveryKeywords(ctx context.Context) ([]DiscoveryK
 	return items, nil
 }
 
-const markDiscoveryKeywordRun = `-- name: MarkDiscoveryKeywordRun :exec
+const markDiscoveryKeywordRun = `-- name: MarkDiscoveryKeywordRun :execrows
 UPDATE discovery_keywords
 SET last_run_at = NOW(), updated_at = NOW()
 WHERE id = $1
 `
 
-func (q *Queries) MarkDiscoveryKeywordRun(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, markDiscoveryKeywordRun, id)
-	return err
+func (q *Queries) MarkDiscoveryKeywordRun(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markDiscoveryKeywordRun, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

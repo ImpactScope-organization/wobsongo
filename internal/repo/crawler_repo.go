@@ -70,10 +70,15 @@ func (r *crawlerRepo) ListActiveKeywords(ctx context.Context) ([]*model.Discover
 	return keywords, nil
 }
 
-// MarkKeywordRun stamps last_run_at on a keyword.
+// MarkKeywordRun stamps last_run_at on a keyword. It returns data.ErrNotFound
+// when no keyword has that ID.
 func (r *crawlerRepo) MarkKeywordRun(ctx context.Context, id uuid.UUID) error {
-	if err := r.q.MarkDiscoveryKeywordRun(ctx, id); err != nil {
+	updated, err := r.q.MarkDiscoveryKeywordRun(ctx, id)
+	if err != nil {
 		return fmt.Errorf("failed to mark keyword run: %w", mapPostgresError(err))
+	}
+	if updated == 0 {
+		return fmt.Errorf("failed to mark keyword run: %w", data.ErrNotFound)
 	}
 	return nil
 }

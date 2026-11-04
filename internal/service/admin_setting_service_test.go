@@ -68,7 +68,7 @@ func TestAdminSettingService_Get(t *testing.T) {
 		}
 
 		got, err := NewAdminSettingService(repo, nil).Get(t.Context())
-		if err == nil || !errorsIs(err, data.ErrInternal) {
+		if !errors.Is(err, data.ErrInternal) {
 			t.Fatalf("expected ErrInternal, got %v", err)
 		}
 		if got != nil {
@@ -166,7 +166,7 @@ func TestAdminSettingService_Update(t *testing.T) {
 		svc := NewAdminSettingService(repo, rescheduler)
 
 		got, err := svc.Update(t.Context(), updater, newUpdateSettingRequest(6))
-		if !errorsIs(err, data.ErrInternal) {
+		if !errors.Is(err, data.ErrInternal) {
 			t.Fatalf("expected ErrInternal, got %v", err)
 		}
 		if got != nil {
@@ -177,5 +177,3 @@ func TestAdminSettingService_Update(t *testing.T) {
 		}
 	})
 }
-
-func errorsIs(err, target error) bool { return errors.Is(err, target) }

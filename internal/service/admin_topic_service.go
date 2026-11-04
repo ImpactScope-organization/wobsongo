@@ -65,10 +65,6 @@ func (s *AdminTopicService) Update(
 	id uuid.UUID,
 	req *dto.UpdateTopicRequest,
 ) (*model.Topic, error) {
-	if _, err := s.repo.GetByID(ctx, id); err != nil {
-		return nil, err
-	}
-
 	topic := &model.Topic{
 		ID:          id,
 		Name:        strings.TrimSpace(req.Name),
@@ -77,11 +73,15 @@ func (s *AdminTopicService) Update(
 	}
 
 	err := s.repo.Update(ctx, topic)
-	if errors.Is(err, data.ErrNotFound) {
-		return nil, ErrLastActiveTopic
-	}
 	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			if _, getErr := s.repo.GetByID(ctx, id); getErr != nil {
+				return nil, getErr
+			}
+			return nil, ErrLastActiveTopic
+		}
 		return nil, err
 	}
+
 	return topic, nil
 }

@@ -134,14 +134,14 @@ func (h *AdminTopicHandler) updateTopicHandler(c echo.Context) error {
 	}
 
 	topic, err := h.service.Update(c.Request().Context(), id, req)
-	if errors.Is(err, service.ErrLastActiveTopic) {
-		return &model.APIError{
-			Code:     http.StatusConflict,
-			Internal: err,
-			Public:   msgLastActiveTopic,
-		}
-	}
 	if err != nil {
+		if errors.Is(err, service.ErrLastActiveTopic) {
+			return &model.APIError{
+				Code:     http.StatusConflict,
+				Internal: err,
+				Public:   msgLastActiveTopic,
+			}
+		}
 		return dataAPIError(err)
 	}
 

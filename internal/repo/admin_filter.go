@@ -43,7 +43,7 @@ type adminPageArgs struct {
 	PageLimit  int32
 }
 
-// adminCountArgs are the arguments of an admin count query. 
+// adminCountArgs are the arguments of an admin count query.
 type adminCountArgs struct {
 	IsActive pgtype.Bool
 	Search   pgtype.Text

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -27,11 +26,7 @@ func NewAdminSettingService(
 
 // Get returns the current settings.
 func (s *AdminSettingService) Get(ctx context.Context) (*model.AdminSetting, error) {
-	setting, err := s.crawlerRepo.GetSetting(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get admin setting: %w", err)
-	}
-	return setting, nil
+	return s.crawlerRepo.GetSetting(ctx)
 }
 
 // Update replaces the settings and records who changed them. When the
@@ -44,7 +39,7 @@ func (s *AdminSettingService) Update(
 ) (*model.AdminSetting, error) {
 	current, err := s.crawlerRepo.GetSetting(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get admin setting: %w", err)
+		return nil, err
 	}
 
 	setting := &model.AdminSetting{
@@ -55,7 +50,7 @@ func (s *AdminSettingService) Update(
 		UpdatedBy:              &updatedBy,
 	}
 	if err := s.crawlerRepo.UpdateSetting(ctx, setting); err != nil {
-		return nil, fmt.Errorf("failed to update admin setting: %w", err)
+		return nil, err
 	}
 
 	if s.rescheduler != nil && setting.DiscoveryIntervalHours != current.DiscoveryIntervalHours {

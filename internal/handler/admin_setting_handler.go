@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
 )
@@ -32,7 +33,8 @@ func NewAdminSettingHandler(service *service.AdminSettingService) *AdminSettingH
 func (h *AdminSettingHandler) getSettingHandler(c echo.Context) error {
 	setting, err := h.service.Get(c.Request().Context())
 	if err != nil {
-		return dataAPIError(err)
+		status, message := mapDataErrorToHTTP(err)
+		return &model.APIError{Code: status, Internal: err, Public: message}
 	}
 
 	return writeJSON(c, http.StatusOK, setting)
@@ -60,7 +62,8 @@ func (h *AdminSettingHandler) updateSettingHandler(c echo.Context) error {
 
 	setting, err := h.service.Update(c.Request().Context(), ClaimsFromContext(c).UserID, req)
 	if err != nil {
-		return dataAPIError(err)
+		status, message := mapDataErrorToHTTP(err)
+		return &model.APIError{Code: status, Internal: err, Public: message}
 	}
 
 	return writeJSON(c, http.StatusOK, setting)

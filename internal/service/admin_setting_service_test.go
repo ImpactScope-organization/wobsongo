@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -28,12 +29,16 @@ func newUpdateSettingRequest(interval int) *dto.UpdateAdminSettingRequest {
 // the interval stored before the update and stamps UpdatedAt like the real
 // repo does.
 func newSettingRepoMock(previous int) *mockrepo.CrawlerRepoerMock {
-	return &mockrepo.CrawlerRepoerMock{
+	repo := &mockrepo.CrawlerRepoerMock{
 		UpdateSettingFunc: func(_ context.Context, setting *model.AdminSetting) (int, error) {
 			setting.UpdatedAt = settingUpdatedAt
 			return previous, nil
 		},
 	}
+	repo.WithTxFunc = func(_ context.Context, fn func(data.CrawlerRepoer) error) error {
+		return fn(repo)
+	}
+	return repo
 }
 
 func newRescheduleRecorder() *mockrepo.DiscoveryReschedulerMock {
@@ -159,8 +164,11 @@ func TestAdminSettingService_Update(t *testing.T) {
 	t.Run("RepoError_DoesNotReschedule", func(t *testing.T) {
 		repo := &mockrepo.CrawlerRepoerMock{
 			UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
-				return 0, data.ErrInternal
+				return 0, fmt.Errorf("save setting: %w", data.ErrInternal)
 			},
+		}
+		repo.WithTxFunc = func(_ context.Context, fn func(data.CrawlerRepoer) error) error {
+			return fn(repo)
 		}
 		rescheduler := newRescheduleRecorder()
 		svc := NewAdminSettingService(repo, rescheduler)
@@ -174,6 +182,31 @@ func TestAdminSettingService_Update(t *testing.T) {
 		}
 		if n := len(rescheduler.RescheduleCalls()); n != 0 {
 			t.Errorf("expected no reschedule after a failed update, got %d", n)
+		}
+	})
+
+	t.Run("DoesNotRescheduleWhenCommitFails", func(t *testing.T) {
+		repo := &mockrepo.CrawlerRepoerMock{
+			UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
+				return 24, nil
+			},
+		}
+		// Callback succeeds, but the transaction fails to commit.
+		repo.WithTxFunc = func(_ context.Context, fn func(data.CrawlerRepoer) error) error {
+			if err := fn(repo); err != nil {
+				return err
+			}
+			return data.ErrInternal
+		}
+		rescheduler := newRescheduleRecorder()
+		svc := NewAdminSettingService(repo, rescheduler)
+
+		_, err := svc.Update(t.Context(), updater, newUpdateSettingRequest(6))
+		if !errors.Is(err, data.ErrInternal) {
+			t.Fatalf("expected ErrInternal, got %v", err)
+		}
+		if n := len(rescheduler.RescheduleCalls()); n != 0 {
+			t.Errorf("expected no reschedule when commit fails, got %d", n)
 		}
 	})
 }

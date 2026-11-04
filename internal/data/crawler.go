@@ -41,6 +41,9 @@ type CrawlerRepoer interface {
 	// does not exist yet, and fills setting.UpdatedAt. It returns the
 	// discovery interval stored before the update, or 0 when there was none.
 	UpdateSetting(ctx context.Context, setting *model.AdminSetting) (int, error)
+
+	// WithTx executes a function within a database transaction.
+	TxAware[CrawlerRepoer]
 }
 
 // DiscoveryRescheduler defines an interface for updating the schedule

@@ -49,6 +49,15 @@ func newAdminSettingTestApp(
 	return app.Echo()
 }
 
+// withPassThroughTx makes WithTx run fn on the mock itself, like the real
+// repo does on a transaction-bound copy of itself.
+func withPassThroughTx(repo *mockrepo.CrawlerRepoerMock) *mockrepo.CrawlerRepoerMock {
+	repo.WithTxFunc = func(_ context.Context, fn func(data.CrawlerRepoer) error) error {
+		return fn(repo)
+	}
+	return repo
+}
+
 // adminBearerFor signs an access token for a known user ID, so tests can check
 // which user the handler records as the one who changed the settings.
 func adminBearerFor(t *testing.T, id uuid.UUID, role model.UserRole) string {
@@ -213,12 +222,12 @@ func TestUpdateSettingHandler(t *testing.T) {
 	adminID := uuid.New()
 
 	t.Run("Success_RecordsCallerAndReschedules", func(t *testing.T) {
-		repo := &mockrepo.CrawlerRepoerMock{
+		repo := withPassThroughTx(&mockrepo.CrawlerRepoerMock{
 			UpdateSettingFunc: func(_ context.Context, s *model.AdminSetting) (int, error) {
 				s.UpdatedAt = adminSettingUpdatedAt
 				return 24, nil // stored interval before this update
 			},
-		}
+		})
 		rescheduler := &mockrepo.DiscoveryReschedulerMock{RescheduleFunc: func(int, bool) {}}
 		app := newAdminSettingTestApp(t, repo, rescheduler)
 
@@ -243,6 +252,9 @@ func TestUpdateSettingHandler(t *testing.T) {
 			t.Errorf("expected updated_by %s, got %v", adminID, got.UpdatedBy)
 		}
 
+		if n := len(repo.WithTxCalls()); n != 1 {
+			t.Errorf("expected the update to run in 1 transaction, got %d", n)
+		}
 		calls := repo.UpdateSettingCalls()
 		if len(calls) != 1 || calls[0].Setting.UpdatedBy == nil ||
 			*calls[0].Setting.UpdatedBy != adminID {
@@ -257,11 +269,12 @@ func TestUpdateSettingHandler(t *testing.T) {
 	})
 
 	t.Run("Success_IntervalUnchanged_DoesNotReschedule", func(t *testing.T) {
-		repo := &mockrepo.CrawlerRepoerMock{
+		// The stored interval (6) equals the one in the request body.
+		repo := withPassThroughTx(&mockrepo.CrawlerRepoerMock{
 			UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
 				return 6, nil
 			},
-		}
+		})
 		rescheduler := &mockrepo.DiscoveryReschedulerMock{RescheduleFunc: func(int, bool) {}}
 		app := newAdminSettingTestApp(t, repo, rescheduler)
 
@@ -279,11 +292,11 @@ func TestUpdateSettingHandler(t *testing.T) {
 	})
 
 	t.Run("Success_WithoutRescheduler", func(t *testing.T) {
-		repo := &mockrepo.CrawlerRepoerMock{
+		repo := withPassThroughTx(&mockrepo.CrawlerRepoerMock{
 			UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
 				return 24, nil
 			},
-		}
+		})
 		app := newAdminSettingTestApp(t, repo, nil)
 
 		rec := serveAdminSetting(
@@ -308,11 +321,11 @@ func TestUpdateSettingHandler(t *testing.T) {
 		}
 		for name, body := range bodies {
 			t.Run(name, func(t *testing.T) {
-				repo := &mockrepo.CrawlerRepoerMock{
+				repo := withPassThroughTx(&mockrepo.CrawlerRepoerMock{
 					UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
 						return 0, nil
 					},
-				}
+				})
 				app := newAdminSettingTestApp(t, repo, nil)
 
 				rec := serveAdminSetting(
@@ -336,6 +349,7 @@ func TestUpdateSettingHandler(t *testing.T) {
 			"InfluencerResults_TooBig": func(r *dto.UpdateAdminSettingRequest) { r.MaxResultsInfluencer = 101 },
 			"Cost_Zero":                func(r *dto.UpdateAdminSettingRequest) { r.MaxCostPerRun = 0 },
 			"Cost_Negative":            func(r *dto.UpdateAdminSettingRequest) { r.MaxCostPerRun = -1 },
+			"Cost_BelowOneCent":        func(r *dto.UpdateAdminSettingRequest) { r.MaxCostPerRun = 0.004 },
 			"Cost_TooLarge":            func(r *dto.UpdateAdminSettingRequest) { r.MaxCostPerRun = 1000.01 },
 		}
 		for name, mutate := range mutations {
@@ -385,11 +399,11 @@ func TestUpdateSettingHandler(t *testing.T) {
 	})
 
 	t.Run("RepoError_DoesNotReschedule", func(t *testing.T) {
-		repo := &mockrepo.CrawlerRepoerMock{
+		repo := withPassThroughTx(&mockrepo.CrawlerRepoerMock{
 			UpdateSettingFunc: func(context.Context, *model.AdminSetting) (int, error) {
 				return 0, fmt.Errorf("save setting: %w", data.ErrInternal)
 			},
-		}
+		})
 		rescheduler := &mockrepo.DiscoveryReschedulerMock{RescheduleFunc: func(int, bool) {}}
 		app := newAdminSettingTestApp(t, repo, rescheduler)
 

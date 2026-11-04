@@ -60,7 +60,7 @@ func buildApp(
 	userRepo := repo.NewUserRepo(queries, pool)
 	conversationRepo := repo.NewConversationRepo(queries, pool, riverClientFn)
 	speechRepo := repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs)
-	crawlerRepo := repo.NewCrawlerRepo(queries)
+	crawlerRepo := repo.NewCrawlerRepo(queries, pool)
 
 	return core.NewApp(
 		echo.New(),

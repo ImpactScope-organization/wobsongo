@@ -340,7 +340,7 @@ var serveCmd = &cobra.Command{
 		)
 		if crawlEnabled {
 			crawlService = service.NewCrawlService(
-				repo.NewCrawlerRepo(db.New(pool)),
+				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
 				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
 				external.NewTikTokScraperClient(

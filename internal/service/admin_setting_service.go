@@ -30,8 +30,8 @@ func (s *AdminSettingService) Get(ctx context.Context) (*model.AdminSetting, err
 }
 
 // Update replaces the settings and records who changed them. When the
-// discovery interval changed, the periodic discovery job is replaced so the
-// new interval applies right away.
+// discovery interval changed, the periodic discovery job is replaced after the
+// transaction commits so the new interval applies right away.
 func (s *AdminSettingService) Update(
 	ctx context.Context,
 	updatedBy uuid.UUID,
@@ -45,11 +45,21 @@ func (s *AdminSettingService) Update(
 		UpdatedBy:              &updatedBy,
 	}
 
-	previousInterval, err := s.crawlerRepo.UpdateSetting(ctx, setting)
+	var previousInterval int
+	err := s.crawlerRepo.WithTx(ctx, func(txRepo data.CrawlerRepoer) error {
+		prev, err := txRepo.UpdateSetting(ctx, setting)
+		if err != nil {
+			return err
+		}
+		previousInterval = prev
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
 
+	// Reschedule only after the transaction has committed, so the scheduler
+	// never runs with an interval that the database failed to store.
 	if s.rescheduler != nil && setting.DiscoveryIntervalHours != previousInterval {
 		s.rescheduler.Reschedule(setting.DiscoveryIntervalHours, false)
 	}

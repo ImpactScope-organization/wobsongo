@@ -9,17 +9,42 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type crawlerRepo struct {
-	q *db.Queries
+	q    *db.Queries
+	pool *pgxpool.Pool
+	tx   pgx.Tx
 }
 
 // NewCrawlerRepo creates a repository for the crawler settings, discovery
 // keywords and crawl runs.
-func NewCrawlerRepo(q *db.Queries) data.CrawlerRepoer {
-	return &crawlerRepo{q: q}
+func NewCrawlerRepo(q *db.Queries, pool *pgxpool.Pool) data.CrawlerRepoer {
+	return &crawlerRepo{q: q, pool: pool}
+}
+
+// WithTx runs fn inside a transaction.
+func (r *crawlerRepo) WithTx(ctx context.Context, fn func(data.CrawlerRepoer) error) error {
+	if r.tx != nil {
+		return fn(r)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
+
+	repoWithTx := &crawlerRepo{q: r.q.WithTx(tx), pool: r.pool, tx: tx}
+	if err := fn(repoWithTx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // GetSetting returns the crawler configuration.

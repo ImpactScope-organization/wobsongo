@@ -49,7 +49,7 @@ func TestCrawlerRepo_Setting(t *testing.T) {
 
 	t.Run("GetSetting_CreatesDefaultRow", func(t *testing.T) {
 		withEmptySettingTx(t, pool, func(ctx context.Context, q *db.Queries) {
-			got, err := repo.NewCrawlerRepo(q).GetSetting(ctx)
+			got, err := repo.NewCrawlerRepo(q, pool).GetSetting(ctx)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -68,7 +68,7 @@ func TestCrawlerRepo_Setting(t *testing.T) {
 
 	t.Run("UpdateSetting_SavesValuesAndReturnsPreviousInterval", func(t *testing.T) {
 		withEmptySettingTx(t, pool, func(ctx context.Context, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			if _, err := crawler.GetSetting(ctx); err != nil { // creates the 24h default
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -103,7 +103,7 @@ func TestCrawlerRepo_Setting(t *testing.T) {
 
 	t.Run("UpdateSetting_FirstSaveReturnsZeroPreviousInterval", func(t *testing.T) {
 		withEmptySettingTx(t, pool, func(ctx context.Context, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 
 			previous, err := crawler.UpdateSetting(ctx, &model.AdminSetting{
 				DiscoveryIntervalHours: 12,
@@ -133,7 +133,7 @@ func TestCrawlerRepo_Setting(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			_, err := crawler.UpdateSetting(ctx, &model.AdminSetting{
 				DiscoveryIntervalHours: 6,
 				MaxResultsKeyword:      30,
@@ -157,7 +157,7 @@ func TestCrawlerRepo_Setting(t *testing.T) {
 
 	t.Run("UpdateSetting_RejectsNonPositiveLimits", func(t *testing.T) {
 		withEmptySettingTx(t, pool, func(ctx context.Context, q *db.Queries) {
-			_, err := repo.NewCrawlerRepo(q).UpdateSetting(ctx, &model.AdminSetting{
+			_, err := repo.NewCrawlerRepo(q, pool).UpdateSetting(ctx, &model.AdminSetting{
 				DiscoveryIntervalHours: 6,
 				MaxResultsKeyword:      0, // violates CHECK (max_results_keyword > 0)
 				MaxResultsInfluencer:   15,
@@ -285,7 +285,7 @@ func TestCrawlerRepo_Keywords(t *testing.T) {
 			insertKeyword(ctx, t, tx, "alpha", model.LanguageFrench, true)
 			insertKeyword(ctx, t, tx, "inactive", model.LanguageEnglish, false)
 
-			got, err := repo.NewCrawlerRepo(q).ListActiveKeywords(ctx)
+			got, err := repo.NewCrawlerRepo(q, pool).ListActiveKeywords(ctx)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -309,7 +309,7 @@ func TestCrawlerRepo_Keywords(t *testing.T) {
 
 	t.Run("ListActiveKeywords_NoKeywords", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			got, err := repo.NewCrawlerRepo(q).ListActiveKeywords(ctx)
+			got, err := repo.NewCrawlerRepo(q, pool).ListActiveKeywords(ctx)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -323,7 +323,7 @@ func TestCrawlerRepo_Keywords(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
 			first := insertKeyword(ctx, t, tx, "a-keyword", model.LanguageEnglish, true)
 			insertKeyword(ctx, t, tx, "b-keyword", model.LanguageEnglish, true)
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 
 			if err := crawler.MarkKeywordRun(ctx, first); err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -347,7 +347,7 @@ func TestCrawlerRepo_Keywords(t *testing.T) {
 
 	t.Run("MarkKeywordRun_UnknownIDReturnsNotFound", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			err := repo.NewCrawlerRepo(q).MarkKeywordRun(ctx, uuid.New())
+			err := repo.NewCrawlerRepo(q, pool).MarkKeywordRun(ctx, uuid.New())
 			if !errors.Is(err, data.ErrNotFound) {
 				t.Errorf("expected data.ErrNotFound, got %v", err)
 			}
@@ -369,7 +369,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 				Trigger: model.CrawlTriggerManual,
 				Params:  []byte(`{"max":5}`),
 			}
-			if err := repo.NewCrawlerRepo(q).CreateRun(ctx, run); err != nil {
+			if err := repo.NewCrawlerRepo(q, pool).CreateRun(ctx, run); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if run.ID == uuid.Nil || run.StartedAt.IsZero() {
@@ -400,7 +400,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("CreateRun_EmptyParamsDefaultsToEmptyObject", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			run := startRun(ctx, t, repo.NewCrawlerRepo(q), model.CrawlKindDiscover)
+			run := startRun(ctx, t, repo.NewCrawlerRepo(q, pool), model.CrawlKindDiscover)
 
 			var params string
 			err := tx.QueryRow(ctx, "select params::text from crawl_runs where id = $1", run.ID).
@@ -426,7 +426,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 				Trigger:     model.CrawlTriggerManual,
 				TriggeredBy: &user.ID,
 			}
-			if err := repo.NewCrawlerRepo(q).CreateRun(ctx, run); err != nil {
+			if err := repo.NewCrawlerRepo(q, pool).CreateRun(ctx, run); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -444,7 +444,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("CreateRun_AllowsRunningRunsOfDifferentKinds", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			startRun(ctx, t, crawler, model.CrawlKindDiscover)
 			startRun(ctx, t, crawler, model.CrawlKindMonitor)
 		})
@@ -452,7 +452,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("CreateRun_AllowsNewRunAfterFinish", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			first := startRun(ctx, t, crawler, model.CrawlKindDiscover)
 			first.Status = model.CrawlStatusSucceeded
 			if err := crawler.FinishRun(ctx, first); err != nil {
@@ -465,7 +465,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("CreateRun_RejectsSecondRunningRunOfSameKind", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			startRun(ctx, t, crawler, model.CrawlKindDiscover)
 
 			// Must stay the last database call: the failed insert aborts the tx.
@@ -481,7 +481,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("CreateRun_RejectsUnknownKind", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			err := repo.NewCrawlerRepo(q).CreateRun(ctx, &model.CrawlRun{
+			err := repo.NewCrawlerRepo(q, pool).CreateRun(ctx, &model.CrawlRun{
 				Kind:    model.CrawlKind("bogus"), // violates CHECK (kind IN (...))
 				Trigger: model.CrawlTriggerManual,
 			})
@@ -493,7 +493,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("FinishRun_SavesStatusAndCounts", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			run := startRun(ctx, t, crawler, model.CrawlKindDiscover)
 			run.Status = model.CrawlStatusSucceeded
 			run.VideoFound = 12
@@ -518,7 +518,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("FinishRun_FailedStoresError", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			run := startRun(ctx, t, crawler, model.CrawlKindMonitor)
 			msg := "apify timed out"
 			run.Status = model.CrawlStatusFailed
@@ -540,7 +540,8 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("GetLastRunStartedAt_NoRunReturnsNotFound", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			got, err := repo.NewCrawlerRepo(q).GetLastRunStartedAt(ctx, model.CrawlKindDiscover)
+			got, err := repo.NewCrawlerRepo(q, pool).
+				GetLastRunStartedAt(ctx, model.CrawlKindDiscover)
 			if !errors.Is(err, data.ErrNotFound) {
 				t.Fatalf("expected data.ErrNotFound, got %v", err)
 			}
@@ -552,7 +553,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("GetLastRunStartedAt_ReturnsLatestRunOfKind", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			base := time.Date(2026, 11, 1, 8, 0, 0, 0, time.UTC)
 
 			older := startRun(ctx, t, crawler, model.CrawlKindDiscover)
@@ -581,7 +582,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("FailStaleRuns_FailsOnlyOldRunsOfKind", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			twoHoursAgo := time.Now().Add(-2 * time.Hour)
 
 			staleDiscover := startRun(ctx, t, crawler, model.CrawlKindDiscover)
@@ -613,7 +614,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("FailStaleRuns_KeepsRecentRuns", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			recent := startRun(ctx, t, crawler, model.CrawlKindDiscover)
 
 			if err := crawler.FailStaleRuns(ctx, model.CrawlKindDiscover, time.Hour); err != nil {
@@ -628,7 +629,7 @@ func TestCrawlerRepo_Runs(t *testing.T) {
 
 	t.Run("FailStaleRuns_LeavesFinishedRunsAlone", func(t *testing.T) {
 		withCrawlTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
-			crawler := repo.NewCrawlerRepo(q)
+			crawler := repo.NewCrawlerRepo(q, pool)
 			run := startRun(ctx, t, crawler, model.CrawlKindDiscover)
 			run.Status = model.CrawlStatusSucceeded
 			if err := crawler.FinishRun(ctx, run); err != nil {

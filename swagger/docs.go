@@ -3365,7 +3365,8 @@ const docTemplate = `{
                 "max_cost_per_run": {
                     "description": "MaxCostPerRun defines the maximum allowed cost per run.",
                     "type": "number",
-                    "maximum": 1000
+                    "maximum": 1000,
+                    "minimum": 0.01
                 },
                 "max_results_influencer": {
                     "description": "MaxResultsInfluencer defines the maximum number of posts to retrieve per influencer.",

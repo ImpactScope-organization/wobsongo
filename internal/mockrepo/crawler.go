@@ -46,6 +46,9 @@ var _ data.CrawlerRepoer = &CrawlerRepoerMock{}
 //			UpdateSettingFunc: func(ctx context.Context, setting *model.AdminSetting) (int, error) {
 //				panic("mock out the UpdateSetting method")
 //			},
+//			WithTxFunc: func(ctx context.Context, fn func(data.CrawlerRepoer) error) error {
+//				panic("mock out the WithTx method")
+//			},
 //		}
 //
 //		// use mockedCrawlerRepoer in code that requires data.CrawlerRepoer
@@ -76,6 +79,9 @@ type CrawlerRepoerMock struct {
 
 	// UpdateSettingFunc mocks the UpdateSetting method.
 	UpdateSettingFunc func(ctx context.Context, setting *model.AdminSetting) (int, error)
+
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(ctx context.Context, fn func(data.CrawlerRepoer) error) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -133,6 +139,13 @@ type CrawlerRepoerMock struct {
 			// Setting is the setting argument value.
 			Setting *model.AdminSetting
 		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Fn is the fn argument value.
+			Fn func(data.CrawlerRepoer) error
+		}
 	}
 	lockCreateRun           sync.RWMutex
 	lockFailStaleRuns       sync.RWMutex
@@ -142,6 +155,7 @@ type CrawlerRepoerMock struct {
 	lockListActiveKeywords  sync.RWMutex
 	lockMarkKeywordRun      sync.RWMutex
 	lockUpdateSetting       sync.RWMutex
+	lockWithTx              sync.RWMutex
 }
 
 // CreateRun calls CreateRunFunc.
@@ -425,5 +439,41 @@ func (mock *CrawlerRepoerMock) UpdateSettingCalls() []struct {
 	mock.lockUpdateSetting.RLock()
 	calls = mock.calls.UpdateSetting
 	mock.lockUpdateSetting.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *CrawlerRepoerMock) WithTx(ctx context.Context, fn func(data.CrawlerRepoer) error) error {
+	if mock.WithTxFunc == nil {
+		panic("CrawlerRepoerMock.WithTxFunc: method is nil but CrawlerRepoer.WithTx was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Fn  func(data.CrawlerRepoer) error
+	}{
+		Ctx: ctx,
+		Fn:  fn,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(ctx, fn)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedCrawlerRepoer.WithTxCalls())
+func (mock *CrawlerRepoerMock) WithTxCalls() []struct {
+	Ctx context.Context
+	Fn  func(data.CrawlerRepoer) error
+} {
+	var calls []struct {
+		Ctx context.Context
+		Fn  func(data.CrawlerRepoer) error
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

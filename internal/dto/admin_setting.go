@@ -14,5 +14,5 @@ type UpdateAdminSettingRequest struct {
 	MaxResultsInfluencer int `json:"max_results_influencer" validate:"required,min=1,max=100"`
 
 	// MaxCostPerRun defines the maximum allowed cost per run.
-	MaxCostPerRun float64 `json:"max_cost_per_run" validate:"gt=0,lte=1000"`
+	MaxCostPerRun float64 `json:"max_cost_per_run" validate:"gte=0.01,lte=1000"`
 }

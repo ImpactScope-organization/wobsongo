@@ -473,6 +473,7 @@ definitions:
       max_cost_per_run:
         description: MaxCostPerRun defines the maximum allowed cost per run.
         maximum: 1000
+        minimum: 0.01
         type: number
       max_results_influencer:
         description: MaxResultsInfluencer defines the maximum number of posts to retrieve

@@ -346,7 +346,7 @@ func TestCreateKeywordHandler(t *testing.T) {
 			CreateFunc: func(_ context.Context, k *model.DiscoveryKeyword) error {
 				*saved = k
 				k.ID = uuid.New()
-				k.LanguageCode = k.Language.String()
+				k.LanguageCode = k.Language.Code()
 				k.CreatedAt, k.UpdatedAt = keywordCreatedAt, keywordCreatedAt
 				return nil
 			},
@@ -440,7 +440,7 @@ func TestUpdateKeywordHandler(t *testing.T) {
 		repo := &mockrepo.KeywordRepoerMock{
 			UpdateFunc: func(_ context.Context, k *model.DiscoveryKeyword) error {
 				saved = k
-				k.LanguageCode = k.Language.String()
+				k.LanguageCode = k.Language.Code()
 				return nil
 			},
 		}

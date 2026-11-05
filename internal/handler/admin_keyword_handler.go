@@ -36,7 +36,7 @@ func NewAdminKeywordHandler(service *service.AdminKeywordService) *AdminKeywordH
 // @Router			/api/v1/admin/keywords [get]
 func (h *AdminKeywordHandler) listKeywordsHandler(c echo.Context) error {
 	query := new(dto.KeywordListDTO)
-	if err := bindQueryAndValidate(c, query); err != nil {
+	if err := bindAndValidate(c, query); err != nil {
 		return err
 	}
 

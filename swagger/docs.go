@@ -4324,7 +4324,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/model.Language"
                 },
                 "language_code": {
-                    "type": "string"
+                    "$ref": "#/definitions/model.LanguageCode"
                 },
                 "last_run_at": {
                     "type": "string"
@@ -4420,6 +4420,17 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "LanguageEnglish",
                 "LanguageFrench"
+            ]
+        },
+        "model.LanguageCode": {
+            "type": "string",
+            "enum": [
+                "en",
+                "fr"
+            ],
+            "x-enum-varnames": [
+                "LanguageCodeEnglish",
+                "LanguageCodeFrench"
             ]
         },
         "model.Narrative": {

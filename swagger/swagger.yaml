@@ -637,7 +637,7 @@ definitions:
       language:
         $ref: '#/definitions/model.Language'
       language_code:
-        type: string
+        $ref: '#/definitions/model.LanguageCode'
       last_run_at:
         type: string
       updated_at:
@@ -714,6 +714,14 @@ definitions:
     x-enum-varnames:
     - LanguageEnglish
     - LanguageFrench
+  model.LanguageCode:
+    enum:
+    - en
+    - fr
+    type: string
+    x-enum-varnames:
+    - LanguageCodeEnglish
+    - LanguageCodeFrench
   model.Narrative:
     properties:
       created_at:

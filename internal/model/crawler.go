@@ -8,14 +8,14 @@ import (
 
 // DiscoveryKeyword is a search keyword used to discover new videos.
 type DiscoveryKeyword struct {
-	ID           uuid.UUID  `json:"id"                    format:"uuid"`
-	Keyword      string     `json:"keyword"`
-	Language     Language   `json:"language"`
-	LanguageCode string     `json:"language_code"`
-	IsActive     bool       `json:"is_active"`
-	LastRunAt    *time.Time `json:"last_run_at,omitempty"`
-	CreatedAt    time.Time  `json:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at"`
+	ID           uuid.UUID    `json:"id"                    format:"uuid"`
+	Keyword      string       `json:"keyword"`
+	Language     Language     `json:"language"`
+	LanguageCode LanguageCode `json:"language_code"`
+	IsActive     bool         `json:"is_active"`
+	LastRunAt    *time.Time   `json:"last_run_at,omitempty"`
+	CreatedAt    time.Time    `json:"created_at"`
+	UpdatedAt    time.Time    `json:"updated_at"`
 }
 
 // AdminSetting is the admin-managed configuration for discovery and

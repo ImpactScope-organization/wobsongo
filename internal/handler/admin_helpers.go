@@ -23,25 +23,6 @@ func parseIDParam(c echo.Context, message string) (uuid.UUID, error) {
 	return id, nil
 }
 
-// bindQueryAndValidate binds the query parameters into query and validates them.
-func bindQueryAndValidate(c echo.Context, query any) error {
-	if err := c.Bind(query); err != nil {
-		return &model.APIError{
-			Code:     http.StatusBadRequest,
-			Internal: err,
-			Public:   msgInvalidQueryParams,
-		}
-	}
-	if err := c.Validate(query); err != nil {
-		return &model.APIError{
-			Code:     http.StatusUnprocessableEntity,
-			Internal: err,
-			Public:   msgValidationFailed,
-		}
-	}
-	return nil
-}
-
 // dataAPIError turns a service error into the API error of its HTTP status.
 func dataAPIError(err error) error {
 	status, message := mapDataErrorToHTTP(err)

@@ -94,7 +94,7 @@ func toModelKeyword(row *db.DiscoveryKeyword) *model.DiscoveryKeyword {
 		ID:           row.ID,
 		Keyword:      row.Keyword,
 		Language:     model.Language(row.Language),
-		LanguageCode: model.Language(row.Language).String(),
+		LanguageCode: model.Language(row.Language).Code(),
 		IsActive:     row.IsActive,
 		CreatedAt:    row.CreatedAt,
 		UpdatedAt:    row.UpdatedAt,

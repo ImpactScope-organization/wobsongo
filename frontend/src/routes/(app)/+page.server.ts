@@ -1,6 +1,6 @@
 import { error } from '@sveltejs/kit';
 import { PRIVACY_WHITELIST_EMAILS } from '$app/env/private';
-import { parseOverviewTopic } from '#lib/domain/overview.js';
+import { parseOverviewTopic, parseEngagementWindow } from '#lib/domain/overview.js';
 import { parseTimeRange } from '#lib/domain/time-range.js';
 import { m } from '#lib/paraglide/messages.js';
 import { requireSession } from '#lib/server/auth/session.js';
@@ -11,7 +11,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const session = requireSession(locals, url);
 	const range = parseTimeRange(url.searchParams.get('range'));
 	const topic = parseOverviewTopic(url.searchParams.get('topic'));
-
+	const engagement = parseEngagementWindow(url.searchParams.get('engagement'));
 	// A logged in user has access to the overview
 	const hasAccess = url.searchParams.get('hasAccess') !== 'false';
 
@@ -32,7 +32,11 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const privacyMode = hasFullAccess ? privacyParam === 'true' : true;
 	const isPrivate = !hasAccess || privacyMode;
 
-	const result = await locals.services.overview.getOverview(session.scope, { range, topic });
+	const result = await locals.services.overview.getOverview(session.scope, {
+		range,
+		topic,
+		engagement
+	});
 	if (!result.ok) error(result.status, result.message);
 
 	const snapshot = isPrivate
@@ -50,5 +54,5 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 			}
 		: result.data;
 
-	return { snapshot, range, topic, privacyMode, hasAccess };
+	return { snapshot, range, topic, engagement, privacyMode, hasAccess };
 };

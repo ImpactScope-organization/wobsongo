@@ -1,8 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { OVERVIEW_NOW } from '#lib/fixtures/overview.js';
+import { OVERVIEW_NOW, sampleUserQuestions } from '#lib/fixtures/overview.js';
 import { profile } from '#lib/fixtures/settings.js';
 import { failure } from '../result.js';
-import { createApiRepos } from '../repos/api/index.js';
 import { ACCESS_TOKEN_TTL_MS, REFRESH_TOKEN_TTL_MS } from '../repos/stub/tokens.js';
 import {
 	DEMO_ACCOUNT_ID,
@@ -12,17 +11,14 @@ import {
 } from '../repos/stub/index.js';
 import { createTestBackend } from '../testing/fakes.js';
 import { describeFailure } from './failures.js';
-import { createServices } from './index.js';
 import { MONITOR_RUN_LIMIT } from './monitor.js';
 import { OVERVIEW_NARRATIVE_LIMIT } from './overview.js';
 import { STUB_RUN_MS } from '../repos/stub/monitor.js';
+import type { EngagementWindow } from '#lib/domain/overview.js';
 
 const SERVER_ERROR_MESSAGE = 'Something went wrong on our side. Try again in a moment.';
 
 const demo = { accountId: DEMO_ACCOUNT_ID };
-const apiServices = createServices(
-	createApiRepos({ baseUrl: 'https://api.example.org', fetch: () => Promise.reject() })
-);
 
 const newAccount = {
 	name: 'Kadi Sawadogo',
@@ -45,7 +41,11 @@ describe('describeFailure', () => {
 describe('OverviewService', () => {
 	it('shows misinformation narratives, highest volume first', async () => {
 		const { services } = createTestBackend();
-		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
+		const result = await services.overview.getOverview(demo, {
+			range: '24h',
+			topic: 'misinfo',
+			engagement: '7d'
+		});
 		if (!result.ok) throw new Error(result.message);
 
 		const { narratives } = result.data;
@@ -58,21 +58,37 @@ describe('OverviewService', () => {
 
 	it('adds unverified narratives for all topics', async () => {
 		const { services } = createTestBackend();
-		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'all' });
+		const result = await services.overview.getOverview(demo, {
+			range: '24h',
+			topic: 'all',
+			engagement: '7d'
+		});
 		expect(result.ok && result.data.narratives.some((n) => n.verdict === 'unverified')).toBe(true);
 	});
 
 	it('stamps the snapshot with the clock', async () => {
 		const { clock, services } = createTestBackend();
 		clock.advance(60_000);
-		const result = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
+		const result = await services.overview.getOverview(demo, {
+			range: '24h',
+			topic: 'misinfo',
+			engagement: '7d'
+		});
 		expect(result.ok && result.data.updatedAt).toEqual(new Date(OVERVIEW_NOW.getTime() + 60_000));
 	});
 
 	it('scales longer windows in the stub, without the anomaly banner', async () => {
 		const { services } = createTestBackend();
-		const day = await services.overview.getOverview(demo, { range: '24h', topic: 'misinfo' });
-		const week = await services.overview.getOverview(demo, { range: '7d', topic: 'misinfo' });
+		const day = await services.overview.getOverview(demo, {
+			range: '24h',
+			topic: 'misinfo',
+			engagement: '7d'
+		});
+		const week = await services.overview.getOverview(demo, {
+			range: '7d',
+			topic: 'misinfo',
+			engagement: '7d'
+		});
 		if (!day.ok || !week.ok) throw new Error('expected data');
 		expect(week.data.messages.current).toBeGreaterThan(day.data.messages.current);
 		expect(day.data.anomaly).not.toBeNull();
@@ -81,7 +97,7 @@ describe('OverviewService', () => {
 
 	it('follows the stub id conventions for the account', async () => {
 		const { services } = createTestBackend();
-		const query = { range: '24h', topic: 'misinfo' } as const;
+		const query = { range: '24h', topic: 'misinfo', engagement: '7d' } as const;
 		expect(await services.overview.getOverview({ accountId: 'acc-404' }, query)).toEqual(
 			failure(404, 'No Overview data for this account.')
 		);
@@ -90,10 +106,19 @@ describe('OverviewService', () => {
 		);
 	});
 
-	it('is not available yet on the backend', async () => {
-		expect(
-			await apiServices.overview.getOverview(demo, { range: '24h', topic: 'misinfo' })
-		).toEqual(failure(501, 'Overview is not available yet.'));
+	it('counts the users and questions of the chosen engagement window', async () => {
+		const { services } = createTestBackend();
+		const counts = async (engagement: EngagementWindow) => {
+			const result = await services.overview.getOverview(demo, {
+				range: '24h',
+				topic: 'misinfo',
+				engagement
+			});
+			if (!result.ok) throw new Error(result.message);
+			return result.data.userQuestions;
+		};
+		expect(await counts('7d')).toEqual(sampleUserQuestions['7d']);
+		expect(await counts('all')).toEqual(sampleUserQuestions.all);
 	});
 });
 
@@ -148,12 +173,6 @@ describe('MonitorService', () => {
 		expect(
 			await services.monitor.startRun({ accountId: 'acc-500' }, { executedBy: 'Admin 1' })
 		).toEqual(failure(500, SERVER_ERROR_MESSAGE));
-	});
-
-	it('is not available yet on the backend', async () => {
-		expect(await apiServices.monitor.getMonitor(demo, { range: '24h' })).toEqual(
-			failure(501, 'Monitor is not available yet.')
-		);
 	});
 });
 

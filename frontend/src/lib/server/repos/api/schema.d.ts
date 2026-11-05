@@ -342,6 +342,165 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get admin settings
+         * @description The settings of video discovery and creator monitoring.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.AdminSetting"];
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Update admin settings
+         * @description Replaces the whole configuration. A new discovery interval replaces the periodic discovery job right away. max_cost_per_run is stored but not enforced yet.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Admin settings */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.UpdateAdminSettingRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.AdminSetting"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -696,6 +855,94 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * User activity
+         * @description Counts the distinct users and the messages they sent over the last 7, 15 or 30 days. Left out, all time is counted.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Count only the last N days; left out, all time */
+                    days?: 7 | 15 | 30;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.UserActivity"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1552,6 +1799,188 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/narratives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List narratives
+         * @description Retrieves a paginated list of narratives, newest first.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number */
+                    page?: number;
+                    /** @description Items per page */
+                    per_page?: number;
+                    /** @description Filter by active state */
+                    is_active?: boolean;
+                    /** @description Filter by status */
+                    status?: "needs_check" | "auto_checked" | "not_in_kb" | "expert_verified";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaginationResults-model_Narrative"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/narratives/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get a narrative by ID
+         * @description Retrieves a single narrative by its ID.
+         */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Narrative ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Narrative"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/webhooks/apify": {
         parameters: {
             query?: never;
@@ -1689,6 +2118,12 @@ export interface components {
              */
             is_long?: boolean;
             /**
+             * @description Length picks FormattedMessage's shape: "short", "medium", "long" or
+             *     "expert". When empty or unknown, IsLong decides
+             *     (true = "expert", false = "medium").
+             */
+            length?: string;
+            /**
              * @description Text is the claim or message to check — may be a direct question, a
              *     casual claim, or a sentence pulled from a video transcript.
              */
@@ -1811,6 +2246,16 @@ export interface components {
             /** @description TotalItems is the total number of items available */
             total_items: number;
         };
+        "dto.PaginationResults-model_Narrative": {
+            /** @description Items contains the paginated data items */
+            items?: components["schemas"]["model.Narrative"][];
+            /** @description Page is the current page number */
+            page: number;
+            /** @description PerPage is the number of items per page */
+            per_page: number;
+            /** @description TotalItems is the total number of items available */
+            total_items: number;
+        };
         "dto.PresignedURL": {
             presigned_url?: string;
             ttl?: number;
@@ -1888,6 +2333,16 @@ export interface components {
             refresh_expires_at: string;
             refresh_token: string;
         };
+        "dto.UpdateAdminSettingRequest": {
+            /** @description DiscoveryIntervalHours defines the interval between scheduled discovery runs in hours. */
+            discovery_interval_hours: number;
+            /** @description MaxCostPerRun defines the maximum allowed cost per run. */
+            max_cost_per_run?: number;
+            /** @description MaxResultsInfluencer defines the maximum number of posts to retrieve per influencer. */
+            max_results_influencer: number;
+            /** @description MaxResultsKeyword defines the maximum number of posts to retrieve per keyword. */
+            max_results_keyword: number;
+        };
         "dto.UpdateDocumentDTO": {
             /** @description PublicationYear is the year the document was published. */
             publication_year?: number;
@@ -1906,6 +2361,22 @@ export interface components {
             /** Format: uuid */
             request_id: string;
             status: number;
+        };
+        "model.AdminSetting": {
+            discovery_interval_hours?: number;
+            /**
+             * @description MaxCostPerRun is the maximum cost (USD) allowed for a single discovery or
+             *     monitoring run. If the Apify actor reports a higher cost, the run is
+             *     considered failed.
+             */
+            max_cost_per_run?: number;
+            /** @description MaxResultsInfluencer is how many recent videos to fetch per creator check. */
+            max_results_influencer?: number;
+            /** @description MaxResultsKeyword is how many videos to fetch per discovery keyword. */
+            max_results_keyword?: number;
+            updated_at?: string;
+            /** Format: uuid */
+            updated_by?: string;
         };
         "model.Document": {
             /** @description CreatedAt is the timestamp when the document was created. */
@@ -1943,6 +2414,67 @@ export interface components {
         };
         /** @enum {integer} */
         "model.Language": 0 | 1;
+        "model.Narrative": {
+            /** @description CreatedAt is the time the narrative was created. */
+            created_at?: string;
+            /**
+             * @description Harm is the harm level between NarrativeHarmMin and NarrativeHarmMax.
+             *     Until an expert validates it, the system estimates it from the severity
+             *     and high-risk flag of the newest claim. Nil while there is no estimate.
+             */
+            harm?: number;
+            /**
+             * @description HarmValidated is true once an expert confirmed or set Harm. The system
+             *     then stops recomputing Harm.
+             */
+            harm_validated?: boolean;
+            /**
+             * Format: uuid
+             * @description ID is the unique identifier of the narrative.
+             */
+            id?: string;
+            /**
+             * @description IsActive reports whether the narrative is still actively discussed,
+             *     based on activity observed within a defined time period: it is true
+             *     while a linked claim occurred inside the activity window. The system
+             *     sets it to true when a claim joins the narrative, and back to false when
+             *     the window passes without new claims.
+             */
+            is_active?: boolean;
+            /**
+             * @description Statement describes the narrative. An LLM writes it, deliberately broad,
+             *     when the narrative is created, and an admin may edit it afterwards.
+             */
+            statement?: string;
+            /** @description StatementEditedAt is when Statement was last edited by an admin. */
+            statement_edited_at?: string;
+            /**
+             * Format: uuid
+             * @description StatementEditedBy is the admin who last edited Statement. Nil while the
+             *     LLM-written statement is untouched.
+             */
+            statement_edited_by?: string;
+            /** @description Status is the narrative's fact-check status. */
+            status?: components["schemas"]["model.NarrativeStatus"];
+            /**
+             * Format: uuid
+             * @description TopicID is the topic the narrative belongs to. A claim is only matched
+             *     against narratives of its own topic.
+             */
+            topic_id?: string;
+            /** @description TopicName is the name of the narrative's topic. */
+            topic_name?: string;
+            /** @description UpdatedAt is the time the narrative was last modified. */
+            updated_at?: string;
+            /**
+             * @description Verdict is the verdict of the narrative's newest claim (supported,
+             *     contradicted, partially_supported, mixed or insufficient_evidence).
+             *     Nil while the narrative has no claim.
+             */
+            verdict?: string;
+        };
+        /** @enum {string} */
+        "model.NarrativeStatus": "needs_check" | "auto_checked" | "not_in_kb" | "expert_verified";
         "model.POSTUploadPolicy": {
             formFields: {
                 [key: string]: string;
@@ -1951,6 +2483,12 @@ export interface components {
             prefix: string;
             /** @example https://s3.planetleague.co.uk/bucket/key */
             url: string;
+        };
+        "model.UserActivity": {
+            /** @description Messages is the number of messages users sent. */
+            messages?: number;
+            /** @description Users is the number of distinct jids that sent at least one message. */
+            users?: number;
         };
     };
     responses: never;

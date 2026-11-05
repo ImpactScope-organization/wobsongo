@@ -722,6 +722,15 @@ definitions:
     - prefix
     - url
     type: object
+  model.UserActivity:
+    properties:
+      messages:
+        description: Messages is the number of messages users sent.
+        type: integer
+      users:
+        description: Users is the number of distinct jids that sent at least one message.
+        type: integer
+    type: object
 info:
   contact: {}
   description: Fact-checking backend for the WobSongo dashboard and messaging bots.
@@ -1356,6 +1365,72 @@ paths:
       summary: Check a claim
       tags:
       - claims
+  /api/v1/conversations/stats:
+    get:
+      description: Counts the distinct users and the messages they sent over the last
+        7, 15 or 30 days. Left out, all time is counted.
+      parameters:
+      - description: Count only the last N days; left out, all time
+        enum:
+        - 7
+        - 15
+        - 30
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.UserActivity'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: User activity
+      tags:
+      - conversations
   /api/v1/documents:
     get:
       description: Retrieves a paginated list of documents.

@@ -9,7 +9,7 @@
 		component: ChatbotEngagement,
 		tags: ['autodocs'],
 		parameters: { layout: 'padded' },
-		args: { stats: sampleUserQuestions, class: 'max-w-md' }
+		args: { stats: sampleUserQuestions['7d'], class: 'max-w-md' }
 	});
 </script>
 
@@ -46,8 +46,8 @@
 	}}
 />
 
-<Story name="Last 15 days" args={{ defaultWindow: '15d' }} />
+<Story name="Last 15 days"/>
 
-<Story name="Last 30 days" args={{ defaultWindow: '30d' }} />
+<Story name="Last 30 days"/>
 
-<Story name="All time" args={{ defaultWindow: 'all' }} />
+<Story name="All time"/>

@@ -40,3 +40,12 @@ type ConversationMessage struct {
 	// CreatedAt is the timestamp when the message was stored.
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
+
+// UserActivity counts what users sent in one window.
+type UserActivity struct {
+	// Users is the number of distinct jids that sent at least one message.
+	Users int64 `json:"users"`
+
+	// Messages is the number of messages users sent.
+	Messages int64 `json:"messages"`
+}

@@ -43,6 +43,8 @@ export type EngagementWindow = '7d' | '15d' | '30d' | 'all';
 
 export const ENGAGEMENT_WINDOWS: readonly EngagementWindow[] = ['7d', '15d', '30d', 'all'];
 
+export const DEFAULT_ENGAGEMENT_WINDOW: EngagementWindow = 'all';
+
 export interface UserQuestionStats {
 	users: number;
 	questions: number;
@@ -79,7 +81,7 @@ export interface OverviewSnapshot {
 	/** Top content creators detected across monitored platforms. */
 	creators?: ContentCreator[];
 	/** Total unique users and questions across reporting windows. */
-	userQuestions?: Record<EngagementWindow, UserQuestionStats>;
+	userQuestions: UserQuestionStats;
 	/** The most unusual jump in volume, if any narrative has one. */
 	anomaly: Anomaly | null;
 	platformCounts: PlatformCount[];
@@ -94,6 +96,10 @@ export function topNarratives(
 	return narratives
 		.filter((narrative) => matchesTopic(narrative.verdict, topic))
 		.toSorted((a, b) => b.volume - a.volume);
+}
+
+export function parseEngagementWindow(value: string | null | undefined): EngagementWindow {
+	return ENGAGEMENT_WINDOWS.find((window) => window === value) ?? DEFAULT_ENGAGEMENT_WINDOW;
 }
 
 /** Content creators for a topic, highest volume (posts) first. */

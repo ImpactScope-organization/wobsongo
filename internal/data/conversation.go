@@ -41,4 +41,14 @@ type ConversationRepoer interface {
 
 	// EnqueueVoiceTranscription adds a new voice-transcription job to the River queue.
 	EnqueueVoiceTranscription(ctx context.Context, payload *queue.VoiceTranscriptionJob) error
+
+	// UserActivity counts the distinct users and the messages they sent,
+	// over the last filter.Days days or over all time.
+	UserActivity(ctx context.Context, filter UserActivityFilter) (*model.UserActivity, error)
+}
+
+// UserActivityFilter narrows a user activity count. A nil field is not filtered.
+type UserActivityFilter struct {
+	// Days counts only the last Days days. Nil counts all time.
+	Days *int32
 }

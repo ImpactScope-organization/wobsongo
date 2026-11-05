@@ -179,7 +179,7 @@ export const overviewSnapshot: OverviewSnapshot = {
 	medianDebunkMinutes: { current: 142, previous: 124 },
 	narratives,
 	creators: sampleCreators,
-	userQuestions: sampleUserQuestions,
+	userQuestions: sampleUserQuestions.all,
 	anomaly,
 	platformCounts,
 	highHarm: highHarmSummary

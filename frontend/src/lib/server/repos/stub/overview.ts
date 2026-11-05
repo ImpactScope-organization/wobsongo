@@ -1,6 +1,6 @@
 import type { OverviewSnapshot } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
-import { overviewSnapshot } from '#lib/fixtures/overview.js';
+import { overviewSnapshot, sampleUserQuestions } from '#lib/fixtures/overview.js';
 import type { Clock } from '#lib/utils/clock.js';
 import { ok } from '../../result.js';
 import type { OverviewRepo } from '../../services/overview.js';
@@ -53,10 +53,14 @@ function scaled(snapshot: OverviewSnapshot, range: TimeRange): OverviewSnapshot 
 
 export function createStubOverviewRepo(clock: Clock): OverviewRepo {
 	return {
-		async getSnapshot(scope, { range }) {
+		async getSnapshot(scope, { range, engagement }) {
 			const simulated = simulatedFailure(scope.accountId);
 			if (simulated) return simulated;
-			return ok({ ...scaled(structuredClone(overviewSnapshot), range), updatedAt: clock.now() });
+			return ok({
+				...scaled(structuredClone(overviewSnapshot), range),
+				userQuestions: { ...sampleUserQuestions[engagement] },
+				updatedAt: clock.now()
+			});
 		}
 	};
 }

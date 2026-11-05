@@ -11,6 +11,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 )
@@ -122,4 +123,22 @@ func (r *conversationRepo) EnqueueVoiceTranscription(
 		return fmt.Errorf("failed to insert voice transcription job: %w", err)
 	}
 	return nil
+}
+
+// UserActivity counts distinct users and user messages in the filter's window.
+func (r *conversationRepo) UserActivity(
+	ctx context.Context,
+	filter data.UserActivityFilter,
+) (*model.UserActivity, error) {
+	var days pgtype.Int4
+	if filter.Days != nil {
+		days = pgtype.Int4{Int32: *filter.Days, Valid: true}
+	}
+
+	row, err := r.q.CountUserActivity(ctx, days)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count user activity: %w", mapPostgresError(err))
+	}
+
+	return &model.UserActivity{Users: row.Users, Messages: row.Messages}, nil
 }

@@ -26,10 +26,17 @@ function repos(items: unknown[], total = items.length, activity = { users: 0, me
 		if (url.pathname.endsWith('/conversations/stats')) {
 			return Response.json({ request_id: 'r', status: 200, data: activity });
 		}
+		const page = Number(url.searchParams.get('page') ?? 1);
+		const perPage = Number(url.searchParams.get('per_page') ?? 20);
 		return Response.json({
 			request_id: 'r',
 			status: 200,
-			data: { page: 1, per_page: 100, total_items: total, items }
+			data: {
+				page,
+				per_page: perPage,
+				total_items: total,
+				items: items.slice((page - 1) * perPage, page * perPage)
+			}
 		});
 	};
 	return {
@@ -54,20 +61,17 @@ describe('API overview repo', () => {
 	};
 
 	it('maps active narratives and derives the counts', async () => {
-		const { sent, repos: r } = repos(
-			[
-				narrative({}),
-				narrative({
-					id: 'n2',
-					verdict: 'mixed',
-					harm: 2,
-					status: 'expert_verified',
-					created_at: '2026-09-01T00:00:00Z'
-				}),
-				narrative({ id: 'n3', verdict: 'supported', harm: 1 })
-			],
-			37
-		);
+		const { sent, repos: r } = repos([
+			narrative({}),
+			narrative({
+				id: 'n2',
+				verdict: 'mixed',
+				harm: 2,
+				status: 'expert_verified',
+				created_at: '2026-09-01T00:00:00Z'
+			}),
+			narrative({ id: 'n3', verdict: 'supported', harm: 1 })
+		]);
 		const result = await r.overview.getSnapshot(
 			{ accountId: 'a' },
 			{ range: '24h', engagement: 'all' }
@@ -80,9 +84,60 @@ describe('API overview repo', () => {
 			['n2', 'misleading', 'expert-verified']
 		]);
 		expect(s.rated).toEqual({ false: 1, misleading: 1, unverified: 0, accurate: 1 });
-		expect(s.activeNarratives).toEqual({ count: 37, new: 2 });
+		expect(s.activeNarratives).toEqual({ count: 3, new: 2 });
 		expect(s.highHarm.awaitingReview).toBe(1);
 		expect(s.creators).toEqual([]);
+	});
+
+	it('reads every page so all counts cover the same narratives', async () => {
+		const items = Array.from({ length: 250 }, (_, i) =>
+			narrative({
+				id: `n${i}`,
+				verdict: i % 2 === 0 ? 'contradicted' : 'supported',
+				harm: 5,
+				status: 'needs_check'
+			})
+		);
+		const { sent, repos: r } = repos(items);
+		const result = await r.overview.getSnapshot(
+			{ accountId: 'a' },
+			{ range: '24h', engagement: 'all' }
+		);
+		if (!result.ok) throw new Error('expected ok');
+		const s = result.data;
+
+		const pages = sent.filter((request) => request.includes('/narratives'));
+		expect(pages).toHaveLength(3);
+		expect(pages.some((request) => request.includes('page=3'))).toBe(true);
+		expect(s.activeNarratives).toEqual({ count: 250, new: 250 });
+		expect(s.rated).toEqual({ false: 125, misleading: 0, unverified: 0, accurate: 125 });
+		expect(s.narratives).toHaveLength(125);
+		expect(s.highHarm.awaitingReview).toBe(250);
+	});
+
+	it('fails when a later page cannot be read', async () => {
+		const items = Array.from({ length: 150 }, (_, i) => narrative({ id: `n${i}` }));
+		const r = createApiRepos({
+			baseUrl: 'https://api.example.org',
+			fetch: (async (input: RequestInfo | URL) => {
+				const url = new URL((input as Request).url);
+				if (url.pathname.endsWith('/conversations/stats')) {
+					return Response.json({ request_id: 'r', status: 200, data: { users: 0, messages: 0 } });
+				}
+				if (url.searchParams.get('page') === '2') {
+					return Response.json({ request_id: 'r', status: 500, error: 'boom' }, { status: 500 });
+				}
+				return Response.json({
+					request_id: 'r',
+					status: 200,
+					data: { page: 1, per_page: 100, total_items: 150, items: items.slice(0, 100) }
+				});
+			}) as typeof globalThis.fetch,
+			clock
+		});
+		expect(
+			await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: 'all' })
+		).toMatchObject({ ok: false, status: 500 });
 	});
 
 	it('reads the users and messages of the chosen window from the backend', async () => {

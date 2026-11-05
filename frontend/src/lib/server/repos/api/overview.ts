@@ -12,7 +12,7 @@ import type {
 	UserQuestionStats
 } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
-import { ok } from '#lib/server/result.js';
+import { ok, type Result } from '#lib/server/result.js';
 import type { OverviewRepo } from '../../services/overview.js';
 import { call, createApiClient, type Schemas } from './client.js';
 import type { ApiOptions } from './index.js';
@@ -20,8 +20,11 @@ import type { ApiOptions } from './index.js';
 type ApiNarrative = Schemas['model.Narrative'];
 type ApiUserActivity = Schemas['model.UserActivity'];
 
-// The backend's page-size cap; Overview reads one page of active narratives.
+// The backend's page-size cap. Overview reads every page of active narratives,
+// so all of its counts describe the same set.
 const NARRATIVE_PAGE_SIZE = 100;
+
+type NarrativePage = { items?: ApiNarrative[]; total_items: number };
 
 const WINDOW_MS: Record<TimeRange, number> = {
 	'24h': 24 * 60 * 60 * 1000,
@@ -83,7 +86,7 @@ function toNarrativeSummary(narrative: ApiNarrative, verdict: Verdict): Narrativ
 
 // Builds the Overview snapshot from the available API data.
 function toSnapshot(
-	page: { items?: ApiNarrative[]; total_items: number },
+	page: NarrativePage,
 	userQuestions: UserQuestionStats,
 	range: TimeRange,
 	engagement: EngagementWindow,
@@ -147,22 +150,49 @@ function toSnapshot(
 export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 	const api = createApiClient(options);
 
+	const fetchNarrativePage = (page: number) =>
+		call(
+			api.GET('/api/v1/narratives', {
+				params: {
+					query: {
+						is_active: true,
+						page,
+						per_page: NARRATIVE_PAGE_SIZE
+					}
+				}
+			}),
+			(data): NarrativePage => data
+		);
+
+	// Reads every page of active narratives. The first page gives the total,
+	// the remaining pages are then fetched in parallel.
+	async function fetchActiveNarratives(): Promise<Result<NarrativePage>> {
+		const first = await fetchNarrativePage(1);
+		if (!first.ok) return first;
+
+		const totalItems = first.data.total_items;
+		const pageCount = Math.ceil(totalItems / NARRATIVE_PAGE_SIZE);
+		const items = [...(first.data.items ?? [])];
+
+		const rest = await Promise.all(
+			Array.from({ length: Math.max(0, pageCount - 1) }, (_, i) => fetchNarrativePage(i + 2))
+		);
+		for (const page of rest) {
+			if (!page.ok) return page;
+			items.push(...(page.data.items ?? []));
+		}
+
+		// Derive every count from the list actually read, so they stay consistent
+		// even if narratives changed between the page requests.
+		return ok({ items, total_items: items.length });
+	}
+
 	return {
 		// The backend has no time filter for active narratives.
 		// The selected range only determines what counts as a new narrative.
 		getSnapshot: async (_scope, { range, engagement }) => {
 			const [narratives, activity] = await Promise.all([
-				call(
-					api.GET('/api/v1/narratives', {
-						params: {
-							query: {
-								is_active: true,
-								per_page: NARRATIVE_PAGE_SIZE
-							}
-						}
-					}),
-					(page) => page
-				),
+				fetchActiveNarratives(),
 				call(
 					api.GET('/api/v1/conversations/stats', {
 						params: {

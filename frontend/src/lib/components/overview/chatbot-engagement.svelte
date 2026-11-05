@@ -33,7 +33,7 @@
 >
 	{#snippet actions()}
 		<SegmentedLinks
-			label={m.overview_time_range()}
+			label={m.overview_engagement_window()}
 			variant="pills"
 			current={engagement}
 			options={ENGAGEMENT_WINDOWS.map((value) => ({

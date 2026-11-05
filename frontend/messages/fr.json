@@ -280,6 +280,7 @@
 	"high_harm_mentions": "Mentions",
 	"overview_eyebrow": "{region} · mis à jour à {time} GMT",
 	"overview_time_range": "Période",
+	"overview_engagement_window": "Période d'engagement du chatbot",
 	"overview_no_change": "Stable vs {window} préc.",
 	"overview_change": "{arrow} {size} vs {window} préc.",
 	"overview_kpi_messages": "Messages reçus, {window}",

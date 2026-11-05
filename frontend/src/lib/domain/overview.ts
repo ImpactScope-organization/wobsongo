@@ -45,6 +45,10 @@ export const ENGAGEMENT_WINDOWS: readonly EngagementWindow[] = ['7d', '15d', '30
 
 export const DEFAULT_ENGAGEMENT_WINDOW: EngagementWindow = 'all';
 
+export function parseEngagementWindow(value: string | null | undefined): EngagementWindow {
+	return ENGAGEMENT_WINDOWS.find((window) => window === value) ?? DEFAULT_ENGAGEMENT_WINDOW;
+}
+
 export interface UserQuestionStats {
 	users: number;
 	questions: number;
@@ -96,10 +100,6 @@ export function topNarratives(
 	return narratives
 		.filter((narrative) => matchesTopic(narrative.verdict, topic))
 		.toSorted((a, b) => b.volume - a.volume);
-}
-
-export function parseEngagementWindow(value: string | null | undefined): EngagementWindow {
-	return ENGAGEMENT_WINDOWS.find((window) => window === value) ?? DEFAULT_ENGAGEMENT_WINDOW;
 }
 
 /** Content creators for a topic, highest volume (posts) first. */

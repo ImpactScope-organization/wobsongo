@@ -37,5 +37,5 @@ export function servicesFactory(
 		const services = createServices(createStubRepos(clock));
 		return () => services;
 	}
-	return (fetch) => createServices(createApiRepos({ baseUrl: backend.baseUrl, fetch }));
+	return (fetch) => createServices(createApiRepos({ baseUrl: backend.baseUrl, fetch, clock }));
 }

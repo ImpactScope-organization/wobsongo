@@ -81,10 +81,10 @@ function toNarrativeSummary(narrative: ApiNarrative, verdict: Verdict): Narrativ
 	};
 }
 
-// Builds the Overview snapshot from the available API data. 
+// Builds the Overview snapshot from the available API data.
 function toSnapshot(
 	page: { items?: ApiNarrative[]; total_items: number },
-	activity: ApiUserActivity,
+	userQuestions: UserQuestionStats,
 	range: TimeRange,
 	engagement: EngagementWindow,
 	now: Date
@@ -128,7 +128,7 @@ function toSnapshot(
 		narratives,
 		creators: [],
 
-		userQuestions: toUserQuestions(activity),
+		userQuestions,
 
 		anomaly: null,
 		platformCounts: [],
@@ -178,7 +178,7 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 			if (!narratives.ok) return narratives;
 			if (!activity.ok) return activity;
 
-			return ok(toSnapshot(narratives.data, activity.data, range, engagement, new Date()));
+			return ok(toSnapshot(narratives.data, activity.data, range, engagement, options.clock.now()));
 		}
 	};
 }

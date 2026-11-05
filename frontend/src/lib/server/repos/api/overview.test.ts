@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { EngagementWindow } from '#lib/domain/overview.js';
 import { createApiRepos } from './index.js';
+import { fixedClock } from '#lib/utils/clock.js';
+
+const NOW = new Date('2026-11-05T12:00:00Z');
+const clock = fixedClock(NOW);
 
 const narrative = (over: Record<string, unknown>) => ({
 	id: 'n1',
@@ -10,7 +14,7 @@ const narrative = (over: Record<string, unknown>) => ({
 	harm: 5,
 	status: 'needs_check',
 	is_active: true,
-	created_at: new Date().toISOString(),
+	created_at: NOW.toISOString(),
 	...over
 });
 
@@ -32,7 +36,8 @@ function repos(items: unknown[], total = items.length, activity = { users: 0, me
 		sent,
 		repos: createApiRepos({
 			baseUrl: 'https://api.example.org',
-			fetch: fetch as typeof globalThis.fetch
+			fetch: fetch as typeof globalThis.fetch,
+			clock
 		})
 	};
 }
@@ -107,10 +112,21 @@ describe('API overview repo', () => {
 				Response.json(
 					{ request_id: 'r', status: 401, error: 'unauthorized' },
 					{ status: 401 }
-				)) as typeof globalThis.fetch
+				)) as typeof globalThis.fetch,
+			clock
 		});
 		expect(
 			await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: 'all' })
 		).toMatchObject({ ok: false, status: 401 });
+	});
+
+	it('takes "now" from the clock', async () => {
+		const { result } = await snapshotOf('all', [
+			narrative({ id: 'n1', created_at: '2026-11-05T11:00:00Z' }), // 1 h ago: new
+			narrative({ id: 'n2', created_at: '2026-11-04T11:00:00Z' }) // 25 h ago: not new
+		]);
+		if (!result.ok) throw new Error('expected ok');
+		expect(result.data.updatedAt).toEqual(NOW);
+		expect(result.data.activeNarratives.new).toBe(1);
 	});
 });

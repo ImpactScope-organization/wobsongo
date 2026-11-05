@@ -79,7 +79,7 @@ export interface OverviewSnapshot {
 	/** The window's narratives, in no particular order. */
 	narratives: NarrativeSummary[];
 	/** Top content creators detected across monitored platforms. */
-	creators?: ContentCreator[];
+	creators: ContentCreator[];
 	/** Total unique users and questions across reporting windows. */
 	userQuestions: UserQuestionStats;
 	/** The most unusual jump in volume, if any narrative has one. */

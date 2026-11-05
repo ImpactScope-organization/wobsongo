@@ -351,7 +351,12 @@ describe('OverviewView', () => {
 	});
 
 	it('displays unique users and questions with time filter pills', () => {
-		const body7d = view(overviewSnapshot, '7d');
+		const body7d = view(
+			{ ...overviewSnapshot, userQuestions: sampleUserQuestions['7d'] },
+			'24h',
+			'misinfo',
+			'7d'
+		);
 		expect(body7d).toContain('Chatbot engagement');
 		expect(body7d).toContain('Total unique users and questions · Last 7 days');
 		expect(body7d).toContain('Unique users');
@@ -361,7 +366,12 @@ describe('OverviewView', () => {
 		expect(body7d).toContain('15 d');
 		expect(body7d).toContain('All time');
 
-		const body30d = view(overviewSnapshot, '30d');
+		const body30d = view(
+			{ ...overviewSnapshot, userQuestions: sampleUserQuestions['30d'] },
+			'24h',
+			'misinfo',
+			'30d'
+		);
 		expect(body30d).toContain('Total unique users and questions · Last 30 days');
 		expect(body30d).toContain('>14<');
 		expect(body30d).toContain('>159<');
@@ -387,6 +397,12 @@ describe('OverviewView', () => {
 		expect(week).toContain('Total unique users and questions · Last 7 days');
 		expect(week).toContain('>2<');
 		expect(week).toContain('>24<');
+	});
+
+	it('shows the empty state, not sample creators, when there are none', () => {
+		const body = view({ ...overviewSnapshot, creators: [] });
+		expect(body).toContain('No content creators detected in this window.');
+		expect(body).not.toContain('Ibrahim Cissé');
 	});
 });
 

@@ -20,6 +20,7 @@ import { actions as loginActions } from './login/+page.server';
 import { POST as setLanguage } from './lang/+server';
 import { POST as logout } from './logout/+server';
 import { actions as signupActions } from './signup/+page.server';
+import { failure } from '#lib/server/result.ts';
 
 const ORIGIN = 'https://dashboard.example';
 
@@ -163,6 +164,40 @@ describe('Overview page', () => {
 				expect(creator.followers).toBeUndefined();
 				expect(creator.postsCount).toBeUndefined();
 				expect(creator.handle).toBeUndefined();
+			}
+		} finally {
+			delete process.env.PRIVACY_WHITELIST_EMAILS;
+		}
+	});
+
+	it('masks creators instead of failing when the account cannot be read', async () => {
+		// Even a whitelisted address gets masked data when it can't be confirmed.
+		process.env.PRIVACY_WHITELIST_EMAILS = 'a.ouedraogo@wobsongo.org';
+		try {
+			const { locals } = await signedIn();
+			const { value } = await settle(() =>
+				overviewLoad(
+					event({
+						locals: {
+							...locals,
+							services: {
+								...locals.services,
+								account: {
+									...locals.services.account,
+									getSettings: async () => failure(503, 'Account service is down.')
+								}
+							}
+						},
+						url: new URL('/', ORIGIN)
+					})
+				)
+			);
+			const { snapshot } = value as { snapshot: { creators: Array<Record<string, unknown>> } };
+			expect(snapshot.creators.length).toBeGreaterThan(0);
+			for (const creator of snapshot.creators) {
+				expect(creator.followers).toBeUndefined();
+				expect(creator.handle).toBeUndefined();
+				expect(creator.name).toMatch(/^Creator \d+$/);
 			}
 		} finally {
 			delete process.env.PRIVACY_WHITELIST_EMAILS;

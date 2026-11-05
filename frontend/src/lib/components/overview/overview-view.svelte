@@ -27,7 +27,6 @@
 	import NarrativeList from './narrative-list.svelte';
 	import CreatorList from './creator-list.svelte';
 	import PlatformBreakdown from './platform-breakdown.svelte';
-	import { sampleCreators } from '#lib/fixtures/overview.js';
 
 	interface Props {
 		snapshot: OverviewSnapshot;
@@ -88,7 +87,7 @@
 		snapshot.medianDebunkMinutes.current - snapshot.medianDebunkMinutes.previous
 	);
 	const rated = $derived(misinfoShare(snapshot.rated));
-	const visibleCreators = $derived(topCreators(snapshot.creators ?? sampleCreators, topic));
+	const visibleCreators = $derived(topCreators(snapshot.creators, topic));
 </script>
 
 {#if snapshot.anomaly}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { failure } from '../../result.js';
 import { createApiRepos } from './index.js';
+import { fixedClock } from '#lib/utils/clock.js';
 
 const BASE = 'https://api.example.org';
 
@@ -42,7 +43,11 @@ function backend(status: number, body: unknown) {
 	};
 	return {
 		sent,
-		repos: createApiRepos({ baseUrl: BASE, fetch: fetch as typeof globalThis.fetch })
+		repos: createApiRepos({
+			baseUrl: BASE,
+			fetch: fetch as typeof globalThis.fetch,
+			clock: fixedClock('2026-10-15T09:00:00Z')
+		})
 	};
 }
 
@@ -103,7 +108,8 @@ describe('API auth repo', () => {
 	it('reports an unreachable backend as an outage, not a rejected token', async () => {
 		const repos = createApiRepos({
 			baseUrl: BASE,
-			fetch: () => Promise.reject(new TypeError('fetch failed'))
+			fetch: () => Promise.reject(new TypeError('fetch failed')),
+			clock: fixedClock('2026-10-15T09:00:00Z')
 		});
 		expect((await repos.auth.getSession('access-1')).ok).toBe(false);
 		expect(await repos.auth.getSession('access-1')).toMatchObject({ status: 503 });

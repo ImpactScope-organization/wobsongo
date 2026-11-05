@@ -15,15 +15,16 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	// A logged in user has access to the overview
 	const hasAccess = url.searchParams.get('hasAccess') !== 'false';
 
-	// Full data access is restricted to emails on the whitelist
-	let userEmail = (session as { email?: string }).email;
-	if (!userEmail) {
-		const account = await locals.services.account.getSettings(session.scope);
-		if (account.ok) userEmail = account.data.profile.email;
-	}
-
+	// Full data access is restricted to emails on the whitelist. If the email
+	// can't be read, no one counts as whitelisted: creators stay masked.
 	const whitelistStr = process.env.PRIVACY_WHITELIST_EMAILS || PRIVACY_WHITELIST_EMAILS || '';
-	const hasFullAccess = isWhitelistedForFullData(userEmail, whitelistStr);
+	let hasFullAccess = false;
+	const account = await locals.services.account.getSettings(session.scope);
+	if (!account.ok) {
+		console.error('[overview] account unreadable, showing masked data (status %d)', account.status);
+	} else {
+		hasFullAccess = isWhitelistedForFullData(account.data.profile.email, whitelistStr);
+	}
 
 	// Whitelisted users automatically see full data without needing to toggle,
 	// but can optionally toggle ?privacy=true.
@@ -42,7 +43,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	const snapshot = isPrivate
 		? {
 				...result.data,
-				creators: result.data.creators?.map(
+				creators: result.data.creators.map(
 					({ followers: _f, postsCount: _p, handle: _h, profileUrl: _url, ...creator }, index) => ({
 						...creator,
 						name:

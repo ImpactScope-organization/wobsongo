@@ -5,6 +5,7 @@
  * (`#lib/domain/*`). Endpoints the backend doesn't have yet answer 501, which
  * pages show as "… is not available yet."
  */
+import type { Clock } from '#lib/utils/clock.js';
 import type { Repos } from '../../services/index.js';
 import { createApiAccountRepo } from './account.js';
 import { createApiAuthRepo } from './auth.js';
@@ -16,6 +17,7 @@ export interface ApiOptions {
 	baseUrl: string;
 	/** SvelteKit's `event.fetch`, so calls go through `handleFetch`. */
 	fetch: typeof fetch;
+	clock: Clock;
 }
 
 export function createApiRepos(options: ApiOptions): Repos {

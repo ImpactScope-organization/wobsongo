@@ -6,7 +6,8 @@
 		topCreators,
 		trendDirection,
 		type OverviewSnapshot,
-		type OverviewTopic
+		type OverviewTopic,
+		type EngagementWindow
 	} from '#lib/domain/overview.js';
 	import { TIME_RANGES, type TimeRange } from '#lib/domain/time-range.js';
 	import { m } from '#lib/paraglide/messages.js';
@@ -26,16 +27,18 @@
 	import NarrativeList from './narrative-list.svelte';
 	import CreatorList from './creator-list.svelte';
 	import PlatformBreakdown from './platform-breakdown.svelte';
-	import { sampleCreators, sampleUserQuestions } from '#lib/fixtures/overview.js';
 
 	interface Props {
 		snapshot: OverviewSnapshot;
 		range: TimeRange;
 		topic: OverviewTopic;
+		engagement: EngagementWindow;
 		/** This page with another time range, e.g. "?range=7d&topic=all". */
 		rangeHref: (range: TimeRange) => string;
 		/** This page with another topic. */
 		topicHref: (topic: OverviewTopic) => string;
+		// This page with another chatbot engagement window.
+		engagementHref: (engagement: EngagementWindow) => string;
 		/** A narrative's detail page. */
 		narrativeHref?: (id: string) => string;
 		/** The high-harm view. */
@@ -52,6 +55,8 @@
 		topic,
 		rangeHref,
 		topicHref,
+		engagement,
+		engagementHref,
 		narrativeHref = (id) => `/narratives/${encodeURIComponent(id)}`,
 		highHarmHref = '/safety',
 		hasAccess = true,
@@ -82,8 +87,7 @@
 		snapshot.medianDebunkMinutes.current - snapshot.medianDebunkMinutes.previous
 	);
 	const rated = $derived(misinfoShare(snapshot.rated));
-	const visibleCreators = $derived(topCreators(snapshot.creators ?? sampleCreators, topic));
-	const userQuestions = $derived(snapshot.userQuestions ?? sampleUserQuestions);
+	const visibleCreators = $derived(topCreators(snapshot.creators, topic));
 </script>
 
 {#if snapshot.anomaly}
@@ -190,8 +194,9 @@
 
 		<div class="contents lg:flex lg:min-w-0 lg:flex-[1_1_20rem] lg:flex-col lg:gap-5">
 			<ChatbotEngagement
-				stats={userQuestions}
-				defaultWindow={range}
+				stats={snapshot.userQuestions}
+				{engagement}
+				{engagementHref}
 				class="order-first lg:order-none"
 			/>
 

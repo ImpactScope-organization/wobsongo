@@ -18,6 +18,7 @@ import HighHarmSummary from './high-harm-summary.svelte';
 import NarrativeList from './narrative-list.svelte';
 import PlatformBreakdown from './platform-breakdown.svelte';
 import OverviewView from './overview-view.svelte';
+import type { EngagementWindow } from '#lib/domain/overview.js';
 
 describe('NarrativeList', () => {
 	it('renders an ordered list in the given order', () => {
@@ -167,7 +168,7 @@ describe('CreatorList', () => {
 		const { body } = render(CreatorList, {
 			props: {
 				creators: sampleCreators,
-				profileUrl: (creator) => `/creators/${creator.id}`
+				profileUrl: (creator: (typeof sampleCreators)[number]) => `/creators/${creator.id}`
 			}
 		});
 		expect(body).toContain('href="/creators/c1"');
@@ -247,48 +248,59 @@ describe('HighHarmSummary', () => {
 });
 
 describe('ChatbotEngagement', () => {
-	it('renders each time window with unique users and questions', () => {
-		const w7 = render(ChatbotEngagement, {
-			props: { stats: sampleUserQuestions, defaultWindow: '7d' }
+	const engagementHref = (engagement: string) => `?engagement=${engagement}`;
+	const card = (engagement: EngagementWindow) =>
+		render(ChatbotEngagement, {
+			props: { stats: sampleUserQuestions[engagement], engagement, engagementHref }
 		}).body;
+
+	it('renders the unique users and questions of the chosen window', () => {
+		const w7 = card('7d');
 		expect(w7).toContain('Chatbot engagement');
 		expect(w7).toContain('Total unique users and questions · Last 7 days');
 		expect(w7).toContain('>2<');
 		expect(w7).toContain('>24<');
 
-		const w15 = render(ChatbotEngagement, {
-			props: { stats: sampleUserQuestions, defaultWindow: '15d' }
-		}).body;
+		const w15 = card('15d');
 		expect(w15).toContain('Total unique users and questions · Last 15 days');
 		expect(w15).toContain('>4<');
 		expect(w15).toContain('>33<');
 
-		const w30 = render(ChatbotEngagement, {
-			props: { stats: sampleUserQuestions, defaultWindow: '30d' }
-		}).body;
+		const w30 = card('30d');
 		expect(w30).toContain('Total unique users and questions · Last 30 days');
 		expect(w30).toContain('>14<');
 		expect(w30).toContain('>159<');
 
-		const wall = render(ChatbotEngagement, {
-			props: { stats: sampleUserQuestions, defaultWindow: 'all' }
-		}).body;
+		const wall = card('all');
 		expect(wall).toContain('Total unique users and questions · All time');
 		expect(wall).toContain('>59<');
 		expect(wall).toContain('>502<');
+	});
+
+	it('links each window and marks the chosen one', () => {
+		const body = card('15d');
+		for (const window of ['7d', '15d', '30d', 'all']) {
+			expect(body).toContain(`href="?engagement=${window}"`);
+		}
+		expect(body).toMatch(/aria-current="true"[^>]*>\s*15 d/);
 	});
 });
 
 describe('OverviewView', () => {
 	const hrefs = {
 		rangeHref: (range: string) => `?range=${range}&topic=misinfo`,
-		topicHref: (topic: string) => `?range=24h&topic=${topic}`
+		topicHref: (topic: string) => `?range=24h&topic=${topic}`,
+		engagementHref: (engagement: string) => `?engagement=${engagement}`
 	};
 	const view = (
 		snapshot = overviewSnapshot,
 		range: TimeRange = '24h',
-		topic: OverviewTopic = 'misinfo'
-	) => stripComments(render(OverviewView, { props: { snapshot, range, topic, ...hrefs } }).body);
+		topic: OverviewTopic = 'misinfo',
+		engagement: EngagementWindow = 'all'
+	) =>
+		stripComments(
+			render(OverviewView, { props: { snapshot, range, topic, engagement, ...hrefs } }).body
+		);
 
 	it('shows the headline numbers with changes against the previous window', () => {
 		const body = view();
@@ -339,7 +351,12 @@ describe('OverviewView', () => {
 	});
 
 	it('displays unique users and questions with time filter pills', () => {
-		const body7d = view(overviewSnapshot, '7d');
+		const body7d = view(
+			{ ...overviewSnapshot, userQuestions: sampleUserQuestions['7d'] },
+			'24h',
+			'misinfo',
+			'7d'
+		);
 		expect(body7d).toContain('Chatbot engagement');
 		expect(body7d).toContain('Total unique users and questions · Last 7 days');
 		expect(body7d).toContain('Unique users');
@@ -349,10 +366,43 @@ describe('OverviewView', () => {
 		expect(body7d).toContain('15 d');
 		expect(body7d).toContain('All time');
 
-		const body30d = view(overviewSnapshot, '30d');
+		const body30d = view(
+			{ ...overviewSnapshot, userQuestions: sampleUserQuestions['30d'] },
+			'24h',
+			'misinfo',
+			'30d'
+		);
 		expect(body30d).toContain('Total unique users and questions · Last 30 days');
 		expect(body30d).toContain('>14<');
 		expect(body30d).toContain('>159<');
+	});
+
+	it('shows the engagement of the chosen window, all time unless told otherwise', () => {
+		const allTime = view();
+		expect(allTime).toContain('Chatbot engagement');
+		expect(allTime).toContain('Total unique users and questions · All time');
+		expect(allTime).toContain('Unique users');
+		expect(allTime).toContain('Questions');
+		expect(allTime).toContain('>59<');
+		expect(allTime).toContain('>502<');
+		expect(allTime).toContain('15 d');
+		expect(allTime).toContain('href="?engagement=7d"');
+
+		const week = view(
+			{ ...overviewSnapshot, userQuestions: sampleUserQuestions['7d'] },
+			'24h',
+			'misinfo',
+			'7d'
+		);
+		expect(week).toContain('Total unique users and questions · Last 7 days');
+		expect(week).toContain('>2<');
+		expect(week).toContain('>24<');
+	});
+
+	it('shows the empty state, not sample creators, when there are none', () => {
+		const body = view({ ...overviewSnapshot, creators: [] });
+		expect(body).toContain('No content creators detected in this window.');
+		expect(body).not.toContain('Ibrahim Cissé');
 	});
 });
 
@@ -365,8 +415,10 @@ describe('Overview in French', () => {
 						snapshot: overviewSnapshot,
 						range: '7d',
 						topic: 'misinfo',
+						engagement: 'all',
 						rangeHref: (range: string) => `?range=${range}`,
-						topicHref: (topic: string) => `?topic=${topic}`
+						topicHref: (topic: string) => `?topic=${topic}`,
+						engagementHref: (engagement: string) => `?engagement=${engagement}`
 					}
 				}).body
 			)

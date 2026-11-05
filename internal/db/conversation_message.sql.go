@@ -10,7 +10,32 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countUserActivity = `-- name: CountUserActivity :one
+SELECT
+    COUNT(DISTINCT jid)::bigint AS users,
+    COUNT(*)::bigint AS messages
+FROM conversation_messages
+WHERE role = 'user'
+  AND created_at >= COALESCE(
+        NOW() - make_interval(days => $1::integer),
+        '-infinity'::timestamptz
+      )
+`
+
+type CountUserActivityRow struct {
+	Users    int64
+	Messages int64
+}
+
+func (q *Queries) CountUserActivity(ctx context.Context, days pgtype.Int4) (CountUserActivityRow, error) {
+	row := q.db.QueryRow(ctx, countUserActivity, days)
+	var i CountUserActivityRow
+	err := row.Scan(&i.Users, &i.Messages)
+	return i, err
+}
 
 const getRecentConversationMessages = `-- name: GetRecentConversationMessages :many
 SELECT id, jid, role, content, created_at FROM conversation_messages

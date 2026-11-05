@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
@@ -63,4 +64,13 @@ func (s *ConversationService) AppendMessageWithID(
 	content string,
 ) (uuid.UUID, error) {
 	return s.conversationRepo.AppendMessageWithID(ctx, jid, role, content)
+}
+
+// UserActivity returns the distinct users and the messages they sent over
+// the last query.Days days, or over all time when no days are given.
+func (s *ConversationService) UserActivity(
+	ctx context.Context,
+	query *dto.UserActivityDTO,
+) (*model.UserActivity, error) {
+	return s.conversationRepo.UserActivity(ctx, data.UserActivityFilter{Days: query.Days})
 }

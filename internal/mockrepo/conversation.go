@@ -37,6 +37,9 @@ var _ data.ConversationRepoer = &ConversationRepoerMock{}
 //			RecentMessagesFunc: func(ctx context.Context, jid string, limit int) ([]model.ConversationMessage, error) {
 //				panic("mock out the RecentMessages method")
 //			},
+//			UserActivityFunc: func(ctx context.Context, filter data.UserActivityFilter) (*model.UserActivity, error) {
+//				panic("mock out the UserActivity method")
+//			},
 //		}
 //
 //		// use mockedConversationRepoer in code that requires data.ConversationRepoer
@@ -58,6 +61,9 @@ type ConversationRepoerMock struct {
 
 	// RecentMessagesFunc mocks the RecentMessages method.
 	RecentMessagesFunc func(ctx context.Context, jid string, limit int) ([]model.ConversationMessage, error)
+
+	// UserActivityFunc mocks the UserActivity method.
+	UserActivityFunc func(ctx context.Context, filter data.UserActivityFilter) (*model.UserActivity, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -106,12 +112,20 @@ type ConversationRepoerMock struct {
 			// Limit is the limit argument value.
 			Limit int
 		}
+		// UserActivity holds details about calls to the UserActivity method.
+		UserActivity []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Filter is the filter argument value.
+			Filter data.UserActivityFilter
+		}
 	}
 	lockAppendMessage             sync.RWMutex
 	lockAppendMessageWithID       sync.RWMutex
 	lockEnqueueAgentTurn          sync.RWMutex
 	lockEnqueueVoiceTranscription sync.RWMutex
 	lockRecentMessages            sync.RWMutex
+	lockUserActivity              sync.RWMutex
 }
 
 // AppendMessage calls AppendMessageFunc.
@@ -311,5 +325,41 @@ func (mock *ConversationRepoerMock) RecentMessagesCalls() []struct {
 	mock.lockRecentMessages.RLock()
 	calls = mock.calls.RecentMessages
 	mock.lockRecentMessages.RUnlock()
+	return calls
+}
+
+// UserActivity calls UserActivityFunc.
+func (mock *ConversationRepoerMock) UserActivity(ctx context.Context, filter data.UserActivityFilter) (*model.UserActivity, error) {
+	if mock.UserActivityFunc == nil {
+		panic("ConversationRepoerMock.UserActivityFunc: method is nil but ConversationRepoer.UserActivity was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Filter data.UserActivityFilter
+	}{
+		Ctx:    ctx,
+		Filter: filter,
+	}
+	mock.lockUserActivity.Lock()
+	mock.calls.UserActivity = append(mock.calls.UserActivity, callInfo)
+	mock.lockUserActivity.Unlock()
+	return mock.UserActivityFunc(ctx, filter)
+}
+
+// UserActivityCalls gets all the calls that were made to UserActivity.
+// Check the length with:
+//
+//	len(mockedConversationRepoer.UserActivityCalls())
+func (mock *ConversationRepoerMock) UserActivityCalls() []struct {
+	Ctx    context.Context
+	Filter data.UserActivityFilter
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Filter data.UserActivityFilter
+	}
+	mock.lockUserActivity.RLock()
+	calls = mock.calls.UserActivity
+	mock.lockUserActivity.RUnlock()
 	return calls
 }

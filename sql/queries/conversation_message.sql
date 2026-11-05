@@ -11,3 +11,14 @@ SELECT * FROM conversation_messages
 WHERE jid = $1
 ORDER BY created_at DESC
 LIMIT $2;
+
+-- name: CountUserActivity :one
+SELECT
+    COUNT(DISTINCT jid)::bigint AS users,
+    COUNT(*)::bigint AS messages
+FROM conversation_messages
+WHERE role = 'user'
+  AND created_at >= COALESCE(
+        NOW() - make_interval(days => sqlc.narg('days')::integer),
+        '-infinity'::timestamptz
+      );

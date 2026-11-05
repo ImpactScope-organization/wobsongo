@@ -28,6 +28,7 @@ type Handlers struct {
 	config              *internal.Config
 	narrativeHandler    *NarrativeHandler
 	adminSettingHandler *AdminSettingHandler
+	conversationHandler *ConversationHandler
 	adminKeywordHandler *AdminKeywordHandler
 }
 
@@ -89,6 +90,7 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 	v1.GET("/narratives", h.narrativeHandler.listNarrativesHandler, signedIn)
 	v1.GET("/narratives/:id", h.narrativeHandler.getNarrativeHandler, signedIn)
+	v1.GET("/conversations/stats", h.conversationHandler.statsHandler, signedIn)
 
 	adminAuth := []echo.MiddlewareFunc{signedIn, admin}
 	adminRoutes := v1.Group("/admin")
@@ -185,8 +187,9 @@ func NewHandlers(repos *Repos) *Handlers {
 		config.BotExtractPSK,
 	)
 	conversationService := service.NewConversationService(repos.ConversationRepo)
+	conversationHandler := NewConversationHandler(conversationService)
 	agentService, err := service.NewAgentService(
-		conversationService,
+		repos.ConversationRepo,
 		apifyService,
 		claimService,
 		nil,
@@ -240,6 +243,7 @@ func NewHandlers(repos *Repos) *Handlers {
 		config:              config,
 		narrativeHandler:    narrativeHandler,
 		adminSettingHandler: adminSettingHandler,
+		conversationHandler: conversationHandler,
 		adminKeywordHandler: adminKeywordHandler,
 	}
 }

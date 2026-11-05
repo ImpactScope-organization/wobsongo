@@ -43,6 +43,12 @@ export type EngagementWindow = '7d' | '15d' | '30d' | 'all';
 
 export const ENGAGEMENT_WINDOWS: readonly EngagementWindow[] = ['7d', '15d', '30d', 'all'];
 
+export const DEFAULT_ENGAGEMENT_WINDOW: EngagementWindow = 'all';
+
+export function parseEngagementWindow(value: string | null | undefined): EngagementWindow {
+	return ENGAGEMENT_WINDOWS.find((window) => window === value) ?? DEFAULT_ENGAGEMENT_WINDOW;
+}
+
 export interface UserQuestionStats {
 	users: number;
 	questions: number;
@@ -77,9 +83,9 @@ export interface OverviewSnapshot {
 	/** The window's narratives, in no particular order. */
 	narratives: NarrativeSummary[];
 	/** Top content creators detected across monitored platforms. */
-	creators?: ContentCreator[];
+	creators: ContentCreator[];
 	/** Total unique users and questions across reporting windows. */
-	userQuestions?: Record<EngagementWindow, UserQuestionStats>;
+	userQuestions: UserQuestionStats;
 	/** The most unusual jump in volume, if any narrative has one. */
 	anomaly: Anomaly | null;
 	platformCounts: PlatformCount[];

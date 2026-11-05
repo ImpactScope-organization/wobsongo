@@ -1,6 +1,6 @@
 <script module lang="ts">
 	import { defineMeta } from '@storybook/addon-svelte-csf';
-	import { expect, userEvent, within } from 'storybook/test';
+	import { expect, within } from 'storybook/test';
 	import { sampleUserQuestions } from '#lib/fixtures/overview.js';
 	import ChatbotEngagement from './chatbot-engagement.svelte';
 
@@ -9,7 +9,12 @@
 		component: ChatbotEngagement,
 		tags: ['autodocs'],
 		parameters: { layout: 'padded' },
-		args: { stats: sampleUserQuestions, class: 'max-w-md' }
+		args: {
+			stats: sampleUserQuestions['7d'],
+			engagement: '7d',
+			engagementHref: (engagement: string) => `?engagement=${engagement}`,
+			class: 'max-w-md'
+		}
 	});
 </script>
 
@@ -21,33 +26,27 @@
 			canvas.getByRole('heading', { level: 2, name: 'Chatbot engagement' })
 		).toBeVisible();
 		await expect(canvas.getByText('Total unique users and questions · Last 7 days')).toBeVisible();
-		await expect(canvas.getByRole('button', { name: '7 d' })).toHaveAttribute(
-			'aria-pressed',
-			'true'
-		);
+		await expect(canvas.getByRole('link', { name: '7 d' })).toHaveAttribute('aria-current', 'true');
 		await expect(canvas.getByText('2')).toBeVisible();
 		await expect(canvas.getByText('24')).toBeVisible();
 
-		// Switch through the time filters interactively
-		await userEvent.click(canvas.getByRole('button', { name: '15 d' }));
-		await expect(canvas.getByText('Total unique users and questions · Last 15 days')).toBeVisible();
-		await expect(canvas.getByText('4')).toBeVisible();
-		await expect(canvas.getByText('33')).toBeVisible();
-
-		await userEvent.click(canvas.getByRole('button', { name: '30 d' }));
-		await expect(canvas.getByText('Total unique users and questions · Last 30 days')).toBeVisible();
-		await expect(canvas.getByText('14')).toBeVisible();
-		await expect(canvas.getByText('159')).toBeVisible();
-
-		await userEvent.click(canvas.getByRole('button', { name: 'All time' }));
-		await expect(canvas.getByText('Total unique users and questions · All time')).toBeVisible();
-		await expect(canvas.getByText('59')).toBeVisible();
-		await expect(canvas.getByText('502')).toBeVisible();
+		await expect(canvas.getByRole('link', { name: '15 d' })).toHaveAttribute(
+			'href',
+			'?engagement=15d'
+		);
+		await expect(canvas.getByRole('link', { name: '30 d' })).toHaveAttribute(
+			'href',
+			'?engagement=30d'
+		);
+		await expect(canvas.getByRole('link', { name: 'All time' })).toHaveAttribute(
+			'href',
+			'?engagement=all'
+		);
 	}}
 />
 
-<Story name="Last 15 days" args={{ defaultWindow: '15d' }} />
+<Story name="Last 15 days" args={{ engagement: '15d', stats: sampleUserQuestions['15d'] }} />
 
-<Story name="Last 30 days" args={{ defaultWindow: '30d' }} />
+<Story name="Last 30 days" args={{ engagement: '30d', stats: sampleUserQuestions['30d'] }} />
 
-<Story name="All time" args={{ defaultWindow: 'all' }} />
+<Story name="All time" args={{ engagement: 'all', stats: sampleUserQuestions.all }} />

@@ -19,9 +19,12 @@ import {
 } from './monitor';
 import { isHighHarm, isSpiking } from './narrative';
 import {
+	DEFAULT_ENGAGEMENT_WINDOW,
+	ENGAGEMENT_WINDOWS,
 	growthPct,
 	matchesTopic,
 	misinfoShare,
+	parseEngagementWindow,
 	parseOverviewTopic,
 	topCreators,
 	topNarratives,
@@ -356,5 +359,20 @@ describe('monitor', () => {
 	it('averages the cost per run', () => {
 		expect(costPerRun({ costUsd: 24, runCount: 12 })).toBe(2);
 		expect(costPerRun({ costUsd: 0, runCount: 0 })).toBe(0);
+	});
+});
+
+describe('parseEngagementWindow', () => {
+	it.each(ENGAGEMENT_WINDOWS)('accepts %s', (window) => {
+		expect(parseEngagementWindow(window)).toBe(window);
+	});
+
+	it('falls back to all time for unknown, empty or missing values', () => {
+		expect(DEFAULT_ENGAGEMENT_WINDOW).toBe('all');
+		expect(parseEngagementWindow('1y')).toBe('all');
+		expect(parseEngagementWindow('24h')).toBe('all');
+		expect(parseEngagementWindow('')).toBe('all');
+		expect(parseEngagementWindow(null)).toBe('all');
+		expect(parseEngagementWindow(undefined)).toBe('all');
 	});
 });

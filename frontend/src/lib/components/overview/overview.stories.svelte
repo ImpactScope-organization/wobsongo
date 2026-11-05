@@ -15,7 +15,8 @@
 
 	const hrefs = {
 		rangeHref: (range: string) => `?range=${range}`,
-		topicHref: (topic: string) => `?topic=${topic}`
+		topicHref: (topic: string) => `?topic=${topic}`,
+		engagementHref: (engagement: string) => `?engagement=${engagement}`
 	};
 </script>
 
@@ -31,6 +32,10 @@
 		await expect(
 			canvas.getByRole('heading', { level: 2, name: 'Content creators' })
 		).toBeInTheDocument();
+		await expect(canvas.getByRole('link', { name: 'All time' })).toHaveAttribute(
+			'aria-current',
+			'true'
+		);
 		const nav = within(canvas.getByRole('navigation', { name: 'Main' }));
 		await expect(nav.getByRole('link', { name: 'Overview' })).toHaveAttribute(
 			'aria-current',
@@ -49,7 +54,13 @@
 				items={navItems()}
 				account={{ name: 'Dr. Aminata Ouédraogo', href: '/settings' }}
 			/>
-			<OverviewView snapshot={overviewSnapshot} range="24h" topic="misinfo" {...hrefs} />
+			<OverviewView
+				snapshot={overviewSnapshot}
+				engagement="all"
+				range="24h"
+				topic="misinfo"
+				{...hrefs}
+			/>
 		</div>
 	{/snippet}
 </Story>
@@ -64,6 +75,7 @@
 					messages: { ...overviewSnapshot.messages, previous: 9100 },
 					medianDebunkMinutes: { current: 118, previous: 131 }
 				}}
+				engagement="all"
 				range="7d"
 				topic="all"
 				{...hrefs}
@@ -77,6 +89,7 @@
 		<div class="min-h-screen bg-background">
 			<OverviewView
 				snapshot={{ ...overviewSnapshot, anomaly: null, narratives: [] }}
+				engagement="all"
 				range="24h"
 				topic="misinfo"
 				{...hrefs}

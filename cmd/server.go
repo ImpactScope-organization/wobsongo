@@ -290,7 +290,7 @@ var serveCmd = &cobra.Command{
 			return
 		}
 		agentService, err := service.NewAgentService(
-			workerConversationService,
+			workerConversationRepo,
 			agentApifyService,
 			workerClaimService,
 			workerBotSettingsService,

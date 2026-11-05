@@ -18,6 +18,8 @@
 	topic={data.topic}
 	privacyMode={data.privacyMode}
 	hasAccess={data.hasAccess}
+	engagement={data.engagement}
+	engagementHref={(engagement) => withSearchParam(page.url, 'engagement', engagement)}
 	rangeHref={(range) => withSearchParam(page.url, 'range', range)}
 	topicHref={(topic) => withSearchParam(page.url, 'topic', topic)}
 />

@@ -20,6 +20,7 @@ import { actions as loginActions } from './login/+page.server';
 import { POST as setLanguage } from './lang/+server';
 import { POST as logout } from './logout/+server';
 import { actions as signupActions } from './signup/+page.server';
+import { failure } from '#lib/server/result.ts';
 
 const ORIGIN = 'https://dashboard.example';
 
@@ -79,6 +80,25 @@ describe('Overview page', () => {
 	it('ignores unknown values', async () => {
 		const { value } = await loadAt('/?range=1y&topic=gossip');
 		expect(value).toMatchObject({ range: '24h', topic: 'misinfo' });
+	});
+	it('defaults to all-time chatbot engagement', async () => {
+		const { value } = await loadAt('/');
+		expect(value).toMatchObject({ engagement: 'all' });
+	});
+
+	it('reads the engagement window from the URL', async () => {
+		const { value } = await loadAt('/?engagement=15d');
+		expect(value).toMatchObject({ engagement: '15d' });
+	});
+
+	it('keeps the engagement window independent of range and topic', async () => {
+		const { value } = await loadAt('/?range=7d&topic=all&engagement=30d');
+		expect(value).toMatchObject({ range: '7d', topic: 'all', engagement: '30d' });
+	});
+
+	it('ignores an unknown engagement window', async () => {
+		const { value } = await loadAt('/?engagement=1y');
+		expect(value).toMatchObject({ engagement: 'all' });
 	});
 
 	it('shows service failures as error pages', async () => {
@@ -163,6 +183,40 @@ describe('Overview page', () => {
 				expect(creator.followers).toBeUndefined();
 				expect(creator.postsCount).toBeUndefined();
 				expect(creator.handle).toBeUndefined();
+			}
+		} finally {
+			delete process.env.PRIVACY_WHITELIST_EMAILS;
+		}
+	});
+
+	it('masks creators instead of failing when the account cannot be read', async () => {
+		// Even a whitelisted address gets masked data when it can't be confirmed.
+		process.env.PRIVACY_WHITELIST_EMAILS = 'a.ouedraogo@wobsongo.org';
+		try {
+			const { locals } = await signedIn();
+			const { value } = await settle(() =>
+				overviewLoad(
+					event({
+						locals: {
+							...locals,
+							services: {
+								...locals.services,
+								account: {
+									...locals.services.account,
+									getSettings: async () => failure(503, 'Account service is down.')
+								}
+							}
+						},
+						url: new URL('/', ORIGIN)
+					})
+				)
+			);
+			const { snapshot } = value as { snapshot: { creators: Array<Record<string, unknown>> } };
+			expect(snapshot.creators.length).toBeGreaterThan(0);
+			for (const creator of snapshot.creators) {
+				expect(creator.followers).toBeUndefined();
+				expect(creator.handle).toBeUndefined();
+				expect(creator.name).toMatch(/^Creator \d+$/);
 			}
 		} finally {
 			delete process.env.PRIVACY_WHITELIST_EMAILS;

@@ -28,6 +28,7 @@ type Handlers struct {
 	config              *internal.Config
 	narrativeHandler    *NarrativeHandler
 	adminSettingHandler *AdminSettingHandler
+	adminKeywordHandler *AdminKeywordHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -94,6 +95,11 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 
 	adminRoutes.GET("/settings", h.adminSettingHandler.getSettingHandler, adminAuth...)
 	adminRoutes.PUT("/settings", h.adminSettingHandler.updateSettingHandler, adminAuth...)
+	adminRoutes.GET("/keywords", h.adminKeywordHandler.listKeywordsHandler, adminAuth...)
+	adminRoutes.POST("/keywords", h.adminKeywordHandler.createKeywordHandler, adminAuth...)
+	adminRoutes.GET("/keywords/:id", h.adminKeywordHandler.getKeywordHandler, adminAuth...)
+	adminRoutes.PUT("/keywords/:id", h.adminKeywordHandler.updateKeywordHandler, adminAuth...)
+	adminRoutes.DELETE("/keywords/:id", h.adminKeywordHandler.deleteKeywordHandler, adminAuth...)
 }
 
 // Repos holds the repository interfaces required by the handlers.
@@ -116,6 +122,7 @@ type Repos struct {
 	NarrativeStatements  data.NarrativeStatementGenerator
 	CrawlerRepo          data.CrawlerRepoer
 	DiscoveryRescheduler data.DiscoveryRescheduler
+	KeywordRepo          data.KeywordRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -213,6 +220,13 @@ func NewHandlers(repos *Repos) *Handlers {
 		)
 	}
 
+	var adminKeywordHandler *AdminKeywordHandler
+	if repos.KeywordRepo != nil {
+		adminKeywordHandler = NewAdminKeywordHandler(
+			service.NewAdminKeywordService(repos.KeywordRepo),
+		)
+	}
+
 	return &Handlers{
 		apifyHandler:        apifyHandler,
 		documentHandler:     documentHandler,
@@ -226,6 +240,7 @@ func NewHandlers(repos *Repos) *Handlers {
 		config:              config,
 		narrativeHandler:    narrativeHandler,
 		adminSettingHandler: adminSettingHandler,
+		adminKeywordHandler: adminKeywordHandler,
 	}
 }
 

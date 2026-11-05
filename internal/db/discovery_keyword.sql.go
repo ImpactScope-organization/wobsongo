@@ -9,7 +9,85 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const countDiscoveryKeywords = `-- name: CountDiscoveryKeywords :one
+SELECT count(*) FROM discovery_keywords
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL
+       OR strpos(lower(keyword), lower($2::text)) > 0)
+`
+
+type CountDiscoveryKeywordsParams struct {
+	IsActive pgtype.Bool
+	Search   pgtype.Text
+}
+
+func (q *Queries) CountDiscoveryKeywords(ctx context.Context, arg CountDiscoveryKeywordsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDiscoveryKeywords, arg.IsActive, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createDiscoveryKeyword = `-- name: CreateDiscoveryKeyword :one
+INSERT INTO discovery_keywords (keyword, language, is_active)
+VALUES ($1, $2, $3)
+RETURNING id, keyword, language, is_active, last_run_at, created_at, updated_at
+`
+
+type CreateDiscoveryKeywordParams struct {
+	Keyword  string
+	Language int32
+	IsActive bool
+}
+
+func (q *Queries) CreateDiscoveryKeyword(ctx context.Context, arg CreateDiscoveryKeywordParams) (DiscoveryKeyword, error) {
+	row := q.db.QueryRow(ctx, createDiscoveryKeyword, arg.Keyword, arg.Language, arg.IsActive)
+	var i DiscoveryKeyword
+	err := row.Scan(
+		&i.ID,
+		&i.Keyword,
+		&i.Language,
+		&i.IsActive,
+		&i.LastRunAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteDiscoveryKeyword = `-- name: DeleteDiscoveryKeyword :execrows
+DELETE FROM discovery_keywords WHERE id = $1
+`
+
+func (q *Queries) DeleteDiscoveryKeyword(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteDiscoveryKeyword, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const getDiscoveryKeyword = `-- name: GetDiscoveryKeyword :one
+SELECT id, keyword, language, is_active, last_run_at, created_at, updated_at FROM discovery_keywords WHERE id = $1
+`
+
+func (q *Queries) GetDiscoveryKeyword(ctx context.Context, id uuid.UUID) (DiscoveryKeyword, error) {
+	row := q.db.QueryRow(ctx, getDiscoveryKeyword, id)
+	var i DiscoveryKeyword
+	err := row.Scan(
+		&i.ID,
+		&i.Keyword,
+		&i.Language,
+		&i.IsActive,
+		&i.LastRunAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
 
 const listActiveDiscoveryKeywords = `-- name: ListActiveDiscoveryKeywords :many
 SELECT id, keyword, language, is_active, last_run_at, created_at, updated_at FROM discovery_keywords WHERE is_active ORDER BY keyword
@@ -55,4 +133,87 @@ func (q *Queries) MarkDiscoveryKeywordRun(ctx context.Context, id uuid.UUID) (in
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const paginateDiscoveryKeywords = `-- name: PaginateDiscoveryKeywords :many
+SELECT id, keyword, language, is_active, last_run_at, created_at, updated_at FROM discovery_keywords
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL
+       OR strpos(lower(keyword), lower($2::text)) > 0)
+ORDER BY keyword, language
+LIMIT $4::int OFFSET $3::int
+`
+
+type PaginateDiscoveryKeywordsParams struct {
+	IsActive   pgtype.Bool
+	Search     pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) PaginateDiscoveryKeywords(ctx context.Context, arg PaginateDiscoveryKeywordsParams) ([]DiscoveryKeyword, error) {
+	rows, err := q.db.Query(ctx, paginateDiscoveryKeywords,
+		arg.IsActive,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []DiscoveryKeyword
+	for rows.Next() {
+		var i DiscoveryKeyword
+		if err := rows.Scan(
+			&i.ID,
+			&i.Keyword,
+			&i.Language,
+			&i.IsActive,
+			&i.LastRunAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const updateDiscoveryKeyword = `-- name: UpdateDiscoveryKeyword :one
+UPDATE discovery_keywords
+SET keyword = $2, language = $3, is_active = $4, updated_at = NOW()
+WHERE id = $1
+RETURNING id, keyword, language, is_active, last_run_at, created_at, updated_at
+`
+
+type UpdateDiscoveryKeywordParams struct {
+	ID       uuid.UUID
+	Keyword  string
+	Language int32
+	IsActive bool
+}
+
+func (q *Queries) UpdateDiscoveryKeyword(ctx context.Context, arg UpdateDiscoveryKeywordParams) (DiscoveryKeyword, error) {
+	row := q.db.QueryRow(ctx, updateDiscoveryKeyword,
+		arg.ID,
+		arg.Keyword,
+		arg.Language,
+		arg.IsActive,
+	)
+	var i DiscoveryKeyword
+	err := row.Scan(
+		&i.ID,
+		&i.Keyword,
+		&i.Language,
+		&i.IsActive,
+		&i.LastRunAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }

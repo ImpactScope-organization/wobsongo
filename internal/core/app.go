@@ -45,6 +45,7 @@ type App struct {
 	narrativeStatements  data.NarrativeStatementGenerator
 	crawlerRepo          data.CrawlerRepoer
 	discoveryRescheduler data.DiscoveryRescheduler
+	keywordRepo          data.KeywordRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -203,6 +204,13 @@ func WithDiscoveryRescheduler(rescheduler data.DiscoveryRescheduler) AppOption {
 	}
 }
 
+// WithKeywordRepo sets the repository of the admin-managed discovery keywords.
+func WithKeywordRepo(repo data.KeywordRepoer) AppOption {
+	return func(a *App) {
+		a.keywordRepo = repo
+	}
+}
+
 // General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
 //
 // @title						WobSongo API
@@ -268,6 +276,7 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.NarrativeStatements = app.narrativeStatements
 	repos.CrawlerRepo = app.crawlerRepo
 	repos.DiscoveryRescheduler = app.discoveryRescheduler
+	repos.KeywordRepo = app.keywordRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

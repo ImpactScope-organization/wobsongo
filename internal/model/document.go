@@ -138,30 +138,45 @@ const (
 	LanguageFrench
 )
 
-// languageNames is the canonical string form of each Language, used both for
-// String() and ParseLanguage — the wire format the CLI/API communicate
+// LanguageCode is the ISO-639-1 code of a Language. It is its own type so a
+// field holding a language code cannot be given an arbitrary string.
+type LanguageCode string
+
+const (
+	LanguageCodeEnglish LanguageCode = "en"
+	LanguageCodeFrench  LanguageCode = "fr"
+)
+
+// languageCodes is the canonical code of each Language, used both for
+// Code()/String() and ParseLanguage — the wire format the CLI/API communicate
 // languages in, independent of how they're persisted (a plain INTEGER,
 // matching this schema's existing convention for TruthTier/FactCategory
 // rather than a native Postgres ENUM type).
-var languageNames = map[Language]string{
-	LanguageEnglish: "en",
-	LanguageFrench:  "fr",
+var languageCodes = map[Language]LanguageCode{
+	LanguageEnglish: LanguageCodeEnglish,
+	LanguageFrench:  LanguageCodeFrench,
 }
 
-// String returns l's canonical ISO-639-1 code, or "en" for an out-of-range value.
-func (l Language) String() string {
-	if name, ok := languageNames[l]; ok {
-		return name
+// Code returns l's canonical ISO-639-1 code, or LanguageCodeEnglish for an
+// out-of-range value.
+func (l Language) Code() LanguageCode {
+	if code, ok := languageCodes[l]; ok {
+		return code
 	}
-	return "en"
+	return LanguageCodeEnglish
+}
+
+// String returns l's canonical ISO-639-1 code as a string.
+func (l Language) String() string {
+	return string(l.Code())
 }
 
 // ParseLanguage parses s (case-insensitive) into a Language, matching the
-// names String() produces. Returns an error for anything else.
+// codes Code() produces. Returns an error for anything else.
 func ParseLanguage(s string) (Language, error) {
-	s = strings.ToLower(strings.TrimSpace(s))
-	for language, name := range languageNames {
-		if name == s {
+	code := LanguageCode(strings.ToLower(strings.TrimSpace(s)))
+	for language, languageCode := range languageCodes {
+		if languageCode == code {
 			return language, nil
 		}
 	}

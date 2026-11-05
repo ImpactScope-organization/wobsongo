@@ -120,6 +120,61 @@ describe('API overview repo', () => {
 		).toMatchObject({ ok: false, status: 401 });
 	});
 
+	describe('when only one of the two backend calls fails', () => {
+		const failingRepos = (failing: 'stats' | 'narratives', status: number) =>
+			createApiRepos({
+				baseUrl: 'https://api.example.org',
+				fetch: (async (input: RequestInfo | URL) => {
+					const url = new URL((input as Request).url);
+					const isStats = url.pathname.endsWith('/conversations/stats');
+
+					if (isStats === (failing === 'stats')) {
+						return Response.json({ request_id: 'r', status, error: 'boom' }, { status });
+					}
+					if (isStats) {
+						return Response.json({
+							request_id: 'r',
+							status: 200,
+							data: { users: 3, messages: 41 }
+						});
+					}
+					return Response.json({
+						request_id: 'r',
+						status: 200,
+						data: { page: 1, per_page: 100, total_items: 0, items: [] }
+					});
+				}) as typeof globalThis.fetch,
+				clock
+			});
+
+		it('fails when the user activity cannot be read', async () => {
+			const r = failingRepos('stats', 403);
+			expect(
+				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: '7d' })
+			).toMatchObject({ ok: false, status: 403 });
+		});
+
+		it('fails when the narratives cannot be read', async () => {
+			const r = failingRepos('narratives', 500);
+			expect(
+				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: '7d' })
+			).toMatchObject({ ok: false, status: 500 });
+		});
+
+		it('treats an unreachable backend as a 503', async () => {
+			const r = createApiRepos({
+				baseUrl: 'https://api.example.org',
+				fetch: (async () => {
+					throw new TypeError('network down');
+				}) as typeof globalThis.fetch,
+				clock
+			});
+			expect(
+				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: 'all' })
+			).toMatchObject({ ok: false, status: 503 });
+		});
+	});
+
 	it('takes "now" from the clock', async () => {
 		const { result } = await snapshotOf('all', [
 			narrative({ id: 'n1', created_at: '2026-11-05T11:00:00Z' }), // 1 h ago: new

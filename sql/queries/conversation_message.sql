@@ -18,5 +18,7 @@ SELECT
     COUNT(*)::bigint AS messages
 FROM conversation_messages
 WHERE role = 'user'
-  AND (sqlc.narg('days')::integer IS NULL
-       OR created_at >= NOW() - make_interval(days => sqlc.narg('days')::integer));
+  AND created_at >= COALESCE(
+        NOW() - make_interval(days => sqlc.narg('days')::integer),
+        '-infinity'::timestamptz
+      );

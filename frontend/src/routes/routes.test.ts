@@ -81,6 +81,25 @@ describe('Overview page', () => {
 		const { value } = await loadAt('/?range=1y&topic=gossip');
 		expect(value).toMatchObject({ range: '24h', topic: 'misinfo' });
 	});
+	it('defaults to all-time chatbot engagement', async () => {
+		const { value } = await loadAt('/');
+		expect(value).toMatchObject({ engagement: 'all' });
+	});
+
+	it('reads the engagement window from the URL', async () => {
+		const { value } = await loadAt('/?engagement=15d');
+		expect(value).toMatchObject({ engagement: '15d' });
+	});
+
+	it('keeps the engagement window independent of range and topic', async () => {
+		const { value } = await loadAt('/?range=7d&topic=all&engagement=30d');
+		expect(value).toMatchObject({ range: '7d', topic: 'all', engagement: '30d' });
+	});
+
+	it('ignores an unknown engagement window', async () => {
+		const { value } = await loadAt('/?engagement=1y');
+		expect(value).toMatchObject({ engagement: 'all' });
+	});
 
 	it('shows service failures as error pages', async () => {
 		const backend = createTestBackend();

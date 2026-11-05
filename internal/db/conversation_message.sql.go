@@ -19,8 +19,10 @@ SELECT
     COUNT(*)::bigint AS messages
 FROM conversation_messages
 WHERE role = 'user'
-  AND ($1::integer IS NULL
-       OR created_at >= NOW() - make_interval(days => $1::integer))
+  AND created_at >= COALESCE(
+        NOW() - make_interval(days => $1::integer),
+        '-infinity'::timestamptz
+      )
 `
 
 type CountUserActivityRow struct {

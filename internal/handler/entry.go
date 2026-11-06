@@ -16,20 +16,22 @@ import (
 
 // Handlers struct holds references to all the individual handler structs.
 type Handlers struct {
-	apifyHandler        *ApifyHandler
-	documentHandler     *DocumentHandler
-	mediaHandler        *MediaHandler
-	botExtractPSK       string
-	claimHandler        *ClaimHandler
-	agentHandler        *AgentHandler
-	ttsHandler          *TTSHandler
-	authHandler         *AuthHandler
-	jwtAuth             *auth.Auth
-	config              *internal.Config
-	narrativeHandler    *NarrativeHandler
-	adminSettingHandler *AdminSettingHandler
-	conversationHandler *ConversationHandler
-	adminKeywordHandler *AdminKeywordHandler
+	apifyHandler           *ApifyHandler
+	documentHandler        *DocumentHandler
+	mediaHandler           *MediaHandler
+	botExtractPSK          string
+	claimHandler           *ClaimHandler
+	agentHandler           *AgentHandler
+	ttsHandler             *TTSHandler
+	authHandler            *AuthHandler
+	jwtAuth                *auth.Auth
+	config                 *internal.Config
+	narrativeHandler       *NarrativeHandler
+	adminSettingHandler    *AdminSettingHandler
+	conversationHandler    *ConversationHandler
+	adminKeywordHandler    *AdminKeywordHandler
+	adminTopicHandler      *AdminTopicHandler
+	adminInfluencerHandler *AdminInfluencerHandler
 }
 
 // RegisterRoutes registers all the API routes with their corresponding handlers.
@@ -102,6 +104,18 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	adminRoutes.GET("/keywords/:id", h.adminKeywordHandler.getKeywordHandler, adminAuth...)
 	adminRoutes.PUT("/keywords/:id", h.adminKeywordHandler.updateKeywordHandler, adminAuth...)
 	adminRoutes.DELETE("/keywords/:id", h.adminKeywordHandler.deleteKeywordHandler, adminAuth...)
+	adminRoutes.GET("/topics", h.adminTopicHandler.listTopicsHandler, adminAuth...)
+	adminRoutes.POST("/topics", h.adminTopicHandler.createTopicHandler, adminAuth...)
+	adminRoutes.GET("/topics/:id", h.adminTopicHandler.getTopicHandler, adminAuth...)
+	adminRoutes.PUT("/topics/:id", h.adminTopicHandler.updateTopicHandler, adminAuth...)
+
+	adminRoutes.GET("/influencers", h.adminInfluencerHandler.listInfluencersHandler, adminAuth...)
+	adminRoutes.POST("/influencers", h.adminInfluencerHandler.createInfluencerHandler, adminAuth...)
+	adminRoutes.GET("/influencers/:id", h.adminInfluencerHandler.getInfluencerHandler, adminAuth...)
+	adminRoutes.PATCH(
+		"/influencers/:id",
+		h.adminInfluencerHandler.setInfluencerActiveHandler,
+		adminAuth...)
 }
 
 // Repos holds the repository interfaces required by the handlers.
@@ -125,6 +139,8 @@ type Repos struct {
 	CrawlerRepo          data.CrawlerRepoer
 	DiscoveryRescheduler data.DiscoveryRescheduler
 	KeywordRepo          data.KeywordRepoer
+	TopicRepo            data.TopicRepoer
+	InfluencerRepo       data.InfluencerRepoer
 }
 
 // NewHandlers creates a new Handlers instance with the provided repositories.
@@ -230,21 +246,35 @@ func NewHandlers(repos *Repos) *Handlers {
 		)
 	}
 
+	var adminTopicHandler *AdminTopicHandler
+	if repos.TopicRepo != nil {
+		adminTopicHandler = NewAdminTopicHandler(service.NewAdminTopicService(repos.TopicRepo))
+	}
+
+	var adminInfluencerHandler *AdminInfluencerHandler
+	if repos.InfluencerRepo != nil {
+		adminInfluencerHandler = NewAdminInfluencerHandler(
+			service.NewAdminInfluencerService(repos.InfluencerRepo),
+		)
+	}
+
 	return &Handlers{
-		apifyHandler:        apifyHandler,
-		documentHandler:     documentHandler,
-		mediaHandler:        mediaHandler,
-		ttsHandler:          ttsHandler,
-		botExtractPSK:       config.BotExtractPSK,
-		claimHandler:        claimHandler,
-		agentHandler:        agentHandler,
-		authHandler:         authHandler,
-		jwtAuth:             jwtAuth,
-		config:              config,
-		narrativeHandler:    narrativeHandler,
-		adminSettingHandler: adminSettingHandler,
-		conversationHandler: conversationHandler,
-		adminKeywordHandler: adminKeywordHandler,
+		apifyHandler:           apifyHandler,
+		documentHandler:        documentHandler,
+		mediaHandler:           mediaHandler,
+		ttsHandler:             ttsHandler,
+		botExtractPSK:          config.BotExtractPSK,
+		claimHandler:           claimHandler,
+		agentHandler:           agentHandler,
+		authHandler:            authHandler,
+		jwtAuth:                jwtAuth,
+		config:                 config,
+		narrativeHandler:       narrativeHandler,
+		adminSettingHandler:    adminSettingHandler,
+		conversationHandler:    conversationHandler,
+		adminKeywordHandler:    adminKeywordHandler,
+		adminTopicHandler:      adminTopicHandler,
+		adminInfluencerHandler: adminInfluencerHandler,
 	}
 }
 

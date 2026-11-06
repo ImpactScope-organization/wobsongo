@@ -64,3 +64,49 @@ SET empty_check_count = empty_check_count + 1,
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING empty_check_count, is_active;
+
+
+
+-- name: PaginateInfluencers :many
+SELECT * FROM influencers
+WHERE (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(source)::text IS NULL OR source = sqlc.narg(source)::text)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(username), lower(sqlc.narg(search)::text)) > 0
+       OR strpos(lower(nickname), lower(sqlc.narg(search)::text)) > 0)
+ORDER BY created_at DESC, id DESC
+LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: CountInfluencers :one
+SELECT count(*) FROM influencers
+WHERE (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(source)::text IS NULL OR source = sqlc.narg(source)::text)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(username), lower(sqlc.narg(search)::text)) > 0
+       OR strpos(lower(nickname), lower(sqlc.narg(search)::text)) > 0);
+
+-- name: CreateInfluencer :one
+INSERT INTO influencers (platform, username, profile_url, source)
+SELECT sqlc.arg(platform)::varchar, sqlc.arg(username)::varchar,
+       sqlc.arg(profile_url)::text, sqlc.arg(source)::varchar
+WHERE NOT EXISTS (
+    SELECT 1 FROM influencers
+    WHERE platform = sqlc.arg(platform)::varchar
+      AND lower(username) = lower(sqlc.arg(username)::varchar)
+)
+RETURNING *;
+
+-- name: SetInfluencerActive :one
+-- Re-activating an inactive influencer resets the empty-check counter and
+-- schedules a check right away.
+UPDATE influencers
+SET empty_check_count = CASE
+        WHEN sqlc.arg(is_active)::boolean AND NOT is_active THEN 0
+        ELSE empty_check_count END,
+    next_check_at = CASE
+        WHEN sqlc.arg(is_active)::boolean AND NOT is_active THEN NOW()
+        ELSE next_check_at END,
+    is_active = sqlc.arg(is_active)::boolean,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)
+RETURNING *;

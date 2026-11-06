@@ -2,12 +2,14 @@ package repo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -243,4 +245,83 @@ func (r *influencerRepo) RecordEmptyCheck(
 		return false, fmt.Errorf("failed to record empty check: %w", mapPostgresError(err))
 	}
 	return row.IsActive, nil
+}
+
+// Paginate returns a filtered page of influencers, newest first.
+func (r *influencerRepo) Paginate(
+	ctx context.Context,
+	q data.SupportsPagination,
+	filter data.InfluencerListFilter,
+) (*dto.PaginationResults[model.Influencer], error) {
+	limit, offset := q.Limit(), q.Offset()
+	isActive, source, search := filterBool(filter.IsActive),
+		filterText(filter.Source), filterText(filter.Search)
+
+	rows, err := r.q.PaginateInfluencers(ctx, db.PaginateInfluencersParams{
+		IsActive:   isActive,
+		Source:     source,
+		Search:     search,
+		PageLimit:  limit,
+		PageOffset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list influencers: %w", mapPostgresError(err))
+	}
+
+	total, err := r.q.CountInfluencers(ctx, db.CountInfluencersParams{
+		IsActive: isActive,
+		Source:   source,
+		Search:   search,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count influencers: %w", mapPostgresError(err))
+	}
+
+	items := make([]model.Influencer, 0, len(rows))
+	for i := range rows {
+		items = append(items, *dbInfluencerToModel(&rows[i]))
+	}
+
+	return &dto.PaginationResults[model.Influencer]{
+		Page:       pageOf(limit, offset),
+		PerPage:    int(limit),
+		TotalItems: int(total),
+		Items:      items,
+	}, nil
+}
+
+// Create inserts a new influencer. No row comes back from the query when the
+// username already exists, which is reported as a conflict.
+func (r *influencerRepo) Create(ctx context.Context, m *model.Influencer) error {
+	row, err := r.q.CreateInfluencer(ctx, db.CreateInfluencerParams{
+		Platform:   m.Platform,
+		Username:   m.Username,
+		ProfileUrl: m.ProfileURL,
+		Source:     string(m.Source),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return fmt.Errorf("%w: influencer %s already exists", data.ErrConflict, m.Username)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to create influencer: %w", mapPostgresError(err))
+	}
+
+	*m = *dbInfluencerToModel(&row)
+	return nil
+}
+
+// SetActive turns monitoring of an influencer on or off.
+func (r *influencerRepo) SetActive(
+	ctx context.Context,
+	id uuid.UUID,
+	active bool,
+) (*model.Influencer, error) {
+	row, err := r.q.SetInfluencerActive(ctx, db.SetInfluencerActiveParams{
+		IsActive: active,
+		ID:       id,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to set influencer active: %w", mapPostgresError(err))
+	}
+	return dbInfluencerToModel(&row), nil
 }

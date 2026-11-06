@@ -46,6 +46,8 @@ type App struct {
 	crawlerRepo          data.CrawlerRepoer
 	discoveryRescheduler data.DiscoveryRescheduler
 	keywordRepo          data.KeywordRepoer
+	topicRepo            data.TopicRepoer
+	influencerRepo       data.InfluencerRepoer
 }
 
 // Echo returns the Echo instance of the application.
@@ -211,6 +213,20 @@ func WithKeywordRepo(repo data.KeywordRepoer) AppOption {
 	}
 }
 
+// WithTopicRepo sets the repository of the admin-managed topics.
+func WithTopicRepo(repo data.TopicRepoer) AppOption {
+	return func(a *App) {
+		a.topicRepo = repo
+	}
+}
+
+// WithInfluencerRepo sets the repository of the admin-managed influencers.
+func WithInfluencerRepo(repo data.InfluencerRepoer) AppOption {
+	return func(a *App) {
+		a.influencerRepo = repo
+	}
+}
+
 // General API info for swag (go tool swag init --generalInfo ./internal/core/app.go).
 //
 // @title						WobSongo API
@@ -277,6 +293,8 @@ func NewApp(e *echo.Echo, config *internal.Config, optionFuncs ...AppOption) *Ap
 	repos.CrawlerRepo = app.crawlerRepo
 	repos.DiscoveryRescheduler = app.discoveryRescheduler
 	repos.KeywordRepo = app.keywordRepo
+	repos.TopicRepo = app.topicRepo
+	repos.InfluencerRepo = app.influencerRepo
 
 	handlers := handler.NewHandlers(repos)
 	handlers.RegisterRoutes(app.apiGroup)

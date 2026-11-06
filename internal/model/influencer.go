@@ -10,7 +10,7 @@ import (
 type InfluencerSource string
 
 const (
-	// InfluencerSourceSeed means the influencer was part of the initial seed list.
+	// InfluencerSourceSeed means an admin added the influencer, or it was in the initial seed list.
 	InfluencerSourceSeed InfluencerSource = "seed"
 
 	// InfluencerSourceDiscovered means the influencer was found automatically.

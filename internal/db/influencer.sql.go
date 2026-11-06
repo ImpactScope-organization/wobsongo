@@ -13,6 +13,85 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countInfluencers = `-- name: CountInfluencers :one
+SELECT count(*) FROM influencers
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL OR source = $2::text)
+  AND ($3::text IS NULL
+       OR strpos(lower(username), lower($3::text)) > 0
+       OR strpos(lower(nickname), lower($3::text)) > 0)
+`
+
+type CountInfluencersParams struct {
+	IsActive pgtype.Bool
+	Source   pgtype.Text
+	Search   pgtype.Text
+}
+
+func (q *Queries) CountInfluencers(ctx context.Context, arg CountInfluencersParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countInfluencers, arg.IsActive, arg.Source, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createInfluencer = `-- name: CreateInfluencer :one
+INSERT INTO influencers (platform, username, profile_url, source)
+SELECT $1::varchar, $2::varchar,
+       $3::text, $4::varchar
+WHERE NOT EXISTS (
+    SELECT 1 FROM influencers
+    WHERE platform = $1::varchar
+      AND lower(username) = lower($2::varchar)
+)
+RETURNING id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count
+`
+
+type CreateInfluencerParams struct {
+	Platform   string
+	Username   string
+	ProfileUrl string
+	Source     string
+}
+
+func (q *Queries) CreateInfluencer(ctx context.Context, arg CreateInfluencerParams) (Influencer, error) {
+	row := q.db.QueryRow(ctx, createInfluencer,
+		arg.Platform,
+		arg.Username,
+		arg.ProfileUrl,
+		arg.Source,
+	)
+	var i Influencer
+	err := row.Scan(
+		&i.ID,
+		&i.Platform,
+		&i.Username,
+		&i.ProfileUrl,
+		&i.Nickname,
+		&i.Bio,
+		&i.AvatarUrl,
+		&i.Verified,
+		&i.FollowersCount,
+		&i.FollowingCount,
+		&i.HeartsCount,
+		&i.ReportedVideoCount,
+		&i.TrackedVideoCount,
+		&i.Source,
+		&i.DiscoveredViaKeyword,
+		&i.DiscoveredFromVideoUrl,
+		&i.FirstVideoAt,
+		&i.LastVideoAt,
+		&i.AvgUploadIntervalHours,
+		&i.LastCheckedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.NextCheckAt,
+		&i.IsActive,
+		&i.EmptyCheckCount,
+	)
+	return i, err
+}
+
 const getInfluencerByID = `-- name: GetInfluencerByID :one
 SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers WHERE id = $1
 `
@@ -195,6 +274,77 @@ func (q *Queries) ListInfluencers(ctx context.Context) ([]Influencer, error) {
 	return items, nil
 }
 
+const paginateInfluencers = `-- name: PaginateInfluencers :many
+SELECT id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count FROM influencers
+WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
+  AND ($2::text IS NULL OR source = $2::text)
+  AND ($3::text IS NULL
+       OR strpos(lower(username), lower($3::text)) > 0
+       OR strpos(lower(nickname), lower($3::text)) > 0)
+ORDER BY created_at DESC, id DESC
+LIMIT $5::int OFFSET $4::int
+`
+
+type PaginateInfluencersParams struct {
+	IsActive   pgtype.Bool
+	Source     pgtype.Text
+	Search     pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+func (q *Queries) PaginateInfluencers(ctx context.Context, arg PaginateInfluencersParams) ([]Influencer, error) {
+	rows, err := q.db.Query(ctx, paginateInfluencers,
+		arg.IsActive,
+		arg.Source,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Influencer
+	for rows.Next() {
+		var i Influencer
+		if err := rows.Scan(
+			&i.ID,
+			&i.Platform,
+			&i.Username,
+			&i.ProfileUrl,
+			&i.Nickname,
+			&i.Bio,
+			&i.AvatarUrl,
+			&i.Verified,
+			&i.FollowersCount,
+			&i.FollowingCount,
+			&i.HeartsCount,
+			&i.ReportedVideoCount,
+			&i.TrackedVideoCount,
+			&i.Source,
+			&i.DiscoveredViaKeyword,
+			&i.DiscoveredFromVideoUrl,
+			&i.FirstVideoAt,
+			&i.LastVideoAt,
+			&i.AvgUploadIntervalHours,
+			&i.LastCheckedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.NextCheckAt,
+			&i.IsActive,
+			&i.EmptyCheckCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const recordInfluencerEmptyCheck = `-- name: RecordInfluencerEmptyCheck :one
 UPDATE influencers
 SET empty_check_count = empty_check_count + 1,
@@ -223,6 +373,60 @@ func (q *Queries) RecordInfluencerEmptyCheck(ctx context.Context, arg RecordInfl
 	row := q.db.QueryRow(ctx, recordInfluencerEmptyCheck, arg.MaxEmptyChecks, arg.NextCheckAt, arg.ID)
 	var i RecordInfluencerEmptyCheckRow
 	err := row.Scan(&i.EmptyCheckCount, &i.IsActive)
+	return i, err
+}
+
+const setInfluencerActive = `-- name: SetInfluencerActive :one
+UPDATE influencers
+SET empty_check_count = CASE
+        WHEN $1::boolean AND NOT is_active THEN 0
+        ELSE empty_check_count END,
+    next_check_at = CASE
+        WHEN $1::boolean AND NOT is_active THEN NOW()
+        ELSE next_check_at END,
+    is_active = $1::boolean,
+    updated_at = NOW()
+WHERE id = $2
+RETURNING id, platform, username, profile_url, nickname, bio, avatar_url, verified, followers_count, following_count, hearts_count, reported_video_count, tracked_video_count, source, discovered_via_keyword, discovered_from_video_url, first_video_at, last_video_at, avg_upload_interval_hours, last_checked_at, created_at, updated_at, next_check_at, is_active, empty_check_count
+`
+
+type SetInfluencerActiveParams struct {
+	IsActive bool
+	ID       uuid.UUID
+}
+
+// Re-activating an inactive influencer resets the empty-check counter and
+// schedules a check right away.
+func (q *Queries) SetInfluencerActive(ctx context.Context, arg SetInfluencerActiveParams) (Influencer, error) {
+	row := q.db.QueryRow(ctx, setInfluencerActive, arg.IsActive, arg.ID)
+	var i Influencer
+	err := row.Scan(
+		&i.ID,
+		&i.Platform,
+		&i.Username,
+		&i.ProfileUrl,
+		&i.Nickname,
+		&i.Bio,
+		&i.AvatarUrl,
+		&i.Verified,
+		&i.FollowersCount,
+		&i.FollowingCount,
+		&i.HeartsCount,
+		&i.ReportedVideoCount,
+		&i.TrackedVideoCount,
+		&i.Source,
+		&i.DiscoveredViaKeyword,
+		&i.DiscoveredFromVideoUrl,
+		&i.FirstVideoAt,
+		&i.LastVideoAt,
+		&i.AvgUploadIntervalHours,
+		&i.LastCheckedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.NextCheckAt,
+		&i.IsActive,
+		&i.EmptyCheckCount,
+	)
 	return i, err
 }
 
@@ -282,7 +486,7 @@ INSERT INTO influencers (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
-ON CONFLICT (platform, username) DO UPDATE SET
+ON CONFLICT (platform, lower(username)) DO UPDATE SET
     profile_url = EXCLUDED.profile_url,
     nickname = EXCLUDED.nickname,
     bio = EXCLUDED.bio,

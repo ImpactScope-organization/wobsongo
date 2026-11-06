@@ -38,3 +38,39 @@ type KeywordRepoer interface {
 	// Delete removes a keyword. It returns ErrNotFound when it does not exist.
 	Delete(ctx context.Context, id uuid.UUID) error
 }
+
+// InfluencerListFilter adds the influencer-only filters.
+type InfluencerListFilter struct {
+	AdminListFilter
+
+	// Source keeps only influencers from this source ("seed" or "discovered").
+	Source string
+}
+
+// TopicRepoer defines the admin operations on topics. Topics are never
+// deleted because claims and narratives reference them.
+type TopicRepoer interface {
+	TxAware[TopicRepoer]
+
+	Paginate(
+		ctx context.Context,
+		q SupportsPagination,
+		filter AdminListFilter,
+	) (*dto.PaginationResults[model.Topic], error)
+
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Topic, error)
+
+	// Create inserts the topic and fills the stored fields. It returns
+	// ErrConflict when the name is taken.
+	Create(ctx context.Context, topic *model.Topic) error
+
+	// Update replaces name, description and is_active of topic.ID and fills
+	// the stored fields. It returns ErrNotFound when the topic does not exist
+	// or when this would deactivate the last active topic, and ErrConflict
+	// when the name is taken.
+	Update(ctx context.Context, topic *model.Topic) error
+
+	// LockActiveGuard serializes updates that may deactivate a topic.
+	// It must be called inside WithTx.
+	LockActiveGuard(ctx context.Context) error
+}

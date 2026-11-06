@@ -35,6 +35,9 @@ func Register(e *echo.Echo) error {
 	if err := v.RegisterValidation("notblank", validateNotBlank); err != nil {
 		return err
 	}
+	if err := v.RegisterValidation("tiktokusername", validateTikTokUsername); err != nil {
+		return err
+	}
 	e.Validator = &DTOValidator{validator: v}
 	return nil
 }

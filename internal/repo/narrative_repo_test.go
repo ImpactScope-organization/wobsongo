@@ -122,6 +122,32 @@ func newNarrativeTestClaim(topicID uuid.UUID, text string, occurredAt time.Time)
 	}
 }
 
+// newClaimFrom stores a claim that came from the given platform.
+func (e *narrativeTestEnv) newClaimFrom(
+	t *testing.T,
+	topicID uuid.UUID,
+	platform string,
+	occurredAt time.Time,
+) {
+	t.Helper()
+
+	claim := newNarrativeTestClaim(topicID, "claim "+uuid.NewString(), occurredAt)
+	claim.Platform = platform
+	if _, err := e.repo.CreateClaim(e.ctx, claim); err != nil {
+		t.Fatalf("failed to create claim: %v", err)
+	}
+}
+
+// claimsFrom returns how many claims counts holds for platform, and where.
+func claimsFrom(counts []model.ClaimPlatformCount, platform string) (int64, int) {
+	for i, c := range counts {
+		if c.Platform == platform {
+			return c.Claims, i
+		}
+	}
+	return 0, -1
+}
+
 func TestNarrativeRepo(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -821,6 +847,77 @@ func TestNarrativeRepo(t *testing.T) {
 			return
 		}
 		t.Error("narrative not found in the paginated list")
+	})
+
+	t.Run("CountClaimsByPlatform_CountsTheWindowAndOrdersByClaims", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		// The database may hold other claims, so the test counts platforms of its own.
+		busy, quiet := "t-"+uuid.NewString()[:8], "t-"+uuid.NewString()[:8]
+
+		now := time.Now()
+		env.newClaimFrom(t, topic.ID, quiet, now.Add(-10*time.Minute))
+		env.newClaimFrom(t, topic.ID, busy, now.Add(-20*time.Minute))
+		env.newClaimFrom(t, topic.ID, busy, now.Add(-30*time.Minute))
+		env.newClaimFrom(t, topic.ID, busy, now.Add(-3*time.Hour)) // before the window
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, now.Add(-time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		busyClaims, busyAt := claimsFrom(counts, busy)
+		quietClaims, quietAt := claimsFrom(counts, quiet)
+		if busyClaims != 2 || quietClaims != 1 {
+			t.Errorf("expected 2 and 1 claims, got %d and %d", busyClaims, quietClaims)
+		}
+		if busyAt < 0 || quietAt < 0 || busyAt > quietAt {
+			t.Errorf("expected the platform with more claims first, got %+v", counts)
+		}
+	})
+
+	t.Run("CountClaimsByPlatform_SeparatesWhatsAppFromTikTok", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+
+		now := time.Now()
+		since := now.Add(-time.Hour)
+		before, err := env.repo.CountClaimsByPlatform(env.ctx, since)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		env.newClaimFrom(t, topic.ID, model.ClaimPlatformWhatsApp, now.Add(-time.Minute))
+		env.newClaimFrom(t, topic.ID, model.ClaimPlatformTikTok, now.Add(-time.Minute))
+		env.newClaimFrom(t, topic.ID, model.ClaimPlatformTikTok, now.Add(-2*time.Minute))
+
+		after, err := env.repo.CountClaimsByPlatform(env.ctx, since)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		whatsAppBefore, _ := claimsFrom(before, model.ClaimPlatformWhatsApp)
+		whatsAppAfter, _ := claimsFrom(after, model.ClaimPlatformWhatsApp)
+		tikTokBefore, _ := claimsFrom(before, model.ClaimPlatformTikTok)
+		tikTokAfter, _ := claimsFrom(after, model.ClaimPlatformTikTok)
+		if whatsAppAfter-whatsAppBefore != 1 || tikTokAfter-tikTokBefore != 2 {
+			t.Errorf("expected 1 whatsapp and 2 tiktok more, got %d and %d",
+				whatsAppAfter-whatsAppBefore, tikTokAfter-tikTokBefore)
+		}
+	})
+
+	t.Run("CountClaimsByPlatform_EmptyWindowIsNotNil", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, time.Now().Add(time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// The API must send [] rather than null.
+		if counts == nil || len(counts) != 0 {
+			t.Errorf("expected an empty, non-nil slice, got %#v", counts)
+		}
 	})
 }
 

@@ -623,6 +623,15 @@ definitions:
         format: uuid
         type: string
     type: object
+  model.ClaimPlatformCount:
+    properties:
+      claims:
+        description: Claims is the number of claims from that platform.
+        type: integer
+      platform:
+        description: Platform is where the claims came from, e.g. "whatsapp" or "tiktok".
+        type: string
+    type: object
   model.DiscoveryKeyword:
     properties:
       created_at:
@@ -722,6 +731,22 @@ definitions:
     x-enum-varnames:
     - LanguageCodeEnglish
     - LanguageCodeFrench
+  model.MessageVolume:
+    properties:
+      current:
+        description: Current is the number of messages in the selected window.
+        type: integer
+      previous:
+        description: Previous is the number of messages in the window before it.
+        type: integer
+      trend:
+        description: |-
+          Trend is the current window's volume per bucket, oldest first: hourly
+          for 24h, daily for 7d and 30d.
+        items:
+          type: integer
+        type: array
+    type: object
   model.Narrative:
     properties:
       created_at:
@@ -1856,6 +1881,75 @@ paths:
       summary: Check a claim
       tags:
       - claims
+  /api/v1/claims/platforms:
+    get:
+      description: 'Counts the claims of the last 24 hours, 7 or 30 days by where
+        they came from: "whatsapp" for questions typed to the bot, "tiktok" for TikTok
+        links sent to it.'
+      parameters:
+      - description: Reporting window, 24h when left out
+        enum:
+        - 24h
+        - 7d
+        - 30d
+        in: query
+        name: range
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.ClaimPlatformCount'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Claims by platform
+      tags:
+      - claims
   /api/v1/conversations/stats:
     get:
       description: Counts the distinct users and the messages they sent over the last
@@ -1920,6 +2014,73 @@ paths:
       security:
       - BearerAuth: []
       summary: User activity
+      tags:
+      - conversations
+  /api/v1/conversations/volume:
+    get:
+      description: Counts the messages users sent in the last 24 hours, 7 or 30 days,
+        next to the window before it, with the volume per hour (24h) or per day (7d,
+        30d), oldest first.
+      parameters:
+      - description: Reporting window, 24h when left out
+        enum:
+        - 24h
+        - 7d
+        - 30d
+        in: query
+        name: range
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.MessageVolume'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Message volume
       tags:
       - conversations
   /api/v1/documents:

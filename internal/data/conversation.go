@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/model"
@@ -45,10 +46,24 @@ type ConversationRepoer interface {
 	// UserActivity counts the distinct users and the messages they sent,
 	// over the last filter.Days days or over all time.
 	UserActivity(ctx context.Context, filter UserActivityFilter) (*model.UserActivity, error)
+
+	// MessageVolume counts the messages users sent in the current window and
+	// in the window before it, and the current window's volume per bucket.
+	MessageVolume(ctx context.Context, filter MessageVolumeFilter) (*model.MessageVolume, error)
 }
 
 // UserActivityFilter narrows a user activity count. A nil field is not filtered.
 type UserActivityFilter struct {
 	// Days counts only the last Days days. Nil counts all time.
 	Days *int32
+}
+
+// MessageVolumeFilter selects the windows of a message volume count. The
+// current window ends now, the previous one is the same length right before it.
+type MessageVolumeFilter struct {
+	// Window is the length of one window.
+	Window time.Duration
+
+	// Bucket is the size of one trend bucket. Window must be a multiple of it.
+	Bucket time.Duration
 }

@@ -23,6 +23,9 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //
 //		// make and configure a mocked data.NarrativeRepoer
 //		mockedNarrativeRepoer := &NarrativeRepoerMock{
+//			CountClaimsByPlatformFunc: func(ctx context.Context, since time.Time) ([]model.ClaimPlatformCount, error) {
+//				panic("mock out the CountClaimsByPlatform method")
+//			},
 //			CreateClaimFunc: func(ctx context.Context, claim *model.Claim) (*model.Claim, error) {
 //				panic("mock out the CreateClaim method")
 //			},
@@ -72,6 +75,9 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //
 //	}
 type NarrativeRepoerMock struct {
+	// CountClaimsByPlatformFunc mocks the CountClaimsByPlatform method.
+	CountClaimsByPlatformFunc func(ctx context.Context, since time.Time) ([]model.ClaimPlatformCount, error)
+
 	// CreateClaimFunc mocks the CreateClaim method.
 	CreateClaimFunc func(ctx context.Context, claim *model.Claim) (*model.Claim, error)
 
@@ -116,6 +122,13 @@ type NarrativeRepoerMock struct {
 
 	// calls tracks calls to the methods.
 	calls struct {
+		// CountClaimsByPlatform holds details about calls to the CountClaimsByPlatform method.
+		CountClaimsByPlatform []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Since is the since argument value.
+			Since time.Time
+		}
 		// CreateClaim holds details about calls to the CreateClaim method.
 		CreateClaim []struct {
 			// Ctx is the ctx argument value.
@@ -221,6 +234,7 @@ type NarrativeRepoerMock struct {
 			Fn func(data.NarrativeRepoer) error
 		}
 	}
+	lockCountClaimsByPlatform     sync.RWMutex
 	lockCreateClaim               sync.RWMutex
 	lockCreateNarrative           sync.RWMutex
 	lockDeactivateStaleNarratives sync.RWMutex
@@ -235,6 +249,42 @@ type NarrativeRepoerMock struct {
 	lockPaginateNarratives        sync.RWMutex
 	lockUpdateNarrativeEstimate   sync.RWMutex
 	lockWithTx                    sync.RWMutex
+}
+
+// CountClaimsByPlatform calls CountClaimsByPlatformFunc.
+func (mock *NarrativeRepoerMock) CountClaimsByPlatform(ctx context.Context, since time.Time) ([]model.ClaimPlatformCount, error) {
+	if mock.CountClaimsByPlatformFunc == nil {
+		panic("NarrativeRepoerMock.CountClaimsByPlatformFunc: method is nil but NarrativeRepoer.CountClaimsByPlatform was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		Since time.Time
+	}{
+		Ctx:   ctx,
+		Since: since,
+	}
+	mock.lockCountClaimsByPlatform.Lock()
+	mock.calls.CountClaimsByPlatform = append(mock.calls.CountClaimsByPlatform, callInfo)
+	mock.lockCountClaimsByPlatform.Unlock()
+	return mock.CountClaimsByPlatformFunc(ctx, since)
+}
+
+// CountClaimsByPlatformCalls gets all the calls that were made to CountClaimsByPlatform.
+// Check the length with:
+//
+//	len(mockedNarrativeRepoer.CountClaimsByPlatformCalls())
+func (mock *NarrativeRepoerMock) CountClaimsByPlatformCalls() []struct {
+	Ctx   context.Context
+	Since time.Time
+} {
+	var calls []struct {
+		Ctx   context.Context
+		Since time.Time
+	}
+	mock.lockCountClaimsByPlatform.RLock()
+	calls = mock.calls.CountClaimsByPlatform
+	mock.lockCountClaimsByPlatform.RUnlock()
+	return calls
 }
 
 // CreateClaim calls CreateClaimFunc.

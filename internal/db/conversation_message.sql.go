@@ -37,6 +37,56 @@ func (q *Queries) CountUserActivity(ctx context.Context, days pgtype.Int4) (Coun
 	return i, err
 }
 
+const countUserMessagesByBucket = `-- name: CountUserMessagesByBucket :many
+WITH bounds AS (
+    SELECT
+        $1::float8 AS bucket_seconds,
+        NOW() - make_interval(
+            secs => $1::float8 * $2::integer * 2
+        ) AS from_time
+)
+SELECT
+    FLOOR(EXTRACT(EPOCH FROM (m.created_at - b.from_time))::float8 / b.bucket_seconds)::integer AS bucket,
+    COUNT(*)::bigint AS messages
+FROM conversation_messages m
+CROSS JOIN bounds b
+WHERE m.role = 'user'
+  AND m.created_at >= b.from_time
+  AND m.created_at < NOW()
+GROUP BY 1
+ORDER BY 1
+`
+
+type CountUserMessagesByBucketParams struct {
+	BucketSeconds float64
+	BucketCount   int32
+}
+
+type CountUserMessagesByBucketRow struct {
+	Bucket   int32
+	Messages int64
+}
+
+func (q *Queries) CountUserMessagesByBucket(ctx context.Context, arg CountUserMessagesByBucketParams) ([]CountUserMessagesByBucketRow, error) {
+	rows, err := q.db.Query(ctx, countUserMessagesByBucket, arg.BucketSeconds, arg.BucketCount)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountUserMessagesByBucketRow
+	for rows.Next() {
+		var i CountUserMessagesByBucketRow
+		if err := rows.Scan(&i.Bucket, &i.Messages); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRecentConversationMessages = `-- name: GetRecentConversationMessages :many
 SELECT id, jid, role, content, created_at FROM conversation_messages
 WHERE jid = $1

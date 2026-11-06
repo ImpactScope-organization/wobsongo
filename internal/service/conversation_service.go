@@ -74,3 +74,15 @@ func (s *ConversationService) UserActivity(
 ) (*model.UserActivity, error) {
 	return s.conversationRepo.UserActivity(ctx, data.UserActivityFilter{Days: query.Days})
 }
+
+// MessageVolume returns the messages users sent in the query's window, next to
+// the window before it.
+func (s *ConversationService) MessageVolume(
+	ctx context.Context,
+	query *dto.TimeRangeDTO,
+) (*model.MessageVolume, error) {
+	return s.conversationRepo.MessageVolume(ctx, data.MessageVolumeFilter{
+		Window: query.Range.Window(),
+		Bucket: query.Range.Bucket(),
+	})
+}

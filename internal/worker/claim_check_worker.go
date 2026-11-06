@@ -59,7 +59,7 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text: job.Args.Text,
 		Source: dto.NewClaimSource(
-			model.ClaimPlatformWhatsApp,
+			model.ClaimPlatformTikTok,
 			job.Args.MessageID,
 			string(model.ClaimFormatVideo),
 		),

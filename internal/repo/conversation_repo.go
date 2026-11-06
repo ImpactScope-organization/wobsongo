@@ -142,3 +142,44 @@ func (r *conversationRepo) UserActivity(
 
 	return &model.UserActivity{Users: row.Users, Messages: row.Messages}, nil
 }
+
+// MessageVolume counts user messages in the current and the previous window,
+// and the current window's volume per bucket. Both windows come from one
+// query, so they always share the same boundary.
+func (r *conversationRepo) MessageVolume(
+	ctx context.Context,
+	filter data.MessageVolumeFilter,
+) (*model.MessageVolume, error) {
+	if filter.Bucket <= 0 || filter.Window < filter.Bucket || filter.Window%filter.Bucket != 0 {
+		return nil, fmt.Errorf(
+			"window %s is not a multiple of bucket %s",
+			filter.Window,
+			filter.Bucket,
+		)
+	}
+	n := int(filter.Window / filter.Bucket)
+
+	rows, err := r.q.CountUserMessagesByBucket(ctx, db.CountUserMessagesByBucketParams{
+		BucketSeconds: filter.Bucket.Seconds(),
+		BucketCount:   int32(n),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count user messages by bucket: %w", mapPostgresError(err))
+	}
+
+	buckets := make([]int64, 2*n)
+	for _, row := range rows {
+		if row.Bucket >= 0 && int(row.Bucket) < len(buckets) {
+			buckets[row.Bucket] = row.Messages
+		}
+	}
+
+	volume := &model.MessageVolume{Trend: buckets[n:]}
+	for _, count := range buckets[:n] {
+		volume.Previous += count
+	}
+	for _, count := range volume.Trend {
+		volume.Current += count
+	}
+	return volume, nil
+}

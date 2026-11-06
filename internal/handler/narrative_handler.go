@@ -93,3 +93,41 @@ func (h *NarrativeHandler) getNarrativeHandler(c echo.Context) error {
 
 	return writeJSON(c, http.StatusOK, narrative)
 }
+
+// @Summary		Claims by platform
+// @Description	Counts the claims of the last 24 hours, 7 or 30 days by where they came from: "whatsapp" for questions typed to the bot, "tiktok" for TikTok links sent to it.
+// @Tags			claims
+// @Produce		json
+// @Param			range	query	string	false	"Reporting window, 24h when left out"	Enums(24h, 7d, 30d)
+// @Success		200	{object}	model.APIResponse{data=[]model.ClaimPlatformCount}
+// @Failure		400	{object}	model.APIResponse{error=string}
+// @Failure		401	{object}	model.APIResponse{error=string}
+// @Failure		422	{object}	model.APIResponse{error=string}
+// @Failure		500	{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Router			/api/v1/claims/platforms [get]
+func (h *NarrativeHandler) platformCountsHandler(c echo.Context) error {
+	query := new(dto.TimeRangeDTO)
+	if err := c.Bind(query); err != nil {
+		return &model.APIError{
+			Code:     http.StatusBadRequest,
+			Internal: err,
+			Public:   msgInvalidQueryParams,
+		}
+	}
+	if err := c.Validate(query); err != nil {
+		return &model.APIError{
+			Code:     http.StatusUnprocessableEntity,
+			Internal: err,
+			Public:   msgValidationFailed,
+		}
+	}
+
+	counts, err := h.service.ClaimPlatformCounts(c.Request().Context(), query)
+	if err != nil {
+		status, message := mapDataErrorToHTTP(err)
+		return &model.APIError{Code: status, Internal: err, Public: message}
+	}
+
+	return writeJSON(c, http.StatusOK, counts)
+}

@@ -91,6 +91,8 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	v1.GET("/narratives", h.narrativeHandler.listNarrativesHandler, signedIn)
 	v1.GET("/narratives/:id", h.narrativeHandler.getNarrativeHandler, signedIn)
 	v1.GET("/conversations/stats", h.conversationHandler.statsHandler, signedIn)
+	v1.GET("/conversations/volume", h.conversationHandler.volumeHandler, signedIn)
+	v1.GET("/claims/platforms", h.narrativeHandler.platformCountsHandler, signedIn)
 
 	adminAuth := []echo.MiddlewareFunc{signedIn, admin}
 	adminRoutes := v1.Group("/admin")

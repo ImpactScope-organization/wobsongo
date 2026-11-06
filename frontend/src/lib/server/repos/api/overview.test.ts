@@ -26,6 +26,16 @@ function repos(items: unknown[], total = items.length, activity = { users: 0, me
 		if (url.pathname.endsWith('/conversations/stats')) {
 			return Response.json({ request_id: 'r', status: 200, data: activity });
 		}
+		if (url.pathname.endsWith('/conversations/volume')) {
+			return Response.json({
+				request_id: 'r',
+				status: 200,
+				data: { current: 0, previous: 0, trend: [] }
+			});
+		}
+		if (url.pathname.endsWith('/claims/platforms')) {
+			return Response.json({ request_id: 'r', status: 200, data: [] });
+		}
 		const page = Number(url.searchParams.get('page') ?? 1);
 		const perPage = Number(url.searchParams.get('per_page') ?? 20);
 		return Response.json({

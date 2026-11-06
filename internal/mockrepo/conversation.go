@@ -34,6 +34,9 @@ var _ data.ConversationRepoer = &ConversationRepoerMock{}
 //			EnqueueVoiceTranscriptionFunc: func(ctx context.Context, payload *queue.VoiceTranscriptionJob) error {
 //				panic("mock out the EnqueueVoiceTranscription method")
 //			},
+//			MessageVolumeFunc: func(ctx context.Context, filter data.MessageVolumeFilter) (*model.MessageVolume, error) {
+//				panic("mock out the MessageVolume method")
+//			},
 //			RecentMessagesFunc: func(ctx context.Context, jid string, limit int) ([]model.ConversationMessage, error) {
 //				panic("mock out the RecentMessages method")
 //			},
@@ -58,6 +61,9 @@ type ConversationRepoerMock struct {
 
 	// EnqueueVoiceTranscriptionFunc mocks the EnqueueVoiceTranscription method.
 	EnqueueVoiceTranscriptionFunc func(ctx context.Context, payload *queue.VoiceTranscriptionJob) error
+
+	// MessageVolumeFunc mocks the MessageVolume method.
+	MessageVolumeFunc func(ctx context.Context, filter data.MessageVolumeFilter) (*model.MessageVolume, error)
 
 	// RecentMessagesFunc mocks the RecentMessages method.
 	RecentMessagesFunc func(ctx context.Context, jid string, limit int) ([]model.ConversationMessage, error)
@@ -103,6 +109,13 @@ type ConversationRepoerMock struct {
 			// Payload is the payload argument value.
 			Payload *queue.VoiceTranscriptionJob
 		}
+		// MessageVolume holds details about calls to the MessageVolume method.
+		MessageVolume []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Filter is the filter argument value.
+			Filter data.MessageVolumeFilter
+		}
 		// RecentMessages holds details about calls to the RecentMessages method.
 		RecentMessages []struct {
 			// Ctx is the ctx argument value.
@@ -124,6 +137,7 @@ type ConversationRepoerMock struct {
 	lockAppendMessageWithID       sync.RWMutex
 	lockEnqueueAgentTurn          sync.RWMutex
 	lockEnqueueVoiceTranscription sync.RWMutex
+	lockMessageVolume             sync.RWMutex
 	lockRecentMessages            sync.RWMutex
 	lockUserActivity              sync.RWMutex
 }
@@ -285,6 +299,42 @@ func (mock *ConversationRepoerMock) EnqueueVoiceTranscriptionCalls() []struct {
 	mock.lockEnqueueVoiceTranscription.RLock()
 	calls = mock.calls.EnqueueVoiceTranscription
 	mock.lockEnqueueVoiceTranscription.RUnlock()
+	return calls
+}
+
+// MessageVolume calls MessageVolumeFunc.
+func (mock *ConversationRepoerMock) MessageVolume(ctx context.Context, filter data.MessageVolumeFilter) (*model.MessageVolume, error) {
+	if mock.MessageVolumeFunc == nil {
+		panic("ConversationRepoerMock.MessageVolumeFunc: method is nil but ConversationRepoer.MessageVolume was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Filter data.MessageVolumeFilter
+	}{
+		Ctx:    ctx,
+		Filter: filter,
+	}
+	mock.lockMessageVolume.Lock()
+	mock.calls.MessageVolume = append(mock.calls.MessageVolume, callInfo)
+	mock.lockMessageVolume.Unlock()
+	return mock.MessageVolumeFunc(ctx, filter)
+}
+
+// MessageVolumeCalls gets all the calls that were made to MessageVolume.
+// Check the length with:
+//
+//	len(mockedConversationRepoer.MessageVolumeCalls())
+func (mock *ConversationRepoerMock) MessageVolumeCalls() []struct {
+	Ctx    context.Context
+	Filter data.MessageVolumeFilter
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Filter data.MessageVolumeFilter
+	}
+	mock.lockMessageVolume.RLock()
+	calls = mock.calls.MessageVolume
+	mock.lockMessageVolume.RUnlock()
 	return calls
 }
 

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal"
@@ -19,7 +20,10 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-const narrativesBasePath = "/api/v1/narratives"
+const (
+	narrativesBasePath = "/api/v1/narratives"
+	claimPlatformsPath = "/api/v1/claims/platforms"
+)
 
 // newNarrativeTestApp builds the app without signing requests in, so tests can
 // choose between an authenticated and an anonymous caller.
@@ -311,6 +315,148 @@ func TestGetNarrativeHandler(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, narrativesBasePath+"/"+id.String(), nil)
 		rec := httptest.NewRecorder()
 		anonymous.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf(
+				"expected status %d, got %d: %s",
+				http.StatusUnauthorized,
+				rec.Code,
+				rec.Body.String(),
+			)
+		}
+	})
+}
+
+func TestClaimPlatformsHandler(t *testing.T) {
+	const day = 24 * time.Hour
+
+	t.Run("Success_24hByDefault", func(t *testing.T) {
+		var capturedSince time.Time
+		repo := &mockrepo.NarrativeRepoerMock{
+			CountClaimsByPlatformFunc: func(
+				_ context.Context,
+				since time.Time,
+			) ([]model.ClaimPlatformCount, error) {
+				capturedSince = since
+				return []model.ClaimPlatformCount{
+					{Platform: model.ClaimPlatformWhatsApp, Claims: 9},
+					{Platform: model.ClaimPlatformTikTok, Claims: 4},
+				}, nil
+			},
+		}
+		app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)
+
+		before := time.Now()
+		req := httptest.NewRequest(http.MethodGet, claimPlatformsPath, nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+		after := time.Now()
+
+		if rec.Code != http.StatusOK {
+			t.Fatalf("expected status %d, got %d: %s", http.StatusOK, rec.Code, rec.Body.String())
+		}
+		if capturedSince.Before(before.Add(-day)) || capturedSince.After(after.Add(-day)) {
+			t.Errorf("expected since 24h before now, got %v", capturedSince)
+		}
+
+		var resp testhelpers.APIResponse[[]model.ClaimPlatformCount]
+		if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+			t.Fatalf("failed to unmarshal response body: %v", err)
+		}
+		if len(resp.Data) != 2 ||
+			resp.Data[0].Platform != "whatsapp" || resp.Data[0].Claims != 9 ||
+			resp.Data[1].Platform != "tiktok" || resp.Data[1].Claims != 4 {
+			t.Errorf("expected 9 whatsapp then 4 tiktok claims, got %+v", resp.Data)
+		}
+	})
+
+	t.Run("Range_ReachesRepo", func(t *testing.T) {
+		cases := []struct {
+			query  string
+			window time.Duration
+		}{
+			{"24h", day},
+			{"7d", 7 * day},
+			{"30d", 30 * day},
+		}
+		for _, tc := range cases {
+			var capturedSince time.Time
+			repo := &mockrepo.NarrativeRepoerMock{
+				CountClaimsByPlatformFunc: func(
+					_ context.Context,
+					since time.Time,
+				) ([]model.ClaimPlatformCount, error) {
+					capturedSince = since
+					return []model.ClaimPlatformCount{}, nil
+				},
+			}
+			app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)
+
+			before := time.Now()
+			req := httptest.NewRequest(http.MethodGet, claimPlatformsPath+"?range="+tc.query, nil)
+			rec := httptest.NewRecorder()
+			app.ServeHTTP(rec, req)
+			after := time.Now()
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("range=%s: expected status %d, got %d", tc.query, http.StatusOK, rec.Code)
+			}
+			if capturedSince.Before(before.Add(-tc.window)) ||
+				capturedSince.After(after.Add(-tc.window)) {
+				t.Errorf("range=%s: expected since %s before now, got %v",
+					tc.query, tc.window, capturedSince)
+			}
+		}
+	})
+
+	t.Run("ValidationFailure_UnsupportedRange", func(t *testing.T) {
+		app := signInAs(t, newNarrativeTestApp(t, &mockrepo.NarrativeRepoerMock{}), model.RoleUser)
+
+		req := httptest.NewRequest(http.MethodGet, claimPlatformsPath+"?range=15d", nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf(
+				"expected status %d, got %d: %s",
+				http.StatusUnprocessableEntity,
+				rec.Code,
+				rec.Body.String(),
+			)
+		}
+	})
+
+	t.Run("RepoInternalError", func(t *testing.T) {
+		repo := &mockrepo.NarrativeRepoerMock{
+			CountClaimsByPlatformFunc: func(
+				context.Context,
+				time.Time,
+			) ([]model.ClaimPlatformCount, error) {
+				return nil, data.ErrInternal
+			},
+		}
+		app := signInAs(t, newNarrativeTestApp(t, repo), model.RoleUser)
+
+		req := httptest.NewRequest(http.MethodGet, claimPlatformsPath, nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Errorf(
+				"expected status %d, got %d: %s",
+				http.StatusInternalServerError,
+				rec.Code,
+				rec.Body.String(),
+			)
+		}
+	})
+
+	t.Run("Unauthenticated", func(t *testing.T) {
+		app := newNarrativeTestApp(t, &mockrepo.NarrativeRepoerMock{})
+
+		req := httptest.NewRequest(http.MethodGet, claimPlatformsPath, nil)
+		rec := httptest.NewRecorder()
+		app.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusUnauthorized {
 			t.Errorf(

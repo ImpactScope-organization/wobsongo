@@ -49,3 +49,17 @@ type UserActivity struct {
 	// Messages is the number of messages users sent.
 	Messages int64 `json:"messages"`
 }
+
+// MessageVolume counts the messages users sent in one window, next to the
+// window right before it.
+type MessageVolume struct {
+	// Current is the number of messages in the selected window.
+	Current int64 `json:"current"`
+
+	// Previous is the number of messages in the window before it.
+	Previous int64 `json:"previous"`
+
+	// Trend is the current window's volume per bucket, oldest first: hourly
+	// for 24h, daily for 7d and 30d.
+	Trend []int64 `json:"trend"`
+}

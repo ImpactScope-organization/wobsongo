@@ -16,9 +16,12 @@ import { ok, type Result } from '#lib/server/result.js';
 import type { OverviewRepo } from '../../services/overview.js';
 import { call, createApiClient, type Schemas } from './client.js';
 import type { ApiOptions } from './index.js';
+import { PLATFORMS, type Platform, type PlatformCount } from '#lib/domain/platform.js';
 
 type ApiNarrative = Schemas['model.Narrative'];
 type ApiUserActivity = Schemas['model.UserActivity'];
+type ApiMessageVolume = Schemas['model.MessageVolume'];
+type ApiPlatformCount = Schemas['model.ClaimPlatformCount'];
 
 // The backend's page-size cap. Overview reads every page of active narratives,
 // so all of its counts describe the same set.
@@ -61,6 +64,27 @@ function toUserQuestions(activity: ApiUserActivity): UserQuestionStats {
 	};
 }
 
+function toMessages(volume: ApiMessageVolume): OverviewSnapshot['messages'] {
+	return {
+		current: volume.current ?? 0,
+		previous: volume.previous ?? 0,
+		trend: volume.trend ?? []
+	};
+}
+
+// Platforms the dashboard has no slice for are counted as "other".
+function toPlatformCounts(items: ApiPlatformCount[]): PlatformCount[] {
+	const totals = new Map<Platform, number>();
+	for (const item of items) {
+		const platform = PLATFORMS.find((value) => value === item.platform) ?? 'other';
+		totals.set(platform, (totals.get(platform) ?? 0) + (item.claims ?? 0));
+	}
+	return PLATFORMS.filter((platform) => (totals.get(platform) ?? 0) > 0).map((platform) => ({
+		platform,
+		count: totals.get(platform) ?? 0
+	}));
+}
+
 function toOutcome(verdict: string | undefined): RatingOutcome {
 	return (verdict && OUTCOME[verdict]) || 'unverified';
 }
@@ -88,6 +112,8 @@ function toNarrativeSummary(narrative: ApiNarrative, verdict: Verdict): Narrativ
 function toSnapshot(
 	page: NarrativePage,
 	userQuestions: UserQuestionStats,
+	messages: OverviewSnapshot['messages'],
+	platformCounts: PlatformCount[],
 	range: TimeRange,
 	engagement: EngagementWindow,
 	now: Date
@@ -118,8 +144,8 @@ function toSnapshot(
 		region: 'Burkina Faso',
 		updatedAt: now,
 
-		// TODO: Other metrics are not available yet.
-		messages: { current: 0, previous: 0, trend: [] },
+		// Same count as the questions of the same window: user messages.
+		messages,
 
 		activeNarratives: {
 			count: page.total_items,
@@ -134,7 +160,7 @@ function toSnapshot(
 		userQuestions,
 
 		anomaly: null,
-		platformCounts: [],
+		platformCounts,
 
 		highHarm: {
 			// Assumption: high-harm narratives without expert verification
@@ -191,24 +217,37 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 		// The backend has no time filter for active narratives.
 		// The selected range only determines what counts as a new narrative.
 		getSnapshot: async (_scope, { range, engagement }) => {
-			const [narratives, activity] = await Promise.all([
+			const [narratives, activity, messages, platforms] = await Promise.all([
 				fetchActiveNarratives(),
 				call(
 					api.GET('/api/v1/conversations/stats', {
-						params: {
-							query: {
-								days: ENGAGEMENT_DAYS[engagement]
-							}
-						}
+						params: { query: { days: ENGAGEMENT_DAYS[engagement] } }
 					}),
 					toUserQuestions
+				),
+				call(api.GET('/api/v1/conversations/volume', { params: { query: { range } } }), toMessages),
+				call(
+					api.GET('/api/v1/claims/platforms', { params: { query: { range } } }),
+					toPlatformCounts
 				)
 			]);
 
 			if (!narratives.ok) return narratives;
 			if (!activity.ok) return activity;
+			if (!messages.ok) return messages;
+			if (!platforms.ok) return platforms;
 
-			return ok(toSnapshot(narratives.data, activity.data, range, engagement, options.clock.now()));
+			return ok(
+				toSnapshot(
+					narratives.data,
+					activity.data,
+					messages.data,
+					platforms.data,
+					range,
+					engagement,
+					options.clock.now()
+				)
+			);
 		}
 	};
 }

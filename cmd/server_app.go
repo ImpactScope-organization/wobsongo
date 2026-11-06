@@ -62,7 +62,7 @@ func buildApp(
 	speechRepo := repo.NewSpeechRepo(riverClientFn, config.TTSConfig.MaxPendingJobs)
 	crawlerRepo := repo.NewCrawlerRepo(queries, pool)
 	keywordRepo := repo.NewKeywordRepo(queries)
-	topicRepo := repo.NewTopicRepo(queries)
+	topicRepo := repo.NewTopicRepo(queries, pool)
 	influencerRepo := repo.NewInfluencerRepo(queries, pool)
 
 	return core.NewApp(

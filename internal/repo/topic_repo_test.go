@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -81,9 +82,13 @@ func TestTopicRepo(t *testing.T) {
 	pool, _ := testhelpers.SetupTestDB(t)
 	defer pool.Close()
 
+	newRepo := func(q *db.Queries) data.TopicRepoer {
+		return repo.NewTopicRepo(q, pool)
+	}
+
 	t.Run("Create_FillsStoredFields", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			topics := repo.NewTopicRepo(q)
+			topics := newRepo(q)
 			name := "zz-" + uuid.NewString()
 			topic := &model.Topic{Name: name, Description: "Desc", IsActive: true}
 
@@ -106,7 +111,7 @@ func TestTopicRepo(t *testing.T) {
 
 	t.Run("Create_Inactive_IsStoredInactive", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			topics := repo.NewTopicRepo(q)
+			topics := newRepo(q)
 			topic := &model.Topic{Name: "zz-" + uuid.NewString(), IsActive: false}
 
 			if err := topics.Create(ctx, topic); err != nil {
@@ -117,14 +122,13 @@ func TestTopicRepo(t *testing.T) {
 			}
 		})
 	})
-
 	t.Run("Create_DuplicateName_Conflicts", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
 			name := "zz-" + uuid.NewString()
 			insertTopic(ctx, t, tx, name, true)
 
 			// Keep this last: a unique violation aborts the transaction.
-			err := repo.NewTopicRepo(q).Create(ctx, &model.Topic{Name: name, IsActive: true})
+			err := newRepo(q).Create(ctx, &model.Topic{Name: name, IsActive: true})
 			if !errors.Is(err, data.ErrConflict) {
 				t.Errorf("expected ErrConflict, got %v", err)
 			}
@@ -133,7 +137,7 @@ func TestTopicRepo(t *testing.T) {
 
 	t.Run("GetByID_NotFound", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			_, err := repo.NewTopicRepo(q).GetByID(ctx, uuid.New())
+			_, err := newRepo(q).GetByID(ctx, uuid.New())
 			if !errors.Is(err, data.ErrNotFound) {
 				t.Errorf("expected ErrNotFound, got %v", err)
 			}
@@ -144,7 +148,7 @@ func TestTopicRepo(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
 			id := insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true)
 			insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true) // another active one
-			topics := repo.NewTopicRepo(q)
+			topics := newRepo(q)
 
 			newName := "zz-" + uuid.NewString()
 			updated := &model.Topic{ID: id, Name: newName, Description: "New", IsActive: false}
@@ -167,7 +171,7 @@ func TestTopicRepo(t *testing.T) {
 
 	t.Run("Update_UnknownID_NotFound", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			err := repo.NewTopicRepo(q).Update(ctx, &model.Topic{
+			err := newRepo(q).Update(ctx, &model.Topic{
 				ID: uuid.New(), Name: "zz-" + uuid.NewString(), IsActive: true,
 			})
 			if !errors.Is(err, data.ErrNotFound) {
@@ -181,7 +185,7 @@ func TestTopicRepo(t *testing.T) {
 			deactivateAllTopics(ctx, t, tx)
 			name := "zz-" + uuid.NewString()
 			id := insertTopic(ctx, t, tx, name, true)
-			topics := repo.NewTopicRepo(q)
+			topics := newRepo(q)
 
 			err := topics.Update(ctx, &model.Topic{ID: id, Name: name, IsActive: false})
 			if !errors.Is(err, data.ErrNotFound) {
@@ -204,8 +208,7 @@ func TestTopicRepo(t *testing.T) {
 			id := insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true)
 
 			newName := "zz-" + uuid.NewString()
-			err := repo.NewTopicRepo(q).Update(ctx,
-				&model.Topic{ID: id, Name: newName, IsActive: true})
+			err := newRepo(q).Update(ctx, &model.Topic{ID: id, Name: newName, IsActive: true})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -218,7 +221,7 @@ func TestTopicRepo(t *testing.T) {
 			insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true)
 			id := insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), false)
 
-			err := repo.NewTopicRepo(q).Update(ctx, &model.Topic{
+			err := newRepo(q).Update(ctx, &model.Topic{
 				ID: id, Name: "zz-" + uuid.NewString(), IsActive: false,
 			})
 			if err != nil {
@@ -234,8 +237,7 @@ func TestTopicRepo(t *testing.T) {
 			id := insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true)
 
 			// Keep this last: a unique violation aborts the transaction.
-			err := repo.NewTopicRepo(q).Update(ctx,
-				&model.Topic{ID: id, Name: taken, IsActive: true})
+			err := newRepo(q).Update(ctx, &model.Topic{ID: id, Name: taken, IsActive: true})
 			if !errors.Is(err, data.ErrConflict) {
 				t.Errorf("expected ErrConflict, got %v", err)
 			}
@@ -248,7 +250,7 @@ func TestTopicRepo(t *testing.T) {
 			insertTopic(ctx, t, tx, token+"-b", true)
 			insertTopic(ctx, t, tx, token+"-a", true)
 			insertTopic(ctx, t, tx, token+"-c", false)
-			topics := repo.NewTopicRepo(q)
+			topics := newRepo(q)
 
 			all, err := topics.Paginate(ctx, &dto.PaginationDTO{Page: 1, PerPage: 10},
 				data.AdminListFilter{Search: token})
@@ -304,7 +306,7 @@ func TestTopicRepo(t *testing.T) {
 
 	t.Run("Paginate_NoMatch_ReturnsEmptyItems", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
-			got, err := repo.NewTopicRepo(q).Paginate(ctx,
+			got, err := newRepo(q).Paginate(ctx,
 				&dto.PaginationDTO{Page: 1, PerPage: 10},
 				data.AdminListFilter{Search: "zz-" + uuid.NewString()})
 			if err != nil {
@@ -312,6 +314,33 @@ func TestTopicRepo(t *testing.T) {
 			}
 			if got.Items == nil || len(got.Items) != 0 || got.TotalItems != 0 {
 				t.Errorf("expected an empty, non-nil page, got %+v", got)
+			}
+		})
+	})
+
+	t.Run("Create_DuplicateNameIgnoringCase_Conflicts", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			name := "zz-Case-" + uuid.NewString()
+			insertTopic(ctx, t, tx, name, true)
+
+			err := newRepo(q).Create(ctx,
+				&model.Topic{Name: strings.ToUpper(name), IsActive: true})
+			if !errors.Is(err, data.ErrConflict) {
+				t.Errorf("expected ErrConflict, got %v", err)
+			}
+		})
+	})
+
+	t.Run("Update_RenameToNameIgnoringCase_Conflicts", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			taken := "zz-Case-" + uuid.NewString()
+			insertTopic(ctx, t, tx, taken, true)
+			id := insertTopic(ctx, t, tx, "zz-"+uuid.NewString(), true)
+
+			err := newRepo(q).Update(ctx,
+				&model.Topic{ID: id, Name: strings.ToUpper(taken), IsActive: true})
+			if !errors.Is(err, data.ErrConflict) {
+				t.Errorf("expected ErrConflict, got %v", err)
 			}
 		})
 	})

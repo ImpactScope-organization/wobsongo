@@ -48,7 +48,7 @@ func (s *AdminTopicService) Create(
 	req *dto.CreateTopicRequest,
 ) (*model.Topic, error) {
 	topic := &model.Topic{
-		Name:        strings.TrimSpace(req.Name),
+		Name:        normalizeTopicName(req.Name),
 		Description: strings.TrimSpace(req.Description),
 		IsActive:    req.IsActive == nil || *req.IsActive,
 	}
@@ -67,12 +67,17 @@ func (s *AdminTopicService) Update(
 ) (*model.Topic, error) {
 	topic := &model.Topic{
 		ID:          id,
-		Name:        strings.TrimSpace(req.Name),
+		Name:        normalizeTopicName(req.Name),
 		Description: strings.TrimSpace(req.Description),
 		IsActive:    *req.IsActive,
 	}
 
-	err := s.repo.Update(ctx, topic)
+	err := s.repo.WithTx(ctx, func(tx data.TopicRepoer) error {
+		if err := tx.LockActiveGuard(ctx); err != nil {
+			return err
+		}
+		return tx.Update(ctx, topic)
+	})
 	if err != nil {
 		if errors.Is(err, data.ErrNotFound) {
 			if _, getErr := s.repo.GetByID(ctx, id); getErr != nil {
@@ -84,4 +89,10 @@ func (s *AdminTopicService) Update(
 	}
 
 	return topic, nil
+}
+
+// normalizeTopicName trims the name and collapses inner spaces, so
+// "Public  Health" and "Public Health" are the same topic.
+func normalizeTopicName(name string) string {
+	return strings.Join(strings.Fields(name), " ")
 }

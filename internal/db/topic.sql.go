@@ -117,6 +117,15 @@ func (q *Queries) ListActiveTopics(ctx context.Context) ([]Topic, error) {
 	return items, nil
 }
 
+const lockActiveTopicGuard = `-- name: LockActiveTopicGuard :exec
+SELECT pg_advisory_xact_lock(hashtext('topics_active_guard'))
+`
+
+func (q *Queries) LockActiveTopicGuard(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, lockActiveTopicGuard)
+	return err
+}
+
 const paginateTopics = `-- name: PaginateTopics :many
 SELECT id, name, description, is_active, created_at, updated_at FROM topics
 WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
@@ -212,7 +221,7 @@ INSERT INTO topics (
 ) VALUES (
     $1, $2, $3
 )
-ON CONFLICT (name) DO UPDATE SET
+ON CONFLICT (lower(name)) DO UPDATE SET
     description = EXCLUDED.description,
     is_active = EXCLUDED.is_active,
     updated_at = NOW()

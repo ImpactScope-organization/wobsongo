@@ -14,6 +14,18 @@ import (
 
 func boolPtr(b bool) *bool { return &b }
 
+// withTopicTx makes WithTx run fn on the mock itself, like a transaction that
+// commits, and lets the lock succeed unless a test overrides it.
+func withTopicTx(repo *mockrepo.TopicRepoerMock) *mockrepo.TopicRepoerMock {
+	repo.WithTxFunc = func(_ context.Context, fn func(data.TopicRepoer) error) error {
+		return fn(repo)
+	}
+	if repo.LockActiveGuardFunc == nil {
+		repo.LockActiveGuardFunc = func(context.Context) error { return nil }
+	}
+	return repo
+}
+
 func TestAdminTopicService_List(t *testing.T) {
 	t.Run("PassesPagingAndFilterToRepo", func(t *testing.T) {
 		page := &dto.PaginationResults[model.Topic]{Page: 2, PerPage: 5, TotalItems: 7}
@@ -167,12 +179,12 @@ func TestAdminTopicService_Update(t *testing.T) {
 
 	t.Run("Success_TrimsAndKeepsID", func(t *testing.T) {
 		var saved *model.Topic
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(_ context.Context, topic *model.Topic) error {
 				saved = topic
 				return nil
 			},
-		}
+		})
 
 		got, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
 		if err != nil {
@@ -191,12 +203,12 @@ func TestAdminTopicService_Update(t *testing.T) {
 	})
 
 	t.Run("NotFoundAndTopicExists_IsLastActiveTopic", func(t *testing.T) {
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(context.Context, *model.Topic) error { return data.ErrNotFound },
 			GetByIDFunc: func(context.Context, uuid.UUID) (*model.Topic, error) {
 				return &model.Topic{ID: id, IsActive: true}, nil
 			},
-		}
+		})
 
 		_, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
 		if !errors.Is(err, ErrLastActiveTopic) {
@@ -208,12 +220,12 @@ func TestAdminTopicService_Update(t *testing.T) {
 	})
 
 	t.Run("NotFoundAndTopicMissing_IsNotFound", func(t *testing.T) {
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(context.Context, *model.Topic) error { return data.ErrNotFound },
 			GetByIDFunc: func(context.Context, uuid.UUID) (*model.Topic, error) {
 				return nil, data.ErrNotFound
 			},
-		}
+		})
 
 		_, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
 		if !errors.Is(err, data.ErrNotFound) || errors.Is(err, ErrLastActiveTopic) {
@@ -226,9 +238,9 @@ func TestAdminTopicService_Update(t *testing.T) {
 		"Internal": data.ErrInternal,
 	} {
 		t.Run("PassesThrough_"+name, func(t *testing.T) {
-			repo := &mockrepo.TopicRepoerMock{
+			repo := withTopicTx(&mockrepo.TopicRepoerMock{
 				UpdateFunc: func(context.Context, *model.Topic) error { return repoErr },
-			}
+			})
 
 			_, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
 			if !errors.Is(err, repoErr) {
@@ -239,4 +251,58 @@ func TestAdminTopicService_Update(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("LocksBeforeUpdate", func(t *testing.T) {
+		var order []string
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
+			LockActiveGuardFunc: func(context.Context) error {
+				order = append(order, "lock")
+				return nil
+			},
+			UpdateFunc: func(context.Context, *model.Topic) error {
+				order = append(order, "update")
+				return nil
+			},
+		})
+
+		if _, err := NewAdminTopicService(repo).Update(t.Context(), id, req); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(order) != 2 || order[0] != "lock" || order[1] != "update" {
+			t.Errorf("expected lock before update, got %v", order)
+		}
+	})
+
+	t.Run("LockError_SkipsUpdate", func(t *testing.T) {
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
+			LockActiveGuardFunc: func(context.Context) error { return data.ErrInternal },
+		})
+
+		_, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
+		if !errors.Is(err, data.ErrInternal) {
+			t.Errorf("expected data.ErrInternal, got %v", err)
+		}
+		if n := len(repo.UpdateCalls()); n != 0 {
+			t.Errorf("expected no update after a failed lock, got %d", n)
+		}
+		if n := len(repo.GetByIDCalls()); n != 0 {
+			t.Errorf("expected no lookup, got %d", n)
+		}
+	})
+
+	t.Run("WithTxError_PassesThrough", func(t *testing.T) {
+		repo := &mockrepo.TopicRepoerMock{
+			WithTxFunc: func(context.Context, func(data.TopicRepoer) error) error {
+				return data.ErrInternal
+			},
+		}
+
+		_, err := NewAdminTopicService(repo).Update(t.Context(), id, req)
+		if !errors.Is(err, data.ErrInternal) {
+			t.Errorf("expected data.ErrInternal, got %v", err)
+		}
+		if n := len(repo.UpdateCalls()); n != 0 {
+			t.Errorf("expected no update, got %d", n)
+		}
+	})
 }

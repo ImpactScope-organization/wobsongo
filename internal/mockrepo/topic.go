@@ -28,11 +28,17 @@ var _ data.TopicRepoer = &TopicRepoerMock{}
 //			GetByIDFunc: func(ctx context.Context, id uuid.UUID) (*model.Topic, error) {
 //				panic("mock out the GetByID method")
 //			},
+//			LockActiveGuardFunc: func(ctx context.Context) error {
+//				panic("mock out the LockActiveGuard method")
+//			},
 //			PaginateFunc: func(ctx context.Context, q data.SupportsPagination, filter data.AdminListFilter) (*dto.PaginationResults[model.Topic], error) {
 //				panic("mock out the Paginate method")
 //			},
 //			UpdateFunc: func(ctx context.Context, topic *model.Topic) error {
 //				panic("mock out the Update method")
+//			},
+//			WithTxFunc: func(ctx context.Context, fn func(data.TopicRepoer) error) error {
+//				panic("mock out the WithTx method")
 //			},
 //		}
 //
@@ -47,11 +53,17 @@ type TopicRepoerMock struct {
 	// GetByIDFunc mocks the GetByID method.
 	GetByIDFunc func(ctx context.Context, id uuid.UUID) (*model.Topic, error)
 
+	// LockActiveGuardFunc mocks the LockActiveGuard method.
+	LockActiveGuardFunc func(ctx context.Context) error
+
 	// PaginateFunc mocks the Paginate method.
 	PaginateFunc func(ctx context.Context, q data.SupportsPagination, filter data.AdminListFilter) (*dto.PaginationResults[model.Topic], error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, topic *model.Topic) error
+
+	// WithTxFunc mocks the WithTx method.
+	WithTxFunc func(ctx context.Context, fn func(data.TopicRepoer) error) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -69,6 +81,11 @@ type TopicRepoerMock struct {
 			// ID is the id argument value.
 			ID uuid.UUID
 		}
+		// LockActiveGuard holds details about calls to the LockActiveGuard method.
+		LockActiveGuard []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// Paginate holds details about calls to the Paginate method.
 		Paginate []struct {
 			// Ctx is the ctx argument value.
@@ -85,11 +102,20 @@ type TopicRepoerMock struct {
 			// Topic is the topic argument value.
 			Topic *model.Topic
 		}
+		// WithTx holds details about calls to the WithTx method.
+		WithTx []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Fn is the fn argument value.
+			Fn func(data.TopicRepoer) error
+		}
 	}
-	lockCreate   sync.RWMutex
-	lockGetByID  sync.RWMutex
-	lockPaginate sync.RWMutex
-	lockUpdate   sync.RWMutex
+	lockCreate          sync.RWMutex
+	lockGetByID         sync.RWMutex
+	lockLockActiveGuard sync.RWMutex
+	lockPaginate        sync.RWMutex
+	lockUpdate          sync.RWMutex
+	lockWithTx          sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -161,6 +187,38 @@ func (mock *TopicRepoerMock) GetByIDCalls() []struct {
 	mock.lockGetByID.RLock()
 	calls = mock.calls.GetByID
 	mock.lockGetByID.RUnlock()
+	return calls
+}
+
+// LockActiveGuard calls LockActiveGuardFunc.
+func (mock *TopicRepoerMock) LockActiveGuard(ctx context.Context) error {
+	if mock.LockActiveGuardFunc == nil {
+		panic("TopicRepoerMock.LockActiveGuardFunc: method is nil but TopicRepoer.LockActiveGuard was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockLockActiveGuard.Lock()
+	mock.calls.LockActiveGuard = append(mock.calls.LockActiveGuard, callInfo)
+	mock.lockLockActiveGuard.Unlock()
+	return mock.LockActiveGuardFunc(ctx)
+}
+
+// LockActiveGuardCalls gets all the calls that were made to LockActiveGuard.
+// Check the length with:
+//
+//	len(mockedTopicRepoer.LockActiveGuardCalls())
+func (mock *TopicRepoerMock) LockActiveGuardCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockLockActiveGuard.RLock()
+	calls = mock.calls.LockActiveGuard
+	mock.lockLockActiveGuard.RUnlock()
 	return calls
 }
 
@@ -237,5 +295,41 @@ func (mock *TopicRepoerMock) UpdateCalls() []struct {
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update
 	mock.lockUpdate.RUnlock()
+	return calls
+}
+
+// WithTx calls WithTxFunc.
+func (mock *TopicRepoerMock) WithTx(ctx context.Context, fn func(data.TopicRepoer) error) error {
+	if mock.WithTxFunc == nil {
+		panic("TopicRepoerMock.WithTxFunc: method is nil but TopicRepoer.WithTx was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Fn  func(data.TopicRepoer) error
+	}{
+		Ctx: ctx,
+		Fn:  fn,
+	}
+	mock.lockWithTx.Lock()
+	mock.calls.WithTx = append(mock.calls.WithTx, callInfo)
+	mock.lockWithTx.Unlock()
+	return mock.WithTxFunc(ctx, fn)
+}
+
+// WithTxCalls gets all the calls that were made to WithTx.
+// Check the length with:
+//
+//	len(mockedTopicRepoer.WithTxCalls())
+func (mock *TopicRepoerMock) WithTxCalls() []struct {
+	Ctx context.Context
+	Fn  func(data.TopicRepoer) error
+} {
+	var calls []struct {
+		Ctx context.Context
+		Fn  func(data.TopicRepoer) error
+	}
+	mock.lockWithTx.RLock()
+	calls = mock.calls.WithTx
+	mock.lockWithTx.RUnlock()
 	return calls
 }

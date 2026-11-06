@@ -50,6 +50,8 @@ type InfluencerListFilter struct {
 // TopicRepoer defines the admin operations on topics. Topics are never
 // deleted because claims and narratives reference them.
 type TopicRepoer interface {
+	TxAware[TopicRepoer]
+
 	Paginate(
 		ctx context.Context,
 		q SupportsPagination,
@@ -67,4 +69,8 @@ type TopicRepoer interface {
 	// or when this would deactivate the last active topic, and ErrConflict
 	// when the name is taken.
 	Update(ctx context.Context, topic *model.Topic) error
+
+	// LockActiveGuard serializes updates that may deactivate a topic.
+	// It must be called inside WithTx.
+	LockActiveGuard(ctx context.Context) error
 }

@@ -97,9 +97,22 @@ func topicFixture(id uuid.UUID) *model.Topic {
 	}
 }
 
+// withTopicTx makes WithTx run fn on the mock itself, like a transaction that
+// commits, and lets the lock succeed unless a test overrides it.
+func withTopicTx(repo *mockrepo.TopicRepoerMock) *mockrepo.TopicRepoerMock {
+	repo.WithTxFunc = func(_ context.Context, fn func(data.TopicRepoer) error) error {
+		return fn(repo)
+	}
+	if repo.LockActiveGuardFunc == nil {
+		repo.LockActiveGuardFunc = func(context.Context) error { return nil }
+	}
+	return repo
+}
+
 func topicRepoCallCount(repo *mockrepo.TopicRepoerMock) int {
 	return len(repo.PaginateCalls()) + len(repo.GetByIDCalls()) +
-		len(repo.CreateCalls()) + len(repo.UpdateCalls())
+		len(repo.CreateCalls()) + len(repo.UpdateCalls()) +
+		len(repo.WithTxCalls()) + len(repo.LockActiveGuardCalls())
 }
 
 func TestAdminTopicRoutes_Authorization(t *testing.T) {
@@ -412,12 +425,12 @@ func TestUpdateTopicHandler(t *testing.T) {
 	t.Run("Success_ReplacesFields", func(t *testing.T) {
 		id := uuid.New()
 		var saved *model.Topic
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(_ context.Context, topic *model.Topic) error {
 				saved = topic
 				return nil
 			},
-		}
+		})
 		app := newAdminTopicApp(t, repo)
 
 		rec := serveAdminReq(app, http.MethodPut, adminTopicsPath+"/"+id.String(), admin,
@@ -434,12 +447,12 @@ func TestUpdateTopicHandler(t *testing.T) {
 	})
 
 	t.Run("LastActiveTopic_Conflict", func(t *testing.T) {
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(context.Context, *model.Topic) error { return data.ErrNotFound },
 			GetByIDFunc: func(_ context.Context, id uuid.UUID) (*model.Topic, error) {
 				return topicFixture(id), nil
 			},
-		}
+		})
 		app := newAdminTopicApp(t, repo)
 
 		rec := serveAdminReq(app, http.MethodPut, adminTopicsPath+"/"+uuid.NewString(), admin,
@@ -452,12 +465,12 @@ func TestUpdateTopicHandler(t *testing.T) {
 	})
 
 	t.Run("UnknownTopic_NotFound", func(t *testing.T) {
-		repo := &mockrepo.TopicRepoerMock{
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
 			UpdateFunc: func(context.Context, *model.Topic) error { return data.ErrNotFound },
 			GetByIDFunc: func(context.Context, uuid.UUID) (*model.Topic, error) {
 				return nil, data.ErrNotFound
 			},
-		}
+		})
 		app := newAdminTopicApp(t, repo)
 
 		rec := serveAdminReq(app, http.MethodPut, adminTopicsPath+"/"+uuid.NewString(), admin,
@@ -512,9 +525,9 @@ func TestUpdateTopicHandler(t *testing.T) {
 	for _, name := range []string{"Conflict", "Internal", "Unmapped"} {
 		tt := adminRepoErrors[name]
 		t.Run("RepoError_"+name, func(t *testing.T) {
-			repo := &mockrepo.TopicRepoerMock{
+			repo := withTopicTx(&mockrepo.TopicRepoerMock{
 				UpdateFunc: func(context.Context, *model.Topic) error { return tt.err },
-			}
+			})
 			app := newAdminTopicApp(t, repo)
 
 			rec := serveAdminReq(app, http.MethodPut, adminTopicsPath+"/"+uuid.NewString(),
@@ -522,4 +535,21 @@ func TestUpdateTopicHandler(t *testing.T) {
 			expectAdminStatus(t, rec, tt.want)
 		})
 	}
+
+	t.Run("LockError_Internal", func(t *testing.T) {
+		repo := withTopicTx(&mockrepo.TopicRepoerMock{
+			LockActiveGuardFunc: func(context.Context) error {
+				return fmt.Errorf("lock: %w", data.ErrInternal)
+			},
+		})
+		app := newAdminTopicApp(t, repo)
+
+		rec := serveAdminReq(app, http.MethodPut, adminTopicsPath+"/"+uuid.NewString(), admin,
+			marshalAdminBody(t, validBody))
+		expectAdminStatus(t, rec, http.StatusInternalServerError)
+
+		if n := len(repo.UpdateCalls()); n != 0 {
+			t.Errorf("expected no update after a failed lock, got %d", n)
+		}
+	})
 }

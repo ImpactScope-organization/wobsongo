@@ -4,7 +4,7 @@ INSERT INTO topics (
 ) VALUES (
     $1, $2, $3
 )
-ON CONFLICT (name) DO UPDATE SET
+ON CONFLICT (lower(name)) DO UPDATE SET
     description = EXCLUDED.description,
     is_active = EXCLUDED.is_active,
     updated_at = NOW()
@@ -33,6 +33,9 @@ SELECT count(*) FROM topics WHERE is_active;
 
 -- name: GetTopicByID :one
 SELECT * FROM topics WHERE id = $1;
+
+-- name: LockActiveTopicGuard :exec
+SELECT pg_advisory_xact_lock(hashtext('topics_active_guard'));
 
 -- name: CreateTopic :one
 INSERT INTO topics (name, description, is_active)

@@ -9,15 +9,43 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type topicRepo struct {
-	q *db.Queries
+	q    *db.Queries
+	pool *pgxpool.Pool
+	tx   pgx.Tx
 }
 
-// NewTopicRepo creates the admin repository of topics.
-func NewTopicRepo(q *db.Queries) data.TopicRepoer {
-	return &topicRepo{q: q}
+func NewTopicRepo(q *db.Queries, pool *pgxpool.Pool) data.TopicRepoer {
+	return &topicRepo{q: q, pool: pool}
+}
+
+func (r *topicRepo) WithTx(ctx context.Context, fn func(data.TopicRepoer) error) error {
+	if r.tx != nil {
+		return fn(r)
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	repoWithTx := &topicRepo{q: r.q.WithTx(tx), pool: r.pool, tx: tx}
+	if err := fn(repoWithTx); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (r *topicRepo) LockActiveGuard(ctx context.Context) error {
+	if err := r.q.LockActiveTopicGuard(ctx); err != nil {
+		return fmt.Errorf("failed to lock topics: %w", mapPostgresError(err))
+	}
+	return nil
 }
 
 // Paginate returns a filtered page of topics.

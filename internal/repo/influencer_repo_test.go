@@ -281,4 +281,37 @@ func TestInfluencerAdminRepo(t *testing.T) {
 			}
 		})
 	})
+
+	t.Run("Upsert_SameUsernameIgnoringCase_UpdatesExistingRow", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			username := "zzUp" + strings.ReplaceAll(uuid.NewString()[:6], "-", "")
+			id := insertAdminInfluencer(ctx, t, tx, username, "seed", true, 0)
+
+			m := &model.Influencer{
+				Platform:   "tiktok",
+				Username:   strings.ToLower(username),
+				ProfileURL: "https://www.tiktok.com/@" + strings.ToLower(username),
+				Nickname:   "Updated",
+				Source:     model.InfluencerSourceDiscovered,
+			}
+			if err := newRepo(q).UpsertInfluencer(ctx, m); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if m.ID != id {
+				t.Errorf("expected the existing row %v to be updated, got %v", id, m.ID)
+			}
+
+			var count int
+			err := tx.QueryRow(ctx,
+				`select count(*) from influencers
+			 where platform = 'tiktok' and lower(username) = lower($1)`, username,
+			).Scan(&count)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if count != 1 {
+				t.Errorf("expected one row, got %d", count)
+			}
+		})
+	})
 }

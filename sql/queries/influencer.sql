@@ -6,7 +6,7 @@ INSERT INTO influencers (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
-ON CONFLICT (platform, username) DO UPDATE SET
+ON CONFLICT (platform, lower(username)) DO UPDATE SET
     profile_url = EXCLUDED.profile_url,
     nickname = EXCLUDED.nickname,
     bio = EXCLUDED.bio,

@@ -138,6 +138,39 @@ func (e *narrativeTestEnv) newClaimFrom(
 	}
 }
 
+// newMessage stores a user message of jid and returns its id.
+func (e *narrativeTestEnv) newMessage(t *testing.T, jid string) uuid.UUID {
+	t.Helper()
+
+	row, err := e.q.InsertConversationMessage(e.ctx, db.InsertConversationMessageParams{
+		Jid:     jid,
+		Role:    string(model.ConversationRoleUser),
+		Content: "hello",
+	})
+	if err != nil {
+		t.Fatalf("failed to create message: %v", err)
+	}
+	return row.ID
+}
+
+// newClaimOfMessage stores a claim with the given text, from the given
+// platform and message. A nil messageID stores it without a message.
+func (e *narrativeTestEnv) newClaimOfMessage(
+	t *testing.T,
+	topicID uuid.UUID,
+	platform, text string,
+	messageID *uuid.UUID,
+) {
+	t.Helper()
+
+	claim := newNarrativeTestClaim(topicID, text, time.Now().Add(-time.Minute))
+	claim.Platform = platform
+	claim.MessageID = messageID
+	if _, err := e.repo.CreateClaim(e.ctx, claim); err != nil {
+		t.Fatalf("failed to create claim: %v", err)
+	}
+}
+
 // claimsFrom returns how many claims counts holds for platform, and where.
 func claimsFrom(counts []model.ClaimPlatformCount, platform string) (int64, int) {
 	for i, c := range counts {
@@ -917,6 +950,86 @@ func TestNarrativeRepo(t *testing.T) {
 		// The API must send [] rather than null.
 		if counts == nil || len(counts) != 0 {
 			t.Errorf("expected an empty, non-nil slice, got %#v", counts)
+		}
+	})
+
+
+	t.Run("CountClaimsByPlatform_SameUserSameClaimCountsOnce", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		platform := "t-" + uuid.NewString()[:8]
+
+		// One user sends the same TikTok link twice: two messages, one claim text.
+		jid := newJID()
+		first, second := env.newMessage(t, jid), env.newMessage(t, jid)
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", &first)
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", &second)
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if claims, _ := claimsFrom(counts, platform); claims != 1 {
+			t.Errorf("expected 1 claim, got %d", claims)
+		}
+	})
+
+	t.Run("CountClaimsByPlatform_DifferentUsersSameClaimCountEach", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		platform := "t-" + uuid.NewString()[:8]
+
+		a, b := env.newMessage(t, newJID()), env.newMessage(t, newJID())
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", &a)
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", &b)
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if claims, _ := claimsFrom(counts, platform); claims != 2 {
+			t.Errorf("expected 2 claims, got %d", claims)
+		}
+	})
+
+	t.Run("CountClaimsByPlatform_SameUserDifferentClaimsCountEach", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		platform := "t-" + uuid.NewString()[:8]
+
+		// One video can hold several claims: they all count.
+		message := env.newMessage(t, newJID())
+		env.newClaimOfMessage(t, topic.ID, platform, "first claim", &message)
+		env.newClaimOfMessage(t, topic.ID, platform, "second claim", &message)
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if claims, _ := claimsFrom(counts, platform); claims != 2 {
+			t.Errorf("expected 2 claims, got %d", claims)
+		}
+	})
+
+	t.Run("CountClaimsByPlatform_ClaimWithoutMessageCountsOnItsOwn", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		platform := "t-" + uuid.NewString()[:8]
+
+		// Without a message the sender is unknown, so claims are never merged.
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", nil)
+		env.newClaimOfMessage(t, topic.ID, platform, "same claim", nil)
+
+		counts, err := env.repo.CountClaimsByPlatform(env.ctx, time.Now().Add(-time.Hour))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if claims, _ := claimsFrom(counts, platform); claims != 2 {
+			t.Errorf("expected 2 claims, got %d", claims)
 		}
 	})
 }

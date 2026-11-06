@@ -56,3 +56,41 @@ func (h *ConversationHandler) statsHandler(c echo.Context) error {
 
 	return writeJSON(c, http.StatusOK, activity)
 }
+
+// @Summary		Message volume
+// @Description	Counts the messages users sent in the last 24 hours, 7 or 30 days, next to the window before it, with the volume per hour (24h) or per day (7d, 30d), oldest first.
+// @Tags			conversations
+// @Produce		json
+// @Param			range	query	string	false	"Reporting window, 24h when left out"	Enums(24h, 7d, 30d)
+// @Success		200	{object}	model.APIResponse{data=model.MessageVolume}
+// @Failure		400	{object}	model.APIResponse{error=string}
+// @Failure		401	{object}	model.APIResponse{error=string}
+// @Failure		422	{object}	model.APIResponse{error=string}
+// @Failure		500	{object}	model.APIResponse{error=string}
+// @Security	BearerAuth
+// @Router			/api/v1/conversations/volume [get]
+func (h *ConversationHandler) volumeHandler(c echo.Context) error {
+	query := new(dto.TimeRangeDTO)
+	if err := c.Bind(query); err != nil {
+		return &model.APIError{
+			Code:     http.StatusBadRequest,
+			Internal: err,
+			Public:   msgInvalidQueryParams,
+		}
+	}
+	if err := c.Validate(query); err != nil {
+		return &model.APIError{
+			Code:     http.StatusUnprocessableEntity,
+			Internal: err,
+			Public:   msgValidationFailed,
+		}
+	}
+
+	volume, err := h.service.MessageVolume(c.Request().Context(), query)
+	if err != nil {
+		status, message := mapDataErrorToHTTP(err)
+		return &model.APIError{Code: status, Internal: err, Public: message}
+	}
+
+	return writeJSON(c, http.StatusOK, volume)
+}

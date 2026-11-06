@@ -400,7 +400,11 @@ func (s *AgentService) runVideoContinuation(
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.SystemNote,
 		Length: string(s.loadBotSettings(ctx, job.JID).Length),
-		Source: claimSource(originalMessageID, string(model.ClaimFormatVideo)),
+		Source: dto.NewClaimSource(
+			model.ClaimPlatformTikTok,
+			originalMessageID,
+			string(model.ClaimFormatVideo),
+		),
 	})
 	if err != nil {
 		return "", fmt.Errorf("claim check failed: %w", err)

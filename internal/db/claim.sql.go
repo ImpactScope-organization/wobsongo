@@ -13,6 +13,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countClaimsByPlatform = `-- name: CountClaimsByPlatform :many
+SELECT
+    c.platform,
+    COUNT(DISTINCT COALESCE(m.jid, c.id::text) || '|' || c.text)::bigint AS claims
+FROM claims c
+LEFT JOIN conversation_messages m ON m.id = c.message_id
+WHERE c.occurred_at >= $1::timestamptz
+GROUP BY c.platform
+ORDER BY claims DESC, c.platform
+`
+
+type CountClaimsByPlatformRow struct {
+	Platform string
+	Claims   int64
+}
+
+func (q *Queries) CountClaimsByPlatform(ctx context.Context, since time.Time) ([]CountClaimsByPlatformRow, error) {
+	rows, err := q.db.Query(ctx, countClaimsByPlatform, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountClaimsByPlatformRow
+	for rows.Next() {
+		var i CountClaimsByPlatformRow
+		if err := rows.Scan(&i.Platform, &i.Claims); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getClaim = `-- name: GetClaim :one
 SELECT id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at, video_id FROM claims WHERE id = $1
 `

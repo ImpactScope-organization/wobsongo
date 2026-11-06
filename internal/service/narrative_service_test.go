@@ -765,6 +765,106 @@ func TestNarrativeService_GetByID(t *testing.T) {
 	})
 }
 
+func TestNarrativeService_ClaimPlatformCounts(t *testing.T) {
+	const day = 24 * time.Hour
+
+	t.Run("ReturnsRepoCounts", func(t *testing.T) {
+		want := []model.ClaimPlatformCount{
+			{Platform: model.ClaimPlatformWhatsApp, Claims: 7},
+			{Platform: model.ClaimPlatformTikTok, Claims: 2},
+		}
+		repo := newNarrativeRepoMock()
+		repo.CountClaimsByPlatformFunc = func(
+			context.Context,
+			time.Time,
+		) ([]model.ClaimPlatformCount, error) {
+			return want, nil
+		}
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
+
+		got, err := s.ClaimPlatformCounts(t.Context(), &dto.TimeRangeDTO{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+			t.Errorf("expected %+v, got %+v", want, got)
+		}
+	})
+
+	t.Run("PassesWindowStartToRepo", func(t *testing.T) {
+		cases := []struct {
+			name   string
+			r      dto.TimeRange
+			window time.Duration
+		}{
+			{"24h", dto.TimeRange24h, day},
+			{"7d", dto.TimeRange7d, 7 * day},
+			{"30d", dto.TimeRange30d, 30 * day},
+			{"LeftOutIs24h", "", day},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				repo := newNarrativeRepoMock()
+				repo.CountClaimsByPlatformFunc = func(
+					context.Context,
+					time.Time,
+				) ([]model.ClaimPlatformCount, error) {
+					return nil, nil
+				}
+				s := NewNarrativeService(
+					repo,
+					&narrativeStubEmbedder{},
+					&stubStatementGenerator{},
+					testMatchThreshold,
+				)
+
+				before := time.Now()
+				_, err := s.ClaimPlatformCounts(t.Context(), &dto.TimeRangeDTO{Range: tc.r})
+				after := time.Now()
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				calls := repo.CountClaimsByPlatformCalls()
+				if len(calls) != 1 {
+					t.Fatalf("expected 1 repo call, got %d", len(calls))
+				}
+				since := calls[0].Since
+				if since.Before(before.Add(-tc.window)) || since.After(after.Add(-tc.window)) {
+					t.Errorf("expected since one %s before now, got %v", tc.window, since)
+				}
+			})
+		}
+	})
+
+	t.Run("RepoError", func(t *testing.T) {
+		repo := newNarrativeRepoMock()
+		repo.CountClaimsByPlatformFunc = func(
+			context.Context,
+			time.Time,
+		) ([]model.ClaimPlatformCount, error) {
+			return nil, data.ErrInternal
+		}
+		s := NewNarrativeService(
+			repo,
+			&narrativeStubEmbedder{},
+			&stubStatementGenerator{},
+			testMatchThreshold,
+		)
+
+		_, err := s.ClaimPlatformCounts(t.Context(), &dto.TimeRangeDTO{})
+		if !errors.Is(err, data.ErrInternal) {
+			t.Fatalf("expected %v, got %v", data.ErrInternal, err)
+		}
+	})
+}
+
 func TestEstimateHarm(t *testing.T) {
 	cases := []struct {
 		name     string

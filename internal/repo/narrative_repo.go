@@ -400,3 +400,24 @@ func toModelNarrative(row *db.Narrative) *model.Narrative {
 	}
 	return n
 }
+
+// CountClaimsByPlatform counts claims since the given time by platform.
+func (r *narrativeRepo) CountClaimsByPlatform(
+	ctx context.Context,
+	since time.Time,
+) ([]model.ClaimPlatformCount, error) {
+	rows, err := r.q.CountClaimsByPlatform(ctx, since)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count claims by platform: %w", mapPostgresError(err))
+	}
+
+	// Never nil, so the API sends [] rather than null.
+	counts := make([]model.ClaimPlatformCount, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, model.ClaimPlatformCount{
+			Platform: row.Platform,
+			Claims:   row.Claims,
+		})
+	}
+	return counts, nil
+}

@@ -3164,6 +3164,131 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/claims/platforms": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Counts the claims of the last 24 hours, 7 or 30 days by where they came from: \"whatsapp\" for questions typed to the bot, \"tiktok\" for TikTok links sent to it.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "claims"
+                ],
+                "summary": "Claims by platform",
+                "parameters": [
+                    {
+                        "enum": [
+                            "24h",
+                            "7d",
+                            "30d"
+                        ],
+                        "type": "string",
+                        "description": "Reporting window, 24h when left out",
+                        "name": "range",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/model.ClaimPlatformCount"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/conversations/stats": {
             "get": {
                 "security": [
@@ -3205,6 +3330,128 @@ const docTemplate = `{
                                     "properties": {
                                         "data": {
                                             "$ref": "#/definitions/model.UserActivity"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/conversations/volume": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Counts the messages users sent in the last 24 hours, 7 or 30 days, next to the window before it, with the volume per hour (24h) or per day (7d, 30d), oldest first.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "conversations"
+                ],
+                "summary": "Message volume",
+                "parameters": [
+                    {
+                        "enum": [
+                            "24h",
+                            "7d",
+                            "30d"
+                        ],
+                        "type": "string",
+                        "description": "Reporting window, 24h when left out",
+                        "name": "range",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/model.MessageVolume"
                                         }
                                     }
                                 }
@@ -5817,6 +6064,19 @@ const docTemplate = `{
                 }
             }
         },
+        "model.ClaimPlatformCount": {
+            "type": "object",
+            "properties": {
+                "claims": {
+                    "description": "Claims is the number of claims from that platform.",
+                    "type": "integer"
+                },
+                "platform": {
+                    "description": "Platform is where the claims came from, e.g. \"whatsapp\" or \"tiktok\".",
+                    "type": "string"
+                }
+            }
+        },
         "model.DiscoveryKeyword": {
             "type": "object",
             "properties": {
@@ -6065,6 +6325,26 @@ const docTemplate = `{
                 "LanguageCodeEnglish",
                 "LanguageCodeFrench"
             ]
+        },
+        "model.MessageVolume": {
+            "type": "object",
+            "properties": {
+                "current": {
+                    "description": "Current is the number of messages in the selected window.",
+                    "type": "integer"
+                },
+                "previous": {
+                    "description": "Previous is the number of messages in the window before it.",
+                    "type": "integer"
+                },
+                "trend": {
+                    "description": "Trend is the current window's volume per bucket, oldest first: hourly\nfor 24h, daily for 7d and 30d.",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
         },
         "model.Narrative": {
             "type": "object",

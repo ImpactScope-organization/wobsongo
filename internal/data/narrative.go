@@ -70,6 +70,10 @@ type NarrativeRepoer interface {
 	// DeactivateStaleNarratives deactivates active narratives without a claim
 	// that occurred at or after since, and returns how many it changed.
 	DeactivateStaleNarratives(ctx context.Context, since time.Time) (int64, error)
+
+	// CountClaimsByPlatform counts the claims that occurred at or after since,
+	// by the platform they came from, most claims first.
+	CountClaimsByPlatform(ctx context.Context, since time.Time) ([]model.ClaimPlatformCount, error)
 }
 
 // NarrativeStatementGenerator writes the broad statement of a new narrative

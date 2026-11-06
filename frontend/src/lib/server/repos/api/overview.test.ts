@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { EngagementWindow } from '#lib/domain/overview.js';
+import { PLATFORMS } from '#lib/domain/platform.js';
 import { createApiRepos } from './index.js';
 import { fixedClock } from '#lib/utils/clock.js';
 
@@ -18,13 +19,45 @@ const narrative = (over: Record<string, unknown>) => ({
 	...over
 });
 
-function repos(items: unknown[], total = items.length, activity = { users: 0, messages: 0 }) {
-	const sent: string[] = [];
-	const fetch = async (input: RequestInfo | URL) => {
+interface Backend {
+	items?: unknown[];
+	total?: number;
+	activity?: { users: number; messages: number };
+	volume?: unknown;
+	platforms?: unknown;
+	// Answers a request itself; return nothing to fall through to the defaults.
+	respond?: (url: URL) => Response | undefined;
+}
+
+const failed = (status: number) =>
+	Response.json({ request_id: 'r', status, error: 'boom' }, { status });
+
+// Answers every endpoint the Overview reads, so a test only overrides what it checks.
+function backendFetch(backend: Backend, sent: string[]): typeof globalThis.fetch {
+	const {
+		items = [],
+		total = items.length,
+		activity = { users: 0, messages: 0 },
+		volume = { current: 0, previous: 0, trend: [] },
+		platforms = [],
+		respond
+	} = backend;
+
+	return (async (input: RequestInfo | URL) => {
 		const url = new URL((input as Request).url);
 		sent.push(`${url.pathname}${url.search}`);
+
+		const custom = respond?.(url);
+		if (custom) return custom;
+
 		if (url.pathname.endsWith('/conversations/stats')) {
 			return Response.json({ request_id: 'r', status: 200, data: activity });
+		}
+		if (url.pathname.endsWith('/conversations/volume')) {
+			return Response.json({ request_id: 'r', status: 200, data: volume });
+		}
+		if (url.pathname.endsWith('/claims/platforms')) {
+			return Response.json({ request_id: 'r', status: 200, data: platforms });
 		}
 		const page = Number(url.searchParams.get('page') ?? 1);
 		const perPage = Number(url.searchParams.get('per_page') ?? 20);
@@ -38,15 +71,23 @@ function repos(items: unknown[], total = items.length, activity = { users: 0, me
 				items: items.slice((page - 1) * perPage, page * perPage)
 			}
 		});
-	};
+	}) as typeof globalThis.fetch;
+}
+
+function reposFor(backend: Backend) {
+	const sent: string[] = [];
 	return {
 		sent,
 		repos: createApiRepos({
 			baseUrl: 'https://api.example.org',
-			fetch: fetch as typeof globalThis.fetch,
+			fetch: backendFetch(backend, sent),
 			clock
 		})
 	};
+}
+
+function repos(items: unknown[], total = items.length, activity = { users: 0, messages: 0 }) {
+	return reposFor({ items, total, activity });
 }
 
 describe('API overview repo', () => {
@@ -117,23 +158,9 @@ describe('API overview repo', () => {
 
 	it('fails when a later page cannot be read', async () => {
 		const items = Array.from({ length: 150 }, (_, i) => narrative({ id: `n${i}` }));
-		const r = createApiRepos({
-			baseUrl: 'https://api.example.org',
-			fetch: (async (input: RequestInfo | URL) => {
-				const url = new URL((input as Request).url);
-				if (url.pathname.endsWith('/conversations/stats')) {
-					return Response.json({ request_id: 'r', status: 200, data: { users: 0, messages: 0 } });
-				}
-				if (url.searchParams.get('page') === '2') {
-					return Response.json({ request_id: 'r', status: 500, error: 'boom' }, { status: 500 });
-				}
-				return Response.json({
-					request_id: 'r',
-					status: 200,
-					data: { page: 1, per_page: 100, total_items: 150, items: items.slice(0, 100) }
-				});
-			}) as typeof globalThis.fetch,
-			clock
+		const { repos: r } = reposFor({
+			items,
+			respond: (url) => (url.searchParams.get('page') === '2' ? failed(500) : undefined)
 		});
 		expect(
 			await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: 'all' })
@@ -175,45 +202,29 @@ describe('API overview repo', () => {
 		).toMatchObject({ ok: false, status: 401 });
 	});
 
-	describe('when only one of the two backend calls fails', () => {
-		const failingRepos = (failing: 'stats' | 'narratives', status: number) =>
-			createApiRepos({
-				baseUrl: 'https://api.example.org',
-				fetch: (async (input: RequestInfo | URL) => {
-					const url = new URL((input as Request).url);
-					const isStats = url.pathname.endsWith('/conversations/stats');
+	describe('when only one of the backend calls fails', () => {
+		const ENDPOINT = {
+			stats: '/conversations/stats',
+			narratives: '/narratives',
+			volume: '/conversations/volume',
+			platforms: '/claims/platforms'
+		} as const;
 
-					if (isStats === (failing === 'stats')) {
-						return Response.json({ request_id: 'r', status, error: 'boom' }, { status });
-					}
-					if (isStats) {
-						return Response.json({
-							request_id: 'r',
-							status: 200,
-							data: { users: 3, messages: 41 }
-						});
-					}
-					return Response.json({
-						request_id: 'r',
-						status: 200,
-						data: { page: 1, per_page: 100, total_items: 0, items: [] }
-					});
-				}) as typeof globalThis.fetch,
-				clock
-			});
+		const failingRepos = (failing: keyof typeof ENDPOINT, status: number) =>
+			reposFor({
+				respond: (url) => (url.pathname.endsWith(ENDPOINT[failing]) ? failed(status) : undefined)
+			}).repos;
 
-		it('fails when the user activity cannot be read', async () => {
-			const r = failingRepos('stats', 403);
+		it.each([
+			['user activity', 'stats', 403],
+			['narratives', 'narratives', 500],
+			['message volume', 'volume', 502],
+			['claims by platform', 'platforms', 500]
+		] as const)('fails when the %s cannot be read', async (_name, failing, status) => {
+			const r = failingRepos(failing, status);
 			expect(
 				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: '7d' })
-			).toMatchObject({ ok: false, status: 403 });
-		});
-
-		it('fails when the narratives cannot be read', async () => {
-			const r = failingRepos('narratives', 500);
-			expect(
-				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: '7d' })
-			).toMatchObject({ ok: false, status: 500 });
+			).toMatchObject({ ok: false, status });
 		});
 
 		it('treats an unreachable backend as a 503', async () => {
@@ -227,6 +238,109 @@ describe('API overview repo', () => {
 			expect(
 				await r.overview.getSnapshot({ accountId: 'a' }, { range: '7d', engagement: 'all' })
 			).toMatchObject({ ok: false, status: 503 });
+		});
+	});
+
+	describe('message volume', () => {
+		const messagesOf = async (volume: unknown) => {
+			const { repos: r } = reposFor({ volume });
+			const result = await r.overview.getSnapshot(
+				{ accountId: 'a' },
+				{ range: '24h', engagement: 'all' }
+			);
+			if (!result.ok) throw new Error('expected ok');
+			return result.data.messages;
+		};
+
+		it('maps the current window, the previous one and the trend', async () => {
+			expect(await messagesOf({ current: 12, previous: 8, trend: [5, 7] })).toEqual({
+				current: 12,
+				previous: 8,
+				trend: [5, 7]
+			});
+		});
+
+		it('counts a field the backend left out as zero', async () => {
+			expect(await messagesOf({})).toEqual({ current: 0, previous: 0, trend: [] });
+		});
+
+		it.each(['24h', '7d', '30d'] as const)('asks the backend for the %s window', async (range) => {
+			const { sent, repos: r } = reposFor({});
+			await r.overview.getSnapshot({ accountId: 'a' }, { range, engagement: 'all' });
+			expect(sent).toContain(`/api/v1/conversations/volume?range=${range}`);
+		});
+	});
+
+	describe('claims by platform', () => {
+		const countsOf = async (platforms: unknown) => {
+			const { repos: r } = reposFor({ platforms });
+			const result = await r.overview.getSnapshot(
+				{ accountId: 'a' },
+				{ range: '24h', engagement: 'all' }
+			);
+			if (!result.ok) throw new Error('expected ok');
+			return result.data.platformCounts;
+		};
+
+		it('maps the platforms the dashboard knows', async () => {
+			expect(
+				await countsOf([
+					{ platform: 'whatsapp', claims: 10 },
+					{ platform: 'tiktok', claims: 5 }
+				])
+			).toEqual([
+				{ platform: 'whatsapp', count: 10 },
+				{ platform: 'tiktok', count: 5 }
+			]);
+		});
+
+		it('counts a platform the dashboard has no slice for as other, and sums them', async () => {
+			expect(
+				await countsOf([
+					{ platform: 'instagram', claims: 3 },
+					{ platform: 'myspace', claims: 2 }
+				])
+			).toEqual([{ platform: 'other', count: 5 }]);
+		});
+
+		it('sums repeated platforms into one slice', async () => {
+			expect(
+				await countsOf([
+					{ platform: 'whatsapp', claims: 10 },
+					{ platform: 'whatsapp', claims: 1 }
+				])
+			).toEqual([{ platform: 'whatsapp', count: 11 }]);
+		});
+
+		it('drops platforms without claims, also when the count is left out', async () => {
+			expect(
+				await countsOf([
+					{ platform: 'x', claims: 0 },
+					{ platform: 'facebook' },
+					{ platform: 'tiktok', claims: 4 }
+				])
+			).toEqual([{ platform: 'tiktok', count: 4 }]);
+		});
+
+		it('orders the slices like PLATFORMS, not like the backend', async () => {
+			const counts = await countsOf([
+				{ platform: 'other', claims: 9 },
+				{ platform: 'x', claims: 8 },
+				{ platform: 'tiktok', claims: 7 },
+				{ platform: 'facebook', claims: 6 },
+				{ platform: 'whatsapp', claims: 5 }
+			]);
+			expect(counts.map((item) => item.platform)).toEqual([...PLATFORMS]);
+		});
+
+		it('is empty when no claims came in', async () => {
+			expect(await countsOf([])).toEqual([]);
+		});
+
+		it.each(['24h', '7d', '30d'] as const)('asks the backend for the %s window', async (range) => {
+			const { sent, repos: r } = reposFor({});
+			await r.overview.getSnapshot({ accountId: 'a' }, { range, engagement: 'all' });
+			expect(sent).toContain(`/api/v1/claims/platforms?range=${range}`);
 		});
 	});
 

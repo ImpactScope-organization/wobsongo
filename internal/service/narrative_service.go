@@ -255,3 +255,12 @@ func cosineSimilarity(a, b []float32) float64 {
 	}
 	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
 }
+
+// ClaimPlatformCounts counts the claims of the query's window by the platform
+// they came from.
+func (s *NarrativeService) ClaimPlatformCounts(
+	ctx context.Context,
+	query *dto.TimeRangeDTO,
+) ([]model.ClaimPlatformCount, error) {
+	return s.repo.CountClaimsByPlatform(ctx, time.Now().Add(-query.Range.Window()))
+}

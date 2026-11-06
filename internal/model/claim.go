@@ -25,6 +25,10 @@ const (
 // the WhatsApp bot.
 const ClaimPlatformWhatsApp = "whatsapp"
 
+// ClaimPlatformTikTok is the platform value of claims that came from a TikTok
+// link sent to the bot.
+const ClaimPlatformTikTok = "tiktok"
+
 // ClaimCitation is one piece of knowledge-base evidence the judge cited for a
 // claim's verdict. It is stored inside Claim.Citations as JSON.
 type ClaimCitation struct {
@@ -117,4 +121,13 @@ type Claim struct {
 
 	// CreatedAt is the time the claim record was created.
 	CreatedAt time.Time `json:"created_at"`
+}
+
+// ClaimPlatformCount is how many claims came from one platform.
+type ClaimPlatformCount struct {
+	// Platform is where the claims came from, e.g. "whatsapp" or "tiktok".
+	Platform string `json:"platform"`
+
+	// Claims is the number of claims from that platform.
+	Claims int64 `json:"claims"`
 }

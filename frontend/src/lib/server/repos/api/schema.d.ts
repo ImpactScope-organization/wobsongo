@@ -342,6 +342,489 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List discovery keywords
+         * @description Retrieves a paginated list of discovery keywords.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number */
+                    page?: number;
+                    /** @description Items per page */
+                    per_page?: number;
+                    /** @description Filter by active state */
+                    is_active?: boolean;
+                    /** @description Text the keyword contains */
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaginationResults-model_DiscoveryKeyword"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a discovery keyword
+         * @description Adds a keyword used to discover new videos. The same keyword in the same language cannot be added twice.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Keyword */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.CreateKeywordRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.DiscoveryKeyword"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/keywords/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a discovery keyword */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Keyword ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.DiscoveryKeyword"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Update a discovery keyword
+         * @description Replaces the keyword, language and active state.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Keyword ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description Keyword */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.UpdateKeywordRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.DiscoveryKeyword"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete a discovery keyword */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Keyword ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description No Content */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "*/*": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/settings": {
         parameters: {
             query?: never;
@@ -861,6 +1344,94 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/claims/platforms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Claims by platform
+         * @description Counts the claims of the last 24 hours, 7 or 30 days by where they came from: "whatsapp" for questions typed to the bot, "tiktok" for TikTok links sent to it.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Reporting window, 24h when left out */
+                    range?: "24h" | "7d" | "30d";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.ClaimPlatformCount"][];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/conversations/stats": {
         parameters: {
             query?: never;
@@ -892,6 +1463,94 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["model.APIResponse"] & {
                             data?: components["schemas"]["model.UserActivity"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/conversations/volume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Message volume
+         * @description Counts the messages users sent in the last 24 hours, 7 or 30 days, next to the window before it, with the volume per hour (24h) or per day (7d, 30d), oldest first.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Reporting window, 24h when left out */
+                    range?: "24h" | "7d" | "30d";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.MessageVolume"];
                         };
                     };
                 };
@@ -2198,6 +2857,24 @@ export interface components {
             /** @description Title is the title of the document. */
             title: string;
         };
+        "dto.CreateKeywordRequest": {
+            /**
+             * @description IsActive defaults to true when left out.
+             * @example true
+             */
+            is_active?: boolean;
+            /**
+             * @description Keyword is the search text used on the platform.
+             * @example vaccin
+             */
+            keyword: string;
+            /**
+             * @description Language is the language of the keyword, "en" or "fr".
+             * @example fr
+             * @enum {string}
+             */
+            language: "en" | "fr";
+        };
         "dto.ExtractAPIRequest": {
             /** @description Question is a free-text question to search the knowledge base. */
             question?: string;
@@ -2235,6 +2912,16 @@ export interface components {
              * @enum {string}
              */
             role: "user" | "admin" | "superadmin";
+        };
+        "dto.PaginationResults-model_DiscoveryKeyword": {
+            /** @description Items contains the paginated data items */
+            items?: components["schemas"]["model.DiscoveryKeyword"][];
+            /** @description Page is the current page number */
+            page: number;
+            /** @description PerPage is the number of items per page */
+            per_page: number;
+            /** @description TotalItems is the total number of items available */
+            total_items: number;
         };
         "dto.PaginationResults-model_Document": {
             /** @description Items contains the paginated data items */
@@ -2351,6 +3038,17 @@ export interface components {
             /** @description Title is the title of the document. */
             title: string;
         };
+        "dto.UpdateKeywordRequest": {
+            /** @example true */
+            is_active: boolean;
+            /** @example vaccin */
+            keyword: string;
+            /**
+             * @example fr
+             * @enum {string}
+             */
+            language: "en" | "fr";
+        };
         "dto.UpdateProfileRequest": {
             email: string;
             name: string;
@@ -2377,6 +3075,23 @@ export interface components {
             updated_at?: string;
             /** Format: uuid */
             updated_by?: string;
+        };
+        "model.ClaimPlatformCount": {
+            /** @description Claims is the number of claims from that platform. */
+            claims?: number;
+            /** @description Platform is where the claims came from, e.g. "whatsapp" or "tiktok". */
+            platform?: string;
+        };
+        "model.DiscoveryKeyword": {
+            created_at?: string;
+            /** Format: uuid */
+            id?: string;
+            is_active?: boolean;
+            keyword?: string;
+            language?: components["schemas"]["model.Language"];
+            language_code?: components["schemas"]["model.LanguageCode"];
+            last_run_at?: string;
+            updated_at?: string;
         };
         "model.Document": {
             /** @description CreatedAt is the timestamp when the document was created. */
@@ -2414,6 +3129,19 @@ export interface components {
         };
         /** @enum {integer} */
         "model.Language": 0 | 1;
+        /** @enum {string} */
+        "model.LanguageCode": "en" | "fr";
+        "model.MessageVolume": {
+            /** @description Current is the number of messages in the selected window. */
+            current?: number;
+            /** @description Previous is the number of messages in the window before it. */
+            previous?: number;
+            /**
+             * @description Trend is the current window's volume per bucket, oldest first: hourly
+             *     for 24h, daily for 7d and 30d.
+             */
+            trend?: number[];
+        };
         "model.Narrative": {
             /** @description CreatedAt is the time the narrative was created. */
             created_at?: string;

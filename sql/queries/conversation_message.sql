@@ -42,3 +42,29 @@ WHERE m.role = 'user'
   AND m.created_at < NOW()
 GROUP BY 1
 ORDER BY 1;
+
+-- name: ListUserMessagesWithoutClaims :many
+SELECT m.id, m.content, m.created_at
+FROM conversation_messages m
+WHERE m.role = 'user'
+  AND m.created_at >= sqlc.arg('since')::timestamptz
+  AND m.content !~* 'https?://'
+  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.message_id = m.id)
+ORDER BY m.created_at
+LIMIT sqlc.arg('max_rows');
+
+-- name: ListVideoTranscriptsWithoutClaims :many
+SELECT s.content, s.created_at, u.id AS message_id
+FROM conversation_messages s
+JOIN LATERAL (
+    SELECT id FROM conversation_messages
+    WHERE jid = s.jid AND role = 'user' AND created_at <= s.created_at
+    ORDER BY created_at DESC
+    LIMIT 1
+) u ON true
+WHERE s.role = 'system'
+  AND s.content LIKE 'The video transcript is ready:%'
+  AND s.created_at >= sqlc.arg('since')::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.message_id = u.id)
+ORDER BY s.created_at
+LIMIT sqlc.arg('max_rows');

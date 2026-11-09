@@ -1,6 +1,10 @@
 package dto
 
-import "github.com/google/uuid"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 // CheckClaimDTO represents the payload for checking a claim against the knowledge base.
 type CheckClaimDTO struct {
@@ -117,6 +121,9 @@ type ClaimSource struct {
 
 	// Format is "text", "audio" or "video", "text" when empty.
 	Format string
+
+	// OccurredAt is when the message was sent. Zero means now.
+	OccurredAt time.Time
 }
 
 // NewClaimSource builds the source of a claim. messageID may be empty or not a

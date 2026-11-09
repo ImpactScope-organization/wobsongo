@@ -401,7 +401,8 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
-				queue.QueueCrawler: {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueCrawler:       {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

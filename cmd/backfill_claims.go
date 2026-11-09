@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"time"
 
@@ -9,6 +11,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/db"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
@@ -19,6 +22,11 @@ import (
 var (
 	backfillClaimsApply bool
 	backfillClaimsLimit int32
+)
+
+// errNoActiveTopics is returned when no topic is configured..
+var errNoActiveTopics = errors.New(
+	"no active topics configured, add at least one topic then re-run",
 )
 
 var backfillClaimsCmd = &cobra.Command{
@@ -53,6 +61,13 @@ func (*registrationOnlyClaimCheckWorker) Work(
 	return nil
 }
 
+// claimBackfillCandidates is everything a backfill run would enqueue.
+type claimBackfillCandidates struct {
+	activeTopics int64
+	messages     []db.ListUserMessagesWithoutClaimsRow
+	transcripts  []db.ListVideoTranscriptsWithoutClaimsRow
+}
+
 func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	ctx := cmd.Context()
 	config := internal.NewConfig(EnvFile)
@@ -71,45 +86,14 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	}
 	defer pool.Close()
 
-	queries := db.New(pool)
-
-	// Claims need a topic: with none configured every check would succeed
-	// without storing anything, wasting LLM calls.
-	activeTopics, err := queries.CountActiveTopics(ctx)
+	candidates, err := loadClaimBackfillCandidates(ctx, db.New(pool), backfillClaimsLimit)
 	if err != nil {
-		cmd.PrintErrf("Failed to count active topics: %s\n", err.Error())
-		os.Exit(1)
-		return
-	}
-	if activeTopics == 0 {
-		cmd.PrintErrln("No active topics configured. Add at least one topic, then re-run.")
+		cmd.PrintErrf("%s\n", err.Error())
 		os.Exit(1)
 		return
 	}
 
-	since := time.Unix(0, 0).UTC()
-	maxRows := backfillClaimsLimit
-
-	messages, err := queries.ListUserMessagesWithoutClaims(
-		ctx,
-		db.ListUserMessagesWithoutClaimsParams{Since: since, MaxRows: maxRows},
-	)
-	if err != nil {
-		cmd.PrintErrf("Failed to list messages: %s\n", err.Error())
-		os.Exit(1)
-		return
-	}
-	transcripts, err := queries.ListVideoTranscriptsWithoutClaims(
-		ctx,
-		db.ListVideoTranscriptsWithoutClaimsParams{Since: since, MaxRows: maxRows},
-	)
-	if err != nil {
-		cmd.PrintErrf("Failed to list video transcripts: %s\n", err.Error())
-		os.Exit(1)
-		return
-	}
-
-	if len(messages) == 0 && len(transcripts) == 0 {
+	if len(candidates.messages) == 0 && len(candidates.transcripts) == 0 {
 		cmd.Println("Nothing to backfill.")
 		return
 	}
@@ -117,9 +101,9 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 		cmd.Printf(
 			"Dry run (%d active topic(s)): would enqueue %d text message(s) and "+
 				"%d video transcript(s). Re-run with --apply.\n",
-			activeTopics,
-			len(messages),
-			len(transcripts),
+			candidates.activeTopics,
+			len(candidates.messages),
+			len(candidates.transcripts),
 		)
 		return
 	}
@@ -136,7 +120,64 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 		return
 	}
 
-	opts := &river.InsertOpts{
+	if err := enqueueClaimBackfill(
+		ctx, pool, riverClient, claimBackfillInsertOpts(), candidates,
+	); err != nil {
+		cmd.PrintErrf("Failed to enqueue claim backfill, nothing was enqueued: %s\n", err.Error())
+		os.Exit(1)
+		return
+	}
+
+	cmd.Printf(
+		"Enqueued %d text message(s) and %d video transcript(s). `wob serve` will process them.\n",
+		len(candidates.messages), len(candidates.transcripts),
+	)
+}
+
+// loadClaimBackfillCandidates checks that at least one topic is active, then
+// lists the text messages and video transcripts that have no claim yet.
+func loadClaimBackfillCandidates(
+	ctx context.Context,
+	queries *db.Queries,
+	maxRows int32,
+) (*claimBackfillCandidates, error) {
+	activeTopics, err := queries.CountActiveTopics(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count active topics: %w", err)
+	}
+	if activeTopics == 0 {
+		return nil, errNoActiveTopics
+	}
+
+	since := time.Unix(0, 0).UTC()
+
+	messages, err := queries.ListUserMessagesWithoutClaims(
+		ctx,
+		db.ListUserMessagesWithoutClaimsParams{Since: since, MaxRows: maxRows},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list messages: %w", err)
+	}
+	transcripts, err := queries.ListVideoTranscriptsWithoutClaims(
+		ctx,
+		db.ListVideoTranscriptsWithoutClaimsParams{Since: since, MaxRows: maxRows},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list video transcripts: %w", err)
+	}
+
+	return &claimBackfillCandidates{
+		activeTopics: activeTopics,
+		messages:     messages,
+		transcripts:  transcripts,
+	}, nil
+}
+
+// claimBackfillInsertOpts routes the jobs to the claim_backfill queue. Completed
+// is listed in ByState so a job that already ran for a message (even one that
+// produced no claim, like a greeting) is not enqueued again.
+func claimBackfillInsertOpts() *river.InsertOpts {
+	return &river.InsertOpts{
 		Queue:       queue.QueueClaimBackfill,
 		MaxAttempts: 3,
 		UniqueOpts: river.UniqueOpts{
@@ -151,41 +192,49 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 			},
 		},
 	}
+}
 
-	for _, m := range messages {
-		if _, err := riverClient.Insert(ctx, queue.ClaimCheckJob{
+// enqueueClaimBackfill inserts every claim-check job in one Postgres transaction.
+func enqueueClaimBackfill(
+	ctx context.Context,
+	pool *pgxpool.Pool,
+	riverClient *river.Client[pgx.Tx],
+	opts *river.InsertOpts,
+	candidates *claimBackfillCandidates,
+) error {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	// Rollback is a no-op once Commit has succeeded.
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	for _, m := range candidates.messages {
+		if _, err := riverClient.InsertTx(ctx, tx, queue.ClaimCheckJob{
 			Text:       m.Content,
 			MessageID:  m.ID.String(),
 			Platform:   model.ClaimPlatformWhatsApp,
 			Format:     string(model.ClaimFormatText),
 			OccurredAt: m.CreatedAt,
 		}, opts); err != nil {
-			cmd.PrintErrf("Failed to enqueue message %s: %s\n", m.ID, err.Error())
-			os.Exit(1)
-			return
+			return fmt.Errorf("failed to enqueue message %s: %w", m.ID, err)
 		}
 	}
 
-	for _, t := range transcripts {
-		if _, err := riverClient.Insert(ctx, queue.ClaimCheckJob{
+	for _, t := range candidates.transcripts {
+		if _, err := riverClient.InsertTx(ctx, tx, queue.ClaimCheckJob{
 			Text:       t.Content,
 			MessageID:  t.MessageID.String(),
 			Platform:   model.ClaimPlatformTikTok,
 			Format:     string(model.ClaimFormatVideo),
 			OccurredAt: t.CreatedAt,
 		}, opts); err != nil {
-			cmd.PrintErrf(
-				"Failed to enqueue transcript of message %s: %s\n",
-				t.MessageID,
-				err.Error(),
-			)
-			os.Exit(1)
-			return
+			return fmt.Errorf("failed to enqueue transcript of message %s: %w", t.MessageID, err)
 		}
 	}
 
-	cmd.Printf(
-		"Enqueued %d text message(s) and %d video transcript(s). `wob serve` will process them.\n",
-		len(messages), len(transcripts),
-	)
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return nil
 }

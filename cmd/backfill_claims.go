@@ -12,22 +12,23 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivertype"
 	"github.com/spf13/cobra"
 )
 
 var (
 	backfillClaimsApply bool
-	backfillClaimsDays  int
-	backfillClaimsLimit int
+	backfillClaimsLimit int32
 )
 
 var backfillClaimsCmd = &cobra.Command{
 	Use:   "backfill-claims",
 	Short: "Enqueue claim checks for old user messages that never became claims",
-	Long: "Finds user messages without a claim and enqueues one ClaimCheckJob each, on the\n" +
-		"claim_backfill queue. The jobs are processed by `wob serve`, which then also\n" +
-		"clusters the new claims into narratives. Nothing is deleted or overwritten and\n" +
-		"no reply is sent to any user.\n" +
+	Long: "Finds user messages without a claim, of any age, and enqueues one ClaimCheckJob\n" +
+		"each, on the claim_backfill queue. The jobs are processed by `wob serve`, which\n" +
+		"then also clusters the new claims into narratives. Nothing is deleted or\n" +
+		"overwritten and no reply is sent to any user.\n" +
+		"Requires at least one active topic: without topics no claim can be stored.\n" +
 		"Without --apply this is a dry run.",
 	Run: runBackfillClaims,
 }
@@ -36,9 +37,7 @@ func init() {
 	backfillClaimsCmd.Flags().
 		BoolVar(&backfillClaimsApply, "apply", false, "Actually enqueue (default: dry run)")
 	backfillClaimsCmd.Flags().
-		IntVar(&backfillClaimsDays, "days", 30, "Only messages from the last N days")
-	backfillClaimsCmd.Flags().
-		IntVar(&backfillClaimsLimit, "limit", 1000, "Max messages per run")
+		Int32Var(&backfillClaimsLimit, "limit", 1000, "Max messages per run")
 }
 
 // registrationOnlyClaimCheckWorker lets this CLI process Insert the job.
@@ -58,6 +57,12 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	ctx := cmd.Context()
 	config := internal.NewConfig(EnvFile)
 
+	if backfillClaimsLimit <= 0 {
+		cmd.PrintErrln("--limit must be > 0")
+		os.Exit(1)
+		return
+	}
+
 	pool, err := pgxpool.New(ctx, config.PostgresURI)
 	if err != nil {
 		cmd.PrintErrf("Failed to connect to database: %s\n", err.Error())
@@ -67,8 +72,23 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	defer pool.Close()
 
 	queries := db.New(pool)
-	since := time.Now().AddDate(0, 0, -backfillClaimsDays)
-	maxRows := int32(backfillClaimsLimit)
+
+	// Claims need a topic: with none configured every check would succeed
+	// without storing anything, wasting LLM calls.
+	activeTopics, err := queries.CountActiveTopics(ctx)
+	if err != nil {
+		cmd.PrintErrf("Failed to count active topics: %s\n", err.Error())
+		os.Exit(1)
+		return
+	}
+	if activeTopics == 0 {
+		cmd.PrintErrln("No active topics configured. Add at least one topic, then re-run.")
+		os.Exit(1)
+		return
+	}
+
+	since := time.Unix(0, 0).UTC()
+	maxRows := backfillClaimsLimit
 
 	messages, err := queries.ListUserMessagesWithoutClaims(
 		ctx,
@@ -95,7 +115,9 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	}
 	if !backfillClaimsApply {
 		cmd.Printf(
-			"Dry run: would enqueue %d text message(s) and %d video transcript(s). Re-run with --apply.\n",
+			"Dry run (%d active topic(s)): would enqueue %d text message(s) and "+
+				"%d video transcript(s). Re-run with --apply.\n",
+			activeTopics,
 			len(messages),
 			len(transcripts),
 		)
@@ -117,7 +139,17 @@ func runBackfillClaims(cmd *cobra.Command, _ []string) {
 	opts := &river.InsertOpts{
 		Queue:       queue.QueueClaimBackfill,
 		MaxAttempts: 3,
-		UniqueOpts:  river.UniqueOpts{ByArgs: true},
+		UniqueOpts: river.UniqueOpts{
+			ByArgs: true,
+			ByState: []rivertype.JobState{
+				rivertype.JobStateAvailable,
+				rivertype.JobStateCompleted,
+				rivertype.JobStatePending,
+				rivertype.JobStateRetryable,
+				rivertype.JobStateRunning,
+				rivertype.JobStateScheduled,
+			},
+		},
 	}
 
 	for _, m := range messages {

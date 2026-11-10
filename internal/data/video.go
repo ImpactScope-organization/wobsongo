@@ -38,6 +38,23 @@ type VideoRepoer interface {
 	// video of an influencer, oldest first.
 	ListVideoTimesByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]time.Time, error)
 
+	// ListDiscoveredVideos returns up to limit videos still in the
+	// 'discovered' status, oldest first, skipping excludeIDs. Only ID,
+	// Caption and Hashtags are filled in.
+	ListDiscoveredVideos(
+		ctx context.Context,
+		limit int32,
+		excludeIDs []uuid.UUID,
+	) ([]*model.Video, error)
+
+	// SetVideoScreenStatus moves a 'discovered' video to status and reports
+	// whether it did. false means the video was no longer 'discovered'.
+	SetVideoScreenStatus(
+		ctx context.Context,
+		id uuid.UUID,
+		status model.VideoStatus,
+	) (bool, error)
+
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]
 }

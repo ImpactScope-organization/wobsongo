@@ -114,6 +114,47 @@ func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, er
 	return i, err
 }
 
+const listDiscoveredVideos = `-- name: ListDiscoveredVideos :many
+SELECT id, caption, hashtags
+FROM videos
+WHERE status = 'discovered'
+  AND id <> ALL($1::uuid[])
+ORDER BY created_at ASC
+LIMIT $2::int
+`
+
+type ListDiscoveredVideosParams struct {
+	ExcludeIds []uuid.UUID
+	BatchSize  int32
+}
+
+type ListDiscoveredVideosRow struct {
+	ID       uuid.UUID
+	Caption  pgtype.Text
+	Hashtags []string
+}
+
+// Returns the videos still waiting for screening, oldest first.
+func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVideosParams) ([]ListDiscoveredVideosRow, error) {
+	rows, err := q.db.Query(ctx, listDiscoveredVideos, arg.ExcludeIds, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDiscoveredVideosRow
+	for rows.Next() {
+		var i ListDiscoveredVideosRow
+		if err := rows.Scan(&i.ID, &i.Caption, &i.Hashtags); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVideoCreatedAtByInfluencerID = `-- name: ListVideoCreatedAtByInfluencerID :many
 SELECT video_created_at FROM videos
 WHERE influencer_id = $1::uuid
@@ -139,6 +180,26 @@ func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influenc
 		return nil, err
 	}
 	return items, nil
+}
+
+const setVideoScreenStatus = `-- name: SetVideoScreenStatus :execrows
+UPDATE videos
+SET status = $1::varchar, updated_at = NOW()
+WHERE id = $2::uuid
+  AND status = 'discovered'
+`
+
+type SetVideoScreenStatusParams struct {
+	Status string
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetVideoScreenStatus(ctx context.Context, arg SetVideoScreenStatusParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVideoScreenStatus, arg.Status, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateVideoTranscription = `-- name: UpdateVideoTranscription :exec

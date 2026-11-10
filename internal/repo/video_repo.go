@@ -300,3 +300,54 @@ func (r *videoRepo) ListVideoTimesByInfluencerID(
 	}
 	return times, nil
 }
+
+// ListDiscoveredVideos returns up to limit videos still waiting for
+// screening, oldest first, skipping excludeIDs.
+func (r *videoRepo) ListDiscoveredVideos(
+	ctx context.Context,
+	limit int32,
+	excludeIDs []uuid.UUID,
+) ([]*model.Video, error) {
+	if excludeIDs == nil {
+		excludeIDs = []uuid.UUID{}
+	}
+
+	rows, err := r.q.ListDiscoveredVideos(ctx, db.ListDiscoveredVideosParams{
+		ExcludeIds: excludeIDs,
+		BatchSize:  limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list discovered videos: %w", mapPostgresError(err))
+	}
+
+	videos := make([]*model.Video, 0, len(rows))
+	for _, row := range rows {
+		videos = append(videos, &model.Video{
+			ID:       row.ID,
+			Caption:  row.Caption.String,
+			Hashtags: row.Hashtags,
+		})
+	}
+	return videos, nil
+}
+
+// SetVideoScreenStatus moves a 'discovered' video to status. It reports false
+// when the video was no longer 'discovered'.
+func (r *videoRepo) SetVideoScreenStatus(
+	ctx context.Context,
+	id uuid.UUID,
+	status model.VideoStatus,
+) (bool, error) {
+	affected, err := r.q.SetVideoScreenStatus(ctx, db.SetVideoScreenStatusParams{
+		Status: string(status),
+		ID:     id,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to set screen status of video %s: %w",
+			id,
+			mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}

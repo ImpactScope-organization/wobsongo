@@ -59,3 +59,18 @@ SELECT video_created_at FROM videos
 WHERE influencer_id = sqlc.arg(influencer_id)::uuid
   AND video_created_at IS NOT NULL
 ORDER BY video_created_at ASC;
+
+-- name: ListDiscoveredVideos :many
+-- Returns the videos still waiting for screening, oldest first. 
+SELECT id, caption, hashtags
+FROM videos
+WHERE status = 'discovered'
+  AND id <> ALL(sqlc.arg(exclude_ids)::uuid[])
+ORDER BY created_at ASC
+LIMIT sqlc.arg(batch_size)::int;
+
+-- name: SetVideoScreenStatus :execrows
+UPDATE videos
+SET status = sqlc.arg(status)::varchar, updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'discovered';

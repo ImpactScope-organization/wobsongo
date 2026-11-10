@@ -72,6 +72,10 @@ const (
 	// JobTypeMonitorCreator represents a job type for checking tracked
 	// creators for new videos.
 	JobTypeMonitorCreator BackgroundJobType = "monitor_creator"
+
+	// JobTypeScreenVideos represents a job type for screening every
+	// discovered video for relevance.
+	JobTypeScreenVideos BackgroundJobType = "screen_videos"
 )
 
 // BackgroundJob represents a generic background job.
@@ -116,4 +120,7 @@ const (
 
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
+
+	// QueueScreening is used by ScreenVideosJob.
+	QueueScreening = "video_screening"
 )

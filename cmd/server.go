@@ -347,9 +347,17 @@ var serveCmd = &cobra.Command{
 					config.ApifyConfig.Token,
 					config.ApifyConfig.TikTokActorID,
 				),
+				repo.NewRiverJobEnqueuer(pool, riverClientFn),
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
+			river.AddWorker(workers, worker.NewScreenVideosWorker(
+				service.NewScreenService(
+					repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
+					claimAnalyzerClient,
+					config.ScreenConfig.MaxConcurrency,
+				),
+			))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
 		}
 
@@ -379,6 +387,13 @@ var serveCmd = &cobra.Command{
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.ScreenCheckInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.ScreenVideosJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
 			)
 		}
 
@@ -401,7 +416,8 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
-				queue.QueueCrawler: {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueCrawler:   {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueScreening: {MaxWorkers: queue.ScreeningMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

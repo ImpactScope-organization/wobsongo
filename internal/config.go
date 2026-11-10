@@ -287,6 +287,12 @@ type NarrativeConfig struct {
 	MatchThreshold float64 `json:"match_threshold"`
 }
 
+// ScreenConfig holds the configuration of the video screening job.
+type ScreenConfig struct {
+	// MaxConcurrency is the number of videos analyzed at the same time.
+	MaxConcurrency int `json:"max_concurrency"`
+}
+
 // MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
 // mock synthesizer instead of the real Modal endpoint
 const MockTTSEndpointPrefix = "mock://"
@@ -355,6 +361,7 @@ type Config struct {
 	TranslationConfig  *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
 	ClaimCheckConfig   *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 	NarrativeConfig    *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
+	ScreenConfig       *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -470,7 +477,10 @@ func (c *Config) IsOK() error {
 	if err := c.voiceMediaOK(); err != nil {
 		return err
 	}
-	return c.narrativeOK()
+	if err := c.narrativeOK(); err != nil {
+		return err
+	}
+	return c.screenOK()
 }
 
 // asrOK checks the Modal ASR configuration.
@@ -529,6 +539,17 @@ func (c *Config) narrativeOK() error {
 	}
 	if t := c.NarrativeConfig.MatchThreshold; t <= 0 || t > 1 {
 		return fmt.Errorf("NARRATIVE_MATCH_THRESHOLD must be in (0, 1], got %v", t)
+	}
+	return nil
+}
+
+// screenOK checks the video screening configuration.
+func (c *Config) screenOK() error {
+	if c.ScreenConfig == nil {
+		return errors.New("ScreenConfig is not set")
+	}
+	if n := c.ScreenConfig.MaxConcurrency; n < 1 {
+		return fmt.Errorf("SCREEN_MAX_CONCURRENCY must be at least 1, got %d", n)
 	}
 	return nil
 }
@@ -702,6 +723,10 @@ func NewConfig(envs ...string) *Config {
 		),
 	}
 
+	screenConfig := &ScreenConfig{
+		MaxConcurrency: getEnvInt("SCREEN_MAX_CONCURRENCY", queue.DefaultScreenConcurrency),
+	}
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -751,6 +776,7 @@ func NewConfig(envs ...string) *Config {
 		ASRConfig:               asrConfig,
 		TTSConfig:               ttsConfig,
 		NarrativeConfig:         narrativeConfig,
+		ScreenConfig:            screenConfig,
 		VoiceMediaConfig:        voiceMediaConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,

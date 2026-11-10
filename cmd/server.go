@@ -339,22 +339,19 @@ var serveCmd = &cobra.Command{
 			crawlScheduler *worker.CrawlScheduler
 		)
 		if crawlEnabled {
+			videoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
 			crawlService = service.NewCrawlService(
 				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
-				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
+				videoRepo,
 				external.NewTikTokScraperClient(
 					config.ApifyConfig.Token,
 					config.ApifyConfig.TikTokActorID,
 				),
-				repo.NewRiverJobEnqueuer(pool, riverClientFn),
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
-			screenService := service.NewScreenService(
-				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
-				claimAnalyzerClient,
-			)
+			screenService := service.NewScreenService(videoRepo, claimAnalyzerClient)
 			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
 			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)

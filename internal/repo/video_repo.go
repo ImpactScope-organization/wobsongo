@@ -302,19 +302,18 @@ func (r *videoRepo) ListVideoTimesByInfluencerID(
 }
 
 // ListDiscoveredVideos returns up to limit videos still waiting for
-// screening, oldest first, skipping excludeIDs.
+// screening, oldest first, that come after the position (afterCreatedAt,
+// afterID).
 func (r *videoRepo) ListDiscoveredVideos(
 	ctx context.Context,
 	limit int32,
-	excludeIDs []uuid.UUID,
+	afterCreatedAt time.Time,
+	afterID uuid.UUID,
 ) ([]*model.Video, error) {
-	if excludeIDs == nil {
-		excludeIDs = []uuid.UUID{}
-	}
-
 	rows, err := r.q.ListDiscoveredVideos(ctx, db.ListDiscoveredVideosParams{
-		ExcludeIds: excludeIDs,
-		BatchSize:  limit,
+		AfterCreatedAt: afterCreatedAt,
+		AfterID:        afterID,
+		BatchSize:      limit,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list discovered videos: %w", mapPostgresError(err))
@@ -323,9 +322,10 @@ func (r *videoRepo) ListDiscoveredVideos(
 	videos := make([]*model.Video, 0, len(rows))
 	for _, row := range rows {
 		videos = append(videos, &model.Video{
-			ID:       row.ID,
-			Caption:  row.Caption.String,
-			Hashtags: row.Hashtags,
+			ID:        row.ID,
+			CreatedAt: row.CreatedAt,
+			Caption:   row.Caption.String,
+			Hashtags:  row.Hashtags,
 		})
 	}
 	return videos, nil
@@ -373,19 +373,55 @@ func (r *videoRepo) GetVideoForScreening(
 	}, nil
 }
 
+// SetVideoScreenFailed moves a 'discovered' video to 'failed'. It reports
+// false when the video was no longer 'discovered'.
+func (r *videoRepo) SetVideoScreenFailed(
+	ctx context.Context,
+	id uuid.UUID,
+	reason string,
+) (bool, error) {
+	affected, err := r.q.SetVideoScreenFailed(ctx, db.SetVideoScreenFailedParams{
+		FailedStage: model.VideoFailedStageScreen,
+		Error:       reason,
+		ID:          id,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to set screen failure of video %s: %w",
+			id,
+			mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}
+
 // EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
 // current transaction when there is one.
 func (r *videoRepo) EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error {
-	payload := queue.ScreenVideoJob{VideoID: videoID.String()}
+	return r.insertJob(ctx, queue.ScreenVideoJob{VideoID: videoID.String()}, "screen video")
+}
 
+// EnqueueScreenVideosJob adds the screen-videos job to the River queue, inside
+// the current transaction when there is one.
+func (r *videoRepo) EnqueueScreenVideosJob(ctx context.Context) error {
+	return r.insertJob(ctx, queue.ScreenVideosJob{}, "screen videos")
+}
+
+// insertJob inserts a River job, inside the current transaction when there is
+// one. The queue and the unique rules come from the job's InsertOpts.
+func (r *videoRepo) insertJob(
+	ctx context.Context,
+	payload queue.BackgroundJob,
+	name string,
+) error {
 	if r.tx != nil {
 		if _, err := r.riverClientFn().InsertTx(ctx, r.tx, payload, nil); err != nil {
-			return fmt.Errorf("failed to insert screen video job into river queue: %w", err)
+			return fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
 		}
 		return nil
 	}
 	if _, err := r.riverClientFn().Insert(ctx, payload, nil); err != nil {
-		return fmt.Errorf("failed to insert screen video job into river queue: %w", err)
+		return fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
 	}
 	return nil
 }

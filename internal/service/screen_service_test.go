@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -28,13 +30,95 @@ type fakeScreenStore struct {
 	enqueueErrs map[uuid.UUID]error
 	gotLimit    int32
 	gotExcludes [][]uuid.UUID
+	failed      map[uuid.UUID]string
+	failErrs    map[uuid.UUID]error
+}
+
+func (s *fakeScreenStore) SetVideoScreenFailed(
+	_ context.Context,
+	id uuid.UUID,
+	reason string,
+) (bool, error) {
+	if err := s.failErrs[id]; err != nil {
+		return false, err
+	}
+	if !s.pending[id] {
+		return false, nil
+	}
+	s.pending[id] = false
+	s.status[id] = model.VideoStatusFailed
+	if s.failed == nil {
+		s.failed = make(map[uuid.UUID]string)
+	}
+	s.failed[id] = reason
+	return true, nil
+}
+
+func TestMarkScreenFailed(t *testing.T) {
+	t.Run("MarksDiscoveredVideoAsFailed", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := store.status[video.ID]; got != model.VideoStatusFailed {
+			t.Errorf("status = %q, want failed", got)
+		}
+		if got := store.failed[video.ID]; got != errScreenBoom.Error() {
+			t.Errorf("reason = %q, want %q", got, errScreenBoom.Error())
+		}
+	})
+
+	t.Run("CutsLongReason", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		long := errors.New(strings.Repeat("é", maxFailureReasonLen*2))
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, long)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := len([]rune(store.failed[video.ID])); got != maxFailureReasonLen {
+			t.Errorf("reason length = %d, want %d", got, maxFailureReasonLen)
+		}
+	})
+
+	t.Run("AlreadyScreenedIsNotAnError", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		store.pending[video.ID] = false
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("StoreErrorIsReturned", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		store.failErrs = map[uuid.UUID]error{video.ID: errScreenBoom}
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errors.New("analyze"))
+		if !errors.Is(err, errScreenBoom) {
+			t.Fatalf("error = %v, want it to wrap the store error", err)
+		}
+	})
 }
 
 func newFakeScreenStore(videos ...*model.Video) *fakeScreenStore {
 	s := &fakeScreenStore{
-		videos:  make(map[uuid.UUID]*model.Video),
-		pending: make(map[uuid.UUID]bool),
-		status:  make(map[uuid.UUID]model.VideoStatus),
+		videos:   make(map[uuid.UUID]*model.Video),
+		pending:  make(map[uuid.UUID]bool),
+		status:   make(map[uuid.UUID]model.VideoStatus),
+		failed:   make(map[uuid.UUID]string),
+		failErrs: make(map[uuid.UUID]error),
 	}
 	for _, v := range videos {
 		v.ID = uuid.New()
@@ -48,20 +132,27 @@ func newFakeScreenStore(videos ...*model.Video) *fakeScreenStore {
 func (s *fakeScreenStore) ListDiscoveredVideos(
 	_ context.Context,
 	limit int32,
-	excludeIDs []uuid.UUID,
+	after time.Time,
+	afterID uuid.UUID,
 ) ([]*model.Video, error) {
 	s.gotLimit = limit
-	s.gotExcludes = append(s.gotExcludes, slices.Clone(excludeIDs))
+	start := 0
+	if afterID != uuid.Nil {
+		if i := slices.Index(s.order, afterID); i >= 0 {
+			start = i + 1
+		}
+	}
+	s.gotExcludes = append(s.gotExcludes, slices.Clone(s.order[:start]))
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 
 	var out []*model.Video
-	for _, id := range s.order {
+	for _, id := range s.order[start:] {
 		if int32(len(out)) >= limit {
 			break
 		}
-		if s.pending[id] && !slices.Contains(excludeIDs, id) {
+		if s.pending[id] {
 			out = append(out, s.videos[id])
 		}
 	}
@@ -204,7 +295,7 @@ func TestScreenVideo_ScreensByScope(t *testing.T) {
 			analyzer := &fakeScreenAnalyzer{inScope: tt.inScope}
 
 			svc := NewScreenService(store, analyzer)
-			if err := svc.ScreenVideo(t.Context(), tt.video.ID); err != nil {
+			if err := svc.ScreenVideo(context.Background(), tt.video.ID); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -228,7 +319,7 @@ func TestScreenVideo_AnalyzerErrorKeepsVideoDiscovered(t *testing.T) {
 	store := newFakeScreenStore(video)
 	analyzer := &fakeScreenAnalyzer{errs: map[string]error{"a failed claim": errScreenBoom}}
 
-	err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), video.ID)
+	err := NewScreenService(store, analyzer).ScreenVideo(context.Background(), video.ID)
 	if !errors.Is(err, errScreenBoom) {
 		t.Fatalf("error = %v, want it to wrap the analyzer error", err)
 	}
@@ -242,7 +333,7 @@ func TestScreenVideo_NilAnalysisIsAnError(t *testing.T) {
 	store := newFakeScreenStore(video)
 	analyzer := &fakeScreenAnalyzer{noAnalysis: true}
 
-	err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), video.ID)
+	err := NewScreenService(store, analyzer).ScreenVideo(context.Background(), video.ID)
 	if !errors.Is(err, errNoAnalysis) {
 		t.Fatalf("error = %v, want it to wrap errNoAnalysis", err)
 	}
@@ -256,7 +347,10 @@ func TestScreenVideo_StoreErrorIsReturned(t *testing.T) {
 	store := newFakeScreenStore(video)
 	store.setErrs = map[uuid.UUID]error{video.ID: errScreenBoom}
 
-	err := NewScreenService(store, &fakeScreenAnalyzer{}).ScreenVideo(t.Context(), video.ID)
+	err := NewScreenService(
+		store,
+		&fakeScreenAnalyzer{},
+	).ScreenVideo(context.Background(), video.ID)
 	if !errors.Is(err, errScreenBoom) {
 		t.Fatalf("error = %v, want it to wrap the store error", err)
 	}
@@ -270,7 +364,7 @@ func TestScreenVideo_GetErrorIsReturned(t *testing.T) {
 	store.getErr = errScreenBoom
 	analyzer := &fakeScreenAnalyzer{}
 
-	err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), uuid.New())
+	err := NewScreenService(store, analyzer).ScreenVideo(context.Background(), uuid.New())
 	if !errors.Is(err, errScreenBoom) {
 		t.Fatalf("error = %v, want it to wrap the get error", err)
 	}
@@ -282,7 +376,10 @@ func TestScreenVideo_GetErrorIsReturned(t *testing.T) {
 func TestScreenVideo_UnknownVideoIsNotAnError(t *testing.T) {
 	analyzer := &fakeScreenAnalyzer{}
 
-	err := NewScreenService(newFakeScreenStore(), analyzer).ScreenVideo(t.Context(), uuid.New())
+	err := NewScreenService(
+		newFakeScreenStore(),
+		analyzer,
+	).ScreenVideo(context.Background(), uuid.New())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -299,7 +396,7 @@ func TestScreenVideo_AlreadyScreenedIsNotAnError(t *testing.T) {
 		store.pending[video.ID] = false
 	}}
 
-	err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), video.ID)
+	err := NewScreenService(store, analyzer).ScreenVideo(context.Background(), video.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -312,7 +409,7 @@ func TestEnqueueDiscoveredVideos_NothingToEnqueue(t *testing.T) {
 	store := newFakeScreenStore()
 
 	count, err := NewScreenService(store, &fakeScreenAnalyzer{}).
-		EnqueueDiscoveredVideos(t.Context())
+		EnqueueDiscoveredVideos(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -330,7 +427,7 @@ func TestEnqueueDiscoveredVideos_EnqueuesEveryBatch(t *testing.T) {
 	store := newFakeScreenStore(videos...)
 	analyzer := &fakeScreenAnalyzer{}
 
-	count, err := NewScreenService(store, analyzer).EnqueueDiscoveredVideos(t.Context())
+	count, err := NewScreenService(store, analyzer).EnqueueDiscoveredVideos(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -377,7 +474,7 @@ func TestEnqueueDiscoveredVideos_EnqueueErrorStopsTheRun(t *testing.T) {
 	store.enqueueErrs = map[uuid.UUID]error{b.ID: errScreenBoom}
 
 	count, err := NewScreenService(store, &fakeScreenAnalyzer{}).
-		EnqueueDiscoveredVideos(t.Context())
+		EnqueueDiscoveredVideos(context.Background())
 	if !errors.Is(err, errScreenBoom) {
 		t.Fatalf("error = %v, want it to wrap the enqueue error", err)
 	}
@@ -391,7 +488,7 @@ func TestEnqueueDiscoveredVideos_EnqueueErrorStopsTheRun(t *testing.T) {
 
 func TestEnqueueDiscoveredVideos_CanceledContext(t *testing.T) {
 	store := newFakeScreenStore(screenVideoFixture("claim"))
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	_, err := NewScreenService(store, &fakeScreenAnalyzer{}).EnqueueDiscoveredVideos(ctx)

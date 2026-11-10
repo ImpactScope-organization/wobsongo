@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -14,6 +15,10 @@ import (
 
 // screenBatchSize is how many discovered videos are loaded at a time.
 const screenBatchSize = 50
+
+// maxFailureReasonLen caps the error text stored with a failed video, because
+// analyzer errors can contain the whole raw model output.
+const maxFailureReasonLen = 1000
 
 // errNoAnalysis is returned when the analyzer reports success but gives no
 // result.
@@ -24,7 +29,8 @@ type videoScreenStore interface {
 	ListDiscoveredVideos(
 		ctx context.Context,
 		limit int32,
-		excludeIDs []uuid.UUID,
+		afterCreatedAt time.Time,
+		afterID uuid.UUID,
 	) ([]*model.Video, error)
 	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
 	SetVideoScreenStatus(
@@ -33,6 +39,7 @@ type videoScreenStore interface {
 		status model.VideoStatus,
 	) (bool, error)
 	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error
+	SetVideoScreenFailed(ctx context.Context, id uuid.UUID, reason string) (bool, error)
 }
 
 // ScreenService runs the first screening of discovered videos: it decides
@@ -54,27 +61,36 @@ func NewScreenService(videoRepo videoScreenStore, analyzer data.ClaimAnalyzer) *
 // still 'discovered', batch by batch, and returns how many it enqueued. A
 // video that already has a job in the queue is not queued twice.
 func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error) {
-	enqueued := make([]uuid.UUID, 0)
+	var (
+		count          int
+		afterCreatedAt time.Time
+		afterID        uuid.UUID
+	)
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return len(enqueued), fmt.Errorf("enqueue screening: %w", err)
+			return count, fmt.Errorf("enqueue screening: %w", err)
 		}
 
-		videos, err := s.videoRepo.ListDiscoveredVideos(ctx, screenBatchSize, enqueued)
+		videos, err := s.videoRepo.ListDiscoveredVideos(
+			ctx, screenBatchSize, afterCreatedAt, afterID,
+		)
 		if err != nil {
-			return len(enqueued), fmt.Errorf("enqueue screening: %w", err)
+			return count, fmt.Errorf("enqueue screening: %w", err)
 		}
 		if len(videos) == 0 {
-			return len(enqueued), nil
+			return count, nil
 		}
 
 		for _, v := range videos {
 			if err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID); err != nil {
-				return len(enqueued), fmt.Errorf("enqueue screening of video %s: %w", v.ID, err)
+				return count, fmt.Errorf("enqueue screening of video %s: %w", v.ID, err)
 			}
-			enqueued = append(enqueued, v.ID)
+			count++
 		}
+
+		last := videos[len(videos)-1]
+		afterCreatedAt, afterID = last.CreatedAt, last.ID
 	}
 }
 
@@ -132,4 +148,26 @@ func screenText(v *model.Video) string {
 		return ""
 	}
 	return text
+}
+
+// MarkScreenFailed marks a video as failed because screening gave up on it. A
+// video that is no longer 'discovered' is left alone.
+func (s *ScreenService) MarkScreenFailed(ctx context.Context, id uuid.UUID, cause error) error {
+	applied, err := s.videoRepo.SetVideoScreenFailed(ctx, id, failureReason(cause))
+	if err != nil {
+		return fmt.Errorf("mark video %s as failed: %w", id, err)
+	}
+	if !applied {
+		log.Printf("[ScreenService] video %s is no longer discovered, failure not stored", id)
+	}
+	return nil
+}
+
+// failureReason returns the text of err, cut to maxFailureReasonLen characters.
+func failureReason(err error) string {
+	runes := []rune(err.Error())
+	if len(runes) > maxFailureReasonLen {
+		runes = runes[:maxFailureReasonLen]
+	}
+	return string(runes)
 }

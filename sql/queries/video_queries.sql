@@ -62,11 +62,11 @@ ORDER BY video_created_at ASC;
 
 -- name: ListDiscoveredVideos :many
 -- Returns the videos still waiting for screening, oldest first. 
-SELECT id, caption, hashtags
+SELECT id, created_at, caption, hashtags
 FROM videos
 WHERE status = 'discovered'
-  AND id <> ALL(sqlc.arg(exclude_ids)::uuid[])
-ORDER BY created_at ASC
+  AND (created_at, id) > (sqlc.arg(after_created_at)::timestamptz, sqlc.arg(after_id)::uuid)
+ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg(batch_size)::int;
 
 -- name: SetVideoScreenStatus :execrows
@@ -78,5 +78,15 @@ WHERE id = sqlc.arg(id)::uuid
 -- name: GetVideoForScreening :one
 SELECT id, caption, hashtags
 FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'discovered';
+
+-- name: SetVideoScreenFailed :execrows
+-- Marks a video that is still waiting for screening as failed.
+UPDATE videos
+SET status = 'failed',
+    failed_stage = sqlc.arg(failed_stage)::varchar,
+    error = sqlc.arg(error)::text,
+    updated_at = NOW()
 WHERE id = sqlc.arg(id)::uuid
   AND status = 'discovered';

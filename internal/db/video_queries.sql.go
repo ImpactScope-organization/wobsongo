@@ -127,7 +127,6 @@ type GetVideoForScreeningRow struct {
 	Hashtags []string
 }
 
-// Returns the video only while it is still waiting for screening.
 func (q *Queries) GetVideoForScreening(ctx context.Context, id uuid.UUID) (GetVideoForScreeningRow, error) {
 	row := q.db.QueryRow(ctx, getVideoForScreening, id)
 	var i GetVideoForScreeningRow
@@ -136,28 +135,30 @@ func (q *Queries) GetVideoForScreening(ctx context.Context, id uuid.UUID) (GetVi
 }
 
 const listDiscoveredVideos = `-- name: ListDiscoveredVideos :many
-SELECT id, caption, hashtags
+SELECT id, created_at, caption, hashtags
 FROM videos
 WHERE status = 'discovered'
-  AND id <> ALL($1::uuid[])
-ORDER BY created_at ASC
-LIMIT $2::int
+  AND (created_at, id) > ($1::timestamptz, $2::uuid)
+ORDER BY created_at ASC, id ASC
+LIMIT $3::int
 `
 
 type ListDiscoveredVideosParams struct {
-	ExcludeIds []uuid.UUID
-	BatchSize  int32
+	AfterCreatedAt time.Time
+	AfterID        uuid.UUID
+	BatchSize      int32
 }
 
 type ListDiscoveredVideosRow struct {
-	ID       uuid.UUID
-	Caption  pgtype.Text
-	Hashtags []string
+	ID        uuid.UUID
+	CreatedAt time.Time
+	Caption   pgtype.Text
+	Hashtags  []string
 }
 
 // Returns the videos still waiting for screening, oldest first.
 func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVideosParams) ([]ListDiscoveredVideosRow, error) {
-	rows, err := q.db.Query(ctx, listDiscoveredVideos, arg.ExcludeIds, arg.BatchSize)
+	rows, err := q.db.Query(ctx, listDiscoveredVideos, arg.AfterCreatedAt, arg.AfterID, arg.BatchSize)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +166,12 @@ func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVi
 	var items []ListDiscoveredVideosRow
 	for rows.Next() {
 		var i ListDiscoveredVideosRow
-		if err := rows.Scan(&i.ID, &i.Caption, &i.Hashtags); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.Caption,
+			&i.Hashtags,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -201,6 +207,31 @@ func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influenc
 		return nil, err
 	}
 	return items, nil
+}
+
+const setVideoScreenFailed = `-- name: SetVideoScreenFailed :execrows
+UPDATE videos
+SET status = 'failed',
+    failed_stage = $1::varchar,
+    error = $2::text,
+    updated_at = NOW()
+WHERE id = $3::uuid
+  AND status = 'discovered'
+`
+
+type SetVideoScreenFailedParams struct {
+	FailedStage string
+	Error       string
+	ID          uuid.UUID
+}
+
+// Marks a video that is still waiting for screening as failed.
+func (q *Queries) SetVideoScreenFailed(ctx context.Context, arg SetVideoScreenFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVideoScreenFailed, arg.FailedStage, arg.Error, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const setVideoScreenStatus = `-- name: SetVideoScreenStatus :execrows

@@ -14,7 +14,6 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/model"
-	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
 const (
@@ -65,7 +64,6 @@ type CrawlService struct {
 	influencerRepo data.InfluencerRepoer
 	videoRepo      data.VideoRepoer
 	scraper        tikTokScraper
-	screenEnqueuer queue.JobEnqueuer
 	now            func() time.Time
 }
 
@@ -75,14 +73,12 @@ func NewCrawlService(
 	influencerRepo data.InfluencerRepoer,
 	videoRepo data.VideoRepoer,
 	scraper tikTokScraper,
-	screenEnqueuer queue.JobEnqueuer,
 ) *CrawlService {
 	return &CrawlService{
 		crawlerRepo:    crawlerRepo,
 		influencerRepo: influencerRepo,
 		videoRepo:      videoRepo,
 		scraper:        scraper,
-		screenEnqueuer: screenEnqueuer,
 		now:            time.Now,
 	}
 }
@@ -503,14 +499,14 @@ func (s *CrawlService) saveVideo(ctx context.Context, v *model.Video) (bool, err
 
 // enqueueScreening asks for a screening run after a crawl stored new videos.
 func (s *CrawlService) enqueueScreening(ctx context.Context, newVideos int) {
-	if newVideos == 0 || s.screenEnqueuer == nil {
+	if newVideos == 0 {
 		return
 	}
 
 	saveCtx, cancel := saveContext(ctx)
 	defer cancel()
 
-	if err := s.screenEnqueuer.Enqueue(saveCtx, queue.ScreenVideosJob{}); err != nil {
+	if err := s.videoRepo.EnqueueScreenVideosJob(saveCtx); err != nil {
 		log.Printf("[CrawlService] failed to enqueue video screening: %v", err)
 	}
 }

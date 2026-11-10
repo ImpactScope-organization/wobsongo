@@ -1,6 +1,7 @@
 package repo_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"slices"
@@ -39,6 +40,12 @@ func withVideoTx(
 	fn(ctx, tx, repo.NewVideoRepo(db.New(tx), pool, nil))
 }
 
+// screenTestTime is the created_at insertScreenVideo gives a video that is
+// ageHours old, so a test can build a cursor from it.
+func screenTestTime(ageHours int) time.Time {
+	return screenTestEpoch.Add(time.Duration(ageHours) * time.Hour)
+}
+
 // insertScreenVideo stores a discovered video created ageHours after
 // screenTestEpoch. created_at defaults to the transaction start, so without
 // this every video of one test would tie.
@@ -71,7 +78,7 @@ func insertScreenVideo(
 		t.Fatalf("failed to insert video: %v", err)
 	}
 
-	createdAt := screenTestEpoch.Add(time.Duration(ageHours) * time.Hour)
+	createdAt := screenTestTime(ageHours)
 	if _, err := tx.Exec(
 		ctx,
 		"update videos set created_at = $2 where id = $1",
@@ -132,7 +139,7 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 			a := insertScreenVideo(t, ctx, tx, videos, 0, "herbal remedy", "diabetes", "herbal")
 			b := insertScreenVideo(t, ctx, tx, videos, 1, "no hashtags")
 
-			got, err := videos.ListDiscoveredVideos(ctx, 1000, nil)
+			got, err := videos.ListDiscoveredVideos(ctx, 1000, time.Time{}, uuid.Nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -147,6 +154,9 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 			if !slices.Equal(owned[0].Hashtags, []string{"diabetes", "herbal"}) {
 				t.Errorf("hashtags = %v, want [diabetes herbal]", owned[0].Hashtags)
 			}
+			if want := screenTestTime(0); !owned[0].CreatedAt.Equal(want) {
+				t.Errorf("created_at = %v, want %v", owned[0].CreatedAt, want)
+			}
 		})
 	})
 
@@ -156,7 +166,7 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 			b := insertScreenVideo(t, ctx, tx, videos, 1, "b")
 			insertScreenVideo(t, ctx, tx, videos, 2, "c")
 
-			got, err := videos.ListDiscoveredVideos(ctx, 2, nil)
+			got, err := videos.ListDiscoveredVideos(ctx, 2, time.Time{}, uuid.Nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -167,34 +177,119 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 		})
 	})
 
-	t.Run("SkipsExcludedIDs", func(t *testing.T) {
+	t.Run("StartsAfterTheCursor", func(t *testing.T) {
 		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
 			a := insertScreenVideo(t, ctx, tx, videos, 0, "a")
 			b := insertScreenVideo(t, ctx, tx, videos, 1, "b")
 			c := insertScreenVideo(t, ctx, tx, videos, 2, "c")
 
-			got, err := videos.ListDiscoveredVideos(ctx, 2, []uuid.UUID{a.ID})
+			got, err := videos.ListDiscoveredVideos(ctx, 1000, screenTestTime(0), a.ID)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if want := []uuid.UUID{b.ID, c.ID}; !slices.Equal(videoIDs(got), want) {
-				t.Errorf("got %v, want %v", videoIDs(got), want)
+			owned := ownedVideos(got, a, b, c)
+			if want := []uuid.UUID{b.ID, c.ID}; !slices.Equal(videoIDs(owned), want) {
+				t.Errorf(
+					"got %v, want %v: the cursor video itself must be skipped",
+					videoIDs(owned),
+					want,
+				)
 			}
 		})
 	})
 
-	t.Run("EmptyExcludeListMatchesEveryVideo", func(t *testing.T) {
+	t.Run("CursorOnTheNewestVideoReturnsNothingMore", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			a := insertScreenVideo(t, ctx, tx, videos, 0, "a")
+			c := insertScreenVideo(t, ctx, tx, videos, 2, "c")
+
+			got, err := videos.ListDiscoveredVideos(ctx, 1000, screenTestTime(2), c.ID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if owned := ownedVideos(got, a, c); len(owned) != 0 {
+				t.Errorf("got %v, want none of the test videos", videoIDs(owned))
+			}
+		})
+	})
+
+	t.Run("ZeroCursorReturnsEveryVideo", func(t *testing.T) {
 		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
 			a := insertScreenVideo(t, ctx, tx, videos, 0, "a")
 
-			got, err := videos.ListDiscoveredVideos(ctx, 1000, []uuid.UUID{})
+			got, err := videos.ListDiscoveredVideos(ctx, 1000, time.Time{}, uuid.Nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
 			if len(ownedVideos(got, a)) != 1 {
-				t.Error("an empty exclude list must not hide any video")
+				t.Error("the zero cursor must not hide any video")
+			}
+		})
+	})
+
+	t.Run("SameCreatedAtIsOrderedByID", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			// Both videos tie on created_at, so only the id can order them.
+			a := insertScreenVideo(t, ctx, tx, videos, 0, "a")
+			b := insertScreenVideo(t, ctx, tx, videos, 0, "b")
+			first, second := a, b
+			if bytes.Compare(a.ID[:], b.ID[:]) > 0 {
+				first, second = b, a
+			}
+
+			page1, err := videos.ListDiscoveredVideos(ctx, 1, time.Time{}, uuid.Nil)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if want := []uuid.UUID{first.ID}; !slices.Equal(videoIDs(page1), want) {
+				t.Fatalf("first page = %v, want %v", videoIDs(page1), want)
+			}
+
+			// The second page starts at the tie: it must neither repeat the
+			// first video nor skip the second one.
+			page2, err := videos.ListDiscoveredVideos(
+				ctx, 1, page1[0].CreatedAt, page1[0].ID,
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if want := []uuid.UUID{second.ID}; !slices.Equal(videoIDs(page2), want) {
+				t.Errorf("second page = %v, want %v", videoIDs(page2), want)
+			}
+		})
+	})
+
+	t.Run("PagesThroughEveryVideoOnce", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			var all []*model.Video
+			for i := range 5 {
+				all = append(all, insertScreenVideo(t, ctx, tx, videos, i, "claim"))
+			}
+
+			// Walk the way ScreenService does: the cursor is the last video of
+			// the previous page. The test videos are the oldest rows, so the
+			// first three pages of two hold exactly them.
+			var (
+				seen    []uuid.UUID
+				afterAt time.Time
+				afterID uuid.UUID
+			)
+			for range 3 {
+				page, err := videos.ListDiscoveredVideos(ctx, 2, afterAt, afterID)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				seen = append(seen, videoIDs(page)...)
+
+				last := page[len(page)-1]
+				afterAt, afterID = last.CreatedAt, last.ID
+			}
+
+			if want := videoIDs(all); !slices.Equal(seen[:len(want)], want) {
+				t.Errorf("paged %v, want %v each exactly once, oldest first", seen, want)
 			}
 		})
 	})
@@ -221,7 +316,7 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 				t.Fatalf("failed to clear status: %v", err)
 			}
 
-			got, err := videos.ListDiscoveredVideos(ctx, 1000, nil)
+			got, err := videos.ListDiscoveredVideos(ctx, 1000, time.Time{}, uuid.Nil)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -356,6 +451,65 @@ func TestVideoRepo_GetVideoForScreening(t *testing.T) {
 
 			if !errors.Is(err, data.ErrNotFound) {
 				t.Errorf("error = %v, want ErrNotFound", err)
+			}
+		})
+	})
+}
+
+func TestVideoRepo_SetVideoScreenFailed(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, _ := testhelpers.SetupTestDB(t)
+	defer pool.Close()
+
+	t.Run("MarksDiscoveredVideoAsFailed", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			v := insertScreenVideo(t, ctx, tx, videos, 0, "claim")
+
+			applied, err := videos.SetVideoScreenFailed(ctx, v.ID, "llm unavailable")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !applied {
+				t.Error("expected the failure to be applied")
+			}
+
+			var status, stage, reason *string
+			if err := tx.QueryRow(
+				ctx,
+				"select status, failed_stage, error from videos where id = $1",
+				v.ID,
+			).Scan(&status, &stage, &reason); err != nil {
+				t.Fatalf("failed to read video: %v", err)
+			}
+			if status == nil || *status != string(model.VideoStatusFailed) {
+				t.Errorf("status = %v, want failed", status)
+			}
+			if stage == nil || *stage != model.VideoFailedStageScreen {
+				t.Errorf("failed_stage = %v, want %q", stage, model.VideoFailedStageScreen)
+			}
+			if reason == nil || *reason != "llm unavailable" {
+				t.Errorf("error = %v, want %q", reason, "llm unavailable")
+			}
+		})
+	})
+
+	t.Run("IsNoOpWhenAlreadyScreened", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			v := insertScreenVideo(t, ctx, tx, videos, 0, "claim")
+			if _, err := videos.SetVideoScreenStatus(
+				ctx, v.ID, model.VideoStatusScreenedIn,
+			); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			applied, err := videos.SetVideoScreenFailed(ctx, v.ID, "late failure")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if applied {
+				t.Error("a screened video must not be marked as failed")
 			}
 		})
 	})

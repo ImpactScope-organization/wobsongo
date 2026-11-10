@@ -124,6 +124,6 @@ const (
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
 
-	// QueueScreening is used by ScreenVideosJob.
+	// QueueScreening is used by ScreenVideosJob and ScreenVideoJob.
 	QueueScreening = "video_screening"
 )

@@ -11,41 +11,22 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
-	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
-
-// crawlTestEnqueuer is a hand-rolled queue.JobEnqueuer.
-type crawlTestEnqueuer struct {
-	jobs []queue.BackgroundJob
-	err  error
-}
-
-func (e *crawlTestEnqueuer) Enqueue(_ context.Context, payload queue.BackgroundJob) error {
-	if e.err != nil {
-		return e.err
-	}
-	e.jobs = append(e.jobs, payload)
-	return nil
-}
-
-// screenJobs counts the screening jobs that were enqueued.
-func (e *crawlTestEnqueuer) screenJobs() int {
-	n := 0
-	for _, job := range e.jobs {
-		if _, ok := job.(queue.ScreenVideosJob); ok {
-			n++
-		}
-	}
-	return n
-}
 
 // crawlTestVideoRepo embeds data.VideoRepoer so only the methods a crawl
 // uses need an implementation; calling any other one panics.
 type crawlTestVideoRepo struct {
 	data.VideoRepoer
-	isNew     bool
-	saveErrAt int // 1-based number of the save that fails, 0 for none
-	calls     int
+	isNew            bool
+	saveErrAt        int // 1-based number of the save that fails, 0 for none
+	calls            int
+	screenRuns       int   // how many times EnqueueScreenVideosJob was called
+	enqueueScreenErr error // returned by EnqueueScreenVideosJob
+}
+
+func (r *crawlTestVideoRepo) EnqueueScreenVideosJob(context.Context) error {
+	r.screenRuns++
+	return r.enqueueScreenErr
 }
 
 func (r *crawlTestVideoRepo) UpsertDiscoveredVideo(
@@ -101,7 +82,6 @@ func crawlTestItem(id string) dto.TikTokScraperItem {
 func newCrawlTestService(
 	videos *crawlTestVideoRepo,
 	scraper *crawlTestScraper,
-	enqueuer queue.JobEnqueuer,
 ) *CrawlService {
 	crawler := &mockrepo.CrawlerRepoerMock{
 		GetSettingFunc: func(context.Context) (*model.AdminSetting, error) {
@@ -139,47 +119,41 @@ func newCrawlTestService(
 		},
 		SetNextCheckAtFunc: func(context.Context, uuid.UUID, time.Time) error { return nil },
 	}
-	return NewCrawlService(crawler, influencers, videos, scraper, enqueuer)
+	return NewCrawlService(crawler, influencers, videos, scraper)
 }
 
 func TestCrawlService_enqueueScreening(t *testing.T) {
 	t.Run("NoNewVideos_EnqueuesNothing", func(t *testing.T) {
-		enqueuer := &crawlTestEnqueuer{}
-		svc := &CrawlService{screenEnqueuer: enqueuer}
+		videos := &crawlTestVideoRepo{}
+		svc := &CrawlService{videoRepo: videos}
 
 		svc.enqueueScreening(t.Context(), 0)
 
-		if len(enqueuer.jobs) != 0 {
-			t.Errorf("enqueued %d jobs, want 0", len(enqueuer.jobs))
+		if videos.screenRuns != 0 {
+			t.Errorf("screening runs = %d, want 0", videos.screenRuns)
 		}
 	})
 
 	t.Run("NewVideos_EnqueuesOneScreeningJob", func(t *testing.T) {
-		enqueuer := &crawlTestEnqueuer{}
-		svc := &CrawlService{screenEnqueuer: enqueuer}
+		videos := &crawlTestVideoRepo{}
+		svc := &CrawlService{videoRepo: videos}
 
 		svc.enqueueScreening(t.Context(), 7)
 
-		if len(enqueuer.jobs) != 1 || enqueuer.screenJobs() != 1 {
-			t.Errorf("enqueued %v, want exactly one ScreenVideosJob", enqueuer.jobs)
+		if videos.screenRuns != 1 {
+			t.Errorf("screening runs = %d, want 1", videos.screenRuns)
 		}
 	})
 
 	t.Run("EnqueueFailure_IsOnlyLogged", func(t *testing.T) {
-		enqueuer := &crawlTestEnqueuer{err: errors.New("queue unavailable")}
-		svc := &CrawlService{screenEnqueuer: enqueuer}
+		videos := &crawlTestVideoRepo{enqueueScreenErr: errors.New("queue unavailable")}
+		svc := &CrawlService{videoRepo: videos}
 
 		svc.enqueueScreening(t.Context(), 3) // must not panic or fail the caller
 
-		if len(enqueuer.jobs) != 0 {
-			t.Errorf("enqueued %d jobs, want 0", len(enqueuer.jobs))
+		if videos.screenRuns != 1 {
+			t.Errorf("screening runs = %d, want 1", videos.screenRuns)
 		}
-	})
-
-	t.Run("NoEnqueuer_IsSkipped", func(t *testing.T) {
-		svc := &CrawlService{}
-
-		svc.enqueueScreening(t.Context(), 3) // must not panic
 	})
 }
 
@@ -234,31 +208,35 @@ func TestCrawlService_RunDiscovery_EnqueuesScreening(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enqueuer := &crawlTestEnqueuer{}
-			svc := newCrawlTestService(tt.videos, tt.scraper, enqueuer)
+			svc := newCrawlTestService(tt.videos, tt.scraper)
 
 			err := svc.RunDiscovery(t.Context(), model.CrawlTriggerManual, nil)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("error = %v, wantErr %v", err, tt.wantErr)
 			}
-			if got := enqueuer.screenJobs(); got != tt.wantJobs {
-				t.Errorf("screening jobs = %d, want %d", got, tt.wantJobs)
+			if got := tt.videos.screenRuns; got != tt.wantJobs {
+				t.Errorf("screening runs = %d, want %d", got, tt.wantJobs)
 			}
 		})
 	}
 }
 
 func TestCrawlService_RunDiscovery_EnqueueFailureDoesNotFailTheRun(t *testing.T) {
-	enqueuer := &crawlTestEnqueuer{err: errors.New("queue unavailable")}
+	videos := &crawlTestVideoRepo{
+		isNew:            true,
+		enqueueScreenErr: errors.New("queue unavailable"),
+	}
 	svc := newCrawlTestService(
-		&crawlTestVideoRepo{isNew: true},
+		videos,
 		&crawlTestScraper{items: []dto.TikTokScraperItem{crawlTestItem("1")}},
-		enqueuer,
 	)
 
 	if err := svc.RunDiscovery(t.Context(), model.CrawlTriggerManual, nil); err != nil {
 		t.Fatalf("a failed enqueue must not fail the run, got %v", err)
+	}
+	if videos.screenRuns != 1 {
+		t.Errorf("screening runs = %d, want 1", videos.screenRuns)
 	}
 }
 
@@ -274,17 +252,16 @@ func TestCrawlService_RunMonitor_EnqueuesScreening(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			enqueuer := &crawlTestEnqueuer{}
 			scraper := &crawlTestScraper{items: []dto.TikTokScraperItem{crawlTestItem("1")}}
-			svc := newCrawlTestService(tt.videos, scraper, enqueuer)
+			svc := newCrawlTestService(tt.videos, scraper)
 			creatorID := uuid.New()
 
 			err := svc.RunMonitor(t.Context(), model.CrawlTriggerManual, nil, &creatorID)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got := enqueuer.screenJobs(); got != tt.wantJobs {
-				t.Errorf("screening jobs = %d, want %d", got, tt.wantJobs)
+			if got := tt.videos.screenRuns; got != tt.wantJobs {
+				t.Errorf("screening runs = %d, want %d", got, tt.wantJobs)
 			}
 		})
 	}

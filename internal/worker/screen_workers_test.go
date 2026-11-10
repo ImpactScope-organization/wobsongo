@@ -5,6 +5,7 @@ import (
 	"errors"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -23,6 +24,7 @@ type screenWorkerStore struct {
 	enqueued   []uuid.UUID
 	listErr    error
 	enqueueErr error
+	failed     map[uuid.UUID]string
 }
 
 func newScreenWorkerStore(videos ...*model.Video) *screenWorkerStore {
@@ -38,18 +40,29 @@ func newScreenWorkerStore(videos ...*model.Video) *screenWorkerStore {
 func (s *screenWorkerStore) ListDiscoveredVideos(
 	_ context.Context,
 	limit int32,
-	excludeIDs []uuid.UUID,
+	_ time.Time,
+	afterID uuid.UUID,
 ) ([]*model.Video, error) {
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
 
+	start := 0
+	if afterID != uuid.Nil {
+		for i, v := range s.videos {
+			if v.ID == afterID {
+				start = i + 1
+				break
+			}
+		}
+	}
+
 	var out []*model.Video
-	for _, v := range s.videos {
+	for _, v := range s.videos[start:] {
 		if int32(len(out)) >= limit {
 			break
 		}
-		if _, screened := s.status[v.ID]; screened || slices.Contains(excludeIDs, v.ID) {
+		if _, screened := s.status[v.ID]; screened {
 			continue
 		}
 		out = append(out, v)
@@ -127,11 +140,37 @@ func runScreenVideosJob(t *testing.T, w *ScreenVideosWorker) error {
 	return w.Work(t.Context(), &river.Job[queue.ScreenVideosJob]{})
 }
 
+func (s *screenWorkerStore) SetVideoScreenFailed(
+	_ context.Context,
+	id uuid.UUID,
+	reason string,
+) (bool, error) {
+	if _, screened := s.status[id]; screened {
+		return false, nil
+	}
+	s.status[id] = model.VideoStatusFailed
+	if s.failed == nil {
+		s.failed = make(map[uuid.UUID]string)
+	}
+	s.failed[id] = reason
+	return true, nil
+}
+
+func runScreenVideoJobAttempt(
+	ctx context.Context,
+	w *ScreenVideoWorker,
+	videoID string,
+	attempt int,
+) error {
+	return w.Work(ctx, &river.Job[queue.ScreenVideoJob]{
+		JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: queue.ScreenMaxAttempts},
+		Args:   queue.ScreenVideoJob{VideoID: videoID},
+	})
+}
+
 func runScreenVideoJob(t *testing.T, w *ScreenVideoWorker, videoID string) error {
 	t.Helper()
-	return w.Work(t.Context(), &river.Job[queue.ScreenVideoJob]{
-		Args: queue.ScreenVideoJob{VideoID: videoID},
-	})
+	return runScreenVideoJobAttempt(t.Context(), w, videoID, 1)
 }
 
 func TestScreenVideosWorker_Timeout(t *testing.T) {
@@ -269,6 +308,62 @@ func TestScreenVideoWorker_Work(t *testing.T) {
 		}
 		if got := store.status[video.ID]; got != model.VideoStatusScreenedIn {
 			t.Errorf("status = %q, want it to stay screened_in", got)
+		}
+	})
+
+	t.Run("FailureBeforeLastAttempt_KeepsVideoDiscovered", func(t *testing.T) {
+		video := &model.Video{Caption: "claim"}
+		store := newScreenWorkerStore(video)
+		w := buildScreenVideoWorker(
+			store,
+			&screenWorkerAnalyzer{err: errors.New("llm unavailable")},
+		)
+
+		err := runScreenVideoJobAttempt(
+			t.Context(),
+			w,
+			video.ID.String(),
+			queue.ScreenMaxAttempts-1,
+		)
+
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+		if _, screened := store.status[video.ID]; screened {
+			t.Error("video must stay discovered before the last attempt")
+		}
+	})
+
+	t.Run("FailureOnLastAttempt_MarksVideoFailed", func(t *testing.T) {
+		outage := errors.New("llm unavailable")
+		video := &model.Video{Caption: "claim"}
+		store := newScreenWorkerStore(video)
+		w := buildScreenVideoWorker(store, &screenWorkerAnalyzer{err: outage})
+
+		err := runScreenVideoJobAttempt(t.Context(), w, video.ID.String(), queue.ScreenMaxAttempts)
+
+		if !errors.Is(err, outage) {
+			t.Fatalf("error = %v, want it to wrap the analyzer error", err)
+		}
+		if got := store.status[video.ID]; got != model.VideoStatusFailed {
+			t.Errorf("status = %q, want failed", got)
+		}
+	})
+
+	t.Run("FailureOnLastAttemptDuringShutdown_KeepsVideoDiscovered", func(t *testing.T) {
+		video := &model.Video{Caption: "claim"}
+		store := newScreenWorkerStore(video)
+		w := buildScreenVideoWorker(store, &screenWorkerAnalyzer{err: context.Canceled})
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		err := runScreenVideoJobAttempt(ctx, w, video.ID.String(), queue.ScreenMaxAttempts)
+
+		if err == nil {
+			t.Fatal("expected an error")
+		}
+		if _, screened := store.status[video.ID]; screened {
+			t.Error("a shutdown must not mark the video as failed")
 		}
 	})
 }

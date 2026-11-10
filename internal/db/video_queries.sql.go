@@ -114,6 +114,27 @@ func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, er
 	return i, err
 }
 
+const getVideoForScreening = `-- name: GetVideoForScreening :one
+SELECT id, caption, hashtags
+FROM videos
+WHERE id = $1::uuid
+  AND status = 'discovered'
+`
+
+type GetVideoForScreeningRow struct {
+	ID       uuid.UUID
+	Caption  pgtype.Text
+	Hashtags []string
+}
+
+// Returns the video only while it is still waiting for screening.
+func (q *Queries) GetVideoForScreening(ctx context.Context, id uuid.UUID) (GetVideoForScreeningRow, error) {
+	row := q.db.QueryRow(ctx, getVideoForScreening, id)
+	var i GetVideoForScreeningRow
+	err := row.Scan(&i.ID, &i.Caption, &i.Hashtags)
+	return i, err
+}
+
 const listDiscoveredVideos = `-- name: ListDiscoveredVideos :many
 SELECT id, caption, hashtags
 FROM videos

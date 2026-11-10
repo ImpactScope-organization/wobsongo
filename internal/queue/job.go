@@ -76,6 +76,9 @@ const (
 	// JobTypeScreenVideos represents a job type for screening every
 	// discovered video for relevance.
 	JobTypeScreenVideos BackgroundJobType = "screen_videos"
+
+	// JobTypeScreenVideo represents a job type for screening one video.
+	JobTypeScreenVideo BackgroundJobType = "screen_video"
 )
 
 // BackgroundJob represents a generic background job.

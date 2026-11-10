@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"slices"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -16,13 +15,14 @@ import (
 	"github.com/riverqueue/river/rivertype"
 )
 
-// screenWorkerStore is an in-memory store with the two methods
+// screenWorkerStore is an in-memory store with the methods
 // service.ScreenService needs from a video repo.
 type screenWorkerStore struct {
-	mu      sync.Mutex
-	videos  []*model.Video
-	status  map[uuid.UUID]model.VideoStatus
-	listErr error
+	videos     []*model.Video
+	status     map[uuid.UUID]model.VideoStatus
+	enqueued   []uuid.UUID
+	listErr    error
+	enqueueErr error
 }
 
 func newScreenWorkerStore(videos ...*model.Video) *screenWorkerStore {
@@ -40,9 +40,6 @@ func (s *screenWorkerStore) ListDiscoveredVideos(
 	limit int32,
 	excludeIDs []uuid.UUID,
 ) ([]*model.Video, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -60,19 +57,38 @@ func (s *screenWorkerStore) ListDiscoveredVideos(
 	return out, nil
 }
 
+func (s *screenWorkerStore) GetVideoForScreening(
+	_ context.Context,
+	id uuid.UUID,
+) (*model.Video, error) {
+	if _, screened := s.status[id]; !screened {
+		for _, v := range s.videos {
+			if v.ID == id {
+				return v, nil
+			}
+		}
+	}
+	return nil, data.ErrNotFound
+}
+
 func (s *screenWorkerStore) SetVideoScreenStatus(
 	_ context.Context,
 	id uuid.UUID,
 	status model.VideoStatus,
 ) (bool, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if _, screened := s.status[id]; screened {
 		return false, nil
 	}
 	s.status[id] = status
 	return true, nil
+}
+
+func (s *screenWorkerStore) EnqueueScreenVideoJob(_ context.Context, videoID uuid.UUID) error {
+	if s.enqueueErr != nil {
+		return s.enqueueErr
+	}
+	s.enqueued = append(s.enqueued, videoID)
+	return nil
 }
 
 // screenWorkerAnalyzer is a hand-rolled data.ClaimAnalyzer.
@@ -92,33 +108,114 @@ func (a *screenWorkerAnalyzer) Analyze(
 	return &data.ClaimAnalysis{InScope: a.inScope[message]}, nil
 }
 
-func newScreenWorker(store *screenWorkerStore, analyzer *screenWorkerAnalyzer) *ScreenVideosWorker {
-	return NewScreenVideosWorker(service.NewScreenService(store, analyzer, 2))
+func buildScreenVideosWorker(
+	store *screenWorkerStore,
+	analyzer *screenWorkerAnalyzer,
+) *ScreenVideosWorker {
+	return NewScreenVideosWorker(service.NewScreenService(store, analyzer))
 }
 
-func runScreenJob(t *testing.T, w *ScreenVideosWorker) error {
+func buildScreenVideoWorker(
+	store *screenWorkerStore,
+	analyzer *screenWorkerAnalyzer,
+) *ScreenVideoWorker {
+	return NewScreenVideoWorker(service.NewScreenService(store, analyzer))
+}
+
+func runScreenVideosJob(t *testing.T, w *ScreenVideosWorker) error {
 	t.Helper()
 	return w.Work(t.Context(), &river.Job[queue.ScreenVideosJob]{})
 }
 
-func TestScreenVideosWorker_Timeout(t *testing.T) {
-	w := newScreenWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
+func runScreenVideoJob(t *testing.T, w *ScreenVideoWorker, videoID string) error {
+	t.Helper()
+	return w.Work(t.Context(), &river.Job[queue.ScreenVideoJob]{
+		Args: queue.ScreenVideoJob{VideoID: videoID},
+	})
+}
 
-	if got := w.Timeout(&river.Job[queue.ScreenVideosJob]{}); got != screenJobTimeout {
-		t.Errorf("Timeout() = %v, want %v", got, screenJobTimeout)
+func TestScreenVideosWorker_Timeout(t *testing.T) {
+	w := buildScreenVideosWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
+
+	if got := w.Timeout(&river.Job[queue.ScreenVideosJob]{}); got != screenDispatchTimeout {
+		t.Errorf("Timeout() = %v, want %v", got, screenDispatchTimeout)
 	}
 }
 
 func TestScreenVideosWorker_Work(t *testing.T) {
-	t.Run("ScreensEveryDiscoveredVideo", func(t *testing.T) {
+	t.Run("EnqueuesEveryDiscoveredVideo", func(t *testing.T) {
+		a := &model.Video{Caption: "pilule contraceptive"}
+		b := &model.Video{Caption: "recette de crêpes"}
+		store := newScreenWorkerStore(a, b)
+
+		err := runScreenVideosJob(t, buildScreenVideosWorker(store, &screenWorkerAnalyzer{}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := []uuid.UUID{a.ID, b.ID}; !slices.Equal(store.enqueued, want) {
+			t.Errorf("enqueued = %v, want %v", store.enqueued, want)
+		}
+		if len(store.status) != 0 {
+			t.Error("the dispatch run must not screen videos itself")
+		}
+	})
+
+	t.Run("NothingToEnqueue_Succeeds", func(t *testing.T) {
+		w := buildScreenVideosWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
+
+		if err := runScreenVideosJob(t, w); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("ListFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("db down")
+		store := newScreenWorkerStore()
+		store.listErr = boom
+
+		err := runScreenVideosJob(t, buildScreenVideosWorker(store, &screenWorkerAnalyzer{}))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the list error", err)
+		}
+	})
+
+	t.Run("EnqueueFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("queue down")
+		store := newScreenWorkerStore(&model.Video{Caption: "claim"})
+		store.enqueueErr = boom
+
+		err := runScreenVideosJob(t, buildScreenVideosWorker(store, &screenWorkerAnalyzer{}))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+		}
+	})
+}
+
+func TestScreenVideoWorker_Timeout(t *testing.T) {
+	w := buildScreenVideoWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
+
+	if got := w.Timeout(&river.Job[queue.ScreenVideoJob]{}); got != screenVideoJobTimeout {
+		t.Errorf("Timeout() = %v, want %v", got, screenVideoJobTimeout)
+	}
+}
+
+func TestScreenVideoWorker_Work(t *testing.T) {
+	t.Run("ScreensTheVideo", func(t *testing.T) {
 		in := &model.Video{Caption: "pilule contraceptive", Hashtags: []string{"santé"}}
 		out := &model.Video{Caption: "recette de crêpes"}
 		store := newScreenWorkerStore(in, out)
 		analyzer := &screenWorkerAnalyzer{
 			inScope: map[string]bool{"pilule contraceptive #santé": true},
 		}
+		w := buildScreenVideoWorker(store, analyzer)
 
-		if err := runScreenJob(t, newScreenWorker(store, analyzer)); err != nil {
+		if err := runScreenVideoJob(t, w, in.ID.String()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := runScreenVideoJob(t, w, out.ID.String()); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -130,20 +227,13 @@ func TestScreenVideosWorker_Work(t *testing.T) {
 		}
 	})
 
-	t.Run("NothingToScreen_Succeeds", func(t *testing.T) {
-		w := newScreenWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
-
-		if err := runScreenJob(t, w); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
 	t.Run("AnalyzerOutage_ReturnsErrorWithoutCancel", func(t *testing.T) {
 		outage := errors.New("llm unavailable")
 		video := &model.Video{Caption: "claim"}
 		store := newScreenWorkerStore(video)
+		w := buildScreenVideoWorker(store, &screenWorkerAnalyzer{err: outage})
 
-		err := runScreenJob(t, newScreenWorker(store, &screenWorkerAnalyzer{err: outage}))
+		err := runScreenVideoJob(t, w, video.ID.String())
 
 		if !errors.Is(err, outage) {
 			t.Fatalf("error = %v, want it to wrap the analyzer error", err)
@@ -157,15 +247,28 @@ func TestScreenVideosWorker_Work(t *testing.T) {
 		}
 	})
 
-	t.Run("ListFailure_ReturnsError", func(t *testing.T) {
-		boom := errors.New("db down")
-		store := newScreenWorkerStore()
-		store.listErr = boom
+	t.Run("InvalidVideoID_CancelsTheJob", func(t *testing.T) {
+		w := buildScreenVideoWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
 
-		err := runScreenJob(t, newScreenWorker(store, &screenWorkerAnalyzer{}))
+		err := runScreenVideoJob(t, w, "not-a-uuid")
 
-		if !errors.Is(err, boom) {
-			t.Fatalf("error = %v, want it to wrap the list error", err)
+		var cancelErr *rivertype.JobCancelError
+		if !errors.As(err, &cancelErr) {
+			t.Fatalf("error = %v, want a job cancel error", err)
+		}
+	})
+
+	t.Run("AlreadyScreenedVideo_Succeeds", func(t *testing.T) {
+		video := &model.Video{Caption: "claim"}
+		store := newScreenWorkerStore(video)
+		store.status[video.ID] = model.VideoStatusScreenedIn
+		w := buildScreenVideoWorker(store, &screenWorkerAnalyzer{})
+
+		if err := runScreenVideoJob(t, w, video.ID.String()); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := store.status[video.ID]; got != model.VideoStatusScreenedIn {
+			t.Errorf("status = %q, want it to stay screened_in", got)
 		}
 	})
 }

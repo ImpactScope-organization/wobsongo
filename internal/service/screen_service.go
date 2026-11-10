@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -15,6 +15,10 @@ import (
 // screenBatchSize is how many discovered videos are loaded at a time.
 const screenBatchSize = 50
 
+// errNoAnalysis is returned when the analyzer reports success but gives no
+// result.
+var errNoAnalysis = errors.New("analyzer returned no analysis")
+
 // videoScreenStore is the part of data.VideoRepoer that ScreenService uses.
 type videoScreenStore interface {
 	ListDiscoveredVideos(
@@ -22,140 +26,94 @@ type videoScreenStore interface {
 		limit int32,
 		excludeIDs []uuid.UUID,
 	) ([]*model.Video, error)
+	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
 	SetVideoScreenStatus(
 		ctx context.Context,
 		id uuid.UUID,
 		status model.VideoStatus,
 	) (bool, error)
+	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error
 }
 
 // ScreenService runs the first screening of discovered videos: it decides
 // from the caption and hashtags whether a video is worth transcribing.
 type ScreenService struct {
-	videoRepo   videoScreenStore
-	analyzer    data.ClaimAnalyzer
-	concurrency int
+	videoRepo videoScreenStore
+	analyzer  data.ClaimAnalyzer
 }
 
-// NewScreenService constructs a ScreenService. concurrency is how many videos
-// are analyzed at the same time; a value below 1 is treated as 1.
-func NewScreenService(
-	videoRepo videoScreenStore,
-	analyzer data.ClaimAnalyzer,
-	concurrency int,
-) *ScreenService {
+// NewScreenService constructs a ScreenService.
+func NewScreenService(videoRepo videoScreenStore, analyzer data.ClaimAnalyzer) *ScreenService {
 	return &ScreenService{
-		videoRepo:   videoRepo,
-		analyzer:    analyzer,
-		concurrency: max(concurrency, 1),
+		videoRepo: videoRepo,
+		analyzer:  analyzer,
 	}
 }
 
-// ScreenSummary counts the outcome of one screening run.
-type ScreenSummary struct {
-	ScreenedIn  int
-	ScreenedOut int
-	Failed      int
-}
-
-// screenOutcome is the result of screening one video.
-type screenOutcome struct {
-	status model.VideoStatus
-	err    error
-}
-
-// ScreenDiscoveredVideos screens every video that is still 'discovered',
-// batch by batch, until none is left.
-func (s *ScreenService) ScreenDiscoveredVideos(ctx context.Context) (ScreenSummary, error) {
-	var summary ScreenSummary
-	skip := make([]uuid.UUID, 0)
+// EnqueueDiscoveredVideos enqueues one screening job for every video that is
+// still 'discovered', batch by batch, and returns how many it enqueued. A
+// video that already has a job in the queue is not queued twice.
+func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error) {
+	enqueued := make([]uuid.UUID, 0)
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return summary, err
+			return len(enqueued), fmt.Errorf("enqueue screening: %w", err)
 		}
 
-		videos, err := s.videoRepo.ListDiscoveredVideos(ctx, screenBatchSize, skip)
+		videos, err := s.videoRepo.ListDiscoveredVideos(ctx, screenBatchSize, enqueued)
 		if err != nil {
-			return summary, fmt.Errorf("failed to list discovered videos: %w", err)
+			return len(enqueued), fmt.Errorf("enqueue screening: %w", err)
 		}
 		if len(videos) == 0 {
-			return summary, nil
+			return len(enqueued), nil
 		}
 
-		outcomes := s.screenBatch(ctx, videos)
-
-		var lastErr error
-		failed := 0
-		for i, outcome := range outcomes {
-			if outcome.err != nil {
-				failed++
-				lastErr = outcome.err
-				skip = append(skip, videos[i].ID)
-				log.Printf("[ScreenService] %v", outcome.err)
-				continue
+		for _, v := range videos {
+			if err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID); err != nil {
+				return len(enqueued), fmt.Errorf("enqueue screening of video %s: %w", v.ID, err)
 			}
-			if outcome.status == model.VideoStatusScreenedIn {
-				summary.ScreenedIn++
-			} else {
-				summary.ScreenedOut++
-			}
-		}
-		summary.Failed += failed
-
-		if failed == len(videos) {
-			return summary, fmt.Errorf("every video of a batch failed to screen: %w", lastErr)
+			enqueued = append(enqueued, v.ID)
 		}
 	}
 }
 
-// screenBatch screens the videos with a bounded number of analyses at once.
-// The outcome of videos[i] is at index i of the result.
-func (s *ScreenService) screenBatch(ctx context.Context, videos []*model.Video) []screenOutcome {
-	outcomes := make([]screenOutcome, len(videos))
-	sem := make(chan struct{}, s.concurrency)
-
-	var wg sync.WaitGroup
-	for i, v := range videos {
-		sem <- struct{}{}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			status, err := s.screenVideo(ctx, v)
-			outcomes[i] = screenOutcome{status: status, err: err}
-		}()
+// ScreenVideo decides and stores the screening status of one video. A video
+// that is gone or no longer 'discovered' is left alone.
+func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {
+	video, err := s.videoRepo.GetVideoForScreening(ctx, id)
+	if err != nil {
+		if errors.Is(err, data.ErrNotFound) {
+			log.Printf("[ScreenService] video %s is gone or already screened", id)
+			return nil
+		}
+		return fmt.Errorf("get video %s: %w", id, err)
 	}
-	wg.Wait()
-	return outcomes
-}
 
-// screenVideo decides and stores the screening status of one video.
-func (s *ScreenService) screenVideo(
-	ctx context.Context,
-	v *model.Video,
-) (model.VideoStatus, error) {
 	status := model.VideoStatusScreenedOut
 
-	if text := screenText(v); text != "" {
+	text := screenText(video)
+	if text != "" {
 		analysis, err := s.analyzer.Analyze(ctx, text, nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to analyze video %s: %w", v.ID, err)
+			return fmt.Errorf("analyze video %s: %w", id, err)
+		}
+		if analysis == nil {
+			return fmt.Errorf("analyze video %s: %w", id, errNoAnalysis)
 		}
 		if analysis.InScope {
 			status = model.VideoStatusScreenedIn
 		}
 	}
 
-	applied, err := s.videoRepo.SetVideoScreenStatus(ctx, v.ID, status)
+	applied, err := s.videoRepo.SetVideoScreenStatus(ctx, id, status)
 	if err != nil {
-		return "", fmt.Errorf("failed to store screen status of video %s: %w", v.ID, err)
+		return fmt.Errorf("store screen status of video %s: %w", id, err)
 	}
 	if !applied {
-		log.Printf("[ScreenService] video %s was already screened, result dropped", v.ID)
+		log.Printf("[ScreenService] video %s was already screened, result dropped", id)
 	}
-	return status, nil
+	return nil
 }
 
 // screenText builds the text to analyze: the caption as it is, followed by the

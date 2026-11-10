@@ -2,6 +2,7 @@ package repo_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 	"time"
@@ -127,9 +128,9 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 	t.Run("ReturnsOldestFirstWithCaptionAndHashtags", func(t *testing.T) {
 		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
 			// Inserted out of order, so the result order can only come from created_at.
-			c := insertScreenVideo(t, ctx, tx, videos, 2, "resep")
-			a := insertScreenVideo(t, ctx, tx, videos, 0, "obat herbal", "diabetes", "herbal")
-			b := insertScreenVideo(t, ctx, tx, videos, 1, "tanpa hashtag")
+			c := insertScreenVideo(t, ctx, tx, videos, 2, "recipe")
+			a := insertScreenVideo(t, ctx, tx, videos, 0, "herbal remedy", "diabetes", "herbal")
+			b := insertScreenVideo(t, ctx, tx, videos, 1, "no hashtags")
 
 			got, err := videos.ListDiscoveredVideos(ctx, 1000, nil)
 			if err != nil {
@@ -140,8 +141,8 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 			if want := []uuid.UUID{a.ID, b.ID, c.ID}; !slices.Equal(videoIDs(owned), want) {
 				t.Fatalf("order = %v, want %v", videoIDs(owned), want)
 			}
-			if owned[0].Caption != "obat herbal" {
-				t.Errorf("caption = %q, want %q", owned[0].Caption, "obat herbal")
+			if owned[0].Caption != "herbal remedy" {
+				t.Errorf("caption = %q, want %q", owned[0].Caption, "herbal remedy")
 			}
 			if !slices.Equal(owned[0].Hashtags, []string{"diabetes", "herbal"}) {
 				t.Errorf("hashtags = %v, want [diabetes herbal]", owned[0].Hashtags)
@@ -297,6 +298,64 @@ func TestVideoRepo_SetVideoScreenStatus(t *testing.T) {
 			}
 			if applied {
 				t.Error("an unknown video cannot be updated")
+			}
+		})
+	})
+}
+
+func TestVideoRepo_GetVideoForScreening(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+	pool, _ := testhelpers.SetupTestDB(t)
+	defer pool.Close()
+
+	t.Run("ReturnsCaptionAndHashtagsOfDiscoveredVideo", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			v := insertScreenVideo(t, ctx, tx, videos, 0, "herbal remedy", "diabetes", "herbal")
+
+			got, err := videos.GetVideoForScreening(ctx, v.ID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if got.ID != v.ID {
+				t.Errorf("id = %v, want %v", got.ID, v.ID)
+			}
+			if got.Caption != "herbal remedy" {
+				t.Errorf("caption = %q, want %q", got.Caption, "herbal remedy")
+			}
+			if !slices.Equal(got.Hashtags, []string{"diabetes", "herbal"}) {
+				t.Errorf("hashtags = %v, want [diabetes herbal]", got.Hashtags)
+			}
+		})
+	})
+
+	t.Run("ScreenedVideo_IsNotFound", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
+			v := insertScreenVideo(t, ctx, tx, videos, 0, "claim")
+			if _, err := videos.SetVideoScreenStatus(
+				ctx,
+				v.ID,
+				model.VideoStatusScreenedIn,
+			); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			_, err := videos.GetVideoForScreening(ctx, v.ID)
+
+			if !errors.Is(err, data.ErrNotFound) {
+				t.Errorf("error = %v, want ErrNotFound", err)
+			}
+		})
+	})
+
+	t.Run("UnknownVideo_IsNotFound", func(t *testing.T) {
+		withVideoTx(t, pool, func(ctx context.Context, _ pgx.Tx, videos data.VideoRepoer) {
+			_, err := videos.GetVideoForScreening(ctx, uuid.New())
+
+			if !errors.Is(err, data.ErrNotFound) {
+				t.Errorf("error = %v, want ErrNotFound", err)
 			}
 		})
 	})

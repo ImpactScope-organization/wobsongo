@@ -351,13 +351,12 @@ var serveCmd = &cobra.Command{
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
-			river.AddWorker(workers, worker.NewScreenVideosWorker(
-				service.NewScreenService(
-					repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
-					claimAnalyzerClient,
-					config.ScreenConfig.MaxConcurrency,
-				),
-			))
+			screenService := service.NewScreenService(
+				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
+				claimAnalyzerClient,
+			)
+			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
+			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
 		}
 
@@ -417,7 +416,7 @@ var serveCmd = &cobra.Command{
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
 				queue.QueueCrawler:   {MaxWorkers: queue.CrawlerMaxWorkers},
-				queue.QueueScreening: {MaxWorkers: queue.ScreeningMaxWorkers},
+				queue.QueueScreening: {MaxWorkers: config.ScreenConfig.MaxConcurrency},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

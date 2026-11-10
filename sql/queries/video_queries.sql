@@ -74,3 +74,9 @@ UPDATE videos
 SET status = sqlc.arg(status)::varchar, updated_at = NOW()
 WHERE id = sqlc.arg(id)::uuid
   AND status = 'discovered';
+
+-- name: GetVideoForScreening :one
+SELECT id, caption, hashtags
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'discovered';

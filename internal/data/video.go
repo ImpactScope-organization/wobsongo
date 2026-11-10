@@ -55,6 +55,14 @@ type VideoRepoer interface {
 		status model.VideoStatus,
 	) (bool, error)
 
+	// GetVideoForScreening returns the video with only ID, Caption and
+	// Hashtags filled in, or ErrNotFound if it does not exist or is no
+	// longer in the 'discovered' status.
+	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
+
+	// EnqueueScreenVideoJob adds a screening job for one video to the River queue.
+	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error
+
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]
 }

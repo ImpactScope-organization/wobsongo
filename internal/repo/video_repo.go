@@ -351,3 +351,41 @@ func (r *videoRepo) SetVideoScreenStatus(
 	}
 	return affected > 0, nil
 }
+
+// GetVideoForScreening returns the video if it is still waiting for
+// screening, or data.ErrNotFound if it is not.
+func (r *videoRepo) GetVideoForScreening(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.Video, error) {
+	row, err := r.q.GetVideoForScreening(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, data.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get video for screening: %w", mapPostgresError(err))
+	}
+
+	return &model.Video{
+		ID:       row.ID,
+		Caption:  row.Caption.String,
+		Hashtags: row.Hashtags,
+	}, nil
+}
+
+// EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
+// current transaction when there is one.
+func (r *videoRepo) EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error {
+	payload := queue.ScreenVideoJob{VideoID: videoID.String()}
+
+	if r.tx != nil {
+		if _, err := r.riverClientFn().InsertTx(ctx, r.tx, payload, nil); err != nil {
+			return fmt.Errorf("failed to insert screen video job into river queue: %w", err)
+		}
+		return nil
+	}
+	if _, err := r.riverClientFn().Insert(ctx, payload, nil); err != nil {
+		return fmt.Errorf("failed to insert screen video job into river queue: %w", err)
+	}
+	return nil
+}

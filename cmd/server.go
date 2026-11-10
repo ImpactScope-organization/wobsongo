@@ -415,6 +415,7 @@ var serveCmd = &cobra.Command{
 				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
 				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
 				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
+				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

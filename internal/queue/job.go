@@ -132,4 +132,8 @@ const (
 	// the run that enqueues the screening jobs never takes a slot from the
 	// videos being analyzed.
 	QueueScreenDispatch = "video_screening_dispatch"
+  
+	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
+	// command re-checks old messages.
+	QueueClaimBackfill = "claim_backfill"
 )

@@ -56,13 +56,21 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 	internal.NotifyBotProgress(ctx, w.botClient, workerComponentClaimCheck, job.Args.ExtractionID,
 		internal.MsgCheckingClaim)
 
+	// Jobs enqueued before Platform/Format existed are TikTok video claims.
+	platform := job.Args.Platform
+	if platform == "" {
+		platform = model.ClaimPlatformTikTok
+	}
+	format := job.Args.Format
+	if format == "" {
+		format = string(model.ClaimFormatVideo)
+	}
+	source := dto.NewClaimSource(platform, job.Args.MessageID, format)
+	source.OccurredAt = job.Args.OccurredAt
+
 	result, err := w.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
-		Text: job.Args.Text,
-		Source: dto.NewClaimSource(
-			model.ClaimPlatformTikTok,
-			job.Args.MessageID,
-			string(model.ClaimFormatVideo),
-		),
+		Text:   job.Args.Text,
+		Source: source,
 	})
 	if err != nil {
 		err = fmt.Errorf("claim check failed: %w", err)
@@ -84,14 +92,20 @@ func (w *ClaimCheckWorker) Work(ctx context.Context, job *river.Job[queue.ClaimC
 
 	log.Printf("[ClaimCheckWorker] Successfully processed ExtractionID %s", job.Args.ExtractionID)
 
-	if notifyErr := w.botClient.NotifyExtractDone(
-		ctx,
-		job.Args.ExtractionID,
-		"completed",
-		"",
-		&external.ExtractCallbackData{Answer: message},
-	); notifyErr != nil {
-		log.Printf("[ClaimCheckWorker] Failed to notify bot (answer will be lost): %v", notifyErr)
+	// Backfill jobs have no ExtractionID: nobody is waiting for an answer.
+	if job.Args.ExtractionID != "" {
+		if notifyErr := w.botClient.NotifyExtractDone(
+			ctx,
+			job.Args.ExtractionID,
+			"completed",
+			"",
+			&external.ExtractCallbackData{Answer: message},
+		); notifyErr != nil {
+			log.Printf(
+				"[ClaimCheckWorker] Failed to notify bot (answer will be lost): %v",
+				notifyErr,
+			)
+		}
 	}
 
 	if job.Args.JID != "" {

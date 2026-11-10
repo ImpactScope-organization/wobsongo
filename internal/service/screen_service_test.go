@@ -16,8 +16,7 @@ import (
 
 var errScreenBoom = errors.New("llm unavailable")
 
-// fakeScreenStore is an in-memory videoScreenStore. A video is listed and can
-// be fetched until its status is set.
+// fakeScreenStore is a data.VideoRepoer that keeps the videos in memory and records the calls made to it.
 type fakeScreenStore struct {
 	data.VideoRepoer
 	order       []uuid.UUID
@@ -54,64 +53,6 @@ func (s *fakeScreenStore) SetVideoScreenFailed(
 	}
 	s.failed[id] = reason
 	return true, nil
-}
-
-func TestMarkScreenFailed(t *testing.T) {
-	t.Run("MarksDiscoveredVideoAsFailed", func(t *testing.T) {
-		video := screenVideoFixture("claim")
-		store := newFakeScreenStore(video)
-
-		err := NewScreenService(store, &fakeScreenAnalyzer{}).
-			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got := store.status[video.ID]; got != model.VideoStatusFailed {
-			t.Errorf("status = %q, want failed", got)
-		}
-		if got := store.failed[video.ID]; got != errScreenBoom.Error() {
-			t.Errorf("reason = %q, want %q", got, errScreenBoom.Error())
-		}
-	})
-
-	t.Run("CutsLongReason", func(t *testing.T) {
-		video := screenVideoFixture("claim")
-		store := newFakeScreenStore(video)
-		long := errors.New(strings.Repeat("é", maxFailureReasonLen*2))
-
-		err := NewScreenService(store, &fakeScreenAnalyzer{}).
-			MarkScreenFailed(context.Background(), video.ID, long)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if got := len([]rune(store.failed[video.ID])); got != maxFailureReasonLen {
-			t.Errorf("reason length = %d, want %d", got, maxFailureReasonLen)
-		}
-	})
-
-	t.Run("AlreadyScreenedIsNotAnError", func(t *testing.T) {
-		video := screenVideoFixture("claim")
-		store := newFakeScreenStore(video)
-		store.pending[video.ID] = false
-
-		err := NewScreenService(store, &fakeScreenAnalyzer{}).
-			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("StoreErrorIsReturned", func(t *testing.T) {
-		video := screenVideoFixture("claim")
-		store := newFakeScreenStore(video)
-		store.failErrs = map[uuid.UUID]error{video.ID: errScreenBoom}
-
-		err := NewScreenService(store, &fakeScreenAnalyzer{}).
-			MarkScreenFailed(context.Background(), video.ID, errors.New("analyze"))
-		if !errors.Is(err, errScreenBoom) {
-			t.Fatalf("error = %v, want it to wrap the store error", err)
-		}
-	})
 }
 
 func newFakeScreenStore(videos ...*model.Video) *fakeScreenStore {
@@ -525,4 +466,62 @@ func TestEnqueueDiscoveredVideos_DuplicateJobIsNotCounted(t *testing.T) {
 	if want := []uuid.UUID{b.ID}; !slices.Equal(store.enqueued, want) {
 		t.Errorf("enqueued = %v, want %v", store.enqueued, want)
 	}
+}
+
+func TestMarkScreenFailed(t *testing.T) {
+	t.Run("MarksDiscoveredVideoAsFailed", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := store.status[video.ID]; got != model.VideoStatusFailed {
+			t.Errorf("status = %q, want failed", got)
+		}
+		if got := store.failed[video.ID]; got != errScreenBoom.Error() {
+			t.Errorf("reason = %q, want %q", got, errScreenBoom.Error())
+		}
+	})
+
+	t.Run("CutsLongReason", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		long := errors.New(strings.Repeat("é", maxFailureReasonLen*2))
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, long)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got := len([]rune(store.failed[video.ID])); got != maxFailureReasonLen {
+			t.Errorf("reason length = %d, want %d", got, maxFailureReasonLen)
+		}
+	})
+
+	t.Run("AlreadyScreenedIsNotAnError", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		store.pending[video.ID] = false
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errScreenBoom)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("StoreErrorIsReturned", func(t *testing.T) {
+		video := screenVideoFixture("claim")
+		store := newFakeScreenStore(video)
+		store.failErrs = map[uuid.UUID]error{video.ID: errScreenBoom}
+
+		err := NewScreenService(store, &fakeScreenAnalyzer{}).
+			MarkScreenFailed(context.Background(), video.ID, errors.New("analyze"))
+		if !errors.Is(err, errScreenBoom) {
+			t.Fatalf("error = %v, want it to wrap the store error", err)
+		}
+	})
 }

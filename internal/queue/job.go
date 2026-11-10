@@ -72,6 +72,13 @@ const (
 	// JobTypeMonitorCreator represents a job type for checking tracked
 	// creators for new videos.
 	JobTypeMonitorCreator BackgroundJobType = "monitor_creator"
+
+	// JobTypeScreenVideos represents a job type for screening every
+	// discovered video for relevance.
+	JobTypeScreenVideos BackgroundJobType = "screen_videos"
+
+	// JobTypeScreenVideo represents a job type for screening one video.
+	JobTypeScreenVideo BackgroundJobType = "screen_video"
 )
 
 // BackgroundJob represents a generic background job.
@@ -117,6 +124,15 @@ const (
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
 
+	// QueueScreening is used by ScreenVideoJob. Its MaxWorkers is the number
+	// of videos analyzed at the same time.
+	QueueScreening = "video_screening"
+
+	// QueueScreenDispatch is used by ScreenVideosJob. It has its own queue, so
+	// the run that enqueues the screening jobs never takes a slot from the
+	// videos being analyzed.
+	QueueScreenDispatch = "video_screening_dispatch"
+  
 	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"

@@ -189,7 +189,9 @@ func (s *CrawlService) RunDiscovery(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(keywords), failures)
+	err = s.finishRun(ctx, run, len(keywords), failures)
+	s.enqueueScreening(ctx, run.VideoNew)
+	return err
 }
 
 // RunMonitor checks creators for new videos. With influencerID set it checks
@@ -254,7 +256,9 @@ func (s *CrawlService) RunMonitor(
 		}
 	}
 
-	return s.finishRun(ctx, run, len(creators), failures)
+	err = s.finishRun(ctx, run, len(creators), failures)
+	s.enqueueScreening(ctx, run.VideoNew)
+	return err
 }
 
 // discoverKeyword searches one keyword and stores each author and video. The
@@ -490,15 +494,21 @@ func (s *CrawlService) saveVideo(ctx context.Context, v *model.Video) (bool, err
 		return false, fmt.Errorf("failed to save video %s: %w", v.VideoURL, err)
 	}
 
-	if isNew {
-		s.onNewVideo(ctx, v)
-	}
 	return isNew, nil
 }
 
-// onNewVideo runs for every video stored for the first time.
-func (s *CrawlService) onNewVideo(_ context.Context, _ *model.Video) {
-	// TODO(screen): enqueue ScreenVideoJob{VideoID: v.ID} once step 3 exists.
+// enqueueScreening asks for a screening run after a crawl stored new videos.
+func (s *CrawlService) enqueueScreening(ctx context.Context, newVideos int) {
+	if newVideos == 0 {
+		return
+	}
+
+	saveCtx, cancel := saveContext(ctx)
+	defer cancel()
+
+	if err := s.videoRepo.EnqueueScreenVideosJob(saveCtx); err != nil {
+		log.Printf("[CrawlService] failed to enqueue video screening: %v", err)
+	}
 }
 
 // isDue checks whether enough time has passed since the last run,

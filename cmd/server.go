@@ -339,10 +339,11 @@ var serveCmd = &cobra.Command{
 			crawlScheduler *worker.CrawlScheduler
 		)
 		if crawlEnabled {
+			videoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
 			crawlService = service.NewCrawlService(
 				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
-				repo.NewVideoRepo(db.New(pool), pool, riverClientFn),
+				videoRepo,
 				external.NewTikTokScraperClient(
 					config.ApifyConfig.Token,
 					config.ApifyConfig.TikTokActorID,
@@ -350,6 +351,9 @@ var serveCmd = &cobra.Command{
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
+			screenService := service.NewScreenService(videoRepo, claimAnalyzerClient)
+			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
+			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
 		}
 
@@ -379,6 +383,13 @@ var serveCmd = &cobra.Command{
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.ScreenCheckInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.ScreenVideosJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
 			)
 		}
 
@@ -401,7 +412,9 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
-				queue.QueueCrawler:       {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
+				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
 				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
 			},
 			Workers:      workers,

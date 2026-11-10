@@ -38,6 +38,42 @@ type VideoRepoer interface {
 	// video of an influencer, oldest first.
 	ListVideoTimesByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]time.Time, error)
 
+	// ListDiscoveredVideos returns up to limit videos still in the
+	// 'discovered' status, oldest first, that come after the position
+	// (afterCreatedAt, afterID). Only ID and CreatedAt are filled in.
+	ListDiscoveredVideos(
+		ctx context.Context,
+		limit int32,
+		afterCreatedAt time.Time,
+		afterID uuid.UUID,
+	) ([]*model.Video, error)
+
+	// SetVideoScreenStatus moves a 'discovered' video to status and reports
+	// whether it did. false means the video was no longer 'discovered'.
+	SetVideoScreenStatus(
+		ctx context.Context,
+		id uuid.UUID,
+		status model.VideoStatus,
+	) (bool, error)
+
+	// GetVideoForScreening returns the video with only ID, Caption and
+	// Hashtags filled in, or ErrNotFound if it does not exist or is no
+	// longer in the 'discovered' status.
+	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
+
+	// EnqueueScreenVideoJob adds a screening job for one video to the River
+	// queue. enqueued is false when an identical job is already in the queue.
+	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
+
+	// SetVideoScreenFailed moves a 'discovered' video to the 'failed' status
+	// with reason as its error, and reports whether it did. false means the
+	// video was no longer 'discovered'.
+	SetVideoScreenFailed(ctx context.Context, id uuid.UUID, reason string) (bool, error)
+
+	// EnqueueScreenVideosJob adds the job that enqueues a screening job for
+	// every discovered video to the River queue.
+	EnqueueScreenVideosJob(ctx context.Context) error
+
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]
 }

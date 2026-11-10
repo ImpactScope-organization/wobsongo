@@ -953,7 +953,6 @@ func TestNarrativeRepo(t *testing.T) {
 		}
 	})
 
-
 	t.Run("CountClaimsByPlatform_SameUserSameClaimCountsOnce", func(t *testing.T) {
 		env := newNarrativeTestEnv(t, pool)
 		topic := env.newTopic(t, true)

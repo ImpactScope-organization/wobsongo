@@ -43,6 +43,7 @@ func Execute() {
 	rootCmd.AddCommand(influencerDiscoverCmd)
 	rootCmd.AddCommand(fakeTopicsCmd)
 	rootCmd.AddCommand(fakeNarrativesCmd)
+	rootCmd.AddCommand(backfillClaimsCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

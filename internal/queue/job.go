@@ -116,4 +116,8 @@ const (
 
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
+
+	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
+	// command re-checks old messages.
+	QueueClaimBackfill = "claim_backfill"
 )

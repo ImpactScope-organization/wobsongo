@@ -151,3 +151,93 @@ func (q *Queries) InsertConversationMessage(ctx context.Context, arg InsertConve
 	err := row.Scan(&i.ID, &i.CreatedAt)
 	return i, err
 }
+
+const listUserMessagesWithoutClaims = `-- name: ListUserMessagesWithoutClaims :many
+SELECT m.id, m.content, m.created_at
+FROM conversation_messages m
+WHERE m.role = 'user'
+  AND m.created_at >= $1::timestamptz
+  AND m.content !~* 'https?://'
+  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.message_id = m.id)
+ORDER BY m.created_at
+LIMIT $2
+`
+
+type ListUserMessagesWithoutClaimsParams struct {
+	Since   time.Time
+	MaxRows int32
+}
+
+type ListUserMessagesWithoutClaimsRow struct {
+	ID        uuid.UUID
+	Content   string
+	CreatedAt time.Time
+}
+
+func (q *Queries) ListUserMessagesWithoutClaims(ctx context.Context, arg ListUserMessagesWithoutClaimsParams) ([]ListUserMessagesWithoutClaimsRow, error) {
+	rows, err := q.db.Query(ctx, listUserMessagesWithoutClaims, arg.Since, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListUserMessagesWithoutClaimsRow
+	for rows.Next() {
+		var i ListUserMessagesWithoutClaimsRow
+		if err := rows.Scan(&i.ID, &i.Content, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listVideoTranscriptsWithoutClaims = `-- name: ListVideoTranscriptsWithoutClaims :many
+SELECT s.content, s.created_at, u.id AS message_id
+FROM conversation_messages s
+JOIN LATERAL (
+    SELECT id FROM conversation_messages
+    WHERE jid = s.jid AND role = 'user' AND created_at <= s.created_at
+    ORDER BY created_at DESC
+    LIMIT 1
+) u ON true
+WHERE s.role = 'system'
+  AND s.content LIKE 'The video transcript is ready:%'
+  AND s.created_at >= $1::timestamptz
+  AND NOT EXISTS (SELECT 1 FROM claims c WHERE c.message_id = u.id)
+ORDER BY s.created_at
+LIMIT $2
+`
+
+type ListVideoTranscriptsWithoutClaimsParams struct {
+	Since   time.Time
+	MaxRows int32
+}
+
+type ListVideoTranscriptsWithoutClaimsRow struct {
+	Content   string
+	CreatedAt time.Time
+	MessageID uuid.UUID
+}
+
+func (q *Queries) ListVideoTranscriptsWithoutClaims(ctx context.Context, arg ListVideoTranscriptsWithoutClaimsParams) ([]ListVideoTranscriptsWithoutClaimsRow, error) {
+	rows, err := q.db.Query(ctx, listVideoTranscriptsWithoutClaims, arg.Since, arg.MaxRows)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVideoTranscriptsWithoutClaimsRow
+	for rows.Next() {
+		var i ListVideoTranscriptsWithoutClaimsRow
+		if err := rows.Scan(&i.Content, &i.CreatedAt, &i.MessageID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

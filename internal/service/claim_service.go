@@ -237,6 +237,10 @@ func (s *ClaimService) recordClaims(
 	}
 
 	now := time.Now()
+	occurredAt := now
+	if !source.OccurredAt.IsZero() {
+		occurredAt = source.OccurredAt
+	}
 	claims := make([]model.Claim, 0, len(results))
 	for i := range results {
 		r := &results[i]
@@ -263,7 +267,7 @@ func (s *ClaimService) recordClaims(
 			Language:                language,
 			Platform:                platform,
 			Format:                  format,
-			OccurredAt:              now,
+			OccurredAt:              occurredAt,
 			Verdict:                 r.Verdict,
 			Severity:                r.Severity,
 			HighRisk:                r.HighRiskCaution,

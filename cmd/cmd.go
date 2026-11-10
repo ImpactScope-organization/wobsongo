@@ -44,6 +44,7 @@ func Execute() {
 	rootCmd.AddCommand(fakeTopicsCmd)
 	rootCmd.AddCommand(fakeNarrativesCmd)
 	rootCmd.AddCommand(backfillClaimsCmd)
+	rootCmd.AddCommand(resetPasswordCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)

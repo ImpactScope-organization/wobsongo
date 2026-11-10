@@ -164,3 +164,18 @@ func (s *AuthService) issueTokens(user *model.User) (*auth.JWTTokens, error) {
 	}
 	return tokens, nil
 }
+
+func (s *AuthService) ResetPassword(
+	ctx context.Context,
+	email, newPassword string,
+) (*model.User, error) {
+	user, err := s.userRepo.GetByEmail(ctx, auth.NormalizeEmail(email))
+	if err != nil {
+		return nil, err
+	}
+	hash, err := auth.HashPassword(newPassword)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", data.ErrInternal, err)
+	}
+	return s.userRepo.UpdatePassword(ctx, user.ID, hash)
+}

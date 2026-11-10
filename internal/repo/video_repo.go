@@ -324,8 +324,6 @@ func (r *videoRepo) ListDiscoveredVideos(
 		videos = append(videos, &model.Video{
 			ID:        row.ID,
 			CreatedAt: row.CreatedAt,
-			Caption:   row.Caption.String,
-			Hashtags:  row.Hashtags,
 		})
 	}
 	return videos, nil
@@ -396,32 +394,41 @@ func (r *videoRepo) SetVideoScreenFailed(
 }
 
 // EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
-// current transaction when there is one.
-func (r *videoRepo) EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error {
+// current transaction when there is one. It reports false when an identical
+// job is already waiting, running or waiting for a retry.
+func (r *videoRepo) EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) (bool, error) {
 	return r.insertJob(ctx, queue.ScreenVideoJob{VideoID: videoID.String()}, "screen video")
 }
 
 // EnqueueScreenVideosJob adds the screen-videos job to the River queue, inside
-// the current transaction when there is one.
+// the current transaction when there is one. A duplicate of a job that is
+// already waiting or running is skipped without an error.
 func (r *videoRepo) EnqueueScreenVideosJob(ctx context.Context) error {
-	return r.insertJob(ctx, queue.ScreenVideosJob{}, "screen videos")
+	if _, err := r.insertJob(ctx, queue.ScreenVideosJob{}, "screen videos"); err != nil {
+		return err
+	}
+	return nil
 }
 
 // insertJob inserts a River job, inside the current transaction when there is
-// one. The queue and the unique rules come from the job's InsertOpts.
+// one, and reports whether a new job was inserted. The queue and the unique
+// rules come from the job's InsertOpts.
 func (r *videoRepo) insertJob(
 	ctx context.Context,
 	payload queue.BackgroundJob,
 	name string,
-) error {
+) (bool, error) {
+	var (
+		res *rivertype.JobInsertResult
+		err error
+	)
 	if r.tx != nil {
-		if _, err := r.riverClientFn().InsertTx(ctx, r.tx, payload, nil); err != nil {
-			return fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
-		}
-		return nil
+		res, err = r.riverClientFn().InsertTx(ctx, r.tx, payload, nil)
+	} else {
+		res, err = r.riverClientFn().Insert(ctx, payload, nil)
 	}
-	if _, err := r.riverClientFn().Insert(ctx, payload, nil); err != nil {
-		return fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
+	if err != nil {
+		return false, fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
 	}
-	return nil
+	return !res.UniqueSkippedAsDuplicate, nil
 }

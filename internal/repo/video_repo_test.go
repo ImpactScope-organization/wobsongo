@@ -132,7 +132,7 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 	pool, _ := testhelpers.SetupTestDB(t)
 	defer pool.Close()
 
-	t.Run("ReturnsOldestFirstWithCaptionAndHashtags", func(t *testing.T) {
+	t.Run("ReturnsOldestFirstWithIDAndCreatedAt", func(t *testing.T) {
 		withVideoTx(t, pool, func(ctx context.Context, tx pgx.Tx, videos data.VideoRepoer) {
 			// Inserted out of order, so the result order can only come from created_at.
 			c := insertScreenVideo(t, ctx, tx, videos, 2, "recipe")
@@ -147,12 +147,6 @@ func TestVideoRepo_ListDiscoveredVideos(t *testing.T) {
 			owned := ownedVideos(got, a, b, c)
 			if want := []uuid.UUID{a.ID, b.ID, c.ID}; !slices.Equal(videoIDs(owned), want) {
 				t.Fatalf("order = %v, want %v", videoIDs(owned), want)
-			}
-			if owned[0].Caption != "herbal remedy" {
-				t.Errorf("caption = %q, want %q", owned[0].Caption, "herbal remedy")
-			}
-			if !slices.Equal(owned[0].Hashtags, []string{"diabetes", "herbal"}) {
-				t.Errorf("hashtags = %v, want [diabetes herbal]", owned[0].Hashtags)
 			}
 			if want := screenTestTime(0); !owned[0].CreatedAt.Equal(want) {
 				t.Errorf("created_at = %v, want %v", owned[0].CreatedAt, want)

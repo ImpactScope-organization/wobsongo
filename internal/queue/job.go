@@ -124,6 +124,12 @@ const (
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
 
-	// QueueScreening is used by ScreenVideosJob and ScreenVideoJob.
+	// QueueScreening is used by ScreenVideoJob. Its MaxWorkers is the number
+	// of videos analyzed at the same time.
 	QueueScreening = "video_screening"
+
+	// QueueScreenDispatch is used by ScreenVideosJob. It has its own queue, so
+	// the run that enqueues the screening jobs never takes a slot from the
+	// videos being analyzed.
+	QueueScreenDispatch = "video_screening_dispatch"
 )

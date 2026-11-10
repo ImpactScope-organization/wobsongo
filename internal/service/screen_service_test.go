@@ -19,6 +19,7 @@ var errScreenBoom = errors.New("llm unavailable")
 // fakeScreenStore is an in-memory videoScreenStore. A video is listed and can
 // be fetched until its status is set.
 type fakeScreenStore struct {
+	data.VideoRepoer
 	order       []uuid.UUID
 	videos      map[uuid.UUID]*model.Video
 	pending     map[uuid.UUID]bool
@@ -28,6 +29,7 @@ type fakeScreenStore struct {
 	getErr      error
 	setErrs     map[uuid.UUID]error
 	enqueueErrs map[uuid.UUID]error
+	duplicates  map[uuid.UUID]bool
 	gotLimit    int32
 	gotExcludes [][]uuid.UUID
 	failed      map[uuid.UUID]string
@@ -188,12 +190,18 @@ func (s *fakeScreenStore) SetVideoScreenStatus(
 	return true, nil
 }
 
-func (s *fakeScreenStore) EnqueueScreenVideoJob(_ context.Context, videoID uuid.UUID) error {
+func (s *fakeScreenStore) EnqueueScreenVideoJob(
+	_ context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
 	if err := s.enqueueErrs[videoID]; err != nil {
-		return err
+		return false, err
+	}
+	if s.duplicates[videoID] {
+		return false, nil
 	}
 	s.enqueued = append(s.enqueued, videoID)
-	return nil
+	return true, nil
 }
 
 // fakeScreenAnalyzer is a data.ClaimAnalyzer that answers per text.
@@ -497,5 +505,24 @@ func TestEnqueueDiscoveredVideos_CanceledContext(t *testing.T) {
 	}
 	if len(store.enqueued) != 0 {
 		t.Errorf("enqueued = %d, want 0", len(store.enqueued))
+	}
+}
+
+func TestEnqueueDiscoveredVideos_DuplicateJobIsNotCounted(t *testing.T) {
+	a := screenVideoFixture("claim a")
+	b := screenVideoFixture("claim b")
+	store := newFakeScreenStore(a, b)
+	store.duplicates = map[uuid.UUID]bool{a.ID: true}
+
+	count, err := NewScreenService(store, &fakeScreenAnalyzer{}).
+		EnqueueDiscoveredVideos(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("count = %d, want 1 (the duplicate is not counted)", count)
+	}
+	if want := []uuid.UUID{b.ID}; !slices.Equal(store.enqueued, want) {
+		t.Errorf("enqueued = %v, want %v", store.enqueued, want)
 	}
 }

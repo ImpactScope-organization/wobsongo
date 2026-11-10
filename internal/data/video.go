@@ -39,8 +39,8 @@ type VideoRepoer interface {
 	ListVideoTimesByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]time.Time, error)
 
 	// ListDiscoveredVideos returns up to limit videos still in the
-	// 'discovered' status, oldest first, skipping excludeIDs. Only ID,
-	// Caption and Hashtags are filled in.
+	// 'discovered' status, oldest first, that come after the position
+	// (afterCreatedAt, afterID). Only ID and CreatedAt are filled in.
 	ListDiscoveredVideos(
 		ctx context.Context,
 		limit int32,
@@ -61,8 +61,9 @@ type VideoRepoer interface {
 	// longer in the 'discovered' status.
 	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
 
-	// EnqueueScreenVideoJob adds a screening job for one video to the River queue.
-	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error
+	// EnqueueScreenVideoJob adds a screening job for one video to the River
+	// queue. enqueued is false when an identical job is already in the queue.
+	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
 
 	// SetVideoScreenFailed moves a 'discovered' video to the 'failed' status
 	// with reason as its error, and reports whether it did. false means the

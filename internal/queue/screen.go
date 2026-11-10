@@ -20,6 +20,9 @@ const (
 	// ScreenMaxAttempts is how many times River runs a ScreenVideoJob. After
 	// the last failed attempt the video is marked as failed.
 	ScreenMaxAttempts = 3
+
+	// ScreenDispatchMaxWorkers allows one dispatch run at a time.
+	ScreenDispatchMaxWorkers = 1
 )
 
 // screenUniqueStates are the job states in which an identical screening job
@@ -46,7 +49,7 @@ func (ScreenVideosJob) Kind() string { return string(JobTypeScreenVideos) }
 // There is no retry: the periodic run picks up whatever is left.
 func (ScreenVideosJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
-		Queue:       QueueScreening,
+		Queue:       QueueScreenDispatch,
 		MaxAttempts: 1,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:  true,

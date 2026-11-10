@@ -24,33 +24,15 @@ const maxFailureReasonLen = 1000
 // result.
 var errNoAnalysis = errors.New("analyzer returned no analysis")
 
-// videoScreenStore is the part of data.VideoRepoer that ScreenService uses.
-type videoScreenStore interface {
-	ListDiscoveredVideos(
-		ctx context.Context,
-		limit int32,
-		afterCreatedAt time.Time,
-		afterID uuid.UUID,
-	) ([]*model.Video, error)
-	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
-	SetVideoScreenStatus(
-		ctx context.Context,
-		id uuid.UUID,
-		status model.VideoStatus,
-	) (bool, error)
-	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) error
-	SetVideoScreenFailed(ctx context.Context, id uuid.UUID, reason string) (bool, error)
-}
-
 // ScreenService runs the first screening of discovered videos: it decides
 // from the caption and hashtags whether a video is worth transcribing.
 type ScreenService struct {
-	videoRepo videoScreenStore
+	videoRepo data.VideoRepoer
 	analyzer  data.ClaimAnalyzer
 }
 
 // NewScreenService constructs a ScreenService.
-func NewScreenService(videoRepo videoScreenStore, analyzer data.ClaimAnalyzer) *ScreenService {
+func NewScreenService(videoRepo data.VideoRepoer, analyzer data.ClaimAnalyzer) *ScreenService {
 	return &ScreenService{
 		videoRepo: videoRepo,
 		analyzer:  analyzer,
@@ -58,8 +40,9 @@ func NewScreenService(videoRepo videoScreenStore, analyzer data.ClaimAnalyzer) *
 }
 
 // EnqueueDiscoveredVideos enqueues one screening job for every video that is
-// still 'discovered', batch by batch, and returns how many it enqueued. A
-// video that already has a job in the queue is not queued twice.
+// still 'discovered', batch by batch, and returns how many new jobs it
+// enqueued. A video that already has a job in the queue is not queued twice
+// and is not counted.
 func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error) {
 	var (
 		count          int
@@ -69,24 +52,26 @@ func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return count, fmt.Errorf("enqueue screening: %w", err)
+			return count, fmt.Errorf("failed to enqueue screening: %w", err)
 		}
 
 		videos, err := s.videoRepo.ListDiscoveredVideos(
 			ctx, screenBatchSize, afterCreatedAt, afterID,
 		)
 		if err != nil {
-			return count, fmt.Errorf("enqueue screening: %w", err)
+			return count, fmt.Errorf("failed to list discovered videos: %w", err)
 		}
 		if len(videos) == 0 {
 			return count, nil
 		}
-
 		for _, v := range videos {
-			if err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID); err != nil {
-				return count, fmt.Errorf("enqueue screening of video %s: %w", v.ID, err)
+			enqueued, err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID)
+			if err != nil {
+				return count, fmt.Errorf("failed to enqueue screening of video %s: %w", v.ID, err)
 			}
-			count++
+			if enqueued {
+				count++
+			}
 		}
 
 		last := videos[len(videos)-1]
@@ -103,7 +88,7 @@ func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {
 			log.Printf("[ScreenService] video %s is gone or already screened", id)
 			return nil
 		}
-		return fmt.Errorf("get video %s: %w", id, err)
+		return fmt.Errorf("failed to get video %s: %w", id, err)
 	}
 
 	status := model.VideoStatusScreenedOut
@@ -112,10 +97,10 @@ func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {
 	if text != "" {
 		analysis, err := s.analyzer.Analyze(ctx, text, nil)
 		if err != nil {
-			return fmt.Errorf("analyze video %s: %w", id, err)
+			return fmt.Errorf("failed to analyze video %s: %w", id, err)
 		}
 		if analysis == nil {
-			return fmt.Errorf("analyze video %s: %w", id, errNoAnalysis)
+			return fmt.Errorf("failed to analyze video %s: %w", id, errNoAnalysis)
 		}
 		if analysis.InScope {
 			status = model.VideoStatusScreenedIn
@@ -124,7 +109,7 @@ func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {
 
 	applied, err := s.videoRepo.SetVideoScreenStatus(ctx, id, status)
 	if err != nil {
-		return fmt.Errorf("store screen status of video %s: %w", id, err)
+		return fmt.Errorf("failed to store screen status of video %s: %w", id, err)
 	}
 	if !applied {
 		log.Printf("[ScreenService] video %s was already screened, result dropped", id)
@@ -155,7 +140,7 @@ func screenText(v *model.Video) string {
 func (s *ScreenService) MarkScreenFailed(ctx context.Context, id uuid.UUID, cause error) error {
 	applied, err := s.videoRepo.SetVideoScreenFailed(ctx, id, failureReason(cause))
 	if err != nil {
-		return fmt.Errorf("mark video %s as failed: %w", id, err)
+		return fmt.Errorf("failed to mark video %s as failed: %w", id, err)
 	}
 	if !applied {
 		log.Printf("[ScreenService] video %s is no longer discovered, failure not stored", id)

@@ -61,8 +61,8 @@ WHERE influencer_id = sqlc.arg(influencer_id)::uuid
 ORDER BY video_created_at ASC;
 
 -- name: ListDiscoveredVideos :many
--- Returns the videos still waiting for screening, oldest first. 
-SELECT id, created_at, caption, hashtags
+-- Returns the ids of the videos still waiting for screening, oldest first.
+SELECT id, created_at
 FROM videos
 WHERE status = 'discovered'
   AND (created_at, id) > (sqlc.arg(after_created_at)::timestamptz, sqlc.arg(after_id)::uuid)

@@ -19,6 +19,7 @@ import (
 // screenWorkerStore is an in-memory store with the methods
 // service.ScreenService needs from a video repo.
 type screenWorkerStore struct {
+	data.VideoRepoer
 	videos     []*model.Video
 	status     map[uuid.UUID]model.VideoStatus
 	enqueued   []uuid.UUID
@@ -96,12 +97,15 @@ func (s *screenWorkerStore) SetVideoScreenStatus(
 	return true, nil
 }
 
-func (s *screenWorkerStore) EnqueueScreenVideoJob(_ context.Context, videoID uuid.UUID) error {
+func (s *screenWorkerStore) EnqueueScreenVideoJob(
+	_ context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
 	if s.enqueueErr != nil {
-		return s.enqueueErr
+		return false, s.enqueueErr
 	}
 	s.enqueued = append(s.enqueued, videoID)
-	return nil
+	return true, nil
 }
 
 // screenWorkerAnalyzer is a hand-rolled data.ClaimAnalyzer.
@@ -312,12 +316,10 @@ func TestScreenVideoWorker_Work(t *testing.T) {
 	})
 
 	t.Run("FailureBeforeLastAttempt_KeepsVideoDiscovered", func(t *testing.T) {
+		outage := errors.New("llm unavailable")
 		video := &model.Video{Caption: "claim"}
 		store := newScreenWorkerStore(video)
-		w := buildScreenVideoWorker(
-			store,
-			&screenWorkerAnalyzer{err: errors.New("llm unavailable")},
-		)
+		w := buildScreenVideoWorker(store, &screenWorkerAnalyzer{err: outage})
 
 		err := runScreenVideoJobAttempt(
 			t.Context(),
@@ -326,8 +328,8 @@ func TestScreenVideoWorker_Work(t *testing.T) {
 			queue.ScreenMaxAttempts-1,
 		)
 
-		if err == nil {
-			t.Fatal("expected an error")
+		if !errors.Is(err, outage) {
+			t.Fatalf("error = %v, want it to wrap the analyzer error", err)
 		}
 		if _, screened := store.status[video.ID]; screened {
 			t.Error("video must stay discovered before the last attempt")
@@ -359,11 +361,40 @@ func TestScreenVideoWorker_Work(t *testing.T) {
 
 		err := runScreenVideoJobAttempt(ctx, w, video.ID.String(), queue.ScreenMaxAttempts)
 
-		if err == nil {
-			t.Fatal("expected an error")
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want it to wrap context.Canceled", err)
 		}
 		if _, screened := store.status[video.ID]; screened {
 			t.Error("a shutdown must not mark the video as failed")
 		}
 	})
+}
+
+func TestScreenVideoWorker_NextRetry(t *testing.T) {
+	w := buildScreenVideoWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
+
+	tests := []struct {
+		name    string
+		attempt int
+		want    time.Duration
+	}{
+		{"first failure", 1, 5 * time.Minute},
+		{"second failure", 2, 15 * time.Minute},
+		{"beyond the delay table", 3, 15 * time.Minute},
+		{"attempt zero is treated as the first", 0, 5 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			job := &river.Job[queue.ScreenVideoJob]{
+				JobRow: &rivertype.JobRow{Attempt: tt.attempt},
+			}
+
+			got := time.Until(w.NextRetry(job))
+
+			if got > tt.want || got < tt.want-time.Minute {
+				t.Errorf("retry in %v, want about %v", got, tt.want)
+			}
+		})
+	}
 }

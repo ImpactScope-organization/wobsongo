@@ -135,7 +135,7 @@ func (q *Queries) GetVideoForScreening(ctx context.Context, id uuid.UUID) (GetVi
 }
 
 const listDiscoveredVideos = `-- name: ListDiscoveredVideos :many
-SELECT id, created_at, caption, hashtags
+SELECT id, created_at
 FROM videos
 WHERE status = 'discovered'
   AND (created_at, id) > ($1::timestamptz, $2::uuid)
@@ -152,11 +152,9 @@ type ListDiscoveredVideosParams struct {
 type ListDiscoveredVideosRow struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
-	Caption   pgtype.Text
-	Hashtags  []string
 }
 
-// Returns the videos still waiting for screening, oldest first.
+// Returns the ids of the videos still waiting for screening, oldest first.
 func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVideosParams) ([]ListDiscoveredVideosRow, error) {
 	rows, err := q.db.Query(ctx, listDiscoveredVideos, arg.AfterCreatedAt, arg.AfterID, arg.BatchSize)
 	if err != nil {
@@ -166,12 +164,7 @@ func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVi
 	var items []ListDiscoveredVideosRow
 	for rows.Next() {
 		var i ListDiscoveredVideosRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.Caption,
-			&i.Hashtags,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

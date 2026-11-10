@@ -21,7 +21,7 @@ var (
 )
 
 var resetPasswordCmd = &cobra.Command{
-	Use:   "resetpassword",
+	Use:   "reset-password",
 	Short: "Reset (override) the password of an existing account",
 	Long: "Sets a new password for the account with the given email, without\n" +
 		"needing the current one. Intended as an operator-side recovery until a\n" +

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ContentCreator } from '#lib/domain/overview.js';
+	import { creatorVolume, type ContentCreator } from '#lib/domain/overview.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { formatNumber, formatPercent, intlLocale } from '#lib/utils/format.js';
 	import { cn } from '#lib/utils.js';
@@ -43,19 +43,9 @@
 
 	const isPrivate = $derived(privacyMode || !hasAccess);
 
-	function getVolume(creator: ContentCreator): number {
-		return (
-			creator.postsCount ??
-			(creator.rated.false || 0) +
-				(creator.rated.misleading || 0) +
-				(creator.rated.unverified || 0) +
-				(creator.rated.accurate || 0)
-		);
-	}
-
 	const rankedCreators = $derived(
 		creators.toSorted((a, b) => {
-			const diff = getVolume(b) - getVolume(a);
+			const diff = creatorVolume(b) - creatorVolume(a);
 			return diff !== 0 ? diff : (b.followers ?? 0) - (a.followers ?? 0);
 		})
 	);
@@ -76,16 +66,12 @@
 		);
 	}
 
-	function getRiskLevel(creator: ContentCreator): number {
-		if (creator.riskLevel !== undefined) {
-			return creator.riskLevel;
-		}
-		const misinfo = (creator.rated.false || 0) + (creator.rated.misleading || 0);
-		const total =
-			(creator.rated.false || 0) +
-			(creator.rated.misleading || 0) +
-			(creator.rated.unverified || 0) +
-			(creator.rated.accurate || 0);
+	function getRiskLevel(creator: ContentCreator): number | undefined {
+		if (creator.riskLevel !== undefined) return creator.riskLevel;
+		const rated = creator.rated;
+		if (!rated) return undefined;
+		const misinfo = rated.false + rated.misleading;
+		const total = misinfo + rated.unverified + rated.accurate;
 		return total > 0 ? Math.round((misinfo / total) * 100) : 0;
 	}
 
@@ -99,12 +85,9 @@
 </script>
 
 {#snippet rowContent(creator: ContentCreator, index: number, isLink: boolean)}
-	{@const misinfo = (creator.rated.false || 0) + (creator.rated.misleading || 0)}
-	{@const total =
-		(creator.rated.false || 0) +
-		(creator.rated.misleading || 0) +
-		(creator.rated.unverified || 0) +
-		(creator.rated.accurate || 0)}
+	{@const rated = creator.rated}
+	{@const misinfo = rated ? rated.false + rated.misleading : 0}
+	{@const total = rated ? misinfo + rated.unverified + rated.accurate : 0}
 	{@const riskLevel = getRiskLevel(creator)}
 
 	<!-- Mobile card layout (< md) -->
@@ -173,43 +156,49 @@
 			</div>
 		</div>
 
-		<!-- 5. False / Misleading section & Risk gauge on mobile -->
-		<div class="flex items-center gap-3.5 pt-0.5 pl-7">
-			<div class="flex shrink-0 flex-col items-center gap-0.5">
-				<RiskGauge value={riskLevel} size={34} />
-				<span class="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-					{m.overview_creators_risk()}
-				</span>
-			</div>
-
-			<div class="flex min-w-0 flex-1 flex-col gap-1.5">
-				<div class="flex items-baseline justify-between font-mono text-xs">
-					<span class="text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase">
-						{m.overview_creators_rated_header()}
-					</span>
-					<div class="flex items-baseline gap-1">
-						{#if isPrivate}
-							<span class="font-semibold text-verdict-false-strong">
-								{formatPercent(total > 0 ? (misinfo / total) * 100 : 0)}
-							</span>
-						{:else}
-							<span class="font-semibold text-verdict-false-strong">
-								{formatNumber(misinfo)}
-							</span>
-							<span class="text-[0.6875rem] text-muted-foreground">
-								/ {formatNumber(total)}
-							</span>
-						{/if}
-						<span class="sr-only">{m.overview_creators_rated_sr()}</span>
+		<!-- 5. False / Misleading section & Risk gauge on mobile (once screened) -->
+		{#if riskLevel !== undefined || rated}
+			<div class="flex items-center gap-3.5 pt-0.5 pl-7">
+				{#if riskLevel !== undefined}
+					<div class="flex shrink-0 flex-col items-center gap-0.5">
+						<RiskGauge value={riskLevel} size={34} />
+						<span class="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+							{m.overview_creators_risk()}
+						</span>
 					</div>
-				</div>
-				<VerdictMeter
-					counts={creator.rated}
-					describe={isPrivate ? 'percent' : 'count'}
-					class="h-1.5 w-full"
-				/>
+				{/if}
+
+				{#if rated}
+					<div class="flex min-w-0 flex-1 flex-col gap-1.5">
+						<div class="flex items-baseline justify-between font-mono text-xs">
+							<span class="text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase">
+								{m.overview_creators_rated_header()}
+							</span>
+							<div class="flex items-baseline gap-1">
+								{#if isPrivate}
+									<span class="font-semibold text-verdict-false-strong">
+										{formatPercent(total > 0 ? (misinfo / total) * 100 : 0)}
+									</span>
+								{:else}
+									<span class="font-semibold text-verdict-false-strong">
+										{formatNumber(misinfo)}
+									</span>
+									<span class="text-[0.6875rem] text-muted-foreground">
+										/ {formatNumber(total)}
+									</span>
+								{/if}
+								<span class="sr-only">{m.overview_creators_rated_sr()}</span>
+							</div>
+						</div>
+						<VerdictMeter
+							counts={rated}
+							describe={isPrivate ? 'percent' : 'count'}
+							class="h-1.5 w-full"
+						/>
+					</div>
+				{/if}
 			</div>
-		</div>
+		{/if}
 	</div>
 
 	<!-- Desktop table layout (>= md) -->
@@ -281,31 +270,39 @@
 
 		<!-- 6. Risk level (radial gauge) -->
 		<div class="flex w-20 shrink-0 items-center justify-center">
-			<RiskGauge value={riskLevel} size={34} />
+			{#if riskLevel === undefined}
+				<span class="text-xs text-muted-foreground">-</span>
+			{:else}
+				<RiskGauge value={riskLevel} size={34} />
+			{/if}
 		</div>
 
 		<!-- 7. Rated false or misleading & VerdictMeter -->
 		<div class="flex w-28 shrink-0 flex-col items-end gap-1.5 sm:w-32">
-			<div class="flex items-baseline gap-1 font-mono text-xs">
-				{#if isPrivate}
-					<span class="font-semibold text-verdict-false-strong">
-						{formatPercent(total > 0 ? (misinfo / total) * 100 : 0)}
-					</span>
-				{:else}
-					<span class="font-semibold text-verdict-false-strong">
-						{formatNumber(misinfo)}
-					</span>
-					<span class="text-[0.6875rem] text-muted-foreground">
-						/ {formatNumber(total)}
-					</span>
-				{/if}
-				<span class="sr-only">{m.overview_creators_rated_sr()}</span>
-			</div>
-			<VerdictMeter
-				counts={creator.rated}
-				describe={isPrivate ? 'percent' : 'count'}
-				class="h-1.5 w-full min-w-20"
-			/>
+			{#if rated}
+				<div class="flex items-baseline gap-1 font-mono text-xs">
+					{#if isPrivate}
+						<span class="font-semibold text-verdict-false-strong">
+							{formatPercent(total > 0 ? (misinfo / total) * 100 : 0)}
+						</span>
+					{:else}
+						<span class="font-semibold text-verdict-false-strong">
+							{formatNumber(misinfo)}
+						</span>
+						<span class="text-[0.6875rem] text-muted-foreground">
+							/ {formatNumber(total)}
+						</span>
+					{/if}
+					<span class="sr-only">{m.overview_creators_rated_sr()}</span>
+				</div>
+				<VerdictMeter
+					counts={rated}
+					describe={isPrivate ? 'percent' : 'count'}
+					class="h-1.5 w-full min-w-20"
+				/>
+			{:else}
+				<span class="text-xs text-muted-foreground">-</span>
+			{/if}
 		</div>
 	</div>
 {/snippet}

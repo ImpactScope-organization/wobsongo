@@ -34,7 +34,8 @@ type InfluencerRepoer interface {
 	// GetByID returns the influencer with the given ID.
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Influencer, error)
 
-	// Paginate returns a filtered page of influencers, newest first.
+	// Paginate returns a filtered page of influencers, newest first unless the
+	// filter asks to sort by posts.
 	Paginate(
 		ctx context.Context,
 		q SupportsPagination,

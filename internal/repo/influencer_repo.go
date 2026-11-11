@@ -261,6 +261,7 @@ func (r *influencerRepo) Paginate(
 		IsActive:   isActive,
 		Source:     source,
 		Search:     search,
+		SortBy:     filter.Sort,
 		PageLimit:  limit,
 		PageOffset: offset,
 	})

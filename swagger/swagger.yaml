@@ -1327,7 +1327,8 @@ paths:
       - agent
   /api/v1/admin/influencers:
     get:
-      description: Retrieves a paginated list of influencers, newest first.
+      description: Retrieves a paginated list of influencers, newest first unless
+        sort=posts.
       parameters:
       - description: Page number
         in: query
@@ -1354,6 +1355,13 @@ paths:
       - description: Text the username or nickname contains
         in: query
         name: search
+        type: string
+      - description: Order of the list, newest when left out
+        enum:
+        - newest
+        - posts
+        in: query
+        name: sort
         type: string
       produces:
       - application/json
@@ -3359,6 +3367,97 @@ paths:
       summary: Update a document
       tags:
       - documents
+  /api/v1/influencers:
+    get:
+      description: The same list as the admin endpoint, open to every signed-in user.
+        sort=posts gives the top content creators.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: per_page
+        type: integer
+      - description: Filter by monitored state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Filter by source
+        enum:
+        - seed
+        - discovered
+        in: query
+        name: source
+        type: string
+      - description: Text the username or nickname contains
+        in: query
+        name: search
+        type: string
+      - description: Order of the list, newest when left out
+        enum:
+        - newest
+        - posts
+        in: query
+        name: sort
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PaginationResults-model_Influencer'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List influencers for the dashboard
+      tags:
+      - influencers
   /api/v1/me:
     get:
       description: The signed-in user's own account.

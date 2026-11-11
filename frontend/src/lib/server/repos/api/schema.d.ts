@@ -342,6 +342,406 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/influencers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List influencers
+         * @description Retrieves a paginated list of influencers, newest first unless sort=posts.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number */
+                    page?: number;
+                    /** @description Items per page */
+                    per_page?: number;
+                    /** @description Filter by monitored state */
+                    is_active?: boolean;
+                    /** @description Filter by source */
+                    source?: "seed" | "discovered";
+                    /** @description Text the username or nickname contains */
+                    search?: string;
+                    /** @description Order of the list, newest when left out */
+                    sort?: "newest" | "posts";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaginationResults-model_Influencer"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Add an influencer
+         * @description Adds a TikTok influencer to monitor. Profile details are filled by the next monitor run, which starts right away. A username that already exists (ignoring case) gives 409.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Influencer */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.CreateInfluencerRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Influencer"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/influencers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get an influencer */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Influencer ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Influencer"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Turn influencer monitoring on or off
+         * @description Turning monitoring on again resets the empty-check counter and schedules a check right away.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Influencer ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description Active state */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.SetInfluencerActiveRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Influencer"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
     "/api/v1/admin/keywords": {
         parameters: {
             query?: never;
@@ -944,6 +1344,413 @@ export interface paths {
                 };
                 /** @description Forbidden */
                 403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List topics
+         * @description Retrieves a paginated list of topics, active or not.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number */
+                    page?: number;
+                    /** @description Items per page */
+                    per_page?: number;
+                    /** @description Filter by active state */
+                    is_active?: boolean;
+                    /** @description Text the name contains */
+                    search?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaginationResults-model_Topic"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create a topic
+         * @description Adds a topic the claim analyzer may assign. The name must be unique.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            /** @description Topic */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.CreateTopicRequest"];
+                };
+            };
+            responses: {
+                /** @description Created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Topic"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/topics/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a topic */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Topic ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Topic"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        /**
+         * Update a topic
+         * @description Replaces name, description and active state. Topics are never deleted; set is_active to false instead. The last active topic cannot be deactivated (409).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Topic ID */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            /** @description Topic */
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["dto.UpdateTopicRequest"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["model.Topic"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Forbidden */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Conflict */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2082,6 +2889,104 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/influencers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List influencers for the dashboard
+         * @description The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.
+         */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Page number */
+                    page?: number;
+                    /** @description Items per page */
+                    per_page?: number;
+                    /** @description Filter by monitored state */
+                    is_active?: boolean;
+                    /** @description Filter by source */
+                    source?: "seed" | "discovered";
+                    /** @description Text the username or nickname contains */
+                    search?: string;
+                    /** @description Order of the list, newest when left out */
+                    sort?: "newest" | "posts";
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            data?: components["schemas"]["dto.PaginationResults-model_Influencer"];
+                        };
+                    };
+                };
+                /** @description Bad Request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Unprocessable Entity */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+                /** @description Internal Server Error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["model.APIResponse"] & {
+                            error?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me": {
         parameters: {
             query?: never;
@@ -2857,6 +3762,13 @@ export interface components {
             /** @description Title is the title of the document. */
             title: string;
         };
+        "dto.CreateInfluencerRequest": {
+            /**
+             * @description Username is the TikTok username, with or without a leading @.
+             * @example @someone
+             */
+            username: string;
+        };
         "dto.CreateKeywordRequest": {
             /**
              * @description IsActive defaults to true when left out.
@@ -2874,6 +3786,23 @@ export interface components {
              * @enum {string}
              */
             language: "en" | "fr";
+        };
+        "dto.CreateTopicRequest": {
+            /**
+             * @description Description explains what the topic covers. The claim analyzer reads it.
+             * @example Claims about diseases and vaccines
+             */
+            description?: string;
+            /**
+             * @description IsActive defaults to true when left out.
+             * @example true
+             */
+            is_active?: boolean;
+            /**
+             * @description Name is the unique display name of the topic.
+             * @example Health
+             */
+            name: string;
         };
         "dto.ExtractAPIRequest": {
             /** @description Question is a free-text question to search the knowledge base. */
@@ -2933,9 +3862,29 @@ export interface components {
             /** @description TotalItems is the total number of items available */
             total_items: number;
         };
+        "dto.PaginationResults-model_Influencer": {
+            /** @description Items contains the paginated data items */
+            items?: components["schemas"]["model.Influencer"][];
+            /** @description Page is the current page number */
+            page: number;
+            /** @description PerPage is the number of items per page */
+            per_page: number;
+            /** @description TotalItems is the total number of items available */
+            total_items: number;
+        };
         "dto.PaginationResults-model_Narrative": {
             /** @description Items contains the paginated data items */
             items?: components["schemas"]["model.Narrative"][];
+            /** @description Page is the current page number */
+            page: number;
+            /** @description PerPage is the number of items per page */
+            per_page: number;
+            /** @description TotalItems is the total number of items available */
+            total_items: number;
+        };
+        "dto.PaginationResults-model_Topic": {
+            /** @description Items contains the paginated data items */
+            items?: components["schemas"]["model.Topic"][];
             /** @description Page is the current page number */
             page: number;
             /** @description PerPage is the number of items per page */
@@ -2949,6 +3898,10 @@ export interface components {
         };
         "dto.RefreshRequest": {
             refresh_token: string;
+        };
+        "dto.SetInfluencerActiveRequest": {
+            /** @example false */
+            is_active: boolean;
         };
         "dto.SignupRequest": {
             email: string;
@@ -3053,6 +4006,14 @@ export interface components {
             email: string;
             name: string;
         };
+        "dto.UpdateTopicRequest": {
+            /** @example Claims about diseases and vaccines */
+            description?: string;
+            /** @example true */
+            is_active: boolean;
+            /** @example Health */
+            name: string;
+        };
         "model.APIResponse": {
             data?: unknown;
             error?: string;
@@ -3127,6 +4088,66 @@ export interface components {
             /** @description Title is the title of the document. */
             title: string;
         };
+        "model.Influencer": {
+            /** @description AvatarURL is the URL of the influencer's profile picture. */
+            avatar_url?: string;
+            /** @description AvgUploadIntervalHours is the average time between tracked uploads. */
+            avg_upload_interval_hours?: number;
+            /** @description Bio is the influencer's profile bio. */
+            bio?: string;
+            /** @description CreatedAt is the time when the record was created. */
+            created_at?: string;
+            /** @description DiscoveredFromVideoURL is the video URL where the influencer was discovered. */
+            discovered_from_video_url?: string;
+            /** @description DiscoveredViaKeyword is the keyword that led to the influencer's discovery. */
+            discovered_via_keyword?: string;
+            /**
+             * @description EmptyCheckCount is how many checks in a row found no usable video. The
+             *     influencer is deactivated when it reaches the limit.
+             */
+            empty_check_count?: number;
+            /** @description FirstVideoAt is the earliest tracked video time. */
+            first_video_at?: string;
+            /** @description FollowersCount is the number of followers. */
+            followers_count?: number;
+            /** @description FollowingCount is the number of accounts the influencer follows. */
+            following_count?: number;
+            /** @description HeartsCount is the total number of likes received by the influencer. */
+            hearts_count?: number;
+            /** @description ID is the unique identifier of the influencer. */
+            id?: string;
+            /** @description IsActive reports whether the influencer is monitored. */
+            is_active?: boolean;
+            /** @description LastCheckedAt is the last time the influencer was checked for new videos. */
+            last_checked_at?: string;
+            /** @description LastVideoAt is the latest tracked video time. */
+            last_video_at?: string;
+            /**
+             * @description NextCheckAt is when the influencer should next be checked for new
+             *     videos, based on their average upload interval.
+             */
+            next_check_at?: string;
+            /** @description Nickname is the influencer's display name. */
+            nickname?: string;
+            /** @description Platform is the social media platform of the influencer. */
+            platform?: string;
+            /** @description ProfileURL is the URL of the influencer's profile. */
+            profile_url?: string;
+            /** @description ReportedVideoCount is the total number of videos reported by TikTok/Apify. */
+            reported_video_count?: number;
+            /** @description Source indicates how the influencer was added to the system. */
+            source?: components["schemas"]["model.InfluencerSource"];
+            /** @description TrackedVideoCount is the number of videos captured by the monitoring system. */
+            tracked_video_count?: number;
+            /** @description UpdatedAt is the time when the record was last updated. */
+            updated_at?: string;
+            /** @description Username is the influencer's username. */
+            username?: string;
+            /** @description Verified indicates whether the influencer's account is verified. */
+            verified?: boolean;
+        };
+        /** @enum {string} */
+        "model.InfluencerSource": "seed" | "discovered";
         /** @enum {integer} */
         "model.Language": 0 | 1;
         /** @enum {string} */
@@ -3211,6 +4232,29 @@ export interface components {
             prefix: string;
             /** @example https://s3.planetleague.co.uk/bucket/key */
             url: string;
+        };
+        "model.Topic": {
+            /** @description CreatedAt is the time the topic was created. */
+            created_at?: string;
+            /**
+             * @description Description explains what the topic covers. It is included in the
+             *     analyzer prompt so the model can classify claims accurately.
+             */
+            description?: string;
+            /**
+             * Format: uuid
+             * @description ID is the unique identifier of the topic.
+             */
+            id?: string;
+            /**
+             * @description IsActive reports whether the analyzer may still assign this topic to
+             *     new claims. Existing claims and narratives keep an inactive topic.
+             */
+            is_active?: boolean;
+            /** @description Name is the topic's display name. It is unique across all topics. */
+            name?: string;
+            /** @description UpdatedAt is the time the topic was last modified. */
+            updated_at?: string;
         };
         "model.UserActivity": {
             /** @description Messages is the number of messages users sent. */

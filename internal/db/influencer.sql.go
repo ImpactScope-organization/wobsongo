@@ -281,14 +281,18 @@ WHERE ($1::boolean IS NULL OR is_active = $1::boolean)
   AND ($3::text IS NULL
        OR strpos(lower(username), lower($3::text)) > 0
        OR strpos(lower(nickname), lower($3::text)) > 0)
-ORDER BY created_at DESC, id DESC
-LIMIT $5::int OFFSET $4::int
+ORDER BY
+    CASE WHEN $4::text = 'posts' THEN tracked_video_count END DESC NULLS LAST,
+    CASE WHEN $4::text = 'posts' THEN followers_count END DESC NULLS LAST,
+    created_at DESC, id DESC
+LIMIT $6::int OFFSET $5::int
 `
 
 type PaginateInfluencersParams struct {
 	IsActive   pgtype.Bool
 	Source     pgtype.Text
 	Search     pgtype.Text
+	SortBy     string
 	PageOffset int32
 	PageLimit  int32
 }
@@ -298,6 +302,7 @@ func (q *Queries) PaginateInfluencers(ctx context.Context, arg PaginateInfluence
 		arg.IsActive,
 		arg.Source,
 		arg.Search,
+		arg.SortBy,
 		arg.PageOffset,
 		arg.PageLimit,
 	)

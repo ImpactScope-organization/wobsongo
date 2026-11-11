@@ -62,12 +62,23 @@ export interface ContentCreator {
 	avatarUrl?: string;
 	followers?: number;
 	postsCount?: number;
-	rated: Record<RatingOutcome, number>;
+	// TODO
+	rated?: Record<RatingOutcome, number>;
 	profileUrl?: string;
 	pseudoname?: string;
 	pseudonym?: string;
+	// TODO
 	riskLevel?: number;
 }
+
+// What a creator is ranked by: tracked posts, else rated claims.
+export function creatorVolume(creator: ContentCreator): number {
+	if (creator.postsCount !== undefined) return creator.postsCount;
+	const rated = creator.rated;
+	if (!rated) return 0;
+	return rated.false + rated.misleading + rated.unverified + rated.accurate;
+}
+
 
 export interface OverviewSnapshot {
 	/** Country or area WobSongo monitors, e.g. "Burkina Faso". */
@@ -109,24 +120,12 @@ export function topCreators(
 ): ContentCreator[] {
 	return creators
 		.filter((creator) => {
-			if (topic === 'all') return true;
-			return (creator.rated.false || 0) + (creator.rated.misleading || 0) > 0;
+			if (topic === 'all' || !creator.rated) return true;
+			return creator.rated.false + creator.rated.misleading > 0;
 		})
 		.toSorted((a, b) => {
-			const volumeA =
-				a.postsCount ??
-				(a.rated.false || 0) +
-					(a.rated.misleading || 0) +
-					(a.rated.unverified || 0) +
-					(a.rated.accurate || 0);
-			const volumeB =
-				b.postsCount ??
-				(b.rated.false || 0) +
-					(b.rated.misleading || 0) +
-					(b.rated.unverified || 0) +
-					(b.rated.accurate || 0);
-			if (volumeB !== volumeA) return volumeB - volumeA;
-			return (b.followers ?? 0) - (a.followers ?? 0);
+			const diff = creatorVolume(b) - creatorVolume(a);
+			return diff !== 0 ? diff : (b.followers ?? 0) - (a.followers ?? 0);
 		});
 }
 

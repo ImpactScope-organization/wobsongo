@@ -453,7 +453,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a paginated list of influencers, newest first.",
+                "description": "Retrieves a paginated list of influencers, newest first unless sort=posts.",
                 "produces": [
                     "application/json"
                 ],
@@ -497,6 +497,16 @@
                         "type": "string",
                         "description": "Text the username or nickname contains",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "newest",
+                            "posts"
+                        ],
+                        "type": "string",
+                        "description": "Order of the list, newest when left out",
+                        "name": "sort",
                         "in": "query"
                     }
                 ],
@@ -4209,6 +4219,164 @@
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/influencers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "influencers"
+                ],
+                "summary": "List influencers for the dashboard",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Items per page",
+                        "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by monitored state",
+                        "name": "is_active",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "seed",
+                            "discovered"
+                        ],
+                        "type": "string",
+                        "description": "Filter by source",
+                        "name": "source",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text the username or nickname contains",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "newest",
+                            "posts"
+                        ],
+                        "type": "string",
+                        "description": "Order of the list, newest when left out",
+                        "name": "sort",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.PaginationResults-model_Influencer"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
                         "schema": {
                             "allOf": [
                                 {

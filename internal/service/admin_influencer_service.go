@@ -31,6 +31,7 @@ func (s *AdminInfluencerService) List(
 			Search:   query.Search,
 		},
 		Source: query.Source,
+		Sort:   query.Sort,
 	})
 }
 

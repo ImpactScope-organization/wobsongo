@@ -19,7 +19,7 @@ func NewAdminInfluencerHandler(service *service.AdminInfluencerService) *AdminIn
 }
 
 // @Summary		List influencers
-// @Description	Retrieves a paginated list of influencers, newest first.
+// @Description	Retrieves a paginated list of influencers, newest first unless sort=posts.
 // @Tags			admin
 // @Produce		json
 // @Param			page		query		int		false	"Page number"		minimum(1)
@@ -27,6 +27,7 @@ func NewAdminInfluencerHandler(service *service.AdminInfluencerService) *AdminIn
 // @Param			is_active	query		bool	false	"Filter by monitored state"
 // @Param			source		query		string	false	"Filter by source"	Enums(seed, discovered)
 // @Param			search		query		string	false	"Text the username or nickname contains"
+// @Param			sort		query		string	false	"Order of the list, newest when left out"	Enums(newest, posts)
 // @Success		200			{object}	model.APIResponse{data=dto.PaginationResults[model.Influencer]}
 // @Failure		400			{object}	model.APIResponse{error=string}
 // @Failure		401			{object}	model.APIResponse{error=string}
@@ -47,6 +48,27 @@ func (h *AdminInfluencerHandler) listInfluencersHandler(c echo.Context) error {
 	}
 
 	return writeJSON(c, http.StatusOK, results)
+}
+
+// @Summary		List influencers for the dashboard
+// @Description	The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.
+// @Tags			influencers
+// @Produce		json
+// @Param			page		query		int		false	"Page number"	minimum(1)
+// @Param			per_page	query		int		false	"Items per page"	minimum(1)	maximum(100)
+// @Param			is_active	query		bool	false	"Filter by monitored state"
+// @Param			source		query		string	false	"Filter by source"	Enums(seed, discovered)
+// @Param			search		query		string	false	"Text the username or nickname contains"
+// @Param			sort		query		string	false	"Order of the list, newest when left out"	Enums(newest, posts)
+// @Success		200			{object}	model.APIResponse{data=dto.PaginationResults[model.Influencer]}
+// @Failure		400			{object}	model.APIResponse{error=string}
+// @Failure		401			{object}	model.APIResponse{error=string}
+// @Failure		422			{object}	model.APIResponse{error=string}
+// @Failure		500			{object}	model.APIResponse{error=string}
+// @Security		BearerAuth
+// @Router			/api/v1/influencers [get]
+func (h *AdminInfluencerHandler) dashboardListHandler(c echo.Context) error {
+	return h.listInfluencersHandler(c)
 }
 
 // @Summary		Get an influencer

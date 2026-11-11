@@ -74,7 +74,10 @@ WHERE (sqlc.narg(is_active)::boolean IS NULL OR is_active = sqlc.narg(is_active)
   AND (sqlc.narg(search)::text IS NULL
        OR strpos(lower(username), lower(sqlc.narg(search)::text)) > 0
        OR strpos(lower(nickname), lower(sqlc.narg(search)::text)) > 0)
-ORDER BY created_at DESC, id DESC
+ORDER BY
+    CASE WHEN sqlc.arg(sort_by)::text = 'posts' THEN tracked_video_count END DESC NULLS LAST,
+    CASE WHEN sqlc.arg(sort_by)::text = 'posts' THEN followers_count END DESC NULLS LAST,
+    created_at DESC, id DESC
 LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
 
 -- name: CountInfluencers :one

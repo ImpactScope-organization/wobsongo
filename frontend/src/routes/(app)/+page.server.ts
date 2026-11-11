@@ -44,7 +44,17 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		? {
 				...result.data,
 				creators: result.data.creators.map(
-					({ followers: _f, postsCount: _p, handle: _h, profileUrl: _url, ...creator }, index) => ({
+					(
+						{
+							followers: _f,
+							postsCount: _p,
+							handle: _h,
+							profileUrl: _url,
+							avatarUrl: _a,
+							...creator
+						},
+						index
+					) => ({
 						...creator,
 						name:
 							creator.pseudoname ||

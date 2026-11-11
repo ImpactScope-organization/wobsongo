@@ -25,6 +25,7 @@ interface Backend {
 	activity?: { users: number; messages: number };
 	volume?: unknown;
 	platforms?: unknown;
+	influencers?: unknown[];
 	// Answers a request itself; return nothing to fall through to the defaults.
 	respond?: (url: URL) => Response | undefined;
 }
@@ -40,6 +41,7 @@ function backendFetch(backend: Backend, sent: string[]): typeof globalThis.fetch
 		activity = { users: 0, messages: 0 },
 		volume = { current: 0, previous: 0, trend: [] },
 		platforms = [],
+		influencers = [],
 		respond
 	} = backend;
 
@@ -58,6 +60,13 @@ function backendFetch(backend: Backend, sent: string[]): typeof globalThis.fetch
 		}
 		if (url.pathname.endsWith('/claims/platforms')) {
 			return Response.json({ request_id: 'r', status: 200, data: platforms });
+		}
+		if (url.pathname.endsWith('/influencers')) {
+			return Response.json({
+				request_id: 'r',
+				status: 200,
+				data: { page: 1, per_page: 10, total_items: influencers.length, items: influencers }
+			});
 		}
 		const page = Number(url.searchParams.get('page') ?? 1);
 		const perPage = Number(url.searchParams.get('per_page') ?? 20);
@@ -154,6 +163,47 @@ describe('API overview repo', () => {
 		expect(s.rated).toEqual({ false: 125, misleading: 0, unverified: 0, accurate: 125 });
 		expect(s.narratives).toHaveLength(125);
 		expect(s.highHarm.awaitingReview).toBe(250);
+	});
+
+		it('maps the top creators and leaves the screening results empty', async () => {
+		const { sent, repos: r } = reposFor({
+			influencers: [
+				{
+					id: 'c1',
+					platform: 'tiktok',
+					username: 'jane',
+					nickname: 'Jane Doe',
+					avatar_url: '',
+					profile_url: 'https://www.tiktok.com/@jane',
+					followers_count: 12_300,
+					tracked_video_count: 7
+				},
+				{ id: 'c2', platform: 'myspace', username: 'old', followers_count: 1, tracked_video_count: 1 }
+			]
+		});
+		const result = await r.overview.getSnapshot(
+			{ accountId: 'a' },
+			{ range: '24h', engagement: 'all' }
+		);
+
+		expect(
+			sent.some((request) => request.includes('/influencers') && request.includes('sort=posts'))
+		).toBe(true);
+		if (!result.ok) throw new Error('expected ok');
+		// An unknown platform is left out; rated and riskLevel are not set yet.
+		expect(result.data.creators).toEqual([
+			{
+				id: 'c1',
+				name: 'Jane Doe',
+				handle: '@jane',
+				platform: 'tiktok',
+				profileUrl: 'https://www.tiktok.com/@jane',
+				followers: 12_300,
+				postsCount: 7
+			}
+		]);
+		expect(result.data.creators[0].rated).toBeUndefined();
+		expect(result.data.creators[0].riskLevel).toBeUndefined();
 	});
 
 	it('fails when a later page cannot be read', async () => {

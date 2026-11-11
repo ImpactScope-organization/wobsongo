@@ -242,6 +242,75 @@ func TestInfluencerAdminRepo(t *testing.T) {
 		})
 	})
 
+	t.Run("Paginate_SortByPostsRanksPostsThenFollowers", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			// Inserted in this order, so the newest is _many_high, then _few.
+			counts := []struct {
+				suffix    string
+				posts     int64
+				followers int64
+			}{
+				{"_many_low", 5, 100},
+				{"_few", 2, 10_000},
+				{"_many_high", 5, 900},
+			}
+			for _, c := range counts {
+				id := insertAdminInfluencer(ctx, t, tx, token+c.suffix, "seed", true, 0)
+				_, err := tx.Exec(
+					ctx,
+					`update influencers set tracked_video_count = $1, followers_count = $2 where id = $3`,
+					c.posts,
+					c.followers,
+					id,
+				)
+				if err != nil {
+					t.Fatalf("failed to set counts of %s: %v", c.suffix, err)
+				}
+			}
+			influencers := newRepo(q)
+			paging := &dto.PaginationDTO{Page: 1, PerPage: 10}
+			filter := data.InfluencerListFilter{
+				AdminListFilter: data.AdminListFilter{Search: token},
+			}
+
+			newest, err := influencers.Paginate(ctx, paging, filter)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wantNewest := []string{token + "_many_high", token + "_few", token + "_many_low"}
+			if got := influencerUsernames(
+				newest.Items,
+			); strings.Join(
+				got,
+				",",
+			) != strings.Join(
+				wantNewest,
+				",",
+			) {
+				t.Errorf("expected newest first without a sort, got %v", got)
+			}
+
+			filter.Sort = "posts"
+			byPosts, err := influencers.Paginate(ctx, paging, filter)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wantByPosts := []string{token + "_many_high", token + "_many_low", token + "_few"}
+			if got := influencerUsernames(
+				byPosts.Items,
+			); strings.Join(
+				got,
+				",",
+			) != strings.Join(
+				wantByPosts,
+				",",
+			) {
+				t.Errorf("expected most posts first, then most followers, got %v", got)
+			}
+		})
+	})
+
 	t.Run("Paginate_SearchMatchesNickname", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
 			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")

@@ -45,6 +45,10 @@ type InfluencerListFilter struct {
 
 	// Source keeps only influencers from this source ("seed" or "discovered").
 	Source string
+
+	// Sort orders the list: "posts" puts the influencers with the most
+	// tracked posts first (then the most followers). Anything else, newest first.
+	Sort string
 }
 
 // TopicRepoer defines the admin operations on topics. Topics are never

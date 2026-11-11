@@ -423,3 +423,69 @@ func TestSetInfluencerActiveHandler(t *testing.T) {
 		})
 	}
 }
+
+const dashboardInfluencersPath = "/api/v1/influencers"
+
+func TestDashboardInfluencersHandler(t *testing.T) {
+	user := bearerFor(t, model.RoleUser)
+
+	t.Run("WithoutToken_Unauthorized", func(t *testing.T) {
+		repo := &mockrepo.InfluencerRepoerMock{}
+		app := newAdminInfluencerApp(t, repo)
+
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath, "", nil)
+		expectAdminStatus(t, rec, http.StatusUnauthorized)
+
+		if n := influencerRepoCallCount(repo); n != 0 {
+			t.Errorf("expected the repo not to be called, got %d calls", n)
+		}
+	})
+
+	t.Run("AsUser_ListsSortedByPosts", func(t *testing.T) {
+		var gotFilter data.InfluencerListFilter
+		repo := &mockrepo.InfluencerRepoerMock{
+			PaginateFunc: func(
+				_ context.Context,
+				_ data.SupportsPagination,
+				f data.InfluencerListFilter,
+			) (*dto.PaginationResults[model.Influencer], error) {
+				gotFilter = f
+				return &dto.PaginationResults[model.Influencer]{
+					Page: 1, PerPage: 10, TotalItems: 1,
+					Items: []model.Influencer{*influencerFixture(uuid.New())},
+				}, nil
+			},
+		}
+		app := newAdminInfluencerApp(t, repo)
+
+		rec := serveAdminReq(app, http.MethodGet,
+			dashboardInfluencersPath+"?sort=posts&is_active=true&per_page=10", user, nil)
+		expectAdminStatus(t, rec, http.StatusOK)
+
+		got := decodeAdminResp[dto.PaginationResults[model.Influencer]](t, rec)
+		if got.TotalItems != 1 || len(got.Items) != 1 {
+			t.Errorf("unexpected page in response: %+v", got)
+		}
+		if gotFilter.Sort != "posts" || gotFilter.IsActive == nil || !*gotFilter.IsActive {
+			t.Errorf("unexpected filter: %+v", gotFilter)
+		}
+	})
+
+	t.Run("InvalidSort_Unprocessable", func(t *testing.T) {
+		repo := &mockrepo.InfluencerRepoerMock{}
+		app := newAdminInfluencerApp(t, repo)
+
+		rec := serveAdminReq(
+			app,
+			http.MethodGet,
+			dashboardInfluencersPath+"?sort=oldest",
+			user,
+			nil,
+		)
+		expectAdminStatus(t, rec, http.StatusUnprocessableEntity)
+
+		if n := len(repo.PaginateCalls()); n != 0 {
+			t.Errorf("expected the repo not to be called, got %d calls", n)
+		}
+	})
+}

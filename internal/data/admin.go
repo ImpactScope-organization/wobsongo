@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
@@ -45,6 +46,10 @@ type InfluencerListFilter struct {
 
 	// Source keeps only influencers from this source ("seed" or "discovered").
 	Source string
+
+	// Sort orders the list: "posts" puts the influencers with the most
+	// tracked posts first (then the most followers). Anything else, newest first.
+	Sort string
 }
 
 // TopicRepoer defines the admin operations on topics. Topics are never
@@ -73,4 +78,12 @@ type TopicRepoer interface {
 	// LockActiveGuard serializes updates that may deactivate a topic.
 	// It must be called inside WithTx.
 	LockActiveGuard(ctx context.Context) error
+}
+
+// TopCreatorFilter holds the filters of the dashboard's top creators.
+type TopCreatorFilter struct {
+	AdminListFilter
+
+	// Since keeps only the posts published at or after this time.
+	Since time.Time
 }

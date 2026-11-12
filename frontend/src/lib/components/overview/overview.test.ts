@@ -54,6 +54,27 @@ describe('NarrativeList', () => {
 		expect(body).toContain('href="/n?id=N-0412"');
 	});
 
+	it('shows dashes instead of a risk gauge and verdicts while creators are not screened', () => {
+		const { body } = render(CreatorList, {
+			props: {
+				creators: [
+					{
+						id: 'c1',
+						name: 'Jane Doe',
+						handle: '@jane',
+						platform: 'tiktok',
+						followers: 12_300,
+						postsCount: 7
+					}
+				]
+			}
+		});
+		expect(body).toContain('Jane Doe');
+		expect(body).toContain('12.3K');
+		expect(body).not.toContain('role="meter"');
+		expect(body).not.toContain('role="img"');
+	});
+
 	it('shows an empty state', () => {
 		const { body } = render(NarrativeList, { props: { narratives: [] } });
 		expect(body).toContain('No narratives in this window.');

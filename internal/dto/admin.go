@@ -74,6 +74,10 @@ type InfluencerListDTO struct {
 
 	// Search keeps influencers whose username or nickname contains this text.
 	Search string `query:"search" validate:"omitempty,max=100" example:"jane doe"`
+
+	// Sort orders the list: "newest" (default), or "posts" for the influencers
+	// with the most tracked posts first, then the most followers.
+	Sort string `query:"sort" validate:"omitempty,oneof=newest posts" example:"posts"`
 }
 
 // CreateInfluencerRequest is the body for adding a TikTok influencer to monitor.
@@ -85,4 +89,16 @@ type CreateInfluencerRequest struct {
 // SetInfluencerActiveRequest turns monitoring of an influencer on or off.
 type SetInfluencerActiveRequest struct {
 	IsActive *bool `json:"is_active" validate:"required" example:"false"`
+}
+
+// CreatorListDTO holds the query parameters of the dashboard's creator list.
+type CreatorListDTO struct {
+	PaginationDTO
+	TimeRangeDTO
+
+	// IsActive keeps only monitored (true) or not monitored (false) influencers.
+	IsActive *bool `query:"is_active" example:"true"`
+
+	// Search keeps influencers whose username or nickname contains this text.
+	Search string `query:"search" validate:"omitempty,max=100" example:"jane doe"`
 }

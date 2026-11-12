@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -192,6 +193,93 @@ func TestAdminInfluencerService_SetActive(t *testing.T) {
 		_, err := NewAdminInfluencerService(repo).SetActive(t.Context(), id, true)
 		if !errors.Is(err, data.ErrNotFound) {
 			t.Errorf("expected data.ErrNotFound, got %v", err)
+		}
+	})
+}
+
+func TestAdminInfluencerService_TopCreators(t *testing.T) {
+	t.Run("PassesFiltersAndWindowToRepo", func(t *testing.T) {
+		page := &dto.PaginationResults[model.TopCreator]{Page: 1, PerPage: 10, TotalItems: 1}
+		var gotQuery data.SupportsPagination
+		var gotFilter data.TopCreatorFilter
+		repo := &mockrepo.InfluencerRepoerMock{
+			PaginateTopCreatorsFunc: func(
+				_ context.Context,
+				q data.SupportsPagination,
+				f data.TopCreatorFilter,
+			) (*dto.PaginationResults[model.TopCreator], error) {
+				gotQuery, gotFilter = q, f
+				return page, nil
+			},
+		}
+		query := &dto.CreatorListDTO{
+			PaginationDTO: dto.PaginationDTO{Page: 1, PerPage: 10},
+			TimeRangeDTO:  dto.TimeRangeDTO{Range: dto.TimeRange7d},
+			IsActive:      boolPtr(true),
+			Search:        "naf",
+		}
+
+		before := time.Now()
+		got, err := NewAdminInfluencerService(repo).TopCreators(t.Context(), query)
+		after := time.Now()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if got != page {
+			t.Errorf("expected the repo page, got %+v", got)
+		}
+		if gotQuery.Limit() != 10 || gotQuery.Offset() != 0 {
+			t.Errorf(
+				"expected limit 10 / offset 0, got %d / %d",
+				gotQuery.Limit(),
+				gotQuery.Offset(),
+			)
+		}
+		if gotFilter.IsActive == nil || !*gotFilter.IsActive || gotFilter.Search != "naf" {
+			t.Errorf("expected the filters to reach the repo, got %+v", gotFilter)
+		}
+		window := 7 * 24 * time.Hour
+		if gotFilter.Since.Before(before.Add(-window)) ||
+			gotFilter.Since.After(after.Add(-window)) {
+			t.Errorf("expected Since about 7d ago, got %v", gotFilter.Since)
+		}
+	})
+
+	t.Run("UnsetRange_DefaultsTo24h", func(t *testing.T) {
+		var gotFilter data.TopCreatorFilter
+		repo := &mockrepo.InfluencerRepoerMock{
+			PaginateTopCreatorsFunc: func(
+				_ context.Context,
+				_ data.SupportsPagination,
+				f data.TopCreatorFilter,
+			) (*dto.PaginationResults[model.TopCreator], error) {
+				gotFilter = f
+				return &dto.PaginationResults[model.TopCreator]{}, nil
+			},
+		}
+
+		before := time.Now()
+		_, err := NewAdminInfluencerService(repo).TopCreators(t.Context(), &dto.CreatorListDTO{})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if gotFilter.Since.Before(before.Add(-24 * time.Hour)) {
+			t.Errorf("expected Since within the last 24h, got %v", gotFilter.Since)
+		}
+	})
+
+	t.Run("PassesThroughRepoError", func(t *testing.T) {
+		repo := &mockrepo.InfluencerRepoerMock{
+			PaginateTopCreatorsFunc: func(
+				context.Context, data.SupportsPagination, data.TopCreatorFilter,
+			) (*dto.PaginationResults[model.TopCreator], error) {
+				return nil, data.ErrInternal
+			},
+		}
+
+		_, err := NewAdminInfluencerService(repo).TopCreators(t.Context(), &dto.CreatorListDTO{})
+		if !errors.Is(err, data.ErrInternal) {
+			t.Errorf("expected data.ErrInternal, got %v", err)
 		}
 	})
 }

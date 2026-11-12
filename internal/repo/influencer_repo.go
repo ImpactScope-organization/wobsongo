@@ -261,6 +261,7 @@ func (r *influencerRepo) Paginate(
 		IsActive:   isActive,
 		Source:     source,
 		Search:     search,
+		SortBy:     filter.Sort,
 		PageLimit:  limit,
 		PageOffset: offset,
 	})
@@ -324,4 +325,60 @@ func (r *influencerRepo) SetActive(
 		return nil, fmt.Errorf("failed to set influencer active: %w", mapPostgresError(err))
 	}
 	return dbInfluencerToModel(&row), nil
+}
+
+// PaginateTopCreators returns the influencers that posted since filter.Since,
+// the most posts first.
+func (r *influencerRepo) PaginateTopCreators(
+	ctx context.Context,
+	q data.SupportsPagination,
+	filter data.TopCreatorFilter,
+) (*dto.PaginationResults[model.TopCreator], error) {
+	limit, offset := q.Limit(), q.Offset()
+	isActive, search := filterBool(filter.IsActive), filterText(filter.Search)
+
+	rows, err := r.q.PaginateTopCreators(ctx, db.PaginateTopCreatorsParams{
+		Since:      filter.Since,
+		IsActive:   isActive,
+		Search:     search,
+		PageLimit:  limit,
+		PageOffset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list top creators: %w", mapPostgresError(err))
+	}
+
+	total, err := r.q.CountTopCreators(ctx, db.CountTopCreatorsParams{
+		Since:    filter.Since,
+		IsActive: isActive,
+		Search:   search,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count top creators: %w", mapPostgresError(err))
+	}
+
+	items := make([]model.TopCreator, 0, len(rows))
+	for i := range rows {
+		items = append(items, dbTopCreatorToModel(&rows[i]))
+	}
+
+	return &dto.PaginationResults[model.TopCreator]{
+		Page:       pageOf(limit, offset),
+		PerPage:    int(limit),
+		TotalItems: int(total),
+		Items:      items,
+	}, nil
+}
+
+func dbTopCreatorToModel(row *db.PaginateTopCreatorsRow) model.TopCreator {
+	return model.TopCreator{
+		ID:             row.ID,
+		Platform:       row.Platform,
+		Username:       row.Username,
+		Nickname:       row.Nickname,
+		ProfileURL:     row.ProfileUrl,
+		AvatarURL:      row.AvatarUrl,
+		FollowersCount: row.FollowersCount,
+		PostsCount:     row.PostsCount,
+	}
 }

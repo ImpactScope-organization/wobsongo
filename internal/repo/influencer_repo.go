@@ -359,16 +359,7 @@ func (r *influencerRepo) PaginateTopCreators(
 
 	items := make([]model.TopCreator, 0, len(rows))
 	for i := range rows {
-		items = append(items, model.TopCreator{
-			ID:             rows[i].ID,
-			Platform:       rows[i].Platform,
-			Username:       rows[i].Username,
-			Nickname:       rows[i].Nickname,
-			ProfileURL:     rows[i].ProfileUrl,
-			AvatarURL:      rows[i].AvatarUrl,
-			FollowersCount: rows[i].FollowersCount,
-			PostsCount:     rows[i].PostsCount,
-		})
+		items = append(items, dbTopCreatorToModel(&rows[i]))
 	}
 
 	return &dto.PaginationResults[model.TopCreator]{
@@ -377,4 +368,17 @@ func (r *influencerRepo) PaginateTopCreators(
 		TotalItems: int(total),
 		Items:      items,
 	}, nil
+}
+
+func dbTopCreatorToModel(row *db.PaginateTopCreatorsRow) model.TopCreator {
+	return model.TopCreator{
+		ID:             row.ID,
+		Platform:       row.Platform,
+		Username:       row.Username,
+		Nickname:       row.Nickname,
+		ProfileURL:     row.ProfileUrl,
+		AvatarURL:      row.AvatarUrl,
+		FollowersCount: row.FollowersCount,
+		PostsCount:     row.PostsCount,
+	}
 }

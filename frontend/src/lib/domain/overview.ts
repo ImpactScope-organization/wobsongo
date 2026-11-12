@@ -35,8 +35,10 @@ export interface Comparison {
 	previous: number;
 }
 
-/** Supported creator platforms */
-export type CreatorPlatform = 'tiktok' | 'instagram' | 'facebook' | 'x';
+// Platforms a content creator can be on. The Overview list has an icon for each.
+export const CREATOR_PLATFORMS = ['tiktok', 'instagram', 'facebook', 'x'] as const;
+
+export type CreatorPlatform = (typeof CREATOR_PLATFORMS)[number];
 
 /** Reporting windows for unique users and questions. */
 export type EngagementWindow = '7d' | '15d' | '30d' | 'all';

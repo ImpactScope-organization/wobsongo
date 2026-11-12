@@ -6,12 +6,12 @@ import {
 	type ReviewStatus,
 	type Verdict
 } from '#lib/domain/narrative.js';
-import type {
-	ContentCreator,
-	CreatorPlatform,
-	EngagementWindow,
-	OverviewSnapshot,
-	UserQuestionStats
+import {
+	CREATOR_PLATFORMS,
+	type ContentCreator,
+	type EngagementWindow,
+	type OverviewSnapshot,
+	type UserQuestionStats
 } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
 import { ok, type Result } from '#lib/server/result.js';
@@ -32,8 +32,6 @@ const NARRATIVE_PAGE_SIZE = 100;
 
 // How many content creators the Overview list shows.
 const CREATOR_LIMIT = 10;
-
-const CREATOR_PLATFORMS: readonly CreatorPlatform[] = ['tiktok', 'instagram', 'facebook', 'x'];
 
 type NarrativePage = { items?: ApiNarrative[]; total_items: number };
 

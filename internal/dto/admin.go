@@ -90,3 +90,15 @@ type CreateInfluencerRequest struct {
 type SetInfluencerActiveRequest struct {
 	IsActive *bool `json:"is_active" validate:"required" example:"false"`
 }
+
+// CreatorListDTO holds the query parameters of the dashboard's creator list.
+type CreatorListDTO struct {
+	PaginationDTO
+	TimeRangeDTO
+
+	// IsActive keeps only monitored (true) or not monitored (false) influencers.
+	IsActive *bool `query:"is_active" example:"true"`
+
+	// Search keeps influencers whose username or nickname contains this text.
+	Search string `query:"search" validate:"omitempty,max=100" example:"jane doe"`
+}

@@ -35,6 +35,29 @@ func (q *Queries) CountInfluencers(ctx context.Context, arg CountInfluencersPara
 	return count, err
 }
 
+const countTopCreators = `-- name: CountTopCreators :one
+SELECT count(DISTINCT i.id) FROM influencers i
+JOIN videos v ON v.influencer_id = i.id
+WHERE COALESCE(v.video_created_at, v.created_at) >= $1::timestamptz
+  AND ($2::boolean IS NULL OR i.is_active = $2::boolean)
+  AND ($3::text IS NULL
+       OR strpos(lower(i.username), lower($3::text)) > 0
+       OR strpos(lower(i.nickname), lower($3::text)) > 0)
+`
+
+type CountTopCreatorsParams struct {
+	Since    time.Time
+	IsActive pgtype.Bool
+	Search   pgtype.Text
+}
+
+func (q *Queries) CountTopCreators(ctx context.Context, arg CountTopCreatorsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countTopCreators, arg.Since, arg.IsActive, arg.Search)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createInfluencer = `-- name: CreateInfluencer :one
 INSERT INTO influencers (platform, username, profile_url, source)
 SELECT $1::varchar, $2::varchar,
@@ -339,6 +362,75 @@ func (q *Queries) PaginateInfluencers(ctx context.Context, arg PaginateInfluence
 			&i.NextCheckAt,
 			&i.IsActive,
 			&i.EmptyCheckCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const paginateTopCreators = `-- name: PaginateTopCreators :many
+SELECT i.id, i.platform, i.username, i.nickname, i.profile_url, i.avatar_url,
+       i.followers_count, COUNT(v.id)::bigint AS posts_count
+FROM influencers i
+JOIN videos v ON v.influencer_id = i.id
+WHERE COALESCE(v.video_created_at, v.created_at) >= $1::timestamptz
+  AND ($2::boolean IS NULL OR i.is_active = $2::boolean)
+  AND ($3::text IS NULL
+       OR strpos(lower(i.username), lower($3::text)) > 0
+       OR strpos(lower(i.nickname), lower($3::text)) > 0)
+GROUP BY i.id
+ORDER BY posts_count DESC, i.followers_count DESC, i.created_at DESC, i.id DESC
+LIMIT $5::int OFFSET $4::int
+`
+
+type PaginateTopCreatorsParams struct {
+	Since      time.Time
+	IsActive   pgtype.Bool
+	Search     pgtype.Text
+	PageOffset int32
+	PageLimit  int32
+}
+
+type PaginateTopCreatorsRow struct {
+	ID             uuid.UUID
+	Platform       string
+	Username       string
+	Nickname       string
+	ProfileUrl     string
+	AvatarUrl      string
+	FollowersCount int64
+	PostsCount     int64
+}
+
+func (q *Queries) PaginateTopCreators(ctx context.Context, arg PaginateTopCreatorsParams) ([]PaginateTopCreatorsRow, error) {
+	rows, err := q.db.Query(ctx, paginateTopCreators,
+		arg.Since,
+		arg.IsActive,
+		arg.Search,
+		arg.PageOffset,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []PaginateTopCreatorsRow
+	for rows.Next() {
+		var i PaginateTopCreatorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Platform,
+			&i.Username,
+			&i.Nickname,
+			&i.ProfileUrl,
+			&i.AvatarUrl,
+			&i.FollowersCount,
+			&i.PostsCount,
 		); err != nil {
 			return nil, err
 		}

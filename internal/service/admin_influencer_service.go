@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -68,4 +69,19 @@ func (s *AdminInfluencerService) SetActive(
 	active bool,
 ) (*model.Influencer, error) {
 	return s.repo.SetActive(ctx, id, active)
+}
+
+// TopCreators returns the influencers that posted in the query's window, the
+// most posts first.
+func (s *AdminInfluencerService) TopCreators(
+	ctx context.Context,
+	query *dto.CreatorListDTO,
+) (*dto.PaginationResults[model.TopCreator], error) {
+	return s.repo.PaginateTopCreators(ctx, query, data.TopCreatorFilter{
+		AdminListFilter: data.AdminListFilter{
+			IsActive: query.IsActive,
+			Search:   query.Search,
+		},
+		Since: time.Now().Add(-query.Range.Window()),
+	})
 }

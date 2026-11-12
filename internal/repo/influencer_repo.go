@@ -326,3 +326,55 @@ func (r *influencerRepo) SetActive(
 	}
 	return dbInfluencerToModel(&row), nil
 }
+
+// PaginateTopCreators returns the influencers that posted since filter.Since,
+// the most posts first.
+func (r *influencerRepo) PaginateTopCreators(
+	ctx context.Context,
+	q data.SupportsPagination,
+	filter data.TopCreatorFilter,
+) (*dto.PaginationResults[model.TopCreator], error) {
+	limit, offset := q.Limit(), q.Offset()
+	isActive, search := filterBool(filter.IsActive), filterText(filter.Search)
+
+	rows, err := r.q.PaginateTopCreators(ctx, db.PaginateTopCreatorsParams{
+		Since:      filter.Since,
+		IsActive:   isActive,
+		Search:     search,
+		PageLimit:  limit,
+		PageOffset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list top creators: %w", mapPostgresError(err))
+	}
+
+	total, err := r.q.CountTopCreators(ctx, db.CountTopCreatorsParams{
+		Since:    filter.Since,
+		IsActive: isActive,
+		Search:   search,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to count top creators: %w", mapPostgresError(err))
+	}
+
+	items := make([]model.TopCreator, 0, len(rows))
+	for i := range rows {
+		items = append(items, model.TopCreator{
+			ID:             rows[i].ID,
+			Platform:       rows[i].Platform,
+			Username:       rows[i].Username,
+			Nickname:       rows[i].Nickname,
+			ProfileURL:     rows[i].ProfileUrl,
+			AvatarURL:      rows[i].AvatarUrl,
+			FollowersCount: rows[i].FollowersCount,
+			PostsCount:     rows[i].PostsCount,
+		})
+	}
+
+	return &dto.PaginationResults[model.TopCreator]{
+		Page:       pageOf(limit, offset),
+		PerPage:    int(limit),
+		TotalItems: int(total),
+		Items:      items,
+	}, nil
+}

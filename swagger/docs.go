@@ -4270,14 +4270,14 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "Top content creators for every signed-in user. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. sort=posts gives the top content creators.",
+                "description": "Top content creators of the window, the most posts first. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. Creators without a post in the window are left out.",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
                     "influencers"
                 ],
-                "summary": "List influencers for the dashboard",
+                "summary": "List creators for the dashboard",
                 "parameters": [
                     {
                         "minimum": 1,
@@ -4295,35 +4295,26 @@ const docTemplate = `{
                         "in": "query"
                     },
                     {
+                        "enum": [
+                            "24h",
+                            "7d",
+                            "30d"
+                        ],
+                        "type": "string",
+                        "description": "Reporting window, 24h when left out",
+                        "name": "range",
+                        "in": "query"
+                    },
+                    {
                         "type": "boolean",
                         "description": "Filter by monitored state",
                         "name": "is_active",
                         "in": "query"
                     },
                     {
-                        "enum": [
-                            "seed",
-                            "discovered"
-                        ],
-                        "type": "string",
-                        "description": "Filter by source",
-                        "name": "source",
-                        "in": "query"
-                    },
-                    {
                         "type": "string",
                         "description": "Text the username or nickname contains",
                         "name": "search",
-                        "in": "query"
-                    },
-                    {
-                        "enum": [
-                            "newest",
-                            "posts"
-                        ],
-                        "type": "string",
-                        "description": "Order of the list, newest when left out",
-                        "name": "sort",
                         "in": "query"
                     }
                 ],
@@ -6293,11 +6284,12 @@ const docTemplate = `{
                 "platform": {
                     "type": "string"
                 },
+                "posts_count": {
+                    "description": "PostsCount is the number of posts in the requested window.",
+                    "type": "integer"
+                },
                 "profile_url": {
                     "type": "string"
-                },
-                "tracked_video_count": {
-                    "type": "integer"
                 },
                 "username": {
                     "type": "string"

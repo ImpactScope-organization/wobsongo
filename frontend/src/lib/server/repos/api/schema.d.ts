@@ -2897,8 +2897,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List influencers for the dashboard
-         * @description Top content creators for every signed-in user. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. sort=posts gives the top content creators.
+         * List creators for the dashboard
+         * @description Top content creators of the window, the most posts first. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. Creators without a post in the window are left out.
          */
         get: {
             parameters: {
@@ -2907,14 +2907,12 @@ export interface paths {
                     page?: number;
                     /** @description Items per page */
                     per_page?: number;
+                    /** @description Reporting window, 24h when left out */
+                    range?: "24h" | "7d" | "30d";
                     /** @description Filter by monitored state */
                     is_active?: boolean;
-                    /** @description Filter by source */
-                    source?: "seed" | "discovered";
                     /** @description Text the username or nickname contains */
                     search?: string;
-                    /** @description Order of the list, newest when left out */
-                    sort?: "newest" | "posts";
                 };
                 header?: never;
                 path?: never;
@@ -4059,8 +4057,9 @@ export interface components {
             id?: string;
             nickname?: string;
             platform?: string;
+            /** @description PostsCount is the number of posts in the requested window. */
+            posts_count?: number;
             profile_url?: string;
-            tracked_video_count?: number;
             username?: string;
         };
         "model.DiscoveryKeyword": {

@@ -176,14 +176,14 @@ describe('API overview repo', () => {
 					avatar_url: '',
 					profile_url: 'https://www.tiktok.com/@jane',
 					followers_count: 12_300,
-					tracked_video_count: 7
+					posts_count: 7
 				},
 				{
 					id: 'c2',
 					platform: 'myspace',
 					username: 'old',
 					followers_count: 1,
-					tracked_video_count: 1
+					posts_count: 1
 				}
 			]
 		});
@@ -193,7 +193,7 @@ describe('API overview repo', () => {
 		);
 
 		expect(
-			sent.some((request) => request.includes('/influencers') && request.includes('sort=posts'))
+			sent.some((request) => request.includes('/influencers') && request.includes('range=24h'))
 		).toBe(true);
 		if (!result.ok) throw new Error('expected ok');
 		// An unknown platform is left out; rated and riskLevel are not set yet.
@@ -242,6 +242,19 @@ describe('API overview repo', () => {
 		const { sent } = await snapshotOf('all');
 		expect(sent).toContain('/api/v1/conversations/stats');
 	});
+
+	it.each(['24h', '7d', '30d'] as const)(
+		'asks for the creators of the %s window',
+		async (range) => {
+			const { sent, repos: r } = reposFor({});
+			await r.overview.getSnapshot({ accountId: 'a' }, { range, engagement: 'all' });
+			expect(
+				sent.some(
+					(request) => request.includes('/influencers') && request.includes(`range=${range}`)
+				)
+			).toBe(true);
+		}
+	);
 
 	it('keeps the status of a failed call', async () => {
 		const r = createApiRepos({

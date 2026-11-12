@@ -68,6 +68,14 @@ type InfluencerRepoer interface {
 		nextCheckAt time.Time,
 	) (stillActive bool, err error)
 
+	// PaginateTopCreators returns the influencers that posted since
+	// filter.Since, the most posts first, then the most followers.
+	PaginateTopCreators(
+		ctx context.Context,
+		q SupportsPagination,
+		filter TopCreatorFilter,
+	) (*dto.PaginationResults[model.TopCreator], error)
+
 	// WithTx executes a function within a database transaction.
 	TxAware[InfluencerRepoer]
 }

@@ -2,6 +2,7 @@ package data
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
@@ -77,4 +78,12 @@ type TopicRepoer interface {
 	// LockActiveGuard serializes updates that may deactivate a topic.
 	// It must be called inside WithTx.
 	LockActiveGuard(ctx context.Context) error
+}
+
+// TopCreatorFilter holds the filters of the dashboard's top creators.
+type TopCreatorFilter struct {
+	AdminListFilter
+
+	// Since keeps only the posts published at or after this time.
+	Since time.Time
 }

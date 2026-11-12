@@ -24,7 +24,7 @@ type ApiNarrative = Schemas['model.Narrative'];
 type ApiUserActivity = Schemas['model.UserActivity'];
 type ApiMessageVolume = Schemas['model.MessageVolume'];
 type ApiPlatformCount = Schemas['model.ClaimPlatformCount'];
-type ApiInfluencer = Schemas['model.Influencer'];
+type ApiCreator = Schemas['model.DashboardCreator'];
 
 // The backend's page-size cap. Overview reads every page of active narratives,
 // so all of its counts describe the same set.
@@ -95,7 +95,7 @@ function toPlatformCounts(items: ApiPlatformCount[]): PlatformCount[] {
 
 // Creators on a platform the dashboard has no icon for are left out. Verdict
 // counts and risk level stay empty until post screening feeds them.
-function toCreators(items: ApiInfluencer[]): ContentCreator[] {
+function toCreators(items: ApiCreator[]): ContentCreator[] {
 	return items.flatMap((item) => {
 		const platform = CREATOR_PLATFORMS.find((value) => value === item.platform);
 		if (!platform) return [];
@@ -110,7 +110,7 @@ function toCreators(items: ApiInfluencer[]): ContentCreator[] {
 				avatarUrl: item.avatar_url || undefined,
 				profileUrl: item.profile_url || undefined,
 				followers: item.followers_count,
-				postsCount: item.tracked_video_count
+				postsCount: item.posts_count
 			}
 		];
 	});
@@ -264,7 +264,7 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 				),
 				call(
 					api.GET('/api/v1/influencers', {
-						params: { query: { sort: 'posts', is_active: true, per_page: CREATOR_LIMIT } }
+						params: { query: { range, is_active: true, per_page: CREATOR_LIMIT } }
 					}),
 					(data) => toCreators(data.items ?? [])
 				)

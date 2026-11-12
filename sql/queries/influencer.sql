@@ -113,3 +113,26 @@ SET empty_check_count = CASE
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: PaginateTopCreators :many
+SELECT i.id, i.platform, i.username, i.nickname, i.profile_url, i.avatar_url,
+       i.followers_count, COUNT(v.id)::bigint AS posts_count
+FROM influencers i
+JOIN videos v ON v.influencer_id = i.id
+WHERE COALESCE(v.video_created_at, v.created_at) >= sqlc.arg(since)::timestamptz
+  AND (sqlc.narg(is_active)::boolean IS NULL OR i.is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(i.username), lower(sqlc.narg(search)::text)) > 0
+       OR strpos(lower(i.nickname), lower(sqlc.narg(search)::text)) > 0)
+GROUP BY i.id
+ORDER BY posts_count DESC, i.followers_count DESC, i.created_at DESC, i.id DESC
+LIMIT sqlc.arg(page_limit)::int OFFSET sqlc.arg(page_offset)::int;
+
+-- name: CountTopCreators :one
+SELECT count(DISTINCT i.id) FROM influencers i
+JOIN videos v ON v.influencer_id = i.id
+WHERE COALESCE(v.video_created_at, v.created_at) >= sqlc.arg(since)::timestamptz
+  AND (sqlc.narg(is_active)::boolean IS NULL OR i.is_active = sqlc.narg(is_active)::boolean)
+  AND (sqlc.narg(search)::text IS NULL
+       OR strpos(lower(i.username), lower(sqlc.narg(search)::text)) > 0
+       OR strpos(lower(i.nickname), lower(sqlc.narg(search)::text)) > 0);

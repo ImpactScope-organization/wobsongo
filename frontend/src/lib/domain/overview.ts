@@ -79,7 +79,6 @@ export function creatorVolume(creator: ContentCreator): number {
 	return rated.false + rated.misleading + rated.unverified + rated.accurate;
 }
 
-
 export interface OverviewSnapshot {
 	/** Country or area WobSongo monitors, e.g. "Burkina Faso". */
 	region: string;

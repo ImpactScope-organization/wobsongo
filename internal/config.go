@@ -329,32 +329,33 @@ func NewAgentLLMConfig() (*AgentLLMConfig, error) {
 }
 
 type Config struct {
-	Logger             *slog.Logger       `json:"-"`                    // Never included in JSON (not serializable)
-	LogLevel           slog.Level         `json:"log_level"`            // Log level (debug, info, warn, error)
-	Env                string             `json:"env"`                  // Environment (development, staging, production)
-	JWTSecret          string             `json:"-"`                    // Never included in JSON (security)
-	JWTAccessTTL       time.Duration      `json:"jwt_access_ttl"`       // Access token lifetime
-	JWTRefreshTTL      time.Duration      `json:"jwt_refresh_ttl"`      // Refresh token lifetime
-	PostgresURI        string             `json:"-"`                    // Never included in JSON (security - contains credentials)
-	APIHost            string             `json:"api_host"`             // API host (e.g., "localhost:8000")
-	FrontendHost       string             `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
-	Port               int                `json:"port"`                 // Server port
-	CORSAllowedOrigins []string           `json:"cors_allowed_origins"` // CORS allowed origins
-	CORSAllowedMethods []string           `json:"cors_allowed_methods"` // CORS allowed methods
-	StorageProvider    StorageProvider    `json:"storage_provider"`     // Storage provider (local, s3)
-	S3Config           *S3Config          `json:"s3_config"`            // S3 configuration
-	EmailConfig        *EmailConfig       `json:"email_config"`         // Email configuration
-	ApifyConfig        *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
-	ASRConfig          *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
-	TTSConfig          *TTSConfig         `json:"tts_config"`           // Configuration for the text-to-speech providers
-	VoiceMediaConfig   *VoiceMediaConfig  `json:"voice_media_config"`   // Credentials for downloading inbound voice messages
-	DoclingBaseURL     string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
-	VLMConfig          *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
-	EmbeddingConfig    *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
-	ExtractionConfig   *ExtractionConfig  `json:"extraction_config"`    // Extraction configuration for atomic knowledge
-	TranslationConfig  *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
-	ClaimCheckConfig   *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
-	NarrativeConfig    *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
+	Logger                 *slog.Logger       `json:"-"`                    // Never included in JSON (not serializable)
+	LogLevel               slog.Level         `json:"log_level"`            // Log level (debug, info, warn, error)
+	Env                    string             `json:"env"`                  // Environment (development, staging, production)
+	JWTSecret              string             `json:"-"`                    // Never included in JSON (security)
+	JWTAccessTTL           time.Duration      `json:"jwt_access_ttl"`       // Access token lifetime
+	JWTRefreshTTL          time.Duration      `json:"jwt_refresh_ttl"`      // Refresh token lifetime
+	PostgresURI            string             `json:"-"`                    // Never included in JSON (security - contains credentials)
+	APIHost                string             `json:"api_host"`             // API host (e.g., "localhost:8000")
+	FrontendHost           string             `json:"frontend_host"`        // Frontend host (e.g., "localhost:3000")
+	Port                   int                `json:"port"`                 // Server port
+	CORSAllowedOrigins     []string           `json:"cors_allowed_origins"` // CORS allowed origins
+	CORSAllowedMethods     []string           `json:"cors_allowed_methods"` // CORS allowed methods
+	StorageProvider        StorageProvider    `json:"storage_provider"`     // Storage provider (local, s3)
+	S3Config               *S3Config          `json:"s3_config"`            // S3 configuration
+	EmailConfig            *EmailConfig       `json:"email_config"`         // Email configuration
+	ApifyConfig            *ApifyConfig       `json:"apify_config"`         // Configuration for the Apify API and media extraction actors
+	ASRConfig              *ASRConfig         `json:"asr_config"`           // Configuration for the Modal ASR transcription service
+	TTSConfig              *TTSConfig         `json:"tts_config"`           // Configuration for the text-to-speech providers
+	VoiceMediaConfig       *VoiceMediaConfig  `json:"voice_media_config"`   // Credentials for downloading inbound voice messages
+	DoclingBaseURL         string             `json:"docling_base_url"`     // Base URL of the Docling Serve instance
+	VLMConfig              *VLMConfig         `json:"vlm_config"`           // VLM configuration for image captioning
+	EmbeddingConfig        *EmbeddingConfig   `json:"embedding_config"`     // Embedding configuration for chunk embeddings
+	ExtractionConfig       *ExtractionConfig  `json:"extraction_config"`    // Extraction configuration for atomic knowledge
+	TranslationConfig      *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
+	ClaimCheckConfig       *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
+	NarrativeConfig        *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
+	PrivacyWhitelistEmails []string           `json:"-"`                    // Emails allowed to see unredacted creator data
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -605,6 +606,17 @@ func (c *Config) APISchemes() []string {
 	return schemes
 }
 
+// splitEmails splits a comma-separated list of emails, lowercased and trimmed.
+func splitEmails(s string) []string {
+	var emails []string
+	for e := range strings.SplitSeq(s, ",") {
+		if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+			emails = append(emails, e)
+		}
+	}
+	return emails
+}
+
 var defaultConfig *Config
 
 // NewConfig creates a new Config instance by reading environment variables.
@@ -719,6 +731,7 @@ func NewConfig(envs ...string) *Config {
 	botExtractPSK := getEnv("BOT_EXTRACT_PSK", "")
 	botCallbackPSK := getEnv("BOT_CALLBACK_PSK", "")
 	botBaseURL := getEnv("BOT_BASE_URL", "http://localhost:3000")
+	privacyWhitelistEmails := splitEmails(getEnv("PRIVACY_WHITELIST_EMAILS", ""))
 
 	// Load InfluencerMonitor configuration
 	influencerMonitorConfig := NewInfluencerMonitorConfig()
@@ -762,6 +775,7 @@ func NewConfig(envs ...string) *Config {
 		TranslationConfig:       translationConfig,
 		ClaimCheckConfig:        claimCheckConfig,
 		InfluencerMonitorConfig: influencerMonitorConfig,
+		PrivacyWhitelistEmails:  privacyWhitelistEmails,
 	}
 	return defaultConfig
 }

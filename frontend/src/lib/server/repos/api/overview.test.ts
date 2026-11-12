@@ -165,7 +165,7 @@ describe('API overview repo', () => {
 		expect(s.highHarm.awaitingReview).toBe(250);
 	});
 
-		it('maps the top creators and leaves the screening results empty', async () => {
+	it('maps the top creators and leaves the screening results empty', async () => {
 		const { sent, repos: r } = reposFor({
 			influencers: [
 				{
@@ -178,7 +178,13 @@ describe('API overview repo', () => {
 					followers_count: 12_300,
 					tracked_video_count: 7
 				},
-				{ id: 'c2', platform: 'myspace', username: 'old', followers_count: 1, tracked_video_count: 1 }
+				{
+					id: 'c2',
+					platform: 'myspace',
+					username: 'old',
+					followers_count: 1,
+					tracked_video_count: 1
+				}
 			]
 		});
 		const result = await r.overview.getSnapshot(

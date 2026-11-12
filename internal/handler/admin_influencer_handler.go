@@ -2,20 +2,30 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/impactscope-organization/wobsongo/internal/dto"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/service"
 	"github.com/labstack/echo/v4"
 )
 
 // AdminInfluencerHandler handles the admin management of monitored influencers.
 type AdminInfluencerHandler struct {
-	service *service.AdminInfluencerService
+	service    *service.AdminInfluencerService
+	fullAccess map[string]struct{}
 }
 
 // NewAdminInfluencerHandler creates a new handler.
-func NewAdminInfluencerHandler(service *service.AdminInfluencerService) *AdminInfluencerHandler {
-	return &AdminInfluencerHandler{service: service}
+func NewAdminInfluencerHandler(
+	service *service.AdminInfluencerService,
+	whitelist []string,
+) *AdminInfluencerHandler {
+	fullAccess := make(map[string]struct{}, len(whitelist))
+	for _, email := range whitelist {
+		fullAccess[strings.ToLower(strings.TrimSpace(email))] = struct{}{}
+	}
+	return &AdminInfluencerHandler{service: service, fullAccess: fullAccess}
 }
 
 // @Summary		List influencers
@@ -51,7 +61,7 @@ func (h *AdminInfluencerHandler) listInfluencersHandler(c echo.Context) error {
 }
 
 // @Summary		List influencers for the dashboard
-// @Description	The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.
+// @Description	Top content creators for every signed-in user. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. sort=posts gives the top content creators.
 // @Tags			influencers
 // @Produce		json
 // @Param			page		query		int		false	"Page number"	minimum(1)
@@ -60,7 +70,7 @@ func (h *AdminInfluencerHandler) listInfluencersHandler(c echo.Context) error {
 // @Param			source		query		string	false	"Filter by source"	Enums(seed, discovered)
 // @Param			search		query		string	false	"Text the username or nickname contains"
 // @Param			sort		query		string	false	"Order of the list, newest when left out"	Enums(newest, posts)
-// @Success		200			{object}	model.APIResponse{data=dto.PaginationResults[model.Influencer]}
+// @Success		200			{object}	model.APIResponse{data=dto.PaginationResults[model.DashboardCreator]}
 // @Failure		400			{object}	model.APIResponse{error=string}
 // @Failure		401			{object}	model.APIResponse{error=string}
 // @Failure		422			{object}	model.APIResponse{error=string}
@@ -68,7 +78,43 @@ func (h *AdminInfluencerHandler) listInfluencersHandler(c echo.Context) error {
 // @Security		BearerAuth
 // @Router			/api/v1/influencers [get]
 func (h *AdminInfluencerHandler) dashboardListHandler(c echo.Context) error {
-	return h.listInfluencersHandler(c)
+	query := new(dto.InfluencerListDTO)
+	if err := bindAndValidate(c, query); err != nil {
+		return err
+	}
+
+	fullAccess := h.hasFullAccess(c)
+	if !fullAccess {
+		// Searching by name would reveal which usernames exist.
+		query.Search = ""
+	}
+
+	results, err := h.service.List(c.Request().Context(), query)
+	if err != nil {
+		return dataAPIError(err)
+	}
+
+	items := make([]model.DashboardCreator, 0, len(results.Items))
+	for i := range results.Items {
+		items = append(items, model.NewDashboardCreator(&results.Items[i], fullAccess))
+	}
+
+	return writeJSON(c, http.StatusOK, dto.PaginationResults[model.DashboardCreator]{
+		Page:       results.Page,
+		PerPage:    results.PerPage,
+		TotalItems: results.TotalItems,
+		Items:      items,
+	})
+}
+
+// hasFullAccess reports whether the signed-in user may see creator identities.
+func (h *AdminInfluencerHandler) hasFullAccess(c echo.Context) bool {
+	claims := ClaimsFromContext(c)
+	if claims == nil {
+		return false
+	}
+	_, ok := h.fullAccess[strings.ToLower(strings.TrimSpace(claims.Email))]
+	return ok
 }
 
 // @Summary		Get an influencer

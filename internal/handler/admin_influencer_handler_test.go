@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/core"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 	"github.com/impactscope-organization/wobsongo/internal/mockrepo"
 	"github.com/impactscope-organization/wobsongo/internal/model"
+	"github.com/impactscope-organization/wobsongo/internal/testhelpers"
 	"github.com/labstack/echo/v4"
 )
 
@@ -426,12 +428,63 @@ func TestSetInfluencerActiveHandler(t *testing.T) {
 
 const dashboardInfluencersPath = "/api/v1/influencers"
 
-func TestDashboardInfluencersHandler(t *testing.T) {
-	user := bearerFor(t, model.RoleUser)
+const (
+	whitelistedEmail = "lead@example.com"
+	otherEmail       = "someone.else@example.com"
+)
 
+// newDashboardInfluencerApp builds the app with the given privacy whitelist.
+// The handlers read the shared config (internal.NewConfig), so the whitelist is
+// set on it for this test and put back afterwards.
+func newDashboardInfluencerApp(
+	t *testing.T,
+	repo data.InfluencerRepoer,
+	whitelist ...string,
+) *echo.Echo {
+	t.Helper()
+	t.Setenv("AGENT_ENABLED", "false")
+	useTestJWTSecret(t)
+
+	cfg := internal.NewConfig()
+	previous := cfg.PrivacyWhitelistEmails
+	cfg.PrivacyWhitelistEmails = whitelist
+	t.Cleanup(func() { cfg.PrivacyWhitelistEmails = previous })
+
+	app := core.NewApp(testhelpers.NewEcho(), cfg, core.WithInfluencerRepo(repo))
+	return app.Echo()
+}
+
+// dashboardInfluencerRepo returns a repo that lists one influencer with a
+// profile and counts, and records the filter it was asked for.
+func dashboardInfluencerRepo(gotFilter *data.InfluencerListFilter) *mockrepo.InfluencerRepoerMock {
+	return &mockrepo.InfluencerRepoerMock{
+		PaginateFunc: func(
+			_ context.Context,
+			_ data.SupportsPagination,
+			f data.InfluencerListFilter,
+		) (*dto.PaginationResults[model.Influencer], error) {
+			*gotFilter = f
+
+			influencer := influencerFixture(uuid.New())
+			influencer.Nickname = "Some One"
+			influencer.Bio = "private bio"
+			influencer.AvatarURL = "https://example.com/avatar.jpg"
+			influencer.DiscoveredViaKeyword = "secret keyword"
+			influencer.FollowersCount = 12_300
+			influencer.TrackedVideoCount = 7
+
+			return &dto.PaginationResults[model.Influencer]{
+				Page: 1, PerPage: 10, TotalItems: 1,
+				Items: []model.Influencer{*influencer},
+			}, nil
+		},
+	}
+}
+
+func TestDashboardInfluencersHandler(t *testing.T) {
 	t.Run("WithoutToken_Unauthorized", func(t *testing.T) {
 		repo := &mockrepo.InfluencerRepoerMock{}
-		app := newAdminInfluencerApp(t, repo)
+		app := newDashboardInfluencerApp(t, repo, whitelistedEmail)
 
 		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath, "", nil)
 		expectAdminStatus(t, rec, http.StatusUnauthorized)
@@ -441,51 +494,143 @@ func TestDashboardInfluencersHandler(t *testing.T) {
 		}
 	})
 
-	t.Run("AsUser_ListsSortedByPosts", func(t *testing.T) {
+	t.Run("WhitelistedUser_SeesFullCreators", func(t *testing.T) {
 		var gotFilter data.InfluencerListFilter
-		repo := &mockrepo.InfluencerRepoerMock{
-			PaginateFunc: func(
-				_ context.Context,
-				_ data.SupportsPagination,
-				f data.InfluencerListFilter,
-			) (*dto.PaginationResults[model.Influencer], error) {
-				gotFilter = f
-				return &dto.PaginationResults[model.Influencer]{
-					Page: 1, PerPage: 10, TotalItems: 1,
-					Items: []model.Influencer{*influencerFixture(uuid.New())},
-				}, nil
-			},
-		}
-		app := newAdminInfluencerApp(t, repo)
+		app := newDashboardInfluencerApp(t, dashboardInfluencerRepo(&gotFilter), whitelistedEmail)
+		authz := bearerForEmail(t, model.RoleUser, whitelistedEmail)
 
 		rec := serveAdminReq(app, http.MethodGet,
-			dashboardInfluencersPath+"?sort=posts&is_active=true&per_page=10", user, nil)
+			dashboardInfluencersPath+"?sort=posts&is_active=true&per_page=10&search=some",
+			authz, nil)
 		expectAdminStatus(t, rec, http.StatusOK)
 
-		got := decodeAdminResp[dto.PaginationResults[model.Influencer]](t, rec)
+		got := decodeAdminResp[dto.PaginationResults[model.DashboardCreator]](t, rec)
 		if got.TotalItems != 1 || len(got.Items) != 1 {
-			t.Errorf("unexpected page in response: %+v", got)
+			t.Fatalf("unexpected page in response: %+v", got)
+		}
+		creator := got.Items[0]
+		if creator.Platform != "tiktok" || creator.Username != "someone" ||
+			creator.Nickname != "Some One" ||
+			creator.ProfileURL != "https://www.tiktok.com/@someone" ||
+			creator.AvatarURL != "https://example.com/avatar.jpg" {
+			t.Errorf("expected the full identity, got %+v", creator)
+		}
+		if creator.FollowersCount == nil || *creator.FollowersCount != 12_300 ||
+			creator.TrackedVideoCount == nil || *creator.TrackedVideoCount != 7 {
+			t.Errorf("expected the counts, got %+v", creator)
 		}
 		if gotFilter.Sort != "posts" || gotFilter.IsActive == nil || !*gotFilter.IsActive {
 			t.Errorf("unexpected filter: %+v", gotFilter)
+		}
+		if gotFilter.Search != "some" {
+			t.Errorf("expected search to reach the repo, got %q", gotFilter.Search)
+		}
+	})
+
+	t.Run("WhitelistMatch_IgnoresCaseAndSpaces", func(t *testing.T) {
+		var gotFilter data.InfluencerListFilter
+		app := newDashboardInfluencerApp(
+			t, dashboardInfluencerRepo(&gotFilter), "  Lead@Example.COM ",
+		)
+		authz := bearerForEmail(t, model.RoleUser, "LEAD@example.com")
+
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath, authz, nil)
+		expectAdminStatus(t, rec, http.StatusOK)
+
+		got := decodeAdminResp[dto.PaginationResults[model.DashboardCreator]](t, rec)
+		if len(got.Items) != 1 || got.Items[0].Username != "someone" {
+			t.Errorf("expected the full identity, got %+v", got.Items)
+		}
+	})
+
+	t.Run("OtherUser_SeesMaskedCreators", func(t *testing.T) {
+		var gotFilter data.InfluencerListFilter
+		app := newDashboardInfluencerApp(t, dashboardInfluencerRepo(&gotFilter), whitelistedEmail)
+		authz := bearerForEmail(t, model.RoleUser, otherEmail)
+
+		rec := serveAdminReq(app, http.MethodGet,
+			dashboardInfluencersPath+"?sort=posts&is_active=true&per_page=10", authz, nil)
+		expectAdminStatus(t, rec, http.StatusOK)
+
+		got := decodeAdminResp[dto.PaginationResults[model.DashboardCreator]](t, rec)
+		if got.TotalItems != 1 || len(got.Items) != 1 {
+			t.Fatalf("unexpected page in response: %+v", got)
+		}
+		if got.Items[0].ID == uuid.Nil || got.Items[0].Platform != "tiktok" {
+			t.Errorf("expected the ID and platform to stay, got %+v", got.Items[0])
+		}
+
+		// Check the raw JSON too: a field must not be there at all, not just empty.
+		body := rec.Body.String()
+		for _, leaked := range []string{
+			"someone", "Some One", "private bio", "avatar.jpg", "secret keyword",
+			"username", "nickname", "profile_url", "followers_count", "tracked_video_count",
+		} {
+			if strings.Contains(body, leaked) {
+				t.Errorf("response must not contain %q: %s", leaked, body)
+			}
+		}
+
+		if gotFilter.Sort != "posts" {
+			t.Errorf("expected the order by posts to be kept, got %+v", gotFilter)
+		}
+	})
+
+	t.Run("OtherUser_SearchIgnored", func(t *testing.T) {
+		var gotFilter data.InfluencerListFilter
+		app := newDashboardInfluencerApp(t, dashboardInfluencerRepo(&gotFilter), whitelistedEmail)
+		authz := bearerForEmail(t, model.RoleUser, otherEmail)
+
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath+"?search=someone",
+			authz, nil)
+		expectAdminStatus(t, rec, http.StatusOK)
+
+		if gotFilter.Search != "" {
+			t.Errorf("expected search to be dropped, got %q", gotFilter.Search)
+		}
+	})
+
+	t.Run("EmptyWhitelist_NobodySeesFullCreators", func(t *testing.T) {
+		var gotFilter data.InfluencerListFilter
+		app := newDashboardInfluencerApp(t, dashboardInfluencerRepo(&gotFilter))
+		authz := bearerForEmail(t, model.RoleSuperadmin, whitelistedEmail)
+
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath, authz, nil)
+		expectAdminStatus(t, rec, http.StatusOK)
+
+		got := decodeAdminResp[dto.PaginationResults[model.DashboardCreator]](t, rec)
+		if len(got.Items) != 1 || got.Items[0].Username != "" ||
+			got.Items[0].FollowersCount != nil || got.Items[0].TrackedVideoCount != nil {
+			t.Errorf("expected a masked creator even for a superadmin, got %+v", got.Items)
 		}
 	})
 
 	t.Run("InvalidSort_Unprocessable", func(t *testing.T) {
 		repo := &mockrepo.InfluencerRepoerMock{}
-		app := newAdminInfluencerApp(t, repo)
+		app := newDashboardInfluencerApp(t, repo, whitelistedEmail)
+		authz := bearerForEmail(t, model.RoleUser, whitelistedEmail)
 
-		rec := serveAdminReq(
-			app,
-			http.MethodGet,
-			dashboardInfluencersPath+"?sort=oldest",
-			user,
-			nil,
-		)
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath+"?sort=oldest",
+			authz, nil)
 		expectAdminStatus(t, rec, http.StatusUnprocessableEntity)
 
 		if n := len(repo.PaginateCalls()); n != 0 {
 			t.Errorf("expected the repo not to be called, got %d calls", n)
 		}
+	})
+
+	t.Run("RepoFails_Internal", func(t *testing.T) {
+		repo := &mockrepo.InfluencerRepoerMock{
+			PaginateFunc: func(
+				context.Context, data.SupportsPagination, data.InfluencerListFilter,
+			) (*dto.PaginationResults[model.Influencer], error) {
+				return nil, data.ErrInternal
+			},
+		}
+		app := newDashboardInfluencerApp(t, repo, whitelistedEmail)
+		authz := bearerForEmail(t, model.RoleUser, otherEmail)
+
+		rec := serveAdminReq(app, http.MethodGet, dashboardInfluencersPath, authz, nil)
+		expectAdminStatus(t, rec, http.StatusInternalServerError)
 	})
 }

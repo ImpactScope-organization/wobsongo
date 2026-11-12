@@ -2898,7 +2898,7 @@ export interface paths {
         };
         /**
          * List influencers for the dashboard
-         * @description The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.
+         * @description Top content creators for every signed-in user. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. sort=posts gives the top content creators.
          */
         get: {
             parameters: {
@@ -2929,7 +2929,7 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["model.APIResponse"] & {
-                            data?: components["schemas"]["dto.PaginationResults-model_Influencer"];
+                            data?: components["schemas"]["dto.PaginationResults-model_DashboardCreator"];
                         };
                     };
                 };
@@ -3842,6 +3842,16 @@ export interface components {
              */
             role: "user" | "admin" | "superadmin";
         };
+        "dto.PaginationResults-model_DashboardCreator": {
+            /** @description Items contains the paginated data items */
+            items?: components["schemas"]["model.DashboardCreator"][];
+            /** @description Page is the current page number */
+            page: number;
+            /** @description PerPage is the number of items per page */
+            per_page: number;
+            /** @description TotalItems is the total number of items available */
+            total_items: number;
+        };
         "dto.PaginationResults-model_DiscoveryKeyword": {
             /** @description Items contains the paginated data items */
             items?: components["schemas"]["model.DiscoveryKeyword"][];
@@ -4042,6 +4052,16 @@ export interface components {
             claims?: number;
             /** @description Platform is where the claims came from, e.g. "whatsapp" or "tiktok". */
             platform?: string;
+        };
+        "model.DashboardCreator": {
+            avatar_url?: string;
+            followers_count?: number;
+            id?: string;
+            nickname?: string;
+            platform?: string;
+            profile_url?: string;
+            tracked_video_count?: number;
+            username?: string;
         };
         "model.DiscoveryKeyword": {
             created_at?: string;

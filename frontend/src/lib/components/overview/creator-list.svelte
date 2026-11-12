@@ -171,7 +171,9 @@
 				{#if rated}
 					<div class="flex min-w-0 flex-1 flex-col gap-1.5">
 						<div class="flex items-baseline justify-between font-mono text-xs">
-							<span class="text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase">
+							<span
+								class="text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase"
+							>
 								{m.overview_creators_rated_header()}
 							</span>
 							<div class="flex items-baseline gap-1">

@@ -23,13 +23,18 @@ func useTestJWTSecret(t *testing.T) {
 	t.Setenv("APP_JWT_SECRET", testJWTSecret)
 }
 
-// bearerFor returns an "Authorization" header value for a user with role.
 func bearerFor(t *testing.T, role model.UserRole) string {
+	t.Helper()
+	return bearerForEmail(t, role, "test@example.com")
+}
+
+// bearerForEmail is bearerFor for a user with the given email.
+func bearerForEmail(t *testing.T, role model.UserRole, email string) string {
 	t.Helper()
 	tokens, err := testAuth().GenerateJWTPair(&auth.JWTPayload{
 		ID:    uuid.New(),
 		Name:  "Test User",
-		Email: "test@example.com",
+		Email: email,
 		Role:  role,
 	})
 	if err != nil {

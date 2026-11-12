@@ -352,6 +352,28 @@ definitions:
     - password_changed_at
     - role
     type: object
+  dto.PaginationResults-model_DashboardCreator:
+    properties:
+      items:
+        description: Items contains the paginated data items
+        items:
+          $ref: '#/definitions/model.DashboardCreator'
+        type: array
+      page:
+        description: Page is the current page number
+        type: integer
+      per_page:
+        description: PerPage is the number of items per page
+        maximum: 100
+        type: integer
+      total_items:
+        description: TotalItems is the total number of items available
+        type: integer
+    required:
+    - page
+    - per_page
+    - total_items
+    type: object
   dto.PaginationResults-model_DiscoveryKeyword:
     properties:
       items:
@@ -730,6 +752,25 @@ definitions:
         type: integer
       platform:
         description: Platform is where the claims came from, e.g. "whatsapp" or "tiktok".
+        type: string
+    type: object
+  model.DashboardCreator:
+    properties:
+      avatar_url:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      nickname:
+        type: string
+      platform:
+        type: string
+      profile_url:
+        type: string
+      tracked_video_count:
+        type: integer
+      username:
         type: string
     type: object
   model.DiscoveryKeyword:
@@ -3369,8 +3410,9 @@ paths:
       - documents
   /api/v1/influencers:
     get:
-      description: The same list as the admin endpoint, open to every signed-in user.
-        sort=posts gives the top content creators.
+      description: Top content creators for every signed-in user. Identity and counts
+        are only included for emails on the privacy whitelist; search is ignored for
+        everyone else. sort=posts gives the top content creators.
       parameters:
       - description: Page number
         in: query
@@ -3415,7 +3457,7 @@ paths:
             - $ref: '#/definitions/model.APIResponse'
             - properties:
                 data:
-                  $ref: '#/definitions/dto.PaginationResults-model_Influencer'
+                  $ref: '#/definitions/dto.PaginationResults-model_DashboardCreator'
               type: object
         "400":
           description: Bad Request

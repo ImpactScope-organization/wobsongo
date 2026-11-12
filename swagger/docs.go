@@ -4270,7 +4270,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "The same list as the admin endpoint, open to every signed-in user. sort=posts gives the top content creators.",
+                "description": "Top content creators for every signed-in user. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. sort=posts gives the top content creators.",
                 "produces": [
                     "application/json"
                 ],
@@ -4339,7 +4339,7 @@ const docTemplate = `{
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/definitions/dto.PaginationResults-model_Influencer"
+                                            "$ref": "#/definitions/dto.PaginationResults-model_DashboardCreator"
                                         }
                                     }
                                 }
@@ -5755,6 +5755,36 @@ const docTemplate = `{
                 }
             }
         },
+        "dto.PaginationResults-model_DashboardCreator": {
+            "type": "object",
+            "required": [
+                "page",
+                "per_page",
+                "total_items"
+            ],
+            "properties": {
+                "items": {
+                    "description": "Items contains the paginated data items",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.DashboardCreator"
+                    }
+                },
+                "page": {
+                    "description": "Page is the current page number",
+                    "type": "integer"
+                },
+                "per_page": {
+                    "description": "PerPage is the number of items per page",
+                    "type": "integer",
+                    "maximum": 100
+                },
+                "total_items": {
+                    "description": "TotalItems is the total number of items available",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.PaginationResults-model_DiscoveryKeyword": {
             "type": "object",
             "required": [
@@ -6241,6 +6271,35 @@ const docTemplate = `{
                 },
                 "platform": {
                     "description": "Platform is where the claims came from, e.g. \"whatsapp\" or \"tiktok\".",
+                    "type": "string"
+                }
+            }
+        },
+        "model.DashboardCreator": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "profile_url": {
+                    "type": "string"
+                },
+                "tracked_video_count": {
+                    "type": "integer"
+                },
+                "username": {
                     "type": "string"
                 }
             }

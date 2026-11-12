@@ -96,3 +96,32 @@ type Influencer struct {
 	// UpdatedAt is the time when the record was last updated.
 	UpdatedAt time.Time `json:"updated_at"`
 }
+
+// DashboardCreator is what the dashboard may know about an influencer. For
+// viewers without full access only ID and Platform are set.
+type DashboardCreator struct {
+	ID                uuid.UUID `json:"id"`
+	Platform          string    `json:"platform"`
+	Username          string    `json:"username,omitempty"`
+	Nickname          string    `json:"nickname,omitempty"`
+	ProfileURL        string    `json:"profile_url,omitempty"`
+	AvatarURL         string    `json:"avatar_url,omitempty"`
+	FollowersCount    *int64    `json:"followers_count,omitempty"`
+	TrackedVideoCount *int64    `json:"tracked_video_count,omitempty"`
+}
+
+// NewDashboardCreator keeps only the fields the dashboard needs. Unless
+// fullAccess is set, the identity and the counts are left out.
+func NewDashboardCreator(i *Influencer, fullAccess bool) DashboardCreator {
+	c := DashboardCreator{ID: i.ID, Platform: i.Platform}
+	if !fullAccess {
+		return c
+	}
+	c.Username = i.Username
+	c.Nickname = i.Nickname
+	c.ProfileURL = i.ProfileURL
+	c.AvatarURL = i.AvatarURL
+	c.FollowersCount = &i.FollowersCount
+	c.TrackedVideoCount = &i.TrackedVideoCount
+	return c
+}

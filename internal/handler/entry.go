@@ -258,6 +258,7 @@ func NewHandlers(repos *Repos) *Handlers {
 	if repos.InfluencerRepo != nil {
 		adminInfluencerHandler = NewAdminInfluencerHandler(
 			service.NewAdminInfluencerService(repos.InfluencerRepo),
+			config.PrivacyWhitelistEmails,
 		)
 	}
 

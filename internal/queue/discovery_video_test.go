@@ -68,7 +68,6 @@ func TestVideoPipelineJobs_Kind(t *testing.T) {
 	}
 }
 
-
 func TestJobKinds_AreUnique(t *testing.T) {
 	jobs := []struct {
 		name string

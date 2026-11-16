@@ -242,6 +242,39 @@ func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influenc
 	return items, nil
 }
 
+const lockVideo = `-- name: LockVideo :one
+SELECT id FROM videos WHERE id = $1::uuid FOR UPDATE
+`
+
+// Serializes the "is every claim clustered" checks of one video.
+func (q *Queries) LockVideo(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockVideo, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
+}
+
+const markVideoClustered = `-- name: MarkVideoClustered :execrows
+UPDATE videos v
+SET status = 'clustered', updated_at = NOW()
+WHERE v.id = $1::uuid
+  AND v.status IN ('transcribed', 'verified')
+  AND EXISTS (SELECT 1 FROM claims c WHERE c.video_id = v.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM claims c
+      WHERE c.video_id = v.id
+        AND NOT EXISTS (SELECT 1 FROM narrative_claims nc WHERE nc.claim_id = c.id)
+  )
+`
+
+func (q *Queries) MarkVideoClustered(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, markVideoClustered, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setVideoAnalyzed = `-- name: SetVideoAnalyzed :execrows
 UPDATE videos
 SET status = $1::varchar,

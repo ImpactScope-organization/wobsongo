@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/dto"
 )
 
@@ -112,4 +113,29 @@ func (c *TikTokScraperClient) run(
 	}
 
 	return items, nil
+}
+
+// ResolveMediaURL implements data.VideoMediaResolver. It runs the actor for
+// one video with video download on and returns the first media URL.
+func (c *TikTokScraperClient) ResolveMediaURL(
+	ctx context.Context,
+	videoURL string,
+) (string, error) {
+	items, err := c.run(ctx, map[string]any{
+		"postURLs":                      []string{videoURL},
+		"shouldDownloadVideos":          true,
+		"shouldDownloadCovers":          false,
+		"shouldDownloadSubtitles":       false,
+		"shouldDownloadSlideshowImages": false,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to run apify for media url: %w", err)
+	}
+
+	for i := range items {
+		if len(items[i].MediaURLs) > 0 {
+			return items[i].MediaURLs[0], nil
+		}
+	}
+	return "", data.ErrMediaUnavailable
 }

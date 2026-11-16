@@ -20,12 +20,13 @@ import (
 // service.ScreenService needs from a video repo.
 type screenWorkerStore struct {
 	data.VideoRepoer
-	videos     []*model.Video
-	status     map[uuid.UUID]model.VideoStatus
-	enqueued   []uuid.UUID
-	listErr    error
-	enqueueErr error
-	failed     map[uuid.UUID]string
+	videos             []*model.Video
+	status             map[uuid.UUID]model.VideoStatus
+	enqueued           []uuid.UUID
+	listErr            error
+	enqueueErr         error
+	failed             map[uuid.UUID]string
+	transcribeEnqueued []uuid.UUID
 }
 
 func newScreenWorkerStore(videos ...*model.Video) *screenWorkerStore {
@@ -36,6 +37,18 @@ func newScreenWorkerStore(videos ...*model.Video) *screenWorkerStore {
 		videos: videos,
 		status: make(map[uuid.UUID]model.VideoStatus),
 	}
+}
+
+func (s *screenWorkerStore) WithTx(_ context.Context, fn func(data.VideoRepoer) error) error {
+	return fn(s)
+}
+
+func (s *screenWorkerStore) EnqueueTranscribeVideoJob(
+	_ context.Context,
+	id uuid.UUID,
+) (bool, error) {
+	s.transcribeEnqueued = append(s.transcribeEnqueued, id)
+	return true, nil
 }
 
 func (s *screenWorkerStore) ListDiscoveredVideos(
@@ -267,6 +280,9 @@ func TestScreenVideoWorker_Work(t *testing.T) {
 		}
 		if got := store.status[out.ID]; got != model.VideoStatusScreenedOut {
 			t.Errorf("out-of-scope video status = %q, want screened_out", got)
+		}
+		if want := []uuid.UUID{in.ID}; !slices.Equal(store.transcribeEnqueued, want) {
+			t.Errorf("transcription queued for %v, want %v", store.transcribeEnqueued, want)
 		}
 	})
 

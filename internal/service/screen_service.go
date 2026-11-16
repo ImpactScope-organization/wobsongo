@@ -107,12 +107,25 @@ func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {
 		}
 	}
 
-	applied, err := s.videoRepo.SetVideoScreenStatus(ctx, id, status)
+	err = s.videoRepo.WithTx(ctx, func(r data.VideoRepoer) error {
+		applied, err := r.SetVideoScreenStatus(ctx, id, status)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			log.Printf("[ScreenService] video %s was already screened, result dropped", id)
+			return nil
+		}
+		if status != model.VideoStatusScreenedIn {
+			return nil
+		}
+		if _, err := r.EnqueueTranscribeVideoJob(ctx, id); err != nil {
+			return err
+		}
+		return nil
+	})
 	if err != nil {
 		return fmt.Errorf("failed to store screen status of video %s: %w", id, err)
-	}
-	if !applied {
-		log.Printf("[ScreenService] video %s was already screened, result dropped", id)
 	}
 	return nil
 }

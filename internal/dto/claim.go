@@ -127,6 +127,10 @@ type ClaimSource struct {
 
 	// OccurredAt is when the message was sent. Zero means now.
 	OccurredAt time.Time
+
+	// VideoID is the video the claims come from. Nil for claims that came from
+	// a chat message.
+	VideoID *uuid.UUID
 }
 
 // NewClaimSource builds the source of a claim. messageID may be empty or not a

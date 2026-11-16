@@ -79,6 +79,14 @@ const (
 
 	// JobTypeScreenVideo represents a job type for screening one video.
 	JobTypeScreenSingleVideo BackgroundJobType = "screen_single_video"
+
+	// JobTypeTranscribeDiscoveredVideo represents a job type for transcribing
+	// one screened-in video of the discovery pipeline.
+	JobTypeTranscribeDiscoveredVideo BackgroundJobType = "transcribe_discovered_video"
+
+	// JobTypeAnalyzeVideo represents a job type for analyzing and verifying
+	// the claims of one transcribed video.
+	JobTypeAnalyzeVideo BackgroundJobType = "analyze_video"
 )
 
 // BackgroundJob represents a generic background job.
@@ -136,4 +144,10 @@ const (
 	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"
+
+	// QueueTranscription is used by TranscribeDiscoveredVideoJob.
+	QueueTranscription = "video_transcription"
+
+	// QueueAnalysis is used by AnalyzeVideoJob.
+	QueueAnalysis = "video_analysis"
 )

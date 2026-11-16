@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -128,11 +129,18 @@ func (s *ClaimService) CheckClaim(
 	record := req.Source != nil && s.narratives != nil
 	log.Printf("[ClaimService] narrative: svc=%p source=%v narratives=%v record=%v",
 		s, req.Source != nil, s.narratives != nil, record)
+
+	if req.Source != nil && req.Source.VideoID != nil && s.narratives == nil {
+		return nil, errors.New("video claims need the narrative flow turned on")
+	}
 	var topics []data.AnalyzerTopic
 	if record {
 		var topicsErr error
 		topics, topicsErr = s.narratives.ActiveTopics(ctx)
 		if topicsErr != nil {
+			if req.Source.VideoID != nil {
+				return nil, fmt.Errorf("failed to load topics: %w", topicsErr)
+			}
 			log.Printf("[ClaimService] failed to load topics, skipping narratives: %v", topicsErr)
 			record = false
 			topics = nil
@@ -217,15 +225,15 @@ func (s *ClaimService) CheckClaim(
 	}, nil
 }
 
-// recordClaims hands the checked sub-claims to the narrative flow. Failures
-// are only logged: they must never fail the reply to the user. Sub-claims
-// without a valid topic are skipped.
+// recordClaims hands the checked sub-claims to the narrative flow. It returns
+// an error when the claims cannot be stored; the caller decides whether that
+// fails the check. Sub-claims without a valid topic are skipped.
 func (s *ClaimService) recordClaims(
 	ctx context.Context,
 	source *dto.ClaimSource,
 	language model.Language,
 	results []SubClaimResult,
-) {
+) error {
 	platform := source.Platform
 	if platform == "" {
 		platform = model.ClaimPlatformWhatsApp
@@ -263,6 +271,7 @@ func (s *ClaimService) recordClaims(
 
 		claims = append(claims, model.Claim{
 			MessageID:               source.MessageID,
+			VideoID:                 source.VideoID,
 			Text:                    r.Claim,
 			TopicID:                 r.TopicID,
 			Language:                language,
@@ -281,12 +290,13 @@ func (s *ClaimService) recordClaims(
 		})
 	}
 	if len(claims) == 0 {
-		return
+		return nil
 	}
 
 	if err := s.narratives.RecordClaims(ctx, claims); err != nil {
-		log.Printf("[ClaimService] failed to store %d claim(s): %v", len(claims), err)
+		return fmt.Errorf("[ClaimService] failed to store %d claim(s): %w", len(claims), err)
 	}
+	return nil
 }
 
 // checkSubClaim retrieves evidence for one sub-claim and judges it. A

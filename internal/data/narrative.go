@@ -74,6 +74,11 @@ type NarrativeRepoer interface {
 	// CountClaimsByPlatform counts the claims that occurred at or after since,
 	// by the platform they came from, most claims first.
 	CountClaimsByPlatform(ctx context.Context, since time.Time) ([]model.ClaimPlatformCount, error)
+
+	// MarkVideoClustered moves a video to 'clustered' once every claim of it is
+	// linked to a narrative. It reports false while claims are still waiting,
+	// or when the video is in a status that cannot move on.
+	MarkVideoClustered(ctx context.Context, videoID uuid.UUID) (bool, error)
 }
 
 // NarrativeStatementGenerator writes the broad statement of a new narrative

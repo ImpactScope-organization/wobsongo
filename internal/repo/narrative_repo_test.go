@@ -1114,6 +1114,81 @@ func TestNarrativeRepo(t *testing.T) {
 			t.Errorf("expected 2 claims, got %d", claims)
 		}
 	})
+
+	t.Run("MarkVideoClustered_WaitsForEveryClaimOfTheVideo", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		narrative := env.newNarrative(t, topic.ID)
+		videoID := env.newVideo(t, pool)
+		if _, err := env.tx.Exec(
+			env.ctx, "update videos set status = 'verified' where id = $1", videoID,
+		); err != nil {
+			t.Fatalf("failed to set status: %v", err)
+		}
+
+		newVideoClaim := func(text string) *model.Claim {
+			claim := newNarrativeTestClaim(topic.ID, text, time.Now())
+			claim.VideoID = &videoID
+			created, err := env.repo.CreateClaim(env.ctx, claim)
+			if err != nil {
+				t.Fatalf("failed to create claim: %v", err)
+			}
+			return created
+		}
+		first, second := newVideoClaim("first claim"), newVideoClaim("second claim")
+
+		expect := func(want bool, wantStatus string) {
+			t.Helper()
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if applied != want {
+				t.Errorf("applied = %t, want %t", applied, want)
+			}
+			var status string
+			if err := env.tx.QueryRow(
+				env.ctx, "select status from videos where id = $1", videoID,
+			).Scan(&status); err != nil {
+				t.Fatalf("failed to read status: %v", err)
+			}
+			if status != wantStatus {
+				t.Errorf("status = %q, want %q", status, wantStatus)
+			}
+		}
+
+		expect(false, "verified") // nothing linked yet
+		if err := env.repo.LinkClaim(env.ctx, first.ID, narrative.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expect(false, "verified") // one claim is still waiting
+		if err := env.repo.LinkClaim(env.ctx, second.ID, narrative.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expect(true, "clustered") // every claim is linked
+		expect(false, "clustered")
+	})
+
+	t.Run("MarkVideoClustered_IgnoresVideosWithoutClaimsOrInAnotherStatus", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+
+		for _, status := range []string{"verified", "screened_in"} {
+			videoID := env.newVideo(t, pool)
+			if _, err := env.tx.Exec(
+				env.ctx, "update videos set status = $2 where id = $1", videoID, status,
+			); err != nil {
+				t.Fatalf("failed to set status: %v", err)
+			}
+
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if applied {
+				t.Errorf("a video with no claims (status %q) must not become clustered", status)
+			}
+		}
+	})
 }
 
 // TestNarrativeRepo_WithTx_Enqueue commits real rows (a rolled-back test tx

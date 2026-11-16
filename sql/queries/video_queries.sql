@@ -133,3 +133,19 @@ SET status = 'failed',
     updated_at = NOW()
 WHERE id = sqlc.arg(id)::uuid
   AND status = sqlc.arg(from_status)::varchar;
+
+-- name: LockVideo :one
+-- Serializes the "is every claim clustered" checks of one video.
+SELECT id FROM videos WHERE id = sqlc.arg(id)::uuid FOR UPDATE;
+
+-- name: MarkVideoClustered :execrows
+UPDATE videos v
+SET status = 'clustered', updated_at = NOW()
+WHERE v.id = sqlc.arg(id)::uuid
+  AND v.status IN ('transcribed', 'verified')
+  AND EXISTS (SELECT 1 FROM claims c WHERE c.video_id = v.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM claims c
+      WHERE c.video_id = v.id
+        AND NOT EXISTS (SELECT 1 FROM narrative_claims nc WHERE nc.claim_id = c.id)
+  );

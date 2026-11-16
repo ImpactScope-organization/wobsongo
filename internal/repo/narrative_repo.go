@@ -434,3 +434,25 @@ func (r *narrativeRepo) CountClaimsByPlatform(
 	}
 	return counts, nil
 }
+
+// MarkVideoClustered moves a video to 'clustered' once all its claims are
+// linked to a narrative.
+func (r *narrativeRepo) MarkVideoClustered(
+	ctx context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
+	if _, err := r.q.LockVideo(ctx, videoID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to lock video %s: %w", videoID, mapPostgresError(err))
+	}
+
+	affected, err := r.q.MarkVideoClustered(ctx, videoID)
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to mark video %s as clustered: %w", videoID, mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}

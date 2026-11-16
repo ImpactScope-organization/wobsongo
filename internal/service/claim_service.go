@@ -208,7 +208,12 @@ func (s *ClaimService) CheckClaim(
 
 	overallSummary := summarizeVerdicts(results, replyLanguage)
 	if record {
-		s.recordClaims(ctx, req.Source, analysis.Language, results)
+		if err := s.recordClaims(ctx, req.Source, analysis.Language, results); err != nil {
+			if req.Source.VideoID != nil {
+				return nil, fmt.Errorf("failed to record claims: %w", err)
+			}
+			log.Printf("[ClaimService] failed to record claims: %v", err)
+		}
 	}
 	return &ClaimCheckResult{
 		InScope:        true,
@@ -294,7 +299,7 @@ func (s *ClaimService) recordClaims(
 	}
 
 	if err := s.narratives.RecordClaims(ctx, claims); err != nil {
-		return fmt.Errorf("[ClaimService] failed to store %d claim(s): %w", len(claims), err)
+		return fmt.Errorf("failed to store %d claim(s): %w", len(claims), err)
 	}
 	return nil
 }

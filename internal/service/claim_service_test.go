@@ -2,9 +2,11 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -1066,6 +1068,143 @@ func TestClaimService_CheckClaim_Narratives(t *testing.T) {
 		}
 		if n := len(repo.CreateClaimCalls()); n != 0 {
 			t.Errorf("expected recording to be skipped, got %d stored claim(s)", n)
+		}
+	})
+}
+
+func TestClaimService_CheckClaim_VideoSource(t *testing.T) {
+	const claimText = "drinking lemon water cures infections"
+	occurredAt := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+
+	videoSource := func(videoID *uuid.UUID) *dto.ClaimSource {
+		return &dto.ClaimSource{
+			VideoID:    videoID,
+			Platform:   model.ClaimPlatformTikTok,
+			Format:     string(model.ClaimFormatVideo),
+			OccurredAt: occurredAt,
+		}
+	}
+
+	t.Run("StoresTheVideoID", func(t *testing.T) {
+		topicID, videoID := uuid.New(), uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		_, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: videoSource(&videoID),
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		created := repo.CreateClaimCalls()
+		if len(created) != 1 {
+			t.Fatalf("expected 1 claim stored, got %d", len(created))
+		}
+		got := created[0].Claim
+		if got.VideoID == nil || *got.VideoID != videoID {
+			t.Errorf("expected video id %s, got %v", videoID, got.VideoID)
+		}
+		if got.MessageID != nil {
+			t.Errorf("expected no message id for a video claim, got %v", got.MessageID)
+		}
+		if got.Platform != model.ClaimPlatformTikTok || got.Format != model.ClaimFormatVideo {
+			t.Errorf("expected tiktok/video, got %s/%s", got.Platform, got.Format)
+		}
+		if !got.OccurredAt.Equal(occurredAt) {
+			t.Errorf("expected occurred_at %v, got %v", occurredAt, got.OccurredAt)
+		}
+		if n := len(repo.EnqueueClusterClaimCalls()); n != 1 {
+			t.Errorf("expected 1 cluster job, got %d", n)
+		}
+	})
+
+	t.Run("TopicsLoadFailureFailsTheCheck", func(t *testing.T) {
+		topicID, videoID := uuid.New(), uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		repo.ListActiveTopicsFunc = func(context.Context) ([]model.Topic, error) {
+			return nil, data.ErrInternal
+		}
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: videoSource(&videoID),
+		})
+
+		if !errors.Is(err, data.ErrInternal) {
+			t.Fatalf("expected the topics error, got %v", err)
+		}
+		if result != nil {
+			t.Errorf("expected no result, got %+v", result)
+		}
+		if n := len(repo.CreateClaimCalls()); n != 0 {
+			t.Errorf("expected nothing stored, got %d claim(s)", n)
+		}
+	})
+
+	t.Run("RecordingFailureFailsTheCheck", func(t *testing.T) {
+		topicID, videoID := uuid.New(), uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		repo.CreateClaimFunc = func(context.Context, *model.Claim) (*model.Claim, error) {
+			return nil, data.ErrInternal
+		}
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: videoSource(&videoID),
+		})
+
+		if !errors.Is(err, data.ErrInternal) {
+			t.Fatalf("expected the storage error, got %v", err)
+		}
+		if result != nil {
+			t.Errorf("expected no result, got %+v", result)
+		}
+	})
+
+	t.Run("ExistingClaimIsSkippedWithoutError", func(t *testing.T) {
+		topicID, videoID := uuid.New(), uuid.New()
+		repo := newRecordingNarrativeRepo(topicID)
+		repo.CreateClaimFunc = func(context.Context, *model.Claim) (*model.Claim, error) {
+			return nil, data.ErrConflict
+		}
+		s := newNarrativeClaimService(repo, []data.SubClaim{{Text: claimText, TopicID: topicID}})
+
+		_, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: videoSource(&videoID),
+		})
+		if err != nil {
+			t.Fatalf("a retry over already stored claims must succeed, got: %v", err)
+		}
+		if n := len(repo.EnqueueClusterClaimCalls()); n != 0 {
+			t.Errorf("expected no second cluster job for an existing claim, got %d", n)
+		}
+	})
+
+	t.Run("NarrativesTurnedOffFailsTheCheck", func(t *testing.T) {
+		videoID := uuid.New()
+		analyzer := &stubClaimAnalyzer{analysis: &data.ClaimAnalysis{InScope: true}}
+		judge := &stubClaimJudge{
+			judgeFunc: func(*data.JudgeRequest) (*data.JudgeVerdict, error) {
+				return &data.JudgeVerdict{}, nil
+			},
+		}
+		s := NewClaimService(analyzer, judge, newEmptyRAGService())
+
+		result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{
+			Text:   claimText,
+			Source: videoSource(&videoID),
+		})
+
+		if err == nil {
+			t.Fatal("expected an error: without the narrative flow the claims would be lost")
+		}
+		if result != nil {
+			t.Errorf("expected no result, got %+v", result)
 		}
 	})
 }

@@ -361,7 +361,7 @@ type Config struct {
 	TranslationConfig      *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
 	ClaimCheckConfig       *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 	NarrativeConfig        *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
-  ScreenConfig           *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
+	ScreenConfig           *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
 	PrivacyWhitelistEmails []string           `json:"-"`                    // Emails allowed to see unredacted creator data
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.

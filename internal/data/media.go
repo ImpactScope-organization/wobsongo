@@ -12,3 +12,10 @@ type MediaExtractor interface {
 	// TriggerAudioExtraction initiates an asynchronous media extraction process.
 	TriggerAudioExtraction(ctx context.Context, req dto.ExtractionRequest) error
 }
+
+// VideoMediaResolver finds a downloadable media URL for a video page URL.
+type VideoMediaResolver interface {
+	// ResolveMediaURL returns a downloadable media URL, or ErrMediaUnavailable
+	// when the platform has none for the video.
+	ResolveMediaURL(ctx context.Context, videoURL string) (string, error)
+}

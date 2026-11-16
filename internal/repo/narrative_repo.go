@@ -90,6 +90,11 @@ func (r *narrativeRepo) CreateClaim(ctx context.Context, c *model.Claim) (*model
 		messageID = pgtype.UUID{Bytes: *c.MessageID, Valid: true}
 	}
 
+	var videoID pgtype.UUID
+	if c.VideoID != nil {
+		videoID = pgtype.UUID{Bytes: *c.VideoID, Valid: true}
+	}
+
 	citations := c.Citations
 	if citations == nil {
 		citations = []model.ClaimCitation{}
@@ -116,6 +121,7 @@ func (r *narrativeRepo) CreateClaim(ctx context.Context, c *model.Claim) (*model
 		BriefReasoning:          c.BriefReasoning,
 		Citations:               rawCitations,
 		JudgedAt:                c.JudgedAt,
+		VideoID:                 videoID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, data.ErrConflict
@@ -353,6 +359,12 @@ func toModelClaim(row *db.Claim) (*model.Claim, error) {
 		messageID = &id
 	}
 
+	var videoID *uuid.UUID
+	if row.VideoID.Valid {
+		id := uuid.UUID(row.VideoID.Bytes)
+		videoID = &id
+	}
+
 	return &model.Claim{
 		ID:                      row.ID,
 		MessageID:               messageID,
@@ -370,6 +382,7 @@ func toModelClaim(row *db.Claim) (*model.Claim, error) {
 		Reasoning:               row.Reasoning,
 		BriefReasoning:          row.BriefReasoning,
 		Citations:               citations,
+		VideoID:                 videoID,
 		JudgedAt:                row.JudgedAt,
 		CreatedAt:               row.CreatedAt,
 	}, nil

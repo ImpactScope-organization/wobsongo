@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -19,20 +20,22 @@ var errScreenBoom = errors.New("llm unavailable")
 // fakeScreenStore is a data.VideoRepoer that keeps the videos in memory and records the calls made to it.
 type fakeScreenStore struct {
 	data.VideoRepoer
-	order       []uuid.UUID
-	videos      map[uuid.UUID]*model.Video
-	pending     map[uuid.UUID]bool
-	status      map[uuid.UUID]model.VideoStatus
-	enqueued    []uuid.UUID
-	listErr     error
-	getErr      error
-	setErrs     map[uuid.UUID]error
-	enqueueErrs map[uuid.UUID]error
-	duplicates  map[uuid.UUID]bool
-	gotLimit    int32
-	gotExcludes [][]uuid.UUID
-	failed      map[uuid.UUID]string
-	failErrs    map[uuid.UUID]error
+	order              []uuid.UUID
+	videos             map[uuid.UUID]*model.Video
+	pending            map[uuid.UUID]bool
+	status             map[uuid.UUID]model.VideoStatus
+	enqueued           []uuid.UUID
+	listErr            error
+	getErr             error
+	setErrs            map[uuid.UUID]error
+	enqueueErrs        map[uuid.UUID]error
+	duplicates         map[uuid.UUID]bool
+	gotLimit           int32
+	gotExcludes        [][]uuid.UUID
+	failed             map[uuid.UUID]string
+	failErrs           map[uuid.UUID]error
+	transcribeEnqueued []uuid.UUID
+	transcribeErr      error
 }
 
 func (s *fakeScreenStore) SetVideoScreenFailed(
@@ -70,6 +73,28 @@ func newFakeScreenStore(videos ...*model.Video) *fakeScreenStore {
 		s.pending[v.ID] = true
 	}
 	return s
+}
+
+func (s *fakeScreenStore) WithTx(_ context.Context, fn func(data.VideoRepoer) error) error {
+	pending, status := maps.Clone(s.pending), maps.Clone(s.status)
+	transcribeEnqueued := slices.Clone(s.transcribeEnqueued)
+
+	if err := fn(s); err != nil {
+		s.pending, s.status, s.transcribeEnqueued = pending, status, transcribeEnqueued
+		return err
+	}
+	return nil
+}
+
+func (s *fakeScreenStore) EnqueueTranscribeVideoJob(
+	_ context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
+	if s.transcribeErr != nil {
+		return false, s.transcribeErr
+	}
+	s.transcribeEnqueued = append(s.transcribeEnqueued, videoID)
+	return true, nil
 }
 
 func (s *fakeScreenStore) ListDiscoveredVideos(
@@ -524,4 +549,82 @@ func TestMarkScreenFailed(t *testing.T) {
 			t.Fatalf("error = %v, want it to wrap the store error", err)
 		}
 	})
+}
+
+func TestScreenVideo_QueuesTranscriptionOnlyForScreenedInVideos(t *testing.T) {
+	tests := []struct {
+		name    string
+		video   *model.Video
+		inScope map[string]bool
+		want    bool
+	}{
+		{
+			name:    "in scope video is queued",
+			video:   screenVideoFixture("herbal remedy cures diabetes"),
+			inScope: map[string]bool{"herbal remedy cures diabetes": true},
+			want:    true,
+		},
+		{name: "out of scope video is not queued", video: screenVideoFixture("pasta recipe")},
+		{name: "blank video is not queued", video: screenVideoFixture("   ")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := newFakeScreenStore(tt.video)
+			svc := NewScreenService(store, &fakeScreenAnalyzer{inScope: tt.inScope})
+
+			if err := svc.ScreenVideo(t.Context(), tt.video.ID); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			var want []uuid.UUID
+			if tt.want {
+				want = []uuid.UUID{tt.video.ID}
+			}
+			if !slices.Equal(store.transcribeEnqueued, want) {
+				t.Errorf("transcription queued for %v, want %v", store.transcribeEnqueued, want)
+			}
+		})
+	}
+}
+
+func TestScreenVideo_TranscriptionEnqueueFailureRollsBackTheStatus(t *testing.T) {
+	video := screenVideoFixture("claim")
+	store := newFakeScreenStore(video)
+	store.transcribeErr = errScreenBoom
+	analyzer := &fakeScreenAnalyzer{inScope: map[string]bool{"claim": true}}
+
+	err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), video.ID)
+
+	if !errors.Is(err, errScreenBoom) {
+		t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+	}
+	if !store.pending[video.ID] {
+		t.Error("video must stay discovered when its transcription job cannot be queued")
+	}
+	if _, stored := store.status[video.ID]; stored {
+		t.Error("the status must be rolled back together with the job")
+	}
+}
+
+func TestScreenVideo_AlreadyScreenedVideoQueuesNothing(t *testing.T) {
+	video := screenVideoFixture("claim")
+	store := newFakeScreenStore(video)
+	analyzer := &fakeScreenAnalyzer{
+		inScope: map[string]bool{"claim": true},
+		onAnalyze: func(string) {
+			// Another run screens the same video while this one is analyzing it.
+			store.pending[video.ID] = false
+		},
+	}
+
+	if err := NewScreenService(store, analyzer).ScreenVideo(t.Context(), video.ID); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(store.transcribeEnqueued) != 0 {
+		t.Errorf(
+			"queued %v, want nothing for a video another run screened",
+			store.transcribeEnqueued,
+		)
+	}
 }

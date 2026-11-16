@@ -90,3 +90,46 @@ SET status = 'failed',
     updated_at = NOW()
 WHERE id = sqlc.arg(id)::uuid
   AND status = 'discovered';
+
+-- name: GetVideoForTranscription :one
+SELECT id, video_url, media_url
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: SetVideoMediaURL :exec
+UPDATE videos
+SET media_url = sqlc.arg(media_url)::text, updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: SetVideoTranscribed :execrows
+UPDATE videos
+SET transcription_text = sqlc.narg(transcript)::text,
+    status = 'transcribed',
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: GetVideoForAnalysis :one
+SELECT id, transcription_text, video_created_at
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'transcribed';
+
+-- name: SetVideoAnalyzed :execrows
+UPDATE videos
+SET status = sqlc.arg(status)::varchar,
+    analyzed_at = NOW(),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'transcribed';
+
+-- name: SetVideoFailed :execrows
+UPDATE videos
+SET status = 'failed',
+    failed_stage = sqlc.arg(failed_stage)::varchar,
+    error = sqlc.arg(error)::text,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = sqlc.arg(from_status)::varchar;

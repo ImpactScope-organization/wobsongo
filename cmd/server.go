@@ -340,6 +340,10 @@ var serveCmd = &cobra.Command{
 		)
 		if crawlEnabled {
 			videoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
+			tikTokScraper := external.NewTikTokScraperClient(
+				config.ApifyConfig.Token,
+				config.ApifyConfig.TikTokActorID,
+			)
 			crawlService = service.NewCrawlService(
 				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
@@ -355,6 +359,10 @@ var serveCmd = &cobra.Command{
 			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
 			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
+			transcribeService := service.NewTranscribeService(videoRepo, tikTokScraper, asrClient)
+			river.AddWorker(workers, worker.NewTranscribeDiscoveredVideoWorker(transcribeService))
+			analyzeService := service.NewAnalyzeService(videoRepo, workerClaimService)
+			river.AddWorker(workers, worker.NewAnalyzeVideoWorker(analyzeService))
 		}
 
 		// Scheduled periodic jobs by River.
@@ -415,7 +423,9 @@ var serveCmd = &cobra.Command{
 				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
 				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
 				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
-				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
+				queue.QueueClaimBackfill:  {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
+				queue.QueueTranscription:  {MaxWorkers: queue.DefaultTranscribeConcurrency},
+				queue.QueueAnalysis:       {MaxWorkers: queue.DefaultAnalyzeConcurrency},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

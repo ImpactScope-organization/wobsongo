@@ -114,6 +114,26 @@ func (q *Queries) GetVideoByURL(ctx context.Context, videoUrl string) (Video, er
 	return i, err
 }
 
+const getVideoForAnalysis = `-- name: GetVideoForAnalysis :one
+SELECT id, transcription_text, video_created_at
+FROM videos
+WHERE id = $1::uuid
+  AND status = 'transcribed'
+`
+
+type GetVideoForAnalysisRow struct {
+	ID                uuid.UUID
+	TranscriptionText pgtype.Text
+	VideoCreatedAt    pgtype.Timestamptz
+}
+
+func (q *Queries) GetVideoForAnalysis(ctx context.Context, id uuid.UUID) (GetVideoForAnalysisRow, error) {
+	row := q.db.QueryRow(ctx, getVideoForAnalysis, id)
+	var i GetVideoForAnalysisRow
+	err := row.Scan(&i.ID, &i.TranscriptionText, &i.VideoCreatedAt)
+	return i, err
+}
+
 const getVideoForScreening = `-- name: GetVideoForScreening :one
 SELECT id, caption, hashtags
 FROM videos
@@ -131,6 +151,26 @@ func (q *Queries) GetVideoForScreening(ctx context.Context, id uuid.UUID) (GetVi
 	row := q.db.QueryRow(ctx, getVideoForScreening, id)
 	var i GetVideoForScreeningRow
 	err := row.Scan(&i.ID, &i.Caption, &i.Hashtags)
+	return i, err
+}
+
+const getVideoForTranscription = `-- name: GetVideoForTranscription :one
+SELECT id, video_url, media_url
+FROM videos
+WHERE id = $1::uuid
+  AND status = 'screened_in'
+`
+
+type GetVideoForTranscriptionRow struct {
+	ID       uuid.UUID
+	VideoUrl string
+	MediaUrl pgtype.Text
+}
+
+func (q *Queries) GetVideoForTranscription(ctx context.Context, id uuid.UUID) (GetVideoForTranscriptionRow, error) {
+	row := q.db.QueryRow(ctx, getVideoForTranscription, id)
+	var i GetVideoForTranscriptionRow
+	err := row.Scan(&i.ID, &i.VideoUrl, &i.MediaUrl)
 	return i, err
 }
 
@@ -202,6 +242,75 @@ func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influenc
 	return items, nil
 }
 
+const setVideoAnalyzed = `-- name: SetVideoAnalyzed :execrows
+UPDATE videos
+SET status = $1::varchar,
+    analyzed_at = NOW(),
+    updated_at = NOW()
+WHERE id = $2::uuid
+  AND status = 'transcribed'
+`
+
+type SetVideoAnalyzedParams struct {
+	Status string
+	ID     uuid.UUID
+}
+
+func (q *Queries) SetVideoAnalyzed(ctx context.Context, arg SetVideoAnalyzedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVideoAnalyzed, arg.Status, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setVideoFailed = `-- name: SetVideoFailed :execrows
+UPDATE videos
+SET status = 'failed',
+    failed_stage = $1::varchar,
+    error = $2::text,
+    updated_at = NOW()
+WHERE id = $3::uuid
+  AND status = $4::varchar
+`
+
+type SetVideoFailedParams struct {
+	FailedStage string
+	Error       string
+	ID          uuid.UUID
+	FromStatus  string
+}
+
+func (q *Queries) SetVideoFailed(ctx context.Context, arg SetVideoFailedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVideoFailed,
+		arg.FailedStage,
+		arg.Error,
+		arg.ID,
+		arg.FromStatus,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setVideoMediaURL = `-- name: SetVideoMediaURL :exec
+UPDATE videos
+SET media_url = $1::text, updated_at = NOW()
+WHERE id = $2::uuid
+  AND status = 'screened_in'
+`
+
+type SetVideoMediaURLParams struct {
+	MediaUrl string
+	ID       uuid.UUID
+}
+
+func (q *Queries) SetVideoMediaURL(ctx context.Context, arg SetVideoMediaURLParams) error {
+	_, err := q.db.Exec(ctx, setVideoMediaURL, arg.MediaUrl, arg.ID)
+	return err
+}
+
 const setVideoScreenFailed = `-- name: SetVideoScreenFailed :execrows
 UPDATE videos
 SET status = 'failed',
@@ -241,6 +350,28 @@ type SetVideoScreenStatusParams struct {
 
 func (q *Queries) SetVideoScreenStatus(ctx context.Context, arg SetVideoScreenStatusParams) (int64, error) {
 	result, err := q.db.Exec(ctx, setVideoScreenStatus, arg.Status, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setVideoTranscribed = `-- name: SetVideoTranscribed :execrows
+UPDATE videos
+SET transcription_text = $1::text,
+    status = 'transcribed',
+    updated_at = NOW()
+WHERE id = $2::uuid
+  AND status = 'screened_in'
+`
+
+type SetVideoTranscribedParams struct {
+	Transcript pgtype.Text
+	ID         uuid.UUID
+}
+
+func (q *Queries) SetVideoTranscribed(ctx context.Context, arg SetVideoTranscribedParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setVideoTranscribed, arg.Transcript, arg.ID)
 	if err != nil {
 		return 0, err
 	}

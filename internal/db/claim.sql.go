@@ -82,18 +82,19 @@ func (q *Queries) GetClaim(ctx context.Context, id uuid.UUID) (Claim, error) {
 
 const insertClaim = `-- name: InsertClaim :one
 INSERT INTO claims (
-    message_id, text, topic_id, language, platform, format, occurred_at,
+    message_id, video_id, text, topic_id, language, platform, format, occurred_at,
     verdict, severity, high_risk, high_risk_reason, recommend_medical_consult,
     reasoning, brief_reasoning, citations, judged_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17
 )
-ON CONFLICT (message_id, text) DO NOTHING
+ON CONFLICT DO NOTHING
 RETURNING id, message_id, text, topic_id, language, platform, format, occurred_at, verdict, severity, high_risk, high_risk_reason, recommend_medical_consult, reasoning, brief_reasoning, citations, judged_at, created_at, video_id
 `
 
 type InsertClaimParams struct {
 	MessageID               pgtype.UUID
+	VideoID                 pgtype.UUID
 	Text                    string
 	TopicID                 uuid.UUID
 	Language                int32
@@ -114,6 +115,7 @@ type InsertClaimParams struct {
 func (q *Queries) InsertClaim(ctx context.Context, arg InsertClaimParams) (Claim, error) {
 	row := q.db.QueryRow(ctx, insertClaim,
 		arg.MessageID,
+		arg.VideoID,
 		arg.Text,
 		arg.TopicID,
 		arg.Language,

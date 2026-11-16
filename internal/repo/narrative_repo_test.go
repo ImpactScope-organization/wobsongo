@@ -105,6 +105,26 @@ func (e *narrativeTestEnv) newClaim(
 	return claim
 }
 
+// newVideo stores a discovery video, so a claim can reference it.
+func (e *narrativeTestEnv) newVideo(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+
+	externalID := uuid.NewString()
+	v := &model.Video{
+		VideoURL:         "https://www.tiktok.com/@narrative_test/video/" + externalID,
+		AuthorUsername:   "narrative_test",
+		AuthorProfileURL: "https://www.tiktok.com/@narrative_test",
+		Hashtags:         []string{},
+		VideoType:        "tiktok",
+		ExternalID:       &externalID,
+		Origin:           model.VideoOriginDiscovery,
+	}
+	if _, err := repo.NewVideoRepo(e.q, pool, nil).UpsertDiscoveredVideo(e.ctx, v); err != nil {
+		t.Fatalf("failed to create video: %v", err)
+	}
+	return v.ID
+}
+
 // newNarrativeTestClaim builds a claim value that is not stored yet.
 // Timestamps are truncated to microseconds, the precision Postgres keeps.
 func newNarrativeTestClaim(topicID uuid.UUID, text string, occurredAt time.Time) *model.Claim {
@@ -307,6 +327,69 @@ func TestNarrativeRepo(t *testing.T) {
 		_, err = env.repo.CreateClaim(env.ctx, claim)
 		if !errors.Is(err, data.ErrConflict) {
 			t.Errorf("expected data.ErrConflict, got %v", err)
+		}
+	})
+
+	t.Run("CreateClaim_VideoClaim_RoundTripsVideoID", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		videoID := env.newVideo(t, pool)
+
+		claim := newNarrativeTestClaim(topic.ID, "video claim", time.Now())
+		claim.VideoID = &videoID
+		claim.Platform = model.ClaimPlatformTikTok
+		claim.Format = model.ClaimFormatVideo
+
+		created, err := env.repo.CreateClaim(env.ctx, claim)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created.VideoID == nil || *created.VideoID != videoID {
+			t.Errorf("created video id = %v, want %v", created.VideoID, videoID)
+		}
+
+		got, err := env.repo.GetClaim(env.ctx, created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error fetching created claim: %v", err)
+		}
+		if got.VideoID == nil || *got.VideoID != videoID {
+			t.Errorf("fetched video id = %v, want %v", got.VideoID, videoID)
+		}
+		if got.MessageID != nil {
+			t.Errorf("message id = %v, want nil for a video claim", got.MessageID)
+		}
+	})
+
+	t.Run("CreateClaim_SameVideoAndText_ReturnsConflict", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		videoID := env.newVideo(t, pool)
+
+		claim := newNarrativeTestClaim(topic.ID, "duplicated video claim", time.Now())
+		claim.VideoID = &videoID
+		if _, err := env.repo.CreateClaim(env.ctx, claim); err != nil {
+			t.Fatalf("unexpected error on first create: %v", err)
+		}
+
+		_, err := env.repo.CreateClaim(env.ctx, claim)
+
+		if !errors.Is(err, data.ErrConflict) {
+			t.Errorf("expected data.ErrConflict, got %v", err)
+		}
+	})
+
+	t.Run("CreateClaim_SameTextOnDifferentVideos_IsAllowed", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+
+		for range 2 {
+			videoID := env.newVideo(t, pool)
+			claim := newNarrativeTestClaim(topic.ID, "same text", time.Now())
+			claim.VideoID = &videoID
+
+			if _, err := env.repo.CreateClaim(env.ctx, claim); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 		}
 	})
 

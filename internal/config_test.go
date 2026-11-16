@@ -384,7 +384,7 @@ func TestConfig_screenOK(t *testing.T) {
 		})
 	}
 }
-      
+
 func TestSplitEmails(t *testing.T) {
 	tests := map[string]struct {
 		in   string

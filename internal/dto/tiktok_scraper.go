@@ -36,6 +36,10 @@ type TikTokScraperItem struct {
 
 	// AuthorMeta contains the video's author information.
 	AuthorMeta TikTokAuthorMeta `json:"authorMeta"`
+
+	// MediaURLs are the downloadable video URLs. They are only filled when
+	// the actor ran with shouldDownloadVideos.
+	MediaURLs []string `json:"mediaUrls"`
 }
 
 // TikTokHashtag represents a hashtag attached to a TikTok video.

@@ -25,7 +25,7 @@ const (
 	ScreenDispatchMaxWorkers = 1
 )
 
-// screenUniqueStates are the job states in which an identical screening job
+// videoJobUniqueStates are the job states in which an identical screening job
 // counts as a duplicate. Completed jobs are left out on purpose: a finished
 // job must never block a new one, for example when a video is put back to
 // 'discovered' to be screened again.

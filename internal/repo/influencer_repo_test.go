@@ -3,6 +3,7 @@ package repo_test
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -47,6 +48,43 @@ func influencerUsernames(items []model.Influencer) []string {
 		names = append(names, item.Username)
 	}
 	return names
+}
+
+// insertCreatorPosts adds count tiktok videos of an influencer. publishedAt
+// is the video's own publish time; nil leaves video_created_at empty, so the
+// row's created_at is used instead.
+func insertCreatorPosts(
+	ctx context.Context,
+	t *testing.T,
+	tx pgx.Tx,
+	influencerID uuid.UUID,
+	username string,
+	count int,
+	publishedAt *time.Time,
+) {
+	t.Helper()
+
+	for range count {
+		_, err := tx.Exec(ctx,
+			`insert into videos
+			   (video_url, author_username, video_type, influencer_id, origin, status,
+			    video_created_at)
+			 values ($1, $2, 'tiktok', $3, 'monitor', 'discovered', $4)`,
+			"https://www.tiktok.com/@"+username+"/video/"+uuid.NewString(),
+			username, influencerID, publishedAt,
+		)
+		if err != nil {
+			t.Fatalf("failed to insert video of %q: %v", username, err)
+		}
+	}
+}
+
+func topCreatorUsernames(items []model.TopCreator) string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Username)
+	}
+	return strings.Join(names, ",")
 }
 
 func TestInfluencerAdminRepo(t *testing.T) {
@@ -242,6 +280,75 @@ func TestInfluencerAdminRepo(t *testing.T) {
 		})
 	})
 
+	t.Run("Paginate_SortByPostsRanksPostsThenFollowers", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			// Inserted in this order, so the newest is _many_high, then _few.
+			counts := []struct {
+				suffix    string
+				posts     int64
+				followers int64
+			}{
+				{"_many_low", 5, 100},
+				{"_few", 2, 10_000},
+				{"_many_high", 5, 900},
+			}
+			for _, c := range counts {
+				id := insertAdminInfluencer(ctx, t, tx, token+c.suffix, "seed", true, 0)
+				_, err := tx.Exec(
+					ctx,
+					`update influencers set tracked_video_count = $1, followers_count = $2 where id = $3`,
+					c.posts,
+					c.followers,
+					id,
+				)
+				if err != nil {
+					t.Fatalf("failed to set counts of %s: %v", c.suffix, err)
+				}
+			}
+			influencers := newRepo(q)
+			paging := &dto.PaginationDTO{Page: 1, PerPage: 10}
+			filter := data.InfluencerListFilter{
+				AdminListFilter: data.AdminListFilter{Search: token},
+			}
+
+			newest, err := influencers.Paginate(ctx, paging, filter)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wantNewest := []string{token + "_many_high", token + "_few", token + "_many_low"}
+			if got := influencerUsernames(
+				newest.Items,
+			); strings.Join(
+				got,
+				",",
+			) != strings.Join(
+				wantNewest,
+				",",
+			) {
+				t.Errorf("expected newest first without a sort, got %v", got)
+			}
+
+			filter.Sort = "posts"
+			byPosts, err := influencers.Paginate(ctx, paging, filter)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			wantByPosts := []string{token + "_many_high", token + "_many_low", token + "_few"}
+			if got := influencerUsernames(
+				byPosts.Items,
+			); strings.Join(
+				got,
+				",",
+			) != strings.Join(
+				wantByPosts,
+				",",
+			) {
+				t.Errorf("expected most posts first, then most followers, got %v", got)
+			}
+		})
+	})
+
 	t.Run("Paginate_SearchMatchesNickname", func(t *testing.T) {
 		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
 			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
@@ -272,6 +379,216 @@ func TestInfluencerAdminRepo(t *testing.T) {
 			got, err := newRepo(q).Paginate(ctx, &dto.PaginationDTO{Page: 1, PerPage: 10},
 				data.InfluencerListFilter{
 					AdminListFilter: data.AdminListFilter{Search: "zz-" + uuid.NewString()},
+				})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.Items == nil || len(got.Items) != 0 || got.TotalItems != 0 {
+				t.Errorf("expected an empty, non-nil page, got %+v", got)
+			}
+		})
+	})
+
+	t.Run("TopCreators_CountsPostsInWindowAndRanksThem", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			now := time.Now()
+			recent, old := now.Add(-24*time.Hour), now.Add(-10*24*time.Hour)
+
+			setups := []struct {
+				suffix      string
+				recentPosts int
+				oldPosts    int
+				followers   int64
+			}{
+				// Same posts in the window as _many_high, but more followers
+				// would not matter: it has fewer, so _many_high ranks first.
+				// Its old posts must not count.
+				{"_many_low", 3, 4, 100},
+				{"_few", 1, 0, 10_000},
+				{"_many_high", 3, 0, 900},
+				{"_only_old", 0, 2, 50},
+				{"_no_posts", 0, 0, 50},
+			}
+			for _, s := range setups {
+				username := token + s.suffix
+				id := insertAdminInfluencer(ctx, t, tx, username, "seed", true, 0)
+				if _, err := tx.Exec(ctx,
+					`update influencers
+					 set followers_count = $1, nickname = $2, avatar_url = $3
+					 where id = $4`,
+					s.followers, "Nick "+s.suffix, "https://img.example/"+s.suffix, id,
+				); err != nil {
+					t.Fatalf("failed to set profile of %s: %v", s.suffix, err)
+				}
+				insertCreatorPosts(ctx, t, tx, id, username, s.recentPosts, &recent)
+				insertCreatorPosts(ctx, t, tx, id, username, s.oldPosts, &old)
+			}
+
+			got, err := newRepo(q).PaginateTopCreators(ctx,
+				&dto.PaginationDTO{Page: 1, PerPage: 10},
+				data.TopCreatorFilter{
+					AdminListFilter: data.AdminListFilter{Search: token},
+					Since:           now.Add(-7 * 24 * time.Hour),
+				})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Ties on posts are broken by followers. Creators without a post
+			// in the window are left out, and so are they from the total.
+			want := strings.Join(
+				[]string{token + "_many_high", token + "_many_low", token + "_few"}, ",")
+			if names := topCreatorUsernames(got.Items); names != want {
+				t.Fatalf("expected %s, got %s", want, names)
+			}
+			if got.TotalItems != 3 {
+				t.Errorf("expected a total of 3, got %d", got.TotalItems)
+			}
+
+			first := got.Items[0]
+			if first.PostsCount != 3 || got.Items[1].PostsCount != 3 ||
+				got.Items[2].PostsCount != 1 {
+				t.Errorf("expected only posts in the window to count, got %+v", got.Items)
+			}
+			if first.Platform != "tiktok" || first.FollowersCount != 900 ||
+				first.Nickname != "Nick _many_high" ||
+				first.AvatarURL != "https://img.example/_many_high" ||
+				first.ProfileURL != "https://www.tiktok.com/@"+token+"_many_high" {
+				t.Errorf("unexpected profile fields: %+v", first)
+			}
+		})
+	})
+
+	t.Run("TopCreators_NoVideoCreatedAt_FallsBackToCreatedAt", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			old := time.Now().Add(-10 * 24 * time.Hour)
+
+			// Published time unknown: the time the row was stored (now) is used.
+			unknown := token + "_unknown"
+			unknownID := insertAdminInfluencer(ctx, t, tx, unknown, "seed", true, 0)
+			insertCreatorPosts(ctx, t, tx, unknownID, unknown, 2, nil)
+
+			// Published long ago, only stored now: the publish time wins.
+			stale := token + "_stale"
+			staleID := insertAdminInfluencer(ctx, t, tx, stale, "seed", true, 0)
+			insertCreatorPosts(ctx, t, tx, staleID, stale, 1, &old)
+
+			got, err := newRepo(q).PaginateTopCreators(ctx,
+				&dto.PaginationDTO{Page: 1, PerPage: 10},
+				data.TopCreatorFilter{
+					AdminListFilter: data.AdminListFilter{Search: token},
+					Since:           time.Now().Add(-24 * time.Hour),
+				})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if names := topCreatorUsernames(got.Items); names != unknown {
+				t.Fatalf("expected only %s, got %s", unknown, names)
+			}
+			if got.Items[0].PostsCount != 2 {
+				t.Errorf("expected 2 posts, got %d", got.Items[0].PostsCount)
+			}
+		})
+	})
+
+	t.Run("TopCreators_FiltersByActiveAndSearch", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			nickToken := "nk" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			recent := time.Now().Add(-time.Hour)
+
+			active, inactive := token+"_active", token+"_inactive"
+			activeID := insertAdminInfluencer(ctx, t, tx, active, "seed", true, 0)
+			inactiveID := insertAdminInfluencer(ctx, t, tx, inactive, "seed", false, 0)
+			insertCreatorPosts(ctx, t, tx, activeID, active, 2, &recent)
+			insertCreatorPosts(ctx, t, tx, inactiveID, inactive, 1, &recent)
+			if _, err := tx.Exec(ctx,
+				`update influencers set nickname = $1 where id = $2`,
+				"Nick "+nickToken, inactiveID,
+			); err != nil {
+				t.Fatalf("failed to set nickname: %v", err)
+			}
+
+			isActive, isInactive := true, false
+			cases := []struct {
+				name   string
+				filter data.AdminListFilter
+				want   string
+			}{
+				{"NoFilter", data.AdminListFilter{Search: token}, active + "," + inactive},
+				{"OnlyActive", data.AdminListFilter{Search: token, IsActive: &isActive}, active},
+				{
+					"OnlyInactive",
+					data.AdminListFilter{Search: token, IsActive: &isInactive},
+					inactive,
+				},
+				{
+					"SearchMatchesNickname",
+					data.AdminListFilter{Search: strings.ToUpper(nickToken)},
+					inactive,
+				},
+			}
+			for _, c := range cases {
+				got, err := newRepo(q).PaginateTopCreators(ctx,
+					&dto.PaginationDTO{Page: 1, PerPage: 10},
+					data.TopCreatorFilter{
+						AdminListFilter: c.filter,
+						Since:           time.Now().Add(-24 * time.Hour),
+					})
+				if err != nil {
+					t.Fatalf("%s: unexpected error: %v", c.name, err)
+				}
+				if names := topCreatorUsernames(got.Items); names != c.want {
+					t.Errorf("%s: expected %s, got %s", c.name, c.want, names)
+				}
+				if got.TotalItems != len(got.Items) {
+					t.Errorf(
+						"%s: expected total %d, got %d",
+						c.name,
+						len(got.Items),
+						got.TotalItems,
+					)
+				}
+			}
+		})
+	})
+
+	t.Run("TopCreators_Paginates_TotalCoversAllPages", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, tx pgx.Tx, q *db.Queries) {
+			token := "zz" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+			recent := time.Now().Add(-time.Hour)
+
+			for i, posts := range []int{3, 2, 1} {
+				username := token + "_" + strconv.Itoa(i)
+				id := insertAdminInfluencer(ctx, t, tx, username, "seed", true, 0)
+				insertCreatorPosts(ctx, t, tx, id, username, posts, &recent)
+			}
+
+			got, err := newRepo(q).PaginateTopCreators(ctx,
+				&dto.PaginationDTO{Page: 2, PerPage: 2},
+				data.TopCreatorFilter{
+					AdminListFilter: data.AdminListFilter{Search: token},
+					Since:           time.Now().Add(-24 * time.Hour),
+				})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.Page != 2 || got.PerPage != 2 || got.TotalItems != 3 ||
+				topCreatorUsernames(got.Items) != token+"_2" {
+				t.Errorf("unexpected second page: %+v", got)
+			}
+		})
+	})
+
+	t.Run("TopCreators_NoMatch_ReturnsEmptyItems", func(t *testing.T) {
+		withRollbackTx(t, pool, func(ctx context.Context, _ pgx.Tx, q *db.Queries) {
+			got, err := newRepo(q).PaginateTopCreators(ctx,
+				&dto.PaginationDTO{Page: 1, PerPage: 10},
+				data.TopCreatorFilter{
+					AdminListFilter: data.AdminListFilter{Search: "zz-" + uuid.NewString()},
+					Since:           time.Now().Add(-24 * time.Hour),
 				})
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)

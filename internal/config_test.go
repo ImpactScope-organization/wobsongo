@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -380,6 +381,32 @@ func TestConfig_screenOK(t *testing.T) {
 			c := validConfig()
 			tt.mutate(c)
 			requireErrContains(t, c.screenOK(), tt.wantErr)
+		})
+	}
+}
+      
+func TestSplitEmails(t *testing.T) {
+	tests := map[string]struct {
+		in   string
+		want []string
+	}{
+		"Empty":          {"", nil},
+		"OnlySeparators": {" , ,", nil},
+		"One":            {"a@example.com", []string{"a@example.com"}},
+		"TrimsAndLowercase": {
+			" A@Example.com , b@example.com ",
+			[]string{"a@example.com", "b@example.com"},
+		},
+		"SkipsEmptyItems": {
+			"a@example.com,,b@example.com,",
+			[]string{"a@example.com", "b@example.com"},
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := splitEmails(tt.in); !slices.Equal(got, tt.want) {
+				t.Errorf("splitEmails(%q) = %q, want %q", tt.in, got, tt.want)
+			}
 		})
 	}
 }

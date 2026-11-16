@@ -41,6 +41,9 @@ var _ data.InfluencerRepoer = &InfluencerRepoerMock{}
 //			PaginateFunc: func(ctx context.Context, q data.SupportsPagination, filter data.InfluencerListFilter) (*dto.PaginationResults[model.Influencer], error) {
 //				panic("mock out the Paginate method")
 //			},
+//			PaginateTopCreatorsFunc: func(ctx context.Context, q data.SupportsPagination, filter data.TopCreatorFilter) (*dto.PaginationResults[model.TopCreator], error) {
+//				panic("mock out the PaginateTopCreators method")
+//			},
 //			RecordEmptyCheckFunc: func(ctx context.Context, id uuid.UUID, maxEmptyChecks int, nextCheckAt time.Time) (bool, error) {
 //				panic("mock out the RecordEmptyCheck method")
 //			},
@@ -83,6 +86,9 @@ type InfluencerRepoerMock struct {
 
 	// PaginateFunc mocks the Paginate method.
 	PaginateFunc func(ctx context.Context, q data.SupportsPagination, filter data.InfluencerListFilter) (*dto.PaginationResults[model.Influencer], error)
+
+	// PaginateTopCreatorsFunc mocks the PaginateTopCreators method.
+	PaginateTopCreatorsFunc func(ctx context.Context, q data.SupportsPagination, filter data.TopCreatorFilter) (*dto.PaginationResults[model.TopCreator], error)
 
 	// RecordEmptyCheckFunc mocks the RecordEmptyCheck method.
 	RecordEmptyCheckFunc func(ctx context.Context, id uuid.UUID, maxEmptyChecks int, nextCheckAt time.Time) (bool, error)
@@ -148,6 +154,15 @@ type InfluencerRepoerMock struct {
 			// Filter is the filter argument value.
 			Filter data.InfluencerListFilter
 		}
+		// PaginateTopCreators holds details about calls to the PaginateTopCreators method.
+		PaginateTopCreators []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Q is the q argument value.
+			Q data.SupportsPagination
+			// Filter is the filter argument value.
+			Filter data.TopCreatorFilter
+		}
 		// RecordEmptyCheck holds details about calls to the RecordEmptyCheck method.
 		RecordEmptyCheck []struct {
 			// Ctx is the ctx argument value.
@@ -207,18 +222,19 @@ type InfluencerRepoerMock struct {
 			Fn func(data.InfluencerRepoer) error
 		}
 	}
-	lockCreate           sync.RWMutex
-	lockGetByID          sync.RWMutex
-	lockGetByUsername    sync.RWMutex
-	lockListAll          sync.RWMutex
-	lockListDue          sync.RWMutex
-	lockPaginate         sync.RWMutex
-	lockRecordEmptyCheck sync.RWMutex
-	lockSetActive        sync.RWMutex
-	lockSetNextCheckAt   sync.RWMutex
-	lockUpdateAggregates sync.RWMutex
-	lockUpsertInfluencer sync.RWMutex
-	lockWithTx           sync.RWMutex
+	lockCreate              sync.RWMutex
+	lockGetByID             sync.RWMutex
+	lockGetByUsername       sync.RWMutex
+	lockListAll             sync.RWMutex
+	lockListDue             sync.RWMutex
+	lockPaginate            sync.RWMutex
+	lockPaginateTopCreators sync.RWMutex
+	lockRecordEmptyCheck    sync.RWMutex
+	lockSetActive           sync.RWMutex
+	lockSetNextCheckAt      sync.RWMutex
+	lockUpdateAggregates    sync.RWMutex
+	lockUpsertInfluencer    sync.RWMutex
+	lockWithTx              sync.RWMutex
 }
 
 // Create calls CreateFunc.
@@ -438,6 +454,46 @@ func (mock *InfluencerRepoerMock) PaginateCalls() []struct {
 	mock.lockPaginate.RLock()
 	calls = mock.calls.Paginate
 	mock.lockPaginate.RUnlock()
+	return calls
+}
+
+// PaginateTopCreators calls PaginateTopCreatorsFunc.
+func (mock *InfluencerRepoerMock) PaginateTopCreators(ctx context.Context, q data.SupportsPagination, filter data.TopCreatorFilter) (*dto.PaginationResults[model.TopCreator], error) {
+	if mock.PaginateTopCreatorsFunc == nil {
+		panic("InfluencerRepoerMock.PaginateTopCreatorsFunc: method is nil but InfluencerRepoer.PaginateTopCreators was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.TopCreatorFilter
+	}{
+		Ctx:    ctx,
+		Q:      q,
+		Filter: filter,
+	}
+	mock.lockPaginateTopCreators.Lock()
+	mock.calls.PaginateTopCreators = append(mock.calls.PaginateTopCreators, callInfo)
+	mock.lockPaginateTopCreators.Unlock()
+	return mock.PaginateTopCreatorsFunc(ctx, q, filter)
+}
+
+// PaginateTopCreatorsCalls gets all the calls that were made to PaginateTopCreators.
+// Check the length with:
+//
+//	len(mockedInfluencerRepoer.PaginateTopCreatorsCalls())
+func (mock *InfluencerRepoerMock) PaginateTopCreatorsCalls() []struct {
+	Ctx    context.Context
+	Q      data.SupportsPagination
+	Filter data.TopCreatorFilter
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Q      data.SupportsPagination
+		Filter data.TopCreatorFilter
+	}
+	mock.lockPaginateTopCreators.RLock()
+	calls = mock.calls.PaginateTopCreators
+	mock.lockPaginateTopCreators.RUnlock()
 	return calls
 }
 

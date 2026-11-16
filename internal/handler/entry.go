@@ -95,6 +95,7 @@ func (h *Handlers) RegisterRoutes(api *echo.Group) {
 	v1.GET("/conversations/stats", h.conversationHandler.statsHandler, signedIn)
 	v1.GET("/conversations/volume", h.conversationHandler.volumeHandler, signedIn)
 	v1.GET("/claims/platforms", h.narrativeHandler.platformCountsHandler, signedIn)
+	v1.GET("/influencers", h.adminInfluencerHandler.dashboardListHandler, signedIn)
 
 	adminAuth := []echo.MiddlewareFunc{signedIn, admin}
 	adminRoutes := v1.Group("/admin")
@@ -257,6 +258,7 @@ func NewHandlers(repos *Repos) *Handlers {
 	if repos.InfluencerRepo != nil {
 		adminInfluencerHandler = NewAdminInfluencerHandler(
 			service.NewAdminInfluencerService(repos.InfluencerRepo),
+			config.PrivacyWhitelistEmails,
 		)
 	}
 

@@ -280,6 +280,74 @@ func TestAuthService_ChangePassword(t *testing.T) {
 	}
 }
 
+func TestAuthService_ResetPassword(t *testing.T) {
+	user := &model.User{ID: uuid.New(), Email: "alice@example.com", PasswordHash: "old-hash"}
+	var lookedUp, stored string
+	var storedID uuid.UUID
+	userRepo := &mockrepo.UserRepoerMock{
+		GetByEmailFunc: func(_ context.Context, email string) (*model.User, error) {
+			lookedUp = email
+			return user, nil
+		},
+		UpdatePasswordFunc: func(_ context.Context, id uuid.UUID, h string) (*model.User, error) {
+			storedID, stored = id, h
+			return &model.User{ID: id, PasswordHash: h, PasswordChangedAt: time.Now()}, nil
+		},
+	}
+	s := NewAuthService(userRepo, newTestAuth())
+
+	got, err := s.ResetPassword(t.Context(), " Alice@Example.com ", "new-password-12")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if lookedUp != "alice@example.com" {
+		t.Errorf("expected normalized lookup, got %q", lookedUp)
+	}
+	if storedID != user.ID {
+		t.Errorf("expected the password of user %s to be updated, got %s", user.ID, storedID)
+	}
+	if auth.ComparePasswords("new-password-12", stored) != nil {
+		t.Error("expected the new password to be hashed and stored")
+	}
+	if got == nil || got.ID != user.ID {
+		t.Errorf("expected the updated user, got %+v", got)
+	}
+}
+
+func TestAuthService_ResetPassword_UnknownEmail(t *testing.T) {
+	userRepo := &mockrepo.UserRepoerMock{
+		GetByEmailFunc: func(context.Context, string) (*model.User, error) {
+			return nil, data.ErrNotFound
+		},
+	}
+	s := NewAuthService(userRepo, newTestAuth())
+
+	_, err := s.ResetPassword(t.Context(), "nobody@example.com", "new-password-12")
+	if !errors.Is(err, data.ErrNotFound) {
+		t.Errorf("expected data.ErrNotFound, got %v", err)
+	}
+	if n := len(userRepo.UpdatePasswordCalls()); n != 0 {
+		t.Errorf("must not update any password for an unknown email, got %d calls", n)
+	}
+}
+
+func TestAuthService_ResetPassword_PropagatesUpdateError(t *testing.T) {
+	userRepo := &mockrepo.UserRepoerMock{
+		GetByEmailFunc: func(context.Context, string) (*model.User, error) {
+			return &model.User{ID: uuid.New(), Email: "alice@example.com"}, nil
+		},
+		UpdatePasswordFunc: func(context.Context, uuid.UUID, string) (*model.User, error) {
+			return nil, data.ErrInternal
+		},
+	}
+	s := NewAuthService(userRepo, newTestAuth())
+
+	_, err := s.ResetPassword(t.Context(), "alice@example.com", "new-password-12")
+	if !errors.Is(err, data.ErrInternal) {
+		t.Errorf("expected data.ErrInternal, got %v", err)
+	}
+}
+
 func TestAuthService_UpdateProfile_NormalizesEmail(t *testing.T) {
 	var got string
 	userRepo := &mockrepo.UserRepoerMock{

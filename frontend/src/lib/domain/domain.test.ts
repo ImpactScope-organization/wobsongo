@@ -211,6 +211,17 @@ describe('topCreators', () => {
 	});
 });
 
+describe('topCreators without screening results', () => {
+	const unscreened = [
+		{ id: 'u1', name: 'One', platform: 'tiktok' as const, followers: 100, postsCount: 3 },
+		{ id: 'u2', name: 'Two', platform: 'tiktok' as const, followers: 50, postsCount: 9 }
+	];
+
+	it('keeps them under the misinformation topic and ranks them by posts', () => {
+		expect(topCreators(unscreened, 'misinfo').map((creator) => creator.id)).toEqual(['u2', 'u1']);
+	});
+});
+
 describe('growthPct', () => {
 	it('is the change from the previous window in percent', () => {
 		expect(growthPct({ current: 150, previous: 100 })).toBe(50);

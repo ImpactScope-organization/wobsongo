@@ -352,6 +352,28 @@ definitions:
     - password_changed_at
     - role
     type: object
+  dto.PaginationResults-model_DashboardCreator:
+    properties:
+      items:
+        description: Items contains the paginated data items
+        items:
+          $ref: '#/definitions/model.DashboardCreator'
+        type: array
+      page:
+        description: Page is the current page number
+        type: integer
+      per_page:
+        description: PerPage is the number of items per page
+        maximum: 100
+        type: integer
+      total_items:
+        description: TotalItems is the total number of items available
+        type: integer
+    required:
+    - page
+    - per_page
+    - total_items
+    type: object
   dto.PaginationResults-model_DiscoveryKeyword:
     properties:
       items:
@@ -730,6 +752,26 @@ definitions:
         type: integer
       platform:
         description: Platform is where the claims came from, e.g. "whatsapp" or "tiktok".
+        type: string
+    type: object
+  model.DashboardCreator:
+    properties:
+      avatar_url:
+        type: string
+      followers_count:
+        type: integer
+      id:
+        type: string
+      nickname:
+        type: string
+      platform:
+        type: string
+      posts_count:
+        description: PostsCount is the number of posts in the requested window.
+        type: integer
+      profile_url:
+        type: string
+      username:
         type: string
     type: object
   model.DiscoveryKeyword:
@@ -1327,7 +1369,8 @@ paths:
       - agent
   /api/v1/admin/influencers:
     get:
-      description: Retrieves a paginated list of influencers, newest first.
+      description: Retrieves a paginated list of influencers, newest first unless
+        sort=posts.
       parameters:
       - description: Page number
         in: query
@@ -1354,6 +1397,13 @@ paths:
       - description: Text the username or nickname contains
         in: query
         name: search
+        type: string
+      - description: Order of the list, newest when left out
+        enum:
+        - newest
+        - posts
+        in: query
+        name: sort
         type: string
       produces:
       - application/json
@@ -3359,6 +3409,93 @@ paths:
       summary: Update a document
       tags:
       - documents
+  /api/v1/influencers:
+    get:
+      description: Top content creators of the window, the most posts first. Identity
+        and counts are only included for emails on the privacy whitelist; search is
+        ignored for everyone else. Creators without a post in the window are left
+        out.
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        maximum: 100
+        minimum: 1
+        name: per_page
+        type: integer
+      - description: Reporting window, 24h when left out
+        enum:
+        - 24h
+        - 7d
+        - 30d
+        in: query
+        name: range
+        type: string
+      - description: Filter by monitored state
+        in: query
+        name: is_active
+        type: boolean
+      - description: Text the username or nickname contains
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/dto.PaginationResults-model_DashboardCreator'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/model.APIResponse'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: List creators for the dashboard
+      tags:
+      - influencers
   /api/v1/me:
     get:
       description: The signed-in user's own account.

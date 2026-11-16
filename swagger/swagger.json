@@ -453,7 +453,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "Retrieves a paginated list of influencers, newest first.",
+                "description": "Retrieves a paginated list of influencers, newest first unless sort=posts.",
                 "produces": [
                     "application/json"
                 ],
@@ -497,6 +497,16 @@
                         "type": "string",
                         "description": "Text the username or nickname contains",
                         "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "newest",
+                            "posts"
+                        ],
+                        "type": "string",
+                        "description": "Order of the list, newest when left out",
+                        "name": "sort",
                         "in": "query"
                     }
                 ],
@@ -4246,6 +4256,155 @@
                 }
             }
         },
+        "/api/v1/influencers": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Top content creators of the window, the most posts first. Identity and counts are only included for emails on the privacy whitelist; search is ignored for everyone else. Creators without a post in the window are left out.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "influencers"
+                ],
+                "summary": "List creators for the dashboard",
+                "parameters": [
+                    {
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "maximum": 100,
+                        "minimum": 1,
+                        "type": "integer",
+                        "description": "Items per page",
+                        "name": "per_page",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "24h",
+                            "7d",
+                            "30d"
+                        ],
+                        "type": "string",
+                        "description": "Reporting window, 24h when left out",
+                        "name": "range",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by monitored state",
+                        "name": "is_active",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Text the username or nickname contains",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/dto.PaginationResults-model_DashboardCreator"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/model.APIResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/me": {
             "get": {
                 "security": [
@@ -5580,6 +5739,36 @@
                 }
             }
         },
+        "dto.PaginationResults-model_DashboardCreator": {
+            "type": "object",
+            "required": [
+                "page",
+                "per_page",
+                "total_items"
+            ],
+            "properties": {
+                "items": {
+                    "description": "Items contains the paginated data items",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/model.DashboardCreator"
+                    }
+                },
+                "page": {
+                    "description": "Page is the current page number",
+                    "type": "integer"
+                },
+                "per_page": {
+                    "description": "PerPage is the number of items per page",
+                    "type": "integer",
+                    "maximum": 100
+                },
+                "total_items": {
+                    "description": "TotalItems is the total number of items available",
+                    "type": "integer"
+                }
+            }
+        },
         "dto.PaginationResults-model_DiscoveryKeyword": {
             "type": "object",
             "required": [
@@ -6066,6 +6255,36 @@
                 },
                 "platform": {
                     "description": "Platform is where the claims came from, e.g. \"whatsapp\" or \"tiktok\".",
+                    "type": "string"
+                }
+            }
+        },
+        "model.DashboardCreator": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "followers_count": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "nickname": {
+                    "type": "string"
+                },
+                "platform": {
+                    "type": "string"
+                },
+                "posts_count": {
+                    "description": "PostsCount is the number of posts in the requested window.",
+                    "type": "integer"
+                },
+                "profile_url": {
+                    "type": "string"
+                },
+                "username": {
                     "type": "string"
                 }
             }

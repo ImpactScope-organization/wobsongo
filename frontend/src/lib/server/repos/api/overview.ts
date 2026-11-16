@@ -6,10 +6,12 @@ import {
 	type ReviewStatus,
 	type Verdict
 } from '#lib/domain/narrative.js';
-import type {
-	EngagementWindow,
-	OverviewSnapshot,
-	UserQuestionStats
+import {
+	CREATOR_PLATFORMS,
+	type ContentCreator,
+	type EngagementWindow,
+	type OverviewSnapshot,
+	type UserQuestionStats
 } from '#lib/domain/overview.js';
 import type { TimeRange } from '#lib/domain/time-range.js';
 import { ok, type Result } from '#lib/server/result.js';
@@ -22,10 +24,14 @@ type ApiNarrative = Schemas['model.Narrative'];
 type ApiUserActivity = Schemas['model.UserActivity'];
 type ApiMessageVolume = Schemas['model.MessageVolume'];
 type ApiPlatformCount = Schemas['model.ClaimPlatformCount'];
+type ApiCreator = Schemas['model.DashboardCreator'];
 
 // The backend's page-size cap. Overview reads every page of active narratives,
 // so all of its counts describe the same set.
 const NARRATIVE_PAGE_SIZE = 100;
+
+// How many content creators the Overview list shows.
+const CREATOR_LIMIT = 10;
 
 type NarrativePage = { items?: ApiNarrative[]; total_items: number };
 
@@ -85,6 +91,29 @@ function toPlatformCounts(items: ApiPlatformCount[]): PlatformCount[] {
 	}));
 }
 
+// Creators on a platform the dashboard has no icon for are left out. Verdict
+// counts and risk level stay empty until post screening feeds them.
+function toCreators(items: ApiCreator[]): ContentCreator[] {
+	return items.flatMap((item) => {
+		const platform = CREATOR_PLATFORMS.find((value) => value === item.platform);
+		if (!platform) return [];
+
+		const username = item.username ?? '';
+		return [
+			{
+				id: item.id ?? '',
+				name: item.nickname || username,
+				handle: username ? `@${username}` : undefined,
+				platform,
+				avatarUrl: item.avatar_url || undefined,
+				profileUrl: item.profile_url || undefined,
+				followers: item.followers_count,
+				postsCount: item.posts_count
+			}
+		];
+	});
+}
+
 function toOutcome(verdict: string | undefined): RatingOutcome {
 	return (verdict && OUTCOME[verdict]) || 'unverified';
 }
@@ -114,6 +143,7 @@ function toSnapshot(
 	userQuestions: UserQuestionStats,
 	messages: OverviewSnapshot['messages'],
 	platformCounts: PlatformCount[],
+	creators: ContentCreator[],
 	range: TimeRange,
 	engagement: EngagementWindow,
 	now: Date
@@ -155,7 +185,7 @@ function toSnapshot(
 		rated,
 		medianDebunkMinutes: { current: 0, previous: 0 },
 		narratives,
-		creators: [],
+		creators,
 
 		userQuestions,
 
@@ -217,7 +247,7 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 		// The backend has no time filter for active narratives.
 		// The selected range only determines what counts as a new narrative.
 		getSnapshot: async (_scope, { range, engagement }) => {
-			const [narratives, activity, messages, platforms] = await Promise.all([
+			const [narratives, activity, messages, platforms, creators] = await Promise.all([
 				fetchActiveNarratives(),
 				call(
 					api.GET('/api/v1/conversations/stats', {
@@ -229,6 +259,12 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 				call(
 					api.GET('/api/v1/claims/platforms', { params: { query: { range } } }),
 					toPlatformCounts
+				),
+				call(
+					api.GET('/api/v1/influencers', {
+						params: { query: { range, is_active: true, per_page: CREATOR_LIMIT } }
+					}),
+					(data) => toCreators(data.items ?? [])
 				)
 			]);
 
@@ -236,6 +272,7 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 			if (!activity.ok) return activity;
 			if (!messages.ok) return messages;
 			if (!platforms.ok) return platforms;
+			if (!creators.ok) return creators;
 
 			return ok(
 				toSnapshot(
@@ -243,6 +280,7 @@ export function createApiOverviewRepo(options: ApiOptions): OverviewRepo {
 					activity.data,
 					messages.data,
 					platforms.data,
+					creators.data,
 					range,
 					engagement,
 					options.clock.now()

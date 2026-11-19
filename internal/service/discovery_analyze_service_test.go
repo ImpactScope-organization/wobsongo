@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
@@ -226,4 +227,43 @@ func TestMarkAnalyzeFailed(t *testing.T) {
 			t.Fatalf("error = %v, want it to wrap the store error", err)
 		}
 	})
+}
+
+func TestEnqueueTranscribedVideos(t *testing.T) {
+	a, b, other := analyzeFixture("claim a"), analyzeFixture("claim b"), analyzeFixture("claim c")
+	store := newPipelineStore(model.VideoStatusTranscribed, a, b, other)
+	store.status[other.ID] = model.VideoStatusVerified
+	checker := &pipelineClaimChecker{}
+
+	count, err := NewAnalyzeService(store, checker).EnqueueTranscribedVideos(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if want := []uuid.UUID{a.ID, b.ID}; count != 2 || !slices.Equal(store.analyzeEnqueued, want) {
+		t.Errorf("count = %d, analysis queued for %v, want %v", count, store.analyzeEnqueued, want)
+	}
+	if len(store.transcribeEnqueued) != 0 {
+		t.Errorf("transcription queued for %v, want none", store.transcribeEnqueued)
+	}
+	if len(checker.reqs) != 0 {
+		t.Errorf("claim checks = %d, want 0 (analyzing happens in the jobs)", len(checker.reqs))
+	}
+	if got := store.status[a.ID]; got != model.VideoStatusTranscribed {
+		t.Errorf("status = %q, the sweep must not change it", got)
+	}
+}
+
+func TestEnqueueTranscribedVideos_EnqueueErrorIsReturned(t *testing.T) {
+	store := newPipelineStore(model.VideoStatusTranscribed, analyzeFixture("claim"))
+	store.enqueueErr = errPipelineBoom
+
+	count, err := NewAnalyzeService(store, &pipelineClaimChecker{}).
+		EnqueueTranscribedVideos(t.Context())
+	if !errors.Is(err, errPipelineBoom) {
+		t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+	}
+	if count != 0 {
+		t.Errorf("count = %d, want 0", count)
+	}
 }

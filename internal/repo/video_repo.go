@@ -329,6 +329,35 @@ func (r *videoRepo) ListDiscoveredVideos(
 	return videos, nil
 }
 
+// ListVideosByStatus returns up to limit videos in status, oldest first, that
+// come after the position (afterCreatedAt, afterID).
+func (r *videoRepo) ListVideosByStatus(
+	ctx context.Context,
+	status model.VideoStatus,
+	limit int32,
+	afterCreatedAt time.Time,
+	afterID uuid.UUID,
+) ([]*model.Video, error) {
+	rows, err := r.q.ListVideosByStatus(ctx, db.ListVideosByStatusParams{
+		Status:         string(status),
+		AfterCreatedAt: afterCreatedAt,
+		AfterID:        afterID,
+		BatchSize:      limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %s videos: %w", status, mapPostgresError(err))
+	}
+
+	videos := make([]*model.Video, 0, len(rows))
+	for _, row := range rows {
+		videos = append(videos, &model.Video{
+			ID:        row.ID,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return videos, nil
+}
+
 // SetVideoScreenStatus moves a 'discovered' video to status. It reports false
 // when the video was no longer 'discovered'.
 func (r *videoRepo) SetVideoScreenStatus(

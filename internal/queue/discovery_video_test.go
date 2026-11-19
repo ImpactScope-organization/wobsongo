@@ -22,6 +22,13 @@ func TestVideoPipelineJobs_InsertOpts(t *testing.T) {
 			TranscribeMaxAttempts,
 		},
 		{"AnalyzeVideoJob", AnalyzeVideoJob{}.InsertOpts(), QueueAnalysis, AnalyzeMaxAttempts},
+		{
+			"TranscribeDiscoveredVideosJob",
+			TranscribeDiscoveredVideosJob{}.InsertOpts(),
+			QueueTranscribeDispatch,
+			1,
+		},
+		{"AnalyzeVideosJob", AnalyzeVideosJob{}.InsertOpts(), QueueAnalyzeDispatch, 1},
 	}
 
 	required := []rivertype.JobState{
@@ -66,6 +73,15 @@ func TestVideoPipelineJobs_Kind(t *testing.T) {
 	if got := (AnalyzeVideoJob{}).Kind(); got != string(JobTypeAnalyzeVideo) {
 		t.Errorf("AnalyzeVideoJob kind = %q, want %q", got, JobTypeAnalyzeVideo)
 	}
+	if got := (TranscribeDiscoveredVideosJob{}).Kind(); got != string(
+		JobTypeTranscribeDiscoveredVideos,
+	) {
+		t.Errorf("TranscribeDiscoveredVideosJob kind = %q, want %q",
+			got, JobTypeTranscribeDiscoveredVideos)
+	}
+	if got := (AnalyzeVideosJob{}).Kind(); got != string(JobTypeAnalyzeVideos) {
+		t.Errorf("AnalyzeVideosJob kind = %q, want %q", got, JobTypeAnalyzeVideos)
+	}
 }
 
 func TestJobKinds_AreUnique(t *testing.T) {
@@ -84,6 +100,8 @@ func TestJobKinds_AreUnique(t *testing.T) {
 		{"ScreenVideoJob", ScreenVideoJob{}.Kind()},
 		{"TranscribeDiscoveredVideoJob", TranscribeDiscoveredVideoJob{}.Kind()},
 		{"AnalyzeVideoJob", AnalyzeVideoJob{}.Kind()},
+		{"TranscribeDiscoveredVideosJob", TranscribeDiscoveredVideosJob{}.Kind()},
+		{"AnalyzeVideosJob", AnalyzeVideosJob{}.Kind()},
 	}
 
 	seen := make(map[string]string, len(jobs))
@@ -92,5 +110,28 @@ func TestJobKinds_AreUnique(t *testing.T) {
 			t.Errorf("%s and %s share the kind %q", other, j.name, j.kind)
 		}
 		seen[j.kind] = j.name
+	}
+}
+
+func TestVideoPipelineJobs_DispatchHasItsOwnQueue(t *testing.T) {
+	tests := []struct {
+		name     string
+		dispatch river.InsertOpts
+		work     river.InsertOpts
+	}{
+		{
+			"transcribe",
+			TranscribeDiscoveredVideosJob{}.InsertOpts(),
+			TranscribeDiscoveredVideoJob{}.InsertOpts(),
+		},
+		{"analyze", AnalyzeVideosJob{}.InsertOpts(), AnalyzeVideoJob{}.InsertOpts()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.dispatch.Queue == tt.work.Queue {
+				t.Errorf("dispatch and work share the queue %q", tt.dispatch.Queue)
+			}
+		})
 	}
 }

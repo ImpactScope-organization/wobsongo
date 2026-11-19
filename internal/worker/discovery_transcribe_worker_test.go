@@ -19,11 +19,15 @@ import (
 
 type pipelineWorkerStore struct {
 	data.VideoRepoer
-	videos          map[uuid.UUID]*model.Video
-	status          map[uuid.UUID]model.VideoStatus
-	failedStage     map[uuid.UUID]string
-	analyzeEnqueued []uuid.UUID
-	failErr         error
+	videos             map[uuid.UUID]*model.Video
+	status             map[uuid.UUID]model.VideoStatus
+	failedStage        map[uuid.UUID]string
+	analyzeEnqueued    []uuid.UUID
+	failErr            error
+	order              []uuid.UUID
+	transcribeEnqueued []uuid.UUID
+	listErr            error
+	enqueueErr         error
 }
 
 func newPipelineWorkerStore(status model.VideoStatus, videos ...*model.Video) *pipelineWorkerStore {
@@ -34,6 +38,7 @@ func newPipelineWorkerStore(status model.VideoStatus, videos ...*model.Video) *p
 	}
 	for _, v := range videos {
 		v.ID = uuid.New()
+		s.order = append(s.order, v.ID)
 		s.videos[v.ID] = v
 		s.status[v.ID] = status
 	}
@@ -75,6 +80,9 @@ func (s *pipelineWorkerStore) EnqueueAnalyzeVideoJob(
 	_ context.Context,
 	id uuid.UUID,
 ) (bool, error) {
+	if s.enqueueErr != nil {
+		return false, s.enqueueErr
+	}
 	s.analyzeEnqueued = append(s.analyzeEnqueued, id)
 	return true, nil
 }
@@ -380,4 +388,121 @@ func (c *pipelineWorkerChecker) CheckClaim(
 		return nil, c.err
 	}
 	return &service.ClaimCheckResult{InScope: c.inScope}, nil
+}
+
+func (s *pipelineWorkerStore) EnqueueTranscribeVideoJob(
+	_ context.Context,
+	id uuid.UUID,
+) (bool, error) {
+	if s.enqueueErr != nil {
+		return false, s.enqueueErr
+	}
+	s.transcribeEnqueued = append(s.transcribeEnqueued, id)
+	return true, nil
+}
+
+func (s *pipelineWorkerStore) ListVideosByStatus(
+	_ context.Context,
+	status model.VideoStatus,
+	limit int32,
+	_ time.Time,
+	afterID uuid.UUID,
+) ([]*model.Video, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+
+	start := 0
+	if afterID != uuid.Nil {
+		if i := slices.Index(s.order, afterID); i >= 0 {
+			start = i + 1
+		}
+	}
+
+	var out []*model.Video
+	for _, id := range s.order[start:] {
+		if int32(len(out)) >= limit {
+			break
+		}
+		if s.status[id] != status {
+			continue
+		}
+		out = append(out, &model.Video{ID: id})
+	}
+	return out, nil
+}
+
+func buildTranscribeVideosWorker(store *pipelineWorkerStore) *TranscribeDiscoveredVideosWorker {
+	return NewTranscribeDiscoveredVideosWorker(
+		service.NewTranscribeService(
+			store,
+			&pipelineWorkerResolver{},
+			&pipelineWorkerTranscriber{},
+		),
+	)
+}
+
+func runTranscribeVideosJob(t *testing.T, w *TranscribeDiscoveredVideosWorker) error {
+	t.Helper()
+	return w.Work(t.Context(), &river.Job[queue.TranscribeDiscoveredVideosJob]{})
+}
+
+func TestTranscribeDiscoveredVideosWorker_Timeout(t *testing.T) {
+	w := buildTranscribeVideosWorker(newPipelineWorkerStore(model.VideoStatusScreenedIn))
+
+	got := w.Timeout(&river.Job[queue.TranscribeDiscoveredVideosJob]{})
+	if got != transcribeDispatchTimeout {
+		t.Errorf("Timeout() = %v, want %v", got, transcribeDispatchTimeout)
+	}
+}
+
+func TestTranscribeDiscoveredVideosWorker_Work(t *testing.T) {
+	t.Run("EnqueuesEveryScreenedInVideo", func(t *testing.T) {
+		a, b, other := &model.Video{}, &model.Video{}, &model.Video{}
+		store := newPipelineWorkerStore(model.VideoStatusScreenedIn, a, b, other)
+		store.status[other.ID] = model.VideoStatusTranscribed
+
+		if err := runTranscribeVideosJob(t, buildTranscribeVideosWorker(store)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := []uuid.UUID{a.ID, b.ID}; !slices.Equal(store.transcribeEnqueued, want) {
+			t.Errorf("enqueued = %v, want %v", store.transcribeEnqueued, want)
+		}
+		if store.status[a.ID] != model.VideoStatusScreenedIn {
+			t.Error("the dispatch run must not transcribe videos itself")
+		}
+	})
+
+	t.Run("NothingToEnqueue_Succeeds", func(t *testing.T) {
+		w := buildTranscribeVideosWorker(newPipelineWorkerStore(model.VideoStatusScreenedIn))
+
+		if err := runTranscribeVideosJob(t, w); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("ListFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("db down")
+		store := newPipelineWorkerStore(model.VideoStatusScreenedIn)
+		store.listErr = boom
+
+		err := runTranscribeVideosJob(t, buildTranscribeVideosWorker(store))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the list error", err)
+		}
+	})
+
+	t.Run("EnqueueFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("queue down")
+		store := newPipelineWorkerStore(model.VideoStatusScreenedIn, &model.Video{})
+		store.enqueueErr = boom
+
+		err := runTranscribeVideosJob(t, buildTranscribeVideosWorker(store))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+		}
+	})
 }

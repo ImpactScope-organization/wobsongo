@@ -79,6 +79,50 @@ func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error
 	}
 }
 
+// enqueueVideosByStatus enqueues one job for every video that is in status,
+// batch by batch, and returns how many new jobs it enqueued. A video that
+// already has a job in the queue is not queued twice and is not counted.
+func enqueueVideosByStatus(
+	ctx context.Context,
+	repo data.VideoRepoer,
+	status model.VideoStatus,
+	enqueue func(ctx context.Context, videoID uuid.UUID) (bool, error),
+) (int, error) {
+	var (
+		count          int
+		afterCreatedAt time.Time
+		afterID        uuid.UUID
+	)
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return count, fmt.Errorf("failed to enqueue %s videos: %w", status, err)
+		}
+
+		videos, err := repo.ListVideosByStatus(
+			ctx, status, screenBatchSize, afterCreatedAt, afterID,
+		)
+		if err != nil {
+			return count, fmt.Errorf("failed to list %s videos: %w", status, err)
+		}
+		if len(videos) == 0 {
+			return count, nil
+		}
+		for _, v := range videos {
+			enqueued, err := enqueue(ctx, v.ID)
+			if err != nil {
+				return count, fmt.Errorf("failed to enqueue job of video %s: %w", v.ID, err)
+			}
+			if enqueued {
+				count++
+			}
+		}
+
+		last := videos[len(videos)-1]
+		afterCreatedAt, afterID = last.CreatedAt, last.ID
+	}
+}
+
 // ScreenVideo decides and stores the screening status of one video. A video
 // that is gone or no longer 'discovered' is left alone.
 func (s *ScreenService) ScreenVideo(ctx context.Context, id uuid.UUID) error {

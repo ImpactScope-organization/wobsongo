@@ -69,6 +69,15 @@ WHERE status = 'discovered'
 ORDER BY created_at ASC, id ASC
 LIMIT sqlc.arg(batch_size)::int;
 
+-- name: ListVideosByStatus :many
+-- Returns the ids of the videos in a status, oldest first.
+SELECT id, created_at
+FROM videos
+WHERE status = sqlc.arg(status)::varchar
+  AND (created_at, id) > (sqlc.arg(after_created_at)::timestamptz, sqlc.arg(after_id)::uuid)
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg(batch_size)::int;
+
 -- name: SetVideoScreenStatus :execrows
 UPDATE videos
 SET status = sqlc.arg(status)::varchar, updated_at = NOW()

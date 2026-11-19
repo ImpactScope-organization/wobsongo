@@ -35,6 +35,18 @@ func NewTranscribeService(
 	}
 }
 
+// EnqueueScreenedInVideos enqueues one transcription job for every video that
+// is still 'screened_in' and returns how many new jobs it enqueued. A video
+// that already has a job in the queue is not queued twice and is not counted.
+func (s *TranscribeService) EnqueueScreenedInVideos(ctx context.Context) (int, error) {
+	return enqueueVideosByStatus(
+		ctx,
+		s.videoRepo,
+		model.VideoStatusScreenedIn,
+		s.videoRepo.EnqueueTranscribeVideoJob,
+	)
+}
+
 // TranscribeVideo transcribes one video, stores the transcript and queues its
 // analysis. The status change and the new job are written in one
 // transaction. A video that is gone or no longer 'screened_in' is left alone.

@@ -242,6 +242,53 @@ func (q *Queries) ListVideoCreatedAtByInfluencerID(ctx context.Context, influenc
 	return items, nil
 }
 
+const listVideosByStatus = `-- name: ListVideosByStatus :many
+SELECT id, created_at
+FROM videos
+WHERE status = $1::varchar
+  AND (created_at, id) > ($2::timestamptz, $3::uuid)
+ORDER BY created_at ASC, id ASC
+LIMIT $4::int
+`
+
+type ListVideosByStatusParams struct {
+	Status         string
+	AfterCreatedAt time.Time
+	AfterID        uuid.UUID
+	BatchSize      int32
+}
+
+type ListVideosByStatusRow struct {
+	ID        uuid.UUID
+	CreatedAt time.Time
+}
+
+// Returns the ids of the videos in a status, oldest first.
+func (q *Queries) ListVideosByStatus(ctx context.Context, arg ListVideosByStatusParams) ([]ListVideosByStatusRow, error) {
+	rows, err := q.db.Query(ctx, listVideosByStatus,
+		arg.Status,
+		arg.AfterCreatedAt,
+		arg.AfterID,
+		arg.BatchSize,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListVideosByStatusRow
+	for rows.Next() {
+		var i ListVideosByStatusRow
+		if err := rows.Scan(&i.ID, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockVideo = `-- name: LockVideo :one
 SELECT id FROM videos WHERE id = $1::uuid FOR UPDATE
 `

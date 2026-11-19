@@ -311,3 +311,48 @@ func TestMarkTranscribeFailed(t *testing.T) {
 		}
 	})
 }
+
+func TestEnqueueScreenedInVideos(t *testing.T) {
+	a, b, other := transcribeFixture(), transcribeFixture(), transcribeFixture()
+	store := newPipelineStore(model.VideoStatusScreenedIn, a, b, other)
+	store.status[other.ID] = model.VideoStatusTranscribed
+	transcriber := &pipelineTranscriber{}
+
+	count, err := NewTranscribeService(store, &pipelineMediaResolver{}, transcriber).
+		EnqueueScreenedInVideos(t.Context())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if want := []uuid.UUID{
+		a.ID,
+		b.ID,
+	}; count != 2 ||
+		!slices.Equal(store.transcribeEnqueued, want) {
+		t.Errorf("count = %d, transcription queued for %v, want %v",
+			count, store.transcribeEnqueued, want)
+	}
+	if len(store.analyzeEnqueued) != 0 {
+		t.Errorf("analysis queued for %v, want none", store.analyzeEnqueued)
+	}
+	if len(transcriber.gotURLs) != 0 {
+		t.Errorf(
+			"asr calls = %d, want 0 (transcribing happens in the jobs)",
+			len(transcriber.gotURLs),
+		)
+	}
+	if got := store.status[a.ID]; got != model.VideoStatusScreenedIn {
+		t.Errorf("status = %q, the sweep must not change it", got)
+	}
+}
+
+func TestEnqueueScreenedInVideos_ListErrorIsReturned(t *testing.T) {
+	store := newPipelineStore(model.VideoStatusScreenedIn)
+	store.listErr = errPipelineBoom
+
+	_, err := NewTranscribeService(store, &pipelineMediaResolver{}, &pipelineTranscriber{}).
+		EnqueueScreenedInVideos(t.Context())
+	if !errors.Is(err, errPipelineBoom) {
+		t.Fatalf("error = %v, want it to wrap the list error", err)
+	}
+}

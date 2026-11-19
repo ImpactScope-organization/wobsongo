@@ -33,6 +33,18 @@ func NewAnalyzeService(videoRepo data.VideoRepoer, claims ClaimChecker) *Analyze
 	return &AnalyzeService{videoRepo: videoRepo, claims: claims}
 }
 
+// EnqueueTranscribedVideos enqueues one analysis job for every video that is
+// still 'transcribed' and returns how many new jobs it enqueued. A video that
+// already has a job in the queue is not queued twice and is not counted.
+func (s *AnalyzeService) EnqueueTranscribedVideos(ctx context.Context) (int, error) {
+	return enqueueVideosByStatus(
+		ctx,
+		s.videoRepo,
+		model.VideoStatusTranscribed,
+		s.videoRepo.EnqueueAnalyzeVideoJob,
+	)
+}
+
 // AnalyzeVideo analyzes one video and stores its final status: 'verified', or
 // 'out_of_scope' when there is nothing to check. A video that is gone or no
 // longer 'transcribed' is left alone.

@@ -628,3 +628,229 @@ func TestScreenVideo_AlreadyScreenedVideoQueuesNothing(t *testing.T) {
 		)
 	}
 }
+
+type statusListStore struct {
+	data.VideoRepoer
+	order     []uuid.UUID
+	gotStatus model.VideoStatus
+	enqueued  []uuid.UUID
+}
+
+func (s *statusListStore) ListVideosByStatus(
+	_ context.Context,
+	status model.VideoStatus,
+	limit int32,
+	_ time.Time,
+	afterID uuid.UUID,
+) ([]*model.Video, error) {
+	s.gotStatus = status
+	start := 0
+	if afterID != uuid.Nil {
+		if i := slices.Index(s.order, afterID); i >= 0 {
+			start = i + 1
+		}
+	}
+	end := min(start+int(limit), len(s.order))
+
+	videos := make([]*model.Video, 0, end-start)
+	for _, id := range s.order[start:end] {
+		videos = append(videos, &model.Video{ID: id})
+	}
+	return videos, nil
+}
+
+func TestEnqueueVideosByStatus_EnqueuesEveryBatch(t *testing.T) {
+	total := screenBatchSize*2 + 20
+	store := &statusListStore{}
+	for range total {
+		store.order = append(store.order, uuid.New())
+	}
+
+	count, err := enqueueVideosByStatus(
+		t.Context(),
+		store,
+		model.VideoStatusScreenedIn,
+		func(_ context.Context, id uuid.UUID) (bool, error) {
+			store.enqueued = append(store.enqueued, id)
+			return true, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if count != total || !slices.Equal(store.enqueued, store.order) {
+		t.Errorf("count = %d, enqueued = %d, want %d in order", count, len(store.enqueued), total)
+	}
+	if store.gotStatus != model.VideoStatusScreenedIn {
+		t.Errorf("listed status = %q, want %q", store.gotStatus, model.VideoStatusScreenedIn)
+	}
+}
+
+func TestEnqueueVideosByStatus(t *testing.T) {
+	t.Run("EnqueuesEveryBatchInOrder", func(t *testing.T) {
+		total := screenBatchSize*2 + 20
+		videos := make([]*model.Video, 0, total)
+		for range total {
+			videos = append(videos, &model.Video{})
+		}
+		store := newPipelineStore(model.VideoStatusScreenedIn, videos...)
+		var enqueued []uuid.UUID
+
+		count, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusScreenedIn,
+			func(_ context.Context, id uuid.UUID) (bool, error) {
+				enqueued = append(enqueued, id)
+				return true, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if count != total || !slices.Equal(enqueued, store.order) {
+			t.Errorf("count = %d, enqueued = %d, want %d in order", count, len(enqueued), total)
+		}
+		if store.gotListLimit != screenBatchSize {
+			t.Errorf("batch size = %d, want %d", store.gotListLimit, screenBatchSize)
+		}
+	})
+
+	t.Run("OnlyListsTheGivenStatus", func(t *testing.T) {
+		a, b := &model.Video{}, &model.Video{}
+		store := newPipelineStore(model.VideoStatusScreenedIn, a, b)
+		store.status[b.ID] = model.VideoStatusTranscribed
+		var enqueued []uuid.UUID
+
+		count, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusScreenedIn,
+			func(_ context.Context, id uuid.UUID) (bool, error) {
+				enqueued = append(enqueued, id)
+				return true, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := []uuid.UUID{a.ID}; count != 1 || !slices.Equal(enqueued, want) {
+			t.Errorf("count = %d, enqueued = %v, want %v", count, enqueued, want)
+		}
+		if store.gotListStatus != model.VideoStatusScreenedIn {
+			t.Errorf(
+				"listed status = %q, want %q",
+				store.gotListStatus,
+				model.VideoStatusScreenedIn,
+			)
+		}
+	})
+
+	t.Run("NothingToEnqueue", func(t *testing.T) {
+		store := newPipelineStore(model.VideoStatusScreenedIn)
+
+		count, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusScreenedIn,
+			func(context.Context, uuid.UUID) (bool, error) {
+				t.Error("nothing should be enqueued")
+				return true, nil
+			},
+		)
+		if err != nil || count != 0 {
+			t.Errorf("count = %d, err = %v, want 0 and no error", count, err)
+		}
+	})
+
+	t.Run("DuplicateJobIsNotCounted", func(t *testing.T) {
+		a, b := &model.Video{}, &model.Video{}
+		store := newPipelineStore(model.VideoStatusTranscribed, a, b)
+		var enqueued []uuid.UUID
+
+		count, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusTranscribed,
+			func(_ context.Context, id uuid.UUID) (bool, error) {
+				if id == a.ID {
+					return false, nil
+				}
+				enqueued = append(enqueued, id)
+				return true, nil
+			},
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := []uuid.UUID{b.ID}; count != 1 || !slices.Equal(enqueued, want) {
+			t.Errorf("count = %d, enqueued = %v, want %v", count, enqueued, want)
+		}
+	})
+
+	t.Run("ListErrorStopsTheRun", func(t *testing.T) {
+		store := newPipelineStore(model.VideoStatusScreenedIn)
+		store.listErr = errPipelineBoom
+
+		_, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusScreenedIn,
+			func(context.Context, uuid.UUID) (bool, error) { return true, nil },
+		)
+		if !errors.Is(err, errPipelineBoom) {
+			t.Fatalf("error = %v, want it to wrap the list error", err)
+		}
+	})
+
+	t.Run("EnqueueErrorStopsTheRun", func(t *testing.T) {
+		a, b, c := &model.Video{}, &model.Video{}, &model.Video{}
+		store := newPipelineStore(model.VideoStatusScreenedIn, a, b, c)
+		var enqueued []uuid.UUID
+
+		count, err := enqueueVideosByStatus(
+			t.Context(),
+			store,
+			model.VideoStatusScreenedIn,
+			func(_ context.Context, id uuid.UUID) (bool, error) {
+				if id == b.ID {
+					return false, errPipelineBoom
+				}
+				enqueued = append(enqueued, id)
+				return true, nil
+			},
+		)
+		if !errors.Is(err, errPipelineBoom) {
+			t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+		}
+		if want := []uuid.UUID{a.ID}; count != 1 || !slices.Equal(enqueued, want) {
+			t.Errorf(
+				"count = %d, enqueued = %v, want only the video before the failure",
+				count,
+				enqueued,
+			)
+		}
+	})
+
+	t.Run("CanceledContext", func(t *testing.T) {
+		store := newPipelineStore(model.VideoStatusScreenedIn, &model.Video{})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		_, err := enqueueVideosByStatus(
+			ctx,
+			store,
+			model.VideoStatusScreenedIn,
+			func(context.Context, uuid.UUID) (bool, error) {
+				t.Error("nothing should be enqueued")
+				return true, nil
+			},
+		)
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want context.Canceled", err)
+		}
+	})
+}

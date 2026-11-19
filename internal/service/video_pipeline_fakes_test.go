@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/data"
@@ -36,6 +37,13 @@ type pipelineStore struct {
 	enqueueErr     error
 	analyzedErr    error
 	failErr        error
+
+	order              []uuid.UUID
+	transcribeEnqueued []uuid.UUID
+	duplicates         map[uuid.UUID]bool
+	gotListStatus      model.VideoStatus
+	gotListLimit       int32
+	listErr            error
 }
 
 // newPipelineStore stores the videos, all in the given status.
@@ -48,6 +56,7 @@ func newPipelineStore(status model.VideoStatus, videos ...*model.Video) *pipelin
 	}
 	for _, v := range videos {
 		v.ID = uuid.New()
+		s.order = append(s.order, v.ID)
 		s.videos[v.ID] = v
 		s.status[v.ID] = status
 	}
@@ -113,6 +122,9 @@ func (s *pipelineStore) EnqueueAnalyzeVideoJob(
 ) (bool, error) {
 	if s.enqueueErr != nil {
 		return false, s.enqueueErr
+	}
+	if s.duplicates[id] {
+		return false, nil
 	}
 	s.analyzeEnqueued = append(s.analyzeEnqueued, id)
 	return true, nil
@@ -225,4 +237,50 @@ func (c *pipelineClaimChecker) CheckClaim(
 		return nil, c.err
 	}
 	return c.result, nil
+}
+
+func (s *pipelineStore) EnqueueTranscribeVideoJob(
+	_ context.Context,
+	id uuid.UUID,
+) (bool, error) {
+	if s.enqueueErr != nil {
+		return false, s.enqueueErr
+	}
+	if s.duplicates[id] {
+		return false, nil
+	}
+	s.transcribeEnqueued = append(s.transcribeEnqueued, id)
+	return true, nil
+}
+
+func (s *pipelineStore) ListVideosByStatus(
+	_ context.Context,
+	status model.VideoStatus,
+	limit int32,
+	_ time.Time,
+	afterID uuid.UUID,
+) ([]*model.Video, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	s.gotListStatus, s.gotListLimit = status, limit
+
+	start := 0
+	if afterID != uuid.Nil {
+		if i := slices.Index(s.order, afterID); i >= 0 {
+			start = i + 1
+		}
+	}
+
+	var out []*model.Video
+	for _, id := range s.order[start:] {
+		if len(out) >= int(limit) {
+			break
+		}
+		if s.status[id] != status {
+			continue
+		}
+		out = append(out, &model.Video{ID: id})
+	}
+	return out, nil
 }

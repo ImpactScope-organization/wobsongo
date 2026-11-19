@@ -21,6 +21,10 @@ const (
 
 	// transcribeMarkFailedTimeout bounds the write that marks a video as failed.
 	transcribeMarkFailedTimeout = 10 * time.Second
+
+	// transcribeDispatchTimeout bounds one run that enqueues the transcription
+	// jobs.
+	transcribeDispatchTimeout = 5 * time.Minute
 )
 
 // transcribeRetryDelays is the wait before the next attempt.
@@ -105,4 +109,37 @@ func (w *TranscribeDiscoveredVideoWorker) handleTranscribeError(
 		return river.JobCancel(wrapped)
 	}
 	return wrapped
+}
+
+// TranscribeDiscoveredVideosWorker enqueues a transcription job for every
+// screened-in video.
+type TranscribeDiscoveredVideosWorker struct {
+	river.WorkerDefaults[queue.TranscribeDiscoveredVideosJob]
+	transcribeService *service.TranscribeService
+}
+
+// NewTranscribeDiscoveredVideosWorker creates a new TranscribeDiscoveredVideosWorker.
+func NewTranscribeDiscoveredVideosWorker(
+	transcribeService *service.TranscribeService,
+) *TranscribeDiscoveredVideosWorker {
+	return &TranscribeDiscoveredVideosWorker{transcribeService: transcribeService}
+}
+
+func (w *TranscribeDiscoveredVideosWorker) Timeout(
+	_ *river.Job[queue.TranscribeDiscoveredVideosJob],
+) time.Duration {
+	return transcribeDispatchTimeout
+}
+
+// Work enqueues a transcription job for every video that is still 'screened_in'.
+func (w *TranscribeDiscoveredVideosWorker) Work(
+	ctx context.Context,
+	_ *river.Job[queue.TranscribeDiscoveredVideosJob],
+) error {
+	count, err := w.transcribeService.EnqueueScreenedInVideos(ctx)
+	log.Printf("[TranscribeDiscoveredVideosWorker] enqueued=%d", count)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue video transcription: %w", err)
+	}
+	return nil
 }

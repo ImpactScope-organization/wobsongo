@@ -87,6 +87,14 @@ const (
 	// JobTypeAnalyzeVideo represents a job type for analyzing and verifying
 	// the claims of one transcribed video.
 	JobTypeAnalyzeVideo BackgroundJobType = "analyze_video"
+
+	// JobTypeTranscribeDiscoveredVideos represents a job type for enqueueing
+	// a transcription job for every screened-in video.
+	JobTypeTranscribeDiscoveredVideos BackgroundJobType = "transcribe_discovered_videos"
+
+	// JobTypeAnalyzeVideos represents a job type for enqueueing an analysis
+	// job for every transcribed video.
+	JobTypeAnalyzeVideos BackgroundJobType = "analyze_videos"
 )
 
 // BackgroundJob represents a generic background job.
@@ -150,4 +158,13 @@ const (
 
 	// QueueAnalysis is used by AnalyzeVideoJob.
 	QueueAnalysis = "video_analysis"
+
+	// QueueTranscribeDispatch is used by TranscribeDiscoveredVideosJob. It has
+	// its own queue, so the run that enqueues the transcription jobs never
+	// takes a slot from the videos being transcribed.
+	QueueTranscribeDispatch = "video_transcription_dispatch"
+
+	// QueueAnalyzeDispatch is used by AnalyzeVideosJob. It has its own queue
+	// for the same reason as QueueTranscribeDispatch.
+	QueueAnalyzeDispatch = "video_analysis_dispatch"
 )

@@ -20,6 +20,9 @@ const (
 
 	// analyzeMarkFailedTimeout bounds the write that marks a video as failed.
 	analyzeMarkFailedTimeout = 10 * time.Second
+
+	// analyzeDispatchTimeout bounds one run that enqueues the analysis jobs.
+	analyzeDispatchTimeout = 5 * time.Minute
 )
 
 // analyzeRetryDelays is the wait before the next attempt. Short delays would
@@ -88,4 +91,32 @@ func (w *AnalyzeVideoWorker) handleAnalyzeError(
 	log.Printf("[AnalyzeVideoWorker] video %s marked as failed after %d attempts: %v",
 		videoID, job.Attempt, analyzeErr)
 	return wrapped
+}
+
+// AnalyzeVideosWorker enqueues an analysis job for every transcribed video.
+type AnalyzeVideosWorker struct {
+	river.WorkerDefaults[queue.AnalyzeVideosJob]
+	analyzeService *service.AnalyzeService
+}
+
+// NewAnalyzeVideosWorker creates a new AnalyzeVideosWorker.
+func NewAnalyzeVideosWorker(analyzeService *service.AnalyzeService) *AnalyzeVideosWorker {
+	return &AnalyzeVideosWorker{analyzeService: analyzeService}
+}
+
+func (w *AnalyzeVideosWorker) Timeout(_ *river.Job[queue.AnalyzeVideosJob]) time.Duration {
+	return analyzeDispatchTimeout
+}
+
+// Work enqueues an analysis job for every video that is still 'transcribed'.
+func (w *AnalyzeVideosWorker) Work(
+	ctx context.Context,
+	_ *river.Job[queue.AnalyzeVideosJob],
+) error {
+	count, err := w.analyzeService.EnqueueTranscribedVideos(ctx)
+	log.Printf("[AnalyzeVideosWorker] enqueued=%d", count)
+	if err != nil {
+		return fmt.Errorf("failed to enqueue video analysis: %w", err)
+	}
+	return nil
 }

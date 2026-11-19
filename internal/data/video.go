@@ -48,6 +48,17 @@ type VideoRepoer interface {
 		afterID uuid.UUID,
 	) ([]*model.Video, error)
 
+	// ListVideosByStatus returns up to limit videos in status, oldest first,
+	// that come after the position (afterCreatedAt, afterID). Only ID and
+	// CreatedAt are filled in.
+	ListVideosByStatus(
+		ctx context.Context,
+		status model.VideoStatus,
+		limit int32,
+		afterCreatedAt time.Time,
+		afterID uuid.UUID,
+	) ([]*model.Video, error)
+
 	// SetVideoScreenStatus moves a 'discovered' video to status and reports
 	// whether it did. false means the video was no longer 'discovered'.
 	SetVideoScreenStatus(

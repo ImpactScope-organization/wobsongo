@@ -3,9 +3,11 @@ package worker
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -192,4 +194,72 @@ func TestAnalyzeVideoWorker_NextRetry(t *testing.T) {
 			}
 		})
 	}
+}
+
+func buildAnalyzeVideosWorker(store *pipelineWorkerStore) *AnalyzeVideosWorker {
+	return NewAnalyzeVideosWorker(service.NewAnalyzeService(store, &pipelineWorkerChecker{}))
+}
+
+func runAnalyzeVideosJob(t *testing.T, w *AnalyzeVideosWorker) error {
+	t.Helper()
+	return w.Work(t.Context(), &river.Job[queue.AnalyzeVideosJob]{})
+}
+
+func TestAnalyzeVideosWorker_Timeout(t *testing.T) {
+	w := buildAnalyzeVideosWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
+
+	if got := w.Timeout(&river.Job[queue.AnalyzeVideosJob]{}); got != analyzeDispatchTimeout {
+		t.Errorf("Timeout() = %v, want %v", got, analyzeDispatchTimeout)
+	}
+}
+
+func TestAnalyzeVideosWorker_Work(t *testing.T) {
+	t.Run("EnqueuesEveryTranscribedVideo", func(t *testing.T) {
+		a, b, other := transcribedFixture(), transcribedFixture(), transcribedFixture()
+		store := newPipelineWorkerStore(model.VideoStatusTranscribed, a, b, other)
+		store.status[other.ID] = model.VideoStatusVerified
+
+		if err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store)); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if want := []uuid.UUID{a.ID, b.ID}; !slices.Equal(store.analyzeEnqueued, want) {
+			t.Errorf("enqueued = %v, want %v", store.analyzeEnqueued, want)
+		}
+		if store.status[a.ID] != model.VideoStatusTranscribed {
+			t.Error("the dispatch run must not analyze videos itself")
+		}
+	})
+
+	t.Run("NothingToEnqueue_Succeeds", func(t *testing.T) {
+		w := buildAnalyzeVideosWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
+
+		if err := runAnalyzeVideosJob(t, w); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("ListFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("db down")
+		store := newPipelineWorkerStore(model.VideoStatusTranscribed)
+		store.listErr = boom
+
+		err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the list error", err)
+		}
+	})
+
+	t.Run("EnqueueFailure_ReturnsError", func(t *testing.T) {
+		boom := errors.New("queue down")
+		store := newPipelineWorkerStore(model.VideoStatusTranscribed, transcribedFixture())
+		store.enqueueErr = boom
+
+		err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store))
+
+		if !errors.Is(err, boom) {
+			t.Fatalf("error = %v, want it to wrap the enqueue error", err)
+		}
+	})
 }

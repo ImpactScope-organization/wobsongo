@@ -15,7 +15,9 @@ type MediaExtractor interface {
 
 // VideoMediaResolver finds a downloadable media URL for a video page URL.
 type VideoMediaResolver interface {
-	// ResolveMediaURL returns a downloadable media URL, or ErrMediaUnavailable
-	// when the platform has none for the video.
+	// ResolveMediaURL returns a downloadable media URL. It returns
+	// ErrMediaUnavailable only when the platform says the video is gone,
+	// private or not downloadable. Any other failure, an empty result
+	// included, is a plain error: it may succeed on a retry.
 	ResolveMediaURL(ctx context.Context, videoURL string) (string, error)
 }

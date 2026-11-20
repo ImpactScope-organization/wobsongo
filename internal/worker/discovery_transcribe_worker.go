@@ -15,9 +15,10 @@ import (
 )
 
 const (
-	// transcribeJobTimeout bounds one transcription: an Apify run plus an ASR
-	// call, which can include a cold start.
-	transcribeJobTimeout = 8 * time.Minute
+	// transcribeJobTimeout bounds one transcription: an Apify run (up to
+	// scraperMediaTimeout, 5 min) plus an ASR call (up to 5 min, cold start
+	// included) and a minute for the database writes.
+	transcribeJobTimeout = 11 * time.Minute
 
 	// transcribeMarkFailedTimeout bounds the write that marks a video as failed.
 	transcribeMarkFailedTimeout = 10 * time.Second

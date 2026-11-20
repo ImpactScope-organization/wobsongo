@@ -13,6 +13,10 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal/model"
 )
 
+// errNoClaimResult is returned when the claim check reports success but gives
+// no result.
+var errNoClaimResult = errors.New("claim check returned no result")
+
 // ClaimChecker checks the claims of a text against the knowledge base.
 // *ClaimService implements it.
 type ClaimChecker interface {
@@ -95,6 +99,11 @@ func (s *AnalyzeService) analyze(
 	if err != nil {
 		return "", fmt.Errorf("failed to check claims of video %s: %w", video.ID, err)
 	}
+	if result == nil {
+		return "", fmt.Errorf(
+			"failed to check claims of video %s: %w", video.ID, errNoClaimResult,
+		)
+	}
 	if !result.InScope {
 		return model.VideoStatusOutOfScope, nil
 	}
@@ -111,7 +120,7 @@ func (s *AnalyzeService) MarkAnalyzeFailed(ctx context.Context, id uuid.UUID, ca
 		return fmt.Errorf("failed to mark video %s as failed: %w", id, err)
 	}
 	if !applied {
-		log.Printf("[AnalyzeService] video %s is no longer transcribed, failure not stored", id)
+		log.Printf("[AnalyzeService] video %s is no longer transcribed, status not stored", id)
 	}
 	return nil
 }

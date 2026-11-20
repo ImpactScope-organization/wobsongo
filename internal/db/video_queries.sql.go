@@ -303,7 +303,9 @@ func (q *Queries) LockVideo(ctx context.Context, id uuid.UUID) (uuid.UUID, error
 
 const markVideoClustered = `-- name: MarkVideoClustered :execrows
 UPDATE videos v
-SET status = 'clustered', updated_at = NOW()
+SET status = 'clustered',
+    analyzed_at = COALESCE(v.analyzed_at, NOW()),
+    updated_at = NOW()
 WHERE v.id = $1::uuid
   AND v.status IN ('transcribed', 'verified')
   AND EXISTS (SELECT 1 FROM claims c WHERE c.video_id = v.id)

@@ -136,6 +136,21 @@ func TestAnalyzeVideo_Errors(t *testing.T) {
 	}
 }
 
+func TestAnalyzeVideo_NilResultIsAnError(t *testing.T) {
+	video := analyzeFixture("claim")
+	store := newPipelineStore(model.VideoStatusTranscribed, video)
+	checker := &pipelineClaimChecker{} // answers nil, nil
+
+	err := NewAnalyzeService(store, checker).AnalyzeVideo(t.Context(), video.ID)
+
+	if !errors.Is(err, errNoClaimResult) {
+		t.Fatalf("error = %v, want it to wrap errNoClaimResult", err)
+	}
+	if got := store.status[video.ID]; got != model.VideoStatusTranscribed {
+		t.Errorf("status = %q, want it to stay transcribed so the retry can run", got)
+	}
+}
+
 func TestAnalyzeVideo_SkipsVideosThatAreNotTranscribed(t *testing.T) {
 	verified := analyzeFixture("claim")
 	store := newPipelineStore(model.VideoStatusVerified, verified)

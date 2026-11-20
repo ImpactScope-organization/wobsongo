@@ -79,6 +79,22 @@ const (
 
 	// JobTypeScreenVideo represents a job type for screening one video.
 	JobTypeScreenVideo BackgroundJobType = "screen_video"
+
+	// JobTypeTranscribeDiscoveredVideo represents a job type for transcribing
+	// one screened-in video of the discovery pipeline.
+	JobTypeTranscribeDiscoveredVideo BackgroundJobType = "transcribe_discovered_video"
+
+	// JobTypeAnalyzeVideo represents a job type for analyzing and verifying
+	// the claims of one transcribed video.
+	JobTypeAnalyzeVideo BackgroundJobType = "analyze_video"
+
+	// JobTypeTranscribeDiscoveredVideos represents a job type for enqueueing
+	// a transcription job for every screened-in video.
+	JobTypeTranscribeDiscoveredVideos BackgroundJobType = "transcribe_discovered_videos"
+
+	// JobTypeAnalyzeVideos represents a job type for enqueueing an analysis
+	// job for every transcribed video.
+	JobTypeAnalyzeVideos BackgroundJobType = "analyze_videos"
 )
 
 // BackgroundJob represents a generic background job.
@@ -132,8 +148,23 @@ const (
 	// the run that enqueues the screening jobs never takes a slot from the
 	// videos being analyzed.
 	QueueScreenDispatch = "video_screening_dispatch"
-  
+
 	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"
+
+	// QueueTranscription is used by TranscribeDiscoveredVideoJob.
+	QueueTranscription = "video_transcription"
+
+	// QueueAnalysis is used by AnalyzeVideoJob.
+	QueueAnalysis = "video_analysis"
+
+	// QueueTranscribeDispatch is used by TranscribeDiscoveredVideosJob. It has
+	// its own queue, so the run that enqueues the transcription jobs never
+	// takes a slot from the videos being transcribed.
+	QueueTranscribeDispatch = "video_transcription_dispatch"
+
+	// QueueAnalyzeDispatch is used by AnalyzeVideosJob. It has its own queue
+	// for the same reason as QueueTranscribeDispatch.
+	QueueAnalyzeDispatch = "video_analysis_dispatch"
 )

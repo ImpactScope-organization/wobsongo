@@ -340,14 +340,15 @@ var serveCmd = &cobra.Command{
 		)
 		if crawlEnabled {
 			videoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
+			tikTokScraper := external.NewTikTokScraperClient(
+				config.ApifyConfig.Token,
+				config.ApifyConfig.TikTokActorID,
+			)
 			crawlService = service.NewCrawlService(
 				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
 				videoRepo,
-				external.NewTikTokScraperClient(
-					config.ApifyConfig.Token,
-					config.ApifyConfig.TikTokActorID,
-				),
+				tikTokScraper,
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
@@ -355,6 +356,12 @@ var serveCmd = &cobra.Command{
 			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
 			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
+			transcribeService := service.NewTranscribeService(videoRepo, tikTokScraper, asrClient)
+			river.AddWorker(workers, worker.NewTranscribeDiscoveredVideoWorker(transcribeService))
+			analyzeService := service.NewAnalyzeService(videoRepo, workerClaimService)
+			river.AddWorker(workers, worker.NewAnalyzeVideoWorker(analyzeService))
+			river.AddWorker(workers, worker.NewTranscribeDiscoveredVideosWorker(transcribeService))
+			river.AddWorker(workers, worker.NewAnalyzeVideosWorker(analyzeService))
 		}
 
 		// Scheduled periodic jobs by River.
@@ -390,6 +397,20 @@ var serveCmd = &cobra.Command{
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.TranscribeCheckInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.TranscribeDiscoveredVideosJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
+				river.NewPeriodicJob(
+					river.PeriodicInterval(queue.AnalyzeCheckInterval),
+					func() (river.JobArgs, *river.InsertOpts) {
+						return queue.AnalyzeVideosJob{}, nil
+					},
+					&river.PeriodicJobOpts{RunOnStart: true},
+				),
 			)
 		}
 
@@ -412,10 +433,14 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
-				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
-				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
-				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
-				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
+				queue.QueueCrawler:            {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueScreening:          {MaxWorkers: config.ScreenConfig.MaxConcurrency},
+				queue.QueueScreenDispatch:     {MaxWorkers: queue.ScreenDispatchMaxWorkers},
+				queue.QueueClaimBackfill:      {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
+				queue.QueueTranscription:      {MaxWorkers: config.TranscribeConfig.MaxConcurrency},
+				queue.QueueAnalysis:           {MaxWorkers: config.AnalyzeConfig.MaxConcurrency},
+				queue.QueueTranscribeDispatch: {MaxWorkers: queue.TranscribeDispatchMaxWorkers},
+				queue.QueueAnalyzeDispatch:    {MaxWorkers: queue.AnalyzeDispatchMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

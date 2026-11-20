@@ -105,6 +105,26 @@ func (e *narrativeTestEnv) newClaim(
 	return claim
 }
 
+// newVideo stores a discovery video, so a claim can reference it.
+func (e *narrativeTestEnv) newVideo(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+
+	externalID := uuid.NewString()
+	v := &model.Video{
+		VideoURL:         "https://www.tiktok.com/@narrative_test/video/" + externalID,
+		AuthorUsername:   "narrative_test",
+		AuthorProfileURL: "https://www.tiktok.com/@narrative_test",
+		Hashtags:         []string{},
+		VideoType:        "tiktok",
+		ExternalID:       &externalID,
+		Origin:           model.VideoOriginDiscovery,
+	}
+	if _, err := repo.NewVideoRepo(e.q, pool, nil).UpsertDiscoveredVideo(e.ctx, v); err != nil {
+		t.Fatalf("failed to create video: %v", err)
+	}
+	return v.ID
+}
+
 // newNarrativeTestClaim builds a claim value that is not stored yet.
 // Timestamps are truncated to microseconds, the precision Postgres keeps.
 func newNarrativeTestClaim(topicID uuid.UUID, text string, occurredAt time.Time) *model.Claim {
@@ -307,6 +327,69 @@ func TestNarrativeRepo(t *testing.T) {
 		_, err = env.repo.CreateClaim(env.ctx, claim)
 		if !errors.Is(err, data.ErrConflict) {
 			t.Errorf("expected data.ErrConflict, got %v", err)
+		}
+	})
+
+	t.Run("CreateClaim_VideoClaim_RoundTripsVideoID", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		videoID := env.newVideo(t, pool)
+
+		claim := newNarrativeTestClaim(topic.ID, "video claim", time.Now())
+		claim.VideoID = &videoID
+		claim.Platform = model.ClaimPlatformTikTok
+		claim.Format = model.ClaimFormatVideo
+
+		created, err := env.repo.CreateClaim(env.ctx, claim)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if created.VideoID == nil || *created.VideoID != videoID {
+			t.Errorf("created video id = %v, want %v", created.VideoID, videoID)
+		}
+
+		got, err := env.repo.GetClaim(env.ctx, created.ID)
+		if err != nil {
+			t.Fatalf("unexpected error fetching created claim: %v", err)
+		}
+		if got.VideoID == nil || *got.VideoID != videoID {
+			t.Errorf("fetched video id = %v, want %v", got.VideoID, videoID)
+		}
+		if got.MessageID != nil {
+			t.Errorf("message id = %v, want nil for a video claim", got.MessageID)
+		}
+	})
+
+	t.Run("CreateClaim_SameVideoAndText_ReturnsConflict", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		videoID := env.newVideo(t, pool)
+
+		claim := newNarrativeTestClaim(topic.ID, "duplicated video claim", time.Now())
+		claim.VideoID = &videoID
+		if _, err := env.repo.CreateClaim(env.ctx, claim); err != nil {
+			t.Fatalf("unexpected error on first create: %v", err)
+		}
+
+		_, err := env.repo.CreateClaim(env.ctx, claim)
+
+		if !errors.Is(err, data.ErrConflict) {
+			t.Errorf("expected data.ErrConflict, got %v", err)
+		}
+	})
+
+	t.Run("CreateClaim_SameTextOnDifferentVideos_IsAllowed", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+
+		for range 2 {
+			videoID := env.newVideo(t, pool)
+			claim := newNarrativeTestClaim(topic.ID, "same text", time.Now())
+			claim.VideoID = &videoID
+
+			if _, err := env.repo.CreateClaim(env.ctx, claim); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 		}
 	})
 
@@ -1030,6 +1113,152 @@ func TestNarrativeRepo(t *testing.T) {
 		if claims, _ := claimsFrom(counts, platform); claims != 2 {
 			t.Errorf("expected 2 claims, got %d", claims)
 		}
+	})
+
+	t.Run("MarkVideoClustered_WaitsForEveryClaimOfTheVideo", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+		topic := env.newTopic(t, true)
+		narrative := env.newNarrative(t, topic.ID)
+		videoID := env.newVideo(t, pool)
+		if _, err := env.tx.Exec(
+			env.ctx, "update videos set status = 'verified' where id = $1", videoID,
+		); err != nil {
+			t.Fatalf("failed to set status: %v", err)
+		}
+
+		newVideoClaim := func(text string) *model.Claim {
+			claim := newNarrativeTestClaim(topic.ID, text, time.Now())
+			claim.VideoID = &videoID
+			created, err := env.repo.CreateClaim(env.ctx, claim)
+			if err != nil {
+				t.Fatalf("failed to create claim: %v", err)
+			}
+			return created
+		}
+		first, second := newVideoClaim("first claim"), newVideoClaim("second claim")
+
+		expect := func(want bool, wantStatus string) {
+			t.Helper()
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if applied != want {
+				t.Errorf("applied = %t, want %t", applied, want)
+			}
+			var status string
+			if err := env.tx.QueryRow(
+				env.ctx, "select status from videos where id = $1", videoID,
+			).Scan(&status); err != nil {
+				t.Fatalf("failed to read status: %v", err)
+			}
+			if status != wantStatus {
+				t.Errorf("status = %q, want %q", status, wantStatus)
+			}
+		}
+
+		expect(false, "verified") // nothing linked yet
+		if err := env.repo.LinkClaim(env.ctx, first.ID, narrative.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expect(false, "verified") // one claim is still waiting
+		if err := env.repo.LinkClaim(env.ctx, second.ID, narrative.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		expect(true, "clustered") // every claim is linked
+		expect(false, "clustered")
+	})
+
+	t.Run("MarkVideoClustered_IgnoresVideosWithoutClaimsOrInAnotherStatus", func(t *testing.T) {
+		env := newNarrativeTestEnv(t, pool)
+
+		for _, status := range []string{"verified", "screened_in"} {
+			videoID := env.newVideo(t, pool)
+			if _, err := env.tx.Exec(
+				env.ctx, "update videos set status = $2 where id = $1", videoID, status,
+			); err != nil {
+				t.Fatalf("failed to set status: %v", err)
+			}
+
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if applied {
+				t.Errorf("a video with no claims (status %q) must not become clustered", status)
+			}
+		}
+	})
+
+	t.Run("MarkVideoClustered_StampsAnalyzedAt", func(t *testing.T) {
+		past := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+
+		// clusterVideo puts a video with one linked claim in status with the
+		// given analyzed_at, runs MarkVideoClustered and returns the video's
+		// analyzed_at afterwards.
+		clusterVideo := func(t *testing.T, status string, analyzedAt *time.Time) *time.Time {
+			t.Helper()
+
+			env := newNarrativeTestEnv(t, pool)
+			topic := env.newTopic(t, true)
+			narrative := env.newNarrative(t, topic.ID)
+			videoID := env.newVideo(t, pool)
+			if _, err := env.tx.Exec(
+				env.ctx,
+				"update videos set status = $2, analyzed_at = $3 where id = $1",
+				videoID, status, analyzedAt,
+			); err != nil {
+				t.Fatalf("failed to set status: %v", err)
+			}
+
+			claim := newNarrativeTestClaim(topic.ID, "claim", time.Now())
+			claim.VideoID = &videoID
+			created, err := env.repo.CreateClaim(env.ctx, claim)
+			if err != nil {
+				t.Fatalf("failed to create claim: %v", err)
+			}
+			if err := env.repo.LinkClaim(env.ctx, created.ID, narrative.ID); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !applied {
+				t.Fatal("applied = false, want the video to become clustered")
+			}
+
+			var got *time.Time
+			if err := env.tx.QueryRow(
+				env.ctx, "select analyzed_at from videos where id = $1", videoID,
+			).Scan(&got); err != nil {
+				t.Fatalf("failed to read analyzed_at: %v", err)
+			}
+			return got
+		}
+
+		t.Run("TranscribedVideoThatWasNeverMarkedAnalyzed", func(t *testing.T) {
+			// The cluster job finished before SetVideoAnalyzed could run.
+			before := time.Now().Add(-time.Minute)
+
+			got := clusterVideo(t, "transcribed", nil)
+
+			if got == nil {
+				t.Fatal("analyzed_at is NULL, want it stamped when the video is clustered")
+			}
+			if got.Before(before) {
+				t.Errorf("analyzed_at = %v, want about now", got)
+			}
+		})
+
+		t.Run("VerifiedVideoKeepsItsAnalyzedAt", func(t *testing.T) {
+			got := clusterVideo(t, "verified", &past)
+
+			if got == nil || !got.Equal(past) {
+				t.Errorf("analyzed_at = %v, want it left at %v", got, past)
+			}
+		})
 	})
 }
 

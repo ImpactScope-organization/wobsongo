@@ -293,6 +293,19 @@ type ScreenConfig struct {
 	MaxConcurrency int `json:"max_concurrency"`
 }
 
+// TranscribeConfig holds the configuration of the video transcription job.
+type TranscribeConfig struct {
+	// MaxConcurrency is the number of videos transcribed at the same time
+	// (one Apify run and one ASR call each).
+	MaxConcurrency int `json:"max_concurrency"`
+}
+
+// AnalyzeConfig holds the configuration of the video analysis job.
+type AnalyzeConfig struct {
+	// MaxConcurrency is the number of videos analyzed at the same time.
+	MaxConcurrency int `json:"max_concurrency"`
+}
+
 // MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
 // mock synthesizer instead of the real Modal endpoint
 const MockTTSEndpointPrefix = "mock://"
@@ -361,7 +374,9 @@ type Config struct {
 	TranslationConfig      *TranslationConfig `json:"translation_config"`   // Translation configuration for bilingual chunk/fact search text
 	ClaimCheckConfig       *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 	NarrativeConfig        *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
-  ScreenConfig           *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
+	ScreenConfig           *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
+	TranscribeConfig       *TranscribeConfig  `json:"transcribe_config"`    // Configuration for video transcription
+	AnalyzeConfig          *AnalyzeConfig     `json:"analyze_config"`       // Configuration for video analysis
 	PrivacyWhitelistEmails []string           `json:"-"`                    // Emails allowed to see unredacted creator data
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
@@ -481,7 +496,13 @@ func (c *Config) IsOK() error {
 	if err := c.narrativeOK(); err != nil {
 		return err
 	}
-	return c.screenOK()
+	if err := c.screenOK(); err != nil {
+		return err
+	}
+	if err := c.transcribeOK(); err != nil {
+		return err
+	}
+	return c.analyzeOK()
 }
 
 // asrOK checks the Modal ASR configuration.
@@ -568,6 +589,28 @@ func validateModalEndpoint(name, rawURL string) error {
 	}
 	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
 		return fmt.Errorf("%s host %q is not an allowed modal.run domain", name, u.Hostname())
+	}
+	return nil
+}
+
+// transcribeOK checks the video transcription configuration.
+func (c *Config) transcribeOK() error {
+	if c.TranscribeConfig == nil {
+		return errors.New("TranscribeConfig is not set")
+	}
+	if n := c.TranscribeConfig.MaxConcurrency; n < 1 {
+		return fmt.Errorf("TRANSCRIBE_MAX_CONCURRENCY must be at least 1, got %d", n)
+	}
+	return nil
+}
+
+// analyzeOK checks the video analysis configuration.
+func (c *Config) analyzeOK() error {
+	if c.AnalyzeConfig == nil {
+		return errors.New("AnalyzeConfig is not set")
+	}
+	if n := c.AnalyzeConfig.MaxConcurrency; n < 1 {
+		return fmt.Errorf("ANALYZE_MAX_CONCURRENCY must be at least 1, got %d", n)
 	}
 	return nil
 }
@@ -739,6 +782,17 @@ func NewConfig(envs ...string) *Config {
 		MaxConcurrency: getEnvInt("SCREEN_MAX_CONCURRENCY", queue.DefaultScreenConcurrency),
 	}
 
+	transcribeConfig := &TranscribeConfig{
+		MaxConcurrency: getEnvInt(
+			"TRANSCRIBE_MAX_CONCURRENCY",
+			queue.DefaultTranscribeConcurrency,
+		),
+	}
+
+	analyzeConfig := &AnalyzeConfig{
+		MaxConcurrency: getEnvInt("ANALYZE_MAX_CONCURRENCY", queue.DefaultAnalyzeConcurrency),
+	}
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -790,6 +844,8 @@ func NewConfig(envs ...string) *Config {
 		TTSConfig:               ttsConfig,
 		NarrativeConfig:         narrativeConfig,
 		ScreenConfig:            screenConfig,
+		TranscribeConfig:        transcribeConfig,
+		AnalyzeConfig:           analyzeConfig,
 		VoiceMediaConfig:        voiceMediaConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,

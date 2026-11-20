@@ -149,7 +149,9 @@ SELECT id FROM videos WHERE id = sqlc.arg(id)::uuid FOR UPDATE;
 
 -- name: MarkVideoClustered :execrows
 UPDATE videos v
-SET status = 'clustered', updated_at = NOW()
+SET status = 'clustered',
+    analyzed_at = COALESCE(v.analyzed_at, NOW()),
+    updated_at = NOW()
 WHERE v.id = sqlc.arg(id)::uuid
   AND v.status IN ('transcribed', 'verified')
   AND EXISTS (SELECT 1 FROM claims c WHERE c.video_id = v.id)

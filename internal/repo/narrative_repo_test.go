@@ -1189,6 +1189,77 @@ func TestNarrativeRepo(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("MarkVideoClustered_StampsAnalyzedAt", func(t *testing.T) {
+		past := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+
+		// clusterVideo puts a video with one linked claim in status with the
+		// given analyzed_at, runs MarkVideoClustered and returns the video's
+		// analyzed_at afterwards.
+		clusterVideo := func(t *testing.T, status string, analyzedAt *time.Time) *time.Time {
+			t.Helper()
+
+			env := newNarrativeTestEnv(t, pool)
+			topic := env.newTopic(t, true)
+			narrative := env.newNarrative(t, topic.ID)
+			videoID := env.newVideo(t, pool)
+			if _, err := env.tx.Exec(
+				env.ctx,
+				"update videos set status = $2, analyzed_at = $3 where id = $1",
+				videoID, status, analyzedAt,
+			); err != nil {
+				t.Fatalf("failed to set status: %v", err)
+			}
+
+			claim := newNarrativeTestClaim(topic.ID, "claim", time.Now())
+			claim.VideoID = &videoID
+			created, err := env.repo.CreateClaim(env.ctx, claim)
+			if err != nil {
+				t.Fatalf("failed to create claim: %v", err)
+			}
+			if err := env.repo.LinkClaim(env.ctx, created.ID, narrative.ID); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			applied, err := env.repo.MarkVideoClustered(env.ctx, videoID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !applied {
+				t.Fatal("applied = false, want the video to become clustered")
+			}
+
+			var got *time.Time
+			if err := env.tx.QueryRow(
+				env.ctx, "select analyzed_at from videos where id = $1", videoID,
+			).Scan(&got); err != nil {
+				t.Fatalf("failed to read analyzed_at: %v", err)
+			}
+			return got
+		}
+
+		t.Run("TranscribedVideoThatWasNeverMarkedAnalyzed", func(t *testing.T) {
+			// The cluster job finished before SetVideoAnalyzed could run.
+			before := time.Now().Add(-time.Minute)
+
+			got := clusterVideo(t, "transcribed", nil)
+
+			if got == nil {
+				t.Fatal("analyzed_at is NULL, want it stamped when the video is clustered")
+			}
+			if got.Before(before) {
+				t.Errorf("analyzed_at = %v, want about now", got)
+			}
+		})
+
+		t.Run("VerifiedVideoKeepsItsAnalyzedAt", func(t *testing.T) {
+			got := clusterVideo(t, "verified", &past)
+
+			if got == nil || !got.Equal(past) {
+				t.Errorf("analyzed_at = %v, want it left at %v", got, past)
+			}
+		})
+	})
 }
 
 // TestNarrativeRepo_WithTx_Enqueue commits real rows (a rolled-back test tx

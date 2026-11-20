@@ -506,7 +506,7 @@ func (s *CrawlService) enqueueScreening(ctx context.Context, newVideos int) {
 	saveCtx, cancel := saveContext(ctx)
 	defer cancel()
 
-	if err := s.videoRepo.EnqueueScreenVideosJob(saveCtx); err != nil {
+	if err := s.videoRepo.EnqueueScreenMultipleVideoJob(saveCtx); err != nil {
 		log.Printf("[CrawlService] failed to enqueue video screening: %v", err)
 	}
 }

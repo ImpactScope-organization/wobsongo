@@ -352,8 +352,8 @@ var serveCmd = &cobra.Command{
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
 			screenService := service.NewScreenService(videoRepo, claimAnalyzerClient)
-			river.AddWorker(workers, worker.NewScreenVideosWorker(screenService))
-			river.AddWorker(workers, worker.NewScreenVideoWorker(screenService))
+			river.AddWorker(workers, worker.NewScreenMultipleVideoWorker(screenService))
+			river.AddWorker(workers, worker.NewScreenSingleVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
 		}
 
@@ -386,7 +386,7 @@ var serveCmd = &cobra.Command{
 				river.NewPeriodicJob(
 					river.PeriodicInterval(queue.ScreenCheckInterval),
 					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.ScreenVideosJob{}, nil
+						return queue.ScreenMultipleVideoJob{}, nil
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
@@ -415,7 +415,7 @@ var serveCmd = &cobra.Command{
 				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
 				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
 				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
-				queue.QueueClaimBackfill: {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
+				queue.QueueClaimBackfill:  {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

@@ -97,7 +97,7 @@ func (s *screenWorkerStore) SetVideoScreenStatus(
 	return true, nil
 }
 
-func (s *screenWorkerStore) EnqueueScreenVideoJob(
+func (s *screenWorkerStore) EnqueueScreenSingleVideoJob(
 	_ context.Context,
 	videoID uuid.UUID,
 ) (bool, error) {
@@ -128,20 +128,20 @@ func (a *screenWorkerAnalyzer) Analyze(
 func buildScreenVideosWorker(
 	store *screenWorkerStore,
 	analyzer *screenWorkerAnalyzer,
-) *ScreenVideosWorker {
-	return NewScreenVideosWorker(service.NewScreenService(store, analyzer))
+) *ScreenMultipleVideoWorker {
+	return NewScreenMultipleVideoWorker(service.NewScreenService(store, analyzer))
 }
 
 func buildScreenVideoWorker(
 	store *screenWorkerStore,
 	analyzer *screenWorkerAnalyzer,
-) *ScreenVideoWorker {
-	return NewScreenVideoWorker(service.NewScreenService(store, analyzer))
+) *ScreenSingleVideoWorker {
+	return NewScreenSingleVideoWorker(service.NewScreenService(store, analyzer))
 }
 
-func runScreenVideosJob(t *testing.T, w *ScreenVideosWorker) error {
+func runScreenVideosJob(t *testing.T, w *ScreenMultipleVideoWorker) error {
 	t.Helper()
-	return w.Work(t.Context(), &river.Job[queue.ScreenVideosJob]{})
+	return w.Work(t.Context(), &river.Job[queue.ScreenMultipleVideoJob]{})
 }
 
 func (s *screenWorkerStore) SetVideoScreenFailed(
@@ -162,30 +162,30 @@ func (s *screenWorkerStore) SetVideoScreenFailed(
 
 func runScreenVideoJobAttempt(
 	ctx context.Context,
-	w *ScreenVideoWorker,
+	w *ScreenSingleVideoWorker,
 	videoID string,
 	attempt int,
 ) error {
-	return w.Work(ctx, &river.Job[queue.ScreenVideoJob]{
+	return w.Work(ctx, &river.Job[queue.ScreenSingleVideoJob]{
 		JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: queue.ScreenMaxAttempts},
-		Args:   queue.ScreenVideoJob{VideoID: videoID},
+		Args:   queue.ScreenSingleVideoJob{VideoID: videoID},
 	})
 }
 
-func runScreenVideoJob(t *testing.T, w *ScreenVideoWorker, videoID string) error {
+func runScreenVideoJob(t *testing.T, w *ScreenSingleVideoWorker, videoID string) error {
 	t.Helper()
 	return runScreenVideoJobAttempt(t.Context(), w, videoID, 1)
 }
 
-func TestScreenVideosWorker_Timeout(t *testing.T) {
+func TestScreenMultipleVideoWorker_Timeout(t *testing.T) {
 	w := buildScreenVideosWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
 
-	if got := w.Timeout(&river.Job[queue.ScreenVideosJob]{}); got != screenDispatchTimeout {
+	if got := w.Timeout(&river.Job[queue.ScreenMultipleVideoJob]{}); got != screenDispatchTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, screenDispatchTimeout)
 	}
 }
 
-func TestScreenVideosWorker_Work(t *testing.T) {
+func TestScreenMultipleVideoWorker_Work(t *testing.T) {
 	t.Run("EnqueuesEveryDiscoveredVideo", func(t *testing.T) {
 		a := &model.Video{Caption: "pilule contraceptive"}
 		b := &model.Video{Caption: "recette de crêpes"}
@@ -240,7 +240,7 @@ func TestScreenVideosWorker_Work(t *testing.T) {
 func TestScreenVideoWorker_Timeout(t *testing.T) {
 	w := buildScreenVideoWorker(newScreenWorkerStore(), &screenWorkerAnalyzer{})
 
-	if got := w.Timeout(&river.Job[queue.ScreenVideoJob]{}); got != screenVideoJobTimeout {
+	if got := w.Timeout(&river.Job[queue.ScreenSingleVideoJob]{}); got != screenVideoJobTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, screenVideoJobTimeout)
 	}
 }
@@ -386,7 +386,7 @@ func TestScreenVideoWorker_NextRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			job := &river.Job[queue.ScreenVideoJob]{
+			job := &river.Job[queue.ScreenSingleVideoJob]{
 				JobRow: &rivertype.JobRow{Attempt: tt.attempt},
 			}
 

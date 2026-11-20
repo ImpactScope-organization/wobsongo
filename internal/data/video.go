@@ -61,18 +61,18 @@ type VideoRepoer interface {
 	// longer in the 'discovered' status.
 	GetVideoForScreening(ctx context.Context, id uuid.UUID) (*model.Video, error)
 
-	// EnqueueScreenVideoJob adds a screening job for one video to the River
+	// EnqueueScreenSingleVideoJob adds a screening job for one video to the River
 	// queue. enqueued is false when an identical job is already in the queue.
-	EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
+	EnqueueScreenSingleVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
 
 	// SetVideoScreenFailed moves a 'discovered' video to the 'failed' status
 	// with reason as its error, and reports whether it did. false means the
 	// video was no longer 'discovered'.
 	SetVideoScreenFailed(ctx context.Context, id uuid.UUID, reason string) (bool, error)
 
-	// EnqueueScreenVideosJob adds the job that enqueues a screening job for
+	// EnqueueScreenMultipleVideoJob adds the job that enqueues a screening job for
 	// every discovered video to the River queue.
-	EnqueueScreenVideosJob(ctx context.Context) error
+	EnqueueScreenMultipleVideoJob(ctx context.Context) error
 
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]

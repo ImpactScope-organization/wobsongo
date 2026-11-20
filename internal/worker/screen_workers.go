@@ -28,61 +28,63 @@ const (
 // use every attempt up during one LLM outage.
 var screenRetryDelays = []time.Duration{5 * time.Minute, 15 * time.Minute}
 
-// ScreenVideosWorker enqueues a screening job for every discovered video.
-type ScreenVideosWorker struct {
-	river.WorkerDefaults[queue.ScreenVideosJob]
+// ScreenMultipleVideoWorker enqueues a screening job for every discovered video.
+type ScreenMultipleVideoWorker struct {
+	river.WorkerDefaults[queue.ScreenMultipleVideoJob]
 	screenService *service.ScreenService
 }
 
-// NewScreenVideosWorker creates a new ScreenVideosWorker.
-func NewScreenVideosWorker(screenService *service.ScreenService) *ScreenVideosWorker {
-	return &ScreenVideosWorker{screenService: screenService}
+// NewScreenMultipleVideoWorker creates a new ScreenMultipleVideoWorker.
+func NewScreenMultipleVideoWorker(screenService *service.ScreenService) *ScreenMultipleVideoWorker {
+	return &ScreenMultipleVideoWorker{screenService: screenService}
 }
 
-func (w *ScreenVideosWorker) Timeout(_ *river.Job[queue.ScreenVideosJob]) time.Duration {
+func (w *ScreenMultipleVideoWorker) Timeout(
+	_ *river.Job[queue.ScreenMultipleVideoJob],
+) time.Duration {
 	return screenDispatchTimeout
 }
 
 // Work enqueues a screening job for every video that is still 'discovered'.
-func (w *ScreenVideosWorker) Work(
+func (w *ScreenMultipleVideoWorker) Work(
 	ctx context.Context,
-	_ *river.Job[queue.ScreenVideosJob],
+	_ *river.Job[queue.ScreenMultipleVideoJob],
 ) error {
 	count, err := w.screenService.EnqueueDiscoveredVideos(ctx)
-	log.Printf("[ScreenVideosWorker] enqueued=%d", count)
+	log.Printf("[ScreenMultipleVideosWorker] enqueued=%d", count)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue video screening: %w", err)
 	}
 	return nil
 }
 
-// ScreenVideoWorker screens one video.
-type ScreenVideoWorker struct {
-	river.WorkerDefaults[queue.ScreenVideoJob]
+// ScreenSingleVideoWorker screens one video.
+type ScreenSingleVideoWorker struct {
+	river.WorkerDefaults[queue.ScreenSingleVideoJob]
 	screenService *service.ScreenService
 }
 
-// NewScreenVideoWorker creates a new ScreenVideoWorker.
-func NewScreenVideoWorker(screenService *service.ScreenService) *ScreenVideoWorker {
-	return &ScreenVideoWorker{screenService: screenService}
+// NewScreenSingleVideoWorker creates a new ScreenSingleVideoWorker.
+func NewScreenSingleVideoWorker(screenService *service.ScreenService) *ScreenSingleVideoWorker {
+	return &ScreenSingleVideoWorker{screenService: screenService}
 }
 
-func (w *ScreenVideoWorker) Timeout(_ *river.Job[queue.ScreenVideoJob]) time.Duration {
+func (w *ScreenSingleVideoWorker) Timeout(_ *river.Job[queue.ScreenSingleVideoJob]) time.Duration {
 	return screenVideoJobTimeout
 }
 
 // NextRetry waits longer than River's default, so a short outage of the
 // analyzer does not use up every attempt.
-func (w *ScreenVideoWorker) NextRetry(job *river.Job[queue.ScreenVideoJob]) time.Time {
+func (w *ScreenSingleVideoWorker) NextRetry(job *river.Job[queue.ScreenSingleVideoJob]) time.Time {
 	i := min(max(job.Attempt-1, 0), len(screenRetryDelays)-1)
 	return time.Now().Add(screenRetryDelays[i])
 }
 
 // Work screens the video. When the last attempt fails, the video is marked as
 // failed so it is not screened again.
-func (w *ScreenVideoWorker) Work(
+func (w *ScreenSingleVideoWorker) Work(
 	ctx context.Context,
-	job *river.Job[queue.ScreenVideoJob],
+	job *river.Job[queue.ScreenSingleVideoJob],
 ) error {
 	videoID, err := uuid.Parse(job.Args.VideoID)
 	if err != nil {
@@ -97,9 +99,9 @@ func (w *ScreenVideoWorker) Work(
 
 // handleScreenError returns the error of a failed attempt. On the last attempt
 // it also marks the video as failed, unless the server is shutting down.
-func (w *ScreenVideoWorker) handleScreenError(
+func (w *ScreenSingleVideoWorker) handleScreenError(
 	ctx context.Context,
-	job *river.Job[queue.ScreenVideoJob],
+	job *river.Job[queue.ScreenSingleVideoJob],
 	videoID uuid.UUID,
 	screenErr error,
 ) error {
@@ -117,7 +119,7 @@ func (w *ScreenVideoWorker) handleScreenError(
 	if err := w.screenService.MarkScreenFailed(markCtx, videoID, screenErr); err != nil {
 		return errors.Join(wrapped, err)
 	}
-	log.Printf("[ScreenVideoWorker] video %s marked as failed after %d attempts: %v",
+	log.Printf("[ScreenSingleVideoWorker] video %s marked as failed after %d attempts: %v",
 		videoID, job.Attempt, screenErr)
 	return wrapped
 }

@@ -15,8 +15,8 @@ func TestScreenJobs_InsertOpts(t *testing.T) {
 		wantQueue       string
 		wantMaxAttempts int
 	}{
-		{"ScreenVideosJob", ScreenVideosJob{}.InsertOpts(), QueueScreenDispatch, 1},
-		{"ScreenVideoJob", ScreenVideoJob{}.InsertOpts(), QueueScreening, ScreenMaxAttempts},
+		{"ScreenVideosJob", ScreenMultipleVideoJob{}.InsertOpts(), QueueScreenDispatch, 1},
+		{"ScreenVideoJob", ScreenSingleVideoJob{}.InsertOpts(), QueueScreening, ScreenMaxAttempts},
 	}
 
 	required := []rivertype.JobState{
@@ -52,10 +52,10 @@ func TestScreenJobs_InsertOpts(t *testing.T) {
 }
 
 func TestScreenJobs_Kind(t *testing.T) {
-	if got := (ScreenVideosJob{}).Kind(); got != string(JobTypeScreenVideos) {
-		t.Errorf("ScreenVideosJob kind = %q, want %q", got, JobTypeScreenVideos)
+	if got := (ScreenMultipleVideoJob{}).Kind(); got != string(JobTypeScreenMultipleVideo) {
+		t.Errorf("ScreenVideosJob kind = %q, want %q", got, JobTypeScreenMultipleVideo)
 	}
-	if got := (ScreenVideoJob{}).Kind(); got != string(JobTypeScreenVideo) {
-		t.Errorf("ScreenVideoJob kind = %q, want %q", got, JobTypeScreenVideo)
+	if got := (ScreenSingleVideoJob{}).Kind(); got != string(JobTypeScreenSingleVideo) {
+		t.Errorf("ScreenVideoJob kind = %q, want %q", got, JobTypeScreenSingleVideo)
 	}
 }

@@ -393,18 +393,21 @@ func (r *videoRepo) SetVideoScreenFailed(
 	return affected > 0, nil
 }
 
-// EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
+// EnqueueScreenSingleVideoJob adds a screen-video job to the River queue, inside the
 // current transaction when there is one. It reports false when an identical
 // job is already waiting, running or waiting for a retry.
-func (r *videoRepo) EnqueueScreenVideoJob(ctx context.Context, videoID uuid.UUID) (bool, error) {
-	return r.insertJob(ctx, queue.ScreenVideoJob{VideoID: videoID.String()}, "screen video")
+func (r *videoRepo) EnqueueScreenSingleVideoJob(
+	ctx context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
+	return r.insertJob(ctx, queue.ScreenSingleVideoJob{VideoID: videoID.String()}, "screen video")
 }
 
-// EnqueueScreenVideosJob adds the screen-videos job to the River queue, inside
+// EnqueueScreenMultipleVideoJob adds the screen-videos job to the River queue, inside
 // the current transaction when there is one. A duplicate of a job that is
 // already waiting or running is skipped without an error.
-func (r *videoRepo) EnqueueScreenVideosJob(ctx context.Context) error {
-	if _, err := r.insertJob(ctx, queue.ScreenVideosJob{}, "screen videos"); err != nil {
+func (r *videoRepo) EnqueueScreenMultipleVideoJob(ctx context.Context) error {
+	if _, err := r.insertJob(ctx, queue.ScreenMultipleVideoJob{}, "screen videos"); err != nil {
 		return err
 	}
 	return nil

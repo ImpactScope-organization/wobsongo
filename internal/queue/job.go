@@ -65,7 +65,7 @@ const (
 	// narratives without recent claims.
 	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"
 
-	// JobTypeDiscoverVideos represents a job type for discovering new videos
+	// JobTypeDiscoverVideo represents a job type for discovering new videos
 	// by keyword.
 	JobTypeDiscoverVideos BackgroundJobType = "discover_videos"
 
@@ -73,12 +73,12 @@ const (
 	// creators for new videos.
 	JobTypeMonitorCreator BackgroundJobType = "monitor_creator"
 
-	// JobTypeScreenVideos represents a job type for screening every
+	// JobTypeScreenVideo represents a job type for screening every
 	// discovered video for relevance.
-	JobTypeScreenVideos BackgroundJobType = "screen_videos"
+	JobTypeScreenMultipleVideo BackgroundJobType = "screen_multiple_videos"
 
 	// JobTypeScreenVideo represents a job type for screening one video.
-	JobTypeScreenVideo BackgroundJobType = "screen_video"
+	JobTypeScreenSingleVideo BackgroundJobType = "screen_single_video"
 )
 
 // BackgroundJob represents a generic background job.
@@ -128,11 +128,11 @@ const (
 	// of videos analyzed at the same time.
 	QueueScreening = "video_screening"
 
-	// QueueScreenDispatch is used by ScreenVideosJob. It has its own queue, so
+	// QueueScreenDispatch is used by ScreenMultipleVideoJob. It has its own queue, so
 	// the run that enqueues the screening jobs never takes a slot from the
 	// videos being analyzed.
 	QueueScreenDispatch = "video_screening_dispatch"
-  
+
 	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"

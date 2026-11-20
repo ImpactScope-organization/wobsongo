@@ -131,7 +131,7 @@ func (s *fakeScreenStore) SetVideoScreenStatus(
 	return true, nil
 }
 
-func (s *fakeScreenStore) EnqueueScreenVideoJob(
+func (s *fakeScreenStore) EnqueueScreenSingleVideoJob(
 	_ context.Context,
 	videoID uuid.UUID,
 ) (bool, error) {

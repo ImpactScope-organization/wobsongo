@@ -65,7 +65,7 @@ func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error
 			return count, nil
 		}
 		for _, v := range videos {
-			enqueued, err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID)
+			enqueued, err := s.videoRepo.EnqueueScreenSingleVideoJob(ctx, v.ID)
 			if err != nil {
 				return count, fmt.Errorf("failed to enqueue screening of video %s: %w", v.ID, err)
 			}

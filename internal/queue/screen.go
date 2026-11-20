@@ -17,7 +17,7 @@ const (
 	// the same time (its MaxWorkers), unless SCREEN_MAX_CONCURRENCY says otherwise.
 	DefaultScreenConcurrency = 2
 
-	// ScreenMaxAttempts is how many times River runs a ScreenVideoJob. After
+	// ScreenMaxAttempts is how many times River runs a ScreenSingleVideoJob. After
 	// the last failed attempt the video is marked as failed.
 	ScreenMaxAttempts = 3
 
@@ -37,17 +37,17 @@ var screenUniqueStates = []rivertype.JobState{
 	rivertype.JobStateScheduled,
 }
 
-// ScreenVideosJob enqueues a ScreenVideoJob for every video that is still in
+// ScreenMultipleVideoJob enqueues a ScreenSingleVideoJob for every video that is still in
 // the 'discovered' status.
-type ScreenVideosJob struct{}
+type ScreenMultipleVideoJob struct{}
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (ScreenVideosJob) Kind() string { return string(JobTypeScreenVideos) }
+func (ScreenMultipleVideoJob) Kind() string { return string(JobTypeScreenMultipleVideo) }
 
 // InsertOpts implements river.JobArgsWithInsertOpts. Only one run may be
 // waiting or running at a time, so overlapping triggers collapse into one.
 // There is no retry: the periodic run picks up whatever is left.
-func (ScreenVideosJob) InsertOpts() river.InsertOpts {
+func (ScreenMultipleVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueScreenDispatch,
 		MaxAttempts: 1,
@@ -58,19 +58,19 @@ func (ScreenVideosJob) InsertOpts() river.InsertOpts {
 	}
 }
 
-// ScreenVideoJob screens one discovered video from its caption and hashtags.
-type ScreenVideoJob struct {
+// ScreenSingleVideoJob screens one discovered video from its caption and hashtags.
+type ScreenSingleVideoJob struct {
 	// VideoID is the videos.id of the video to screen.
 	VideoID string `json:"video_id"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (ScreenVideoJob) Kind() string { return string(JobTypeScreenVideo) }
+func (ScreenSingleVideoJob) Kind() string { return string(JobTypeScreenSingleVideo) }
 
 // InsertOpts implements river.JobArgsWithInsertOpts. A video is only queued
 // once while a job for it is waiting, running or waiting for a retry. After
 // ScreenMaxAttempts failed attempts the video is marked as failed.
-func (ScreenVideoJob) InsertOpts() river.InsertOpts {
+func (ScreenSingleVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueScreening,
 		MaxAttempts: ScreenMaxAttempts,

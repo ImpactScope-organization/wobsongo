@@ -20,11 +20,11 @@ type crawlTestVideoRepo struct {
 	isNew            bool
 	saveErrAt        int // 1-based number of the save that fails, 0 for none
 	calls            int
-	screenRuns       int   // how many times EnqueueScreenVideosJob was called
-	enqueueScreenErr error // returned by EnqueueScreenVideosJob
+	screenRuns       int   // how many times EnqueueScreenMultipleVideoJob was called
+	enqueueScreenErr error // returned by EnqueueScreenMultipleVideoJob
 }
 
-func (r *crawlTestVideoRepo) EnqueueScreenVideosJob(context.Context) error {
+func (r *crawlTestVideoRepo) EnqueueScreenMultipleVideoJob(context.Context) error {
 	r.screenRuns++
 	return r.enqueueScreenErr
 }

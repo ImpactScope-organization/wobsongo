@@ -174,47 +174,6 @@ func (q *Queries) GetVideoForTranscription(ctx context.Context, id uuid.UUID) (G
 	return i, err
 }
 
-const listDiscoveredVideos = `-- name: ListDiscoveredVideos :many
-SELECT id, created_at
-FROM videos
-WHERE status = 'discovered'
-  AND (created_at, id) > ($1::timestamptz, $2::uuid)
-ORDER BY created_at ASC, id ASC
-LIMIT $3::int
-`
-
-type ListDiscoveredVideosParams struct {
-	AfterCreatedAt time.Time
-	AfterID        uuid.UUID
-	BatchSize      int32
-}
-
-type ListDiscoveredVideosRow struct {
-	ID        uuid.UUID
-	CreatedAt time.Time
-}
-
-// Returns the ids of the videos still waiting for screening, oldest first.
-func (q *Queries) ListDiscoveredVideos(ctx context.Context, arg ListDiscoveredVideosParams) ([]ListDiscoveredVideosRow, error) {
-	rows, err := q.db.Query(ctx, listDiscoveredVideos, arg.AfterCreatedAt, arg.AfterID, arg.BatchSize)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ListDiscoveredVideosRow
-	for rows.Next() {
-		var i ListDiscoveredVideosRow
-		if err := rows.Scan(&i.ID, &i.CreatedAt); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const listVideoCreatedAtByInfluencerID = `-- name: ListVideoCreatedAtByInfluencerID :many
 SELECT video_created_at FROM videos
 WHERE influencer_id = $1::uuid
@@ -391,31 +350,6 @@ type SetVideoMediaURLParams struct {
 func (q *Queries) SetVideoMediaURL(ctx context.Context, arg SetVideoMediaURLParams) error {
 	_, err := q.db.Exec(ctx, setVideoMediaURL, arg.MediaUrl, arg.ID)
 	return err
-}
-
-const setVideoScreenFailed = `-- name: SetVideoScreenFailed :execrows
-UPDATE videos
-SET status = 'failed',
-    failed_stage = $1::varchar,
-    error = $2::text,
-    updated_at = NOW()
-WHERE id = $3::uuid
-  AND status = 'discovered'
-`
-
-type SetVideoScreenFailedParams struct {
-	FailedStage string
-	Error       string
-	ID          uuid.UUID
-}
-
-// Marks a video that is still waiting for screening as failed.
-func (q *Queries) SetVideoScreenFailed(ctx context.Context, arg SetVideoScreenFailedParams) (int64, error) {
-	result, err := q.db.Exec(ctx, setVideoScreenFailed, arg.FailedStage, arg.Error, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
 }
 
 const setVideoScreenStatus = `-- name: SetVideoScreenStatus :execrows

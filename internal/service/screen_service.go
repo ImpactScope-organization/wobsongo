@@ -40,43 +40,15 @@ func NewScreenService(videoRepo data.VideoRepoer, analyzer data.ClaimAnalyzer) *
 }
 
 // EnqueueDiscoveredVideos enqueues one screening job for every video that is
-// still 'discovered', batch by batch, and returns how many new jobs it
-// enqueued. A video that already has a job in the queue is not queued twice
-// and is not counted.
+// still 'discovered' and returns how many new jobs it enqueued. A video that
+// already has a job in the queue is not queued twice and is not counted.
 func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error) {
-	var (
-		count          int
-		afterCreatedAt time.Time
-		afterID        uuid.UUID
+	return enqueueVideosByStatus(
+		ctx,
+		s.videoRepo,
+		model.VideoStatusDiscovered,
+		s.videoRepo.EnqueueScreenVideoJob,
 	)
-
-	for {
-		if err := ctx.Err(); err != nil {
-			return count, fmt.Errorf("failed to enqueue screening: %w", err)
-		}
-
-		videos, err := s.videoRepo.ListDiscoveredVideos(
-			ctx, screenBatchSize, afterCreatedAt, afterID,
-		)
-		if err != nil {
-			return count, fmt.Errorf("failed to list discovered videos: %w", err)
-		}
-		if len(videos) == 0 {
-			return count, nil
-		}
-		for _, v := range videos {
-			enqueued, err := s.videoRepo.EnqueueScreenVideoJob(ctx, v.ID)
-			if err != nil {
-				return count, fmt.Errorf("failed to enqueue screening of video %s: %w", v.ID, err)
-			}
-			if enqueued {
-				count++
-			}
-		}
-
-		last := videos[len(videos)-1]
-		afterCreatedAt, afterID = last.CreatedAt, last.ID
-	}
 }
 
 // enqueueVideosByStatus enqueues one job for every video that is in status,
@@ -195,7 +167,13 @@ func screenText(v *model.Video) string {
 // MarkScreenFailed marks a video as failed because screening gave up on it. A
 // video that is no longer 'discovered' is left alone.
 func (s *ScreenService) MarkScreenFailed(ctx context.Context, id uuid.UUID, cause error) error {
-	applied, err := s.videoRepo.SetVideoScreenFailed(ctx, id, failureReason(cause))
+	applied, err := s.videoRepo.SetVideoFailed(
+		ctx,
+		id,
+		model.VideoStatusDiscovered,
+		model.VideoFailedStageScreen,
+		failureReason(cause),
+	)
 	if err != nil {
 		return fmt.Errorf("failed to mark video %s as failed: %w", id, err)
 	}

@@ -36,13 +36,18 @@ type fakeScreenStore struct {
 	failErrs           map[uuid.UUID]error
 	transcribeEnqueued []uuid.UUID
 	transcribeErr      error
+	gotStatus          model.VideoStatus
+	gotFailFrom        model.VideoStatus
+	gotFailStage       string
 }
 
-func (s *fakeScreenStore) SetVideoScreenFailed(
+func (s *fakeScreenStore) SetVideoFailed(
 	_ context.Context,
 	id uuid.UUID,
-	reason string,
+	fromStatus model.VideoStatus,
+	stage, reason string,
 ) (bool, error) {
+	s.gotFailFrom, s.gotFailStage = fromStatus, stage
 	if err := s.failErrs[id]; err != nil {
 		return false, err
 	}
@@ -97,12 +102,14 @@ func (s *fakeScreenStore) EnqueueTranscribeVideoJob(
 	return true, nil
 }
 
-func (s *fakeScreenStore) ListDiscoveredVideos(
+func (s *fakeScreenStore) ListVideosByStatus(
 	_ context.Context,
+	status model.VideoStatus,
 	limit int32,
 	after time.Time,
 	afterID uuid.UUID,
 ) ([]*model.Video, error) {
+	s.gotStatus = status
 	s.gotLimit = limit
 	start := 0
 	if afterID != uuid.Nil {
@@ -419,6 +426,9 @@ func TestEnqueueDiscoveredVideos_EnqueuesEveryBatch(t *testing.T) {
 	if store.gotLimit != screenBatchSize {
 		t.Errorf("batch size = %d, want %d", store.gotLimit, screenBatchSize)
 	}
+	if store.gotStatus != model.VideoStatusDiscovered {
+		t.Errorf("listed status = %q, want discovered", store.gotStatus)
+	}
 	// Videos stay discovered until their job runs, so each list call has to
 	// skip the ones already enqueued, or the run would never finish.
 	last := store.gotExcludes[len(store.gotExcludes)-1]
@@ -508,6 +518,11 @@ func TestMarkScreenFailed(t *testing.T) {
 		}
 		if got := store.failed[video.ID]; got != errScreenBoom.Error() {
 			t.Errorf("reason = %q, want %q", got, errScreenBoom.Error())
+		}
+		if store.gotFailFrom != model.VideoStatusDiscovered ||
+			store.gotFailStage != model.VideoFailedStageScreen {
+			t.Errorf("failed from %q at stage %q, want discovered/screen",
+				store.gotFailFrom, store.gotFailStage)
 		}
 	})
 

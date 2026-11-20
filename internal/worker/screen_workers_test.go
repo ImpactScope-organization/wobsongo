@@ -51,8 +51,9 @@ func (s *screenWorkerStore) EnqueueTranscribeVideoJob(
 	return true, nil
 }
 
-func (s *screenWorkerStore) ListDiscoveredVideos(
+func (s *screenWorkerStore) ListVideosByStatus(
 	_ context.Context,
+	_ model.VideoStatus,
 	limit int32,
 	_ time.Time,
 	afterID uuid.UUID,
@@ -157,10 +158,11 @@ func runScreenVideosJob(t *testing.T, w *ScreenVideosWorker) error {
 	return w.Work(t.Context(), &river.Job[queue.ScreenVideosJob]{})
 }
 
-func (s *screenWorkerStore) SetVideoScreenFailed(
+func (s *screenWorkerStore) SetVideoFailed(
 	_ context.Context,
 	id uuid.UUID,
-	reason string,
+	_ model.VideoStatus,
+	_, reason string,
 ) (bool, error) {
 	if _, screened := s.status[id]; screened {
 		return false, nil

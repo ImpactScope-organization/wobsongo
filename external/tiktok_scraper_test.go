@@ -83,8 +83,8 @@ func TestTikTokScraperClient_ResolveMediaURL_Success(t *testing.T) {
 	if gotPayload["shouldDownloadVideos"] != true {
 		t.Errorf("shouldDownloadVideos = %v, want true", gotPayload["shouldDownloadVideos"])
 	}
-	urls, _ := gotPayload["postURLs"].([]any)
-	if len(urls) != 1 || urls[0] != "https://www.tiktok.com/@a/video/2" {
+	urls, ok := gotPayload["postURLs"].([]any)
+	if !ok || len(urls) != 1 || urls[0] != "https://www.tiktok.com/@a/video/2" {
 		t.Errorf("postURLs = %v, want the video url", gotPayload["postURLs"])
 	}
 }

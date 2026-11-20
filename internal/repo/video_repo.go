@@ -301,34 +301,6 @@ func (r *videoRepo) ListVideoTimesByInfluencerID(
 	return times, nil
 }
 
-// ListDiscoveredVideos returns up to limit videos still waiting for
-// screening, oldest first, that come after the position (afterCreatedAt,
-// afterID).
-func (r *videoRepo) ListDiscoveredVideos(
-	ctx context.Context,
-	limit int32,
-	afterCreatedAt time.Time,
-	afterID uuid.UUID,
-) ([]*model.Video, error) {
-	rows, err := r.q.ListDiscoveredVideos(ctx, db.ListDiscoveredVideosParams{
-		AfterCreatedAt: afterCreatedAt,
-		AfterID:        afterID,
-		BatchSize:      limit,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to list discovered videos: %w", mapPostgresError(err))
-	}
-
-	videos := make([]*model.Video, 0, len(rows))
-	for _, row := range rows {
-		videos = append(videos, &model.Video{
-			ID:        row.ID,
-			CreatedAt: row.CreatedAt,
-		})
-	}
-	return videos, nil
-}
-
 // ListVideosByStatus returns up to limit videos in status, oldest first, that
 // come after the position (afterCreatedAt, afterID).
 func (r *videoRepo) ListVideosByStatus(
@@ -400,29 +372,7 @@ func (r *videoRepo) GetVideoForScreening(
 	}, nil
 }
 
-// SetVideoScreenFailed moves a 'discovered' video to 'failed'. It reports
-// false when the video was no longer 'discovered'.
-func (r *videoRepo) SetVideoScreenFailed(
-	ctx context.Context,
-	id uuid.UUID,
-	reason string,
-) (bool, error) {
-	affected, err := r.q.SetVideoScreenFailed(ctx, db.SetVideoScreenFailedParams{
-		FailedStage: model.VideoFailedStageScreen,
-		Error:       reason,
-		ID:          id,
-	})
-	if err != nil {
-		return false, fmt.Errorf(
-			"failed to set screen failure of video %s: %w",
-			id,
-			mapPostgresError(err),
-		)
-	}
-	return affected > 0, nil
-}
-
-// EnqueueScreenSingleVideoJob adds a screen-video job to the River queue, inside the
+// EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
 // current transaction when there is one. It reports false when an identical
 // job is already waiting, running or waiting for a retry.
 func (r *videoRepo) EnqueueScreenSingleVideoJob(

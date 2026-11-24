@@ -82,6 +82,7 @@ func newCheckHealthClaimTool(claimService *ClaimService) agenticgokit.Tool {
 			result, err := claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 				Text:   args.Claim,
 				Length: string(turn.Settings.Length),
+				Tone:   string(turn.Settings.Tone),
 				Source: claimSource(turn.MessageID, turn.Format),
 			})
 			if err != nil {

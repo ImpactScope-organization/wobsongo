@@ -341,9 +341,11 @@ func (s *AgentService) runFallbackReply(
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
 		internal.MsgCheckingClaim)
 
+	settings := s.loadBotSettings(ctx, job.JID)
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.UserText,
 		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Tone:   string(settings.Tone),
 		Source: claimSource(job.MessageID, job.Format),
 	})
 	if err != nil {
@@ -397,9 +399,11 @@ func (s *AgentService) runVideoContinuation(
 	internal.NotifyBotProgress(ctx, s.botClient, componentAgentService, job.ExtractionID,
 		internal.MsgCheckingClaim)
 
+	settings := s.loadBotSettings(ctx, job.JID)
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.SystemNote,
 		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Tone:   string(settings.Tone),
 		Source: dto.NewClaimSource(
 			model.ClaimPlatformTikTok,
 			originalMessageID,

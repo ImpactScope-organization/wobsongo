@@ -808,16 +808,16 @@ func TestFormatClaimMessage_Lengths(t *testing.T) {
 		Reasoning:      "the full reasoning [0]",
 		Citations:      []Citation{{Index: 0, Source: "OMS", Text: "evidence text"}},
 	}}
-	format := func(length model.BotLength) string {
-		return formatClaimMessage(results, "summary", model.LanguageFrench, length)
+	format := func(length model.BotLength, tone model.BotTone) string {
+		return formatClaimMessage(results, "summary", model.LanguageFrench, length, tone)
 	}
 
-	short := format(model.BotLengthShort)
+	short := format(model.BotLengthShort, "")
 	if short != model.VerdictSupported.Emoji()+" the brief sentence" {
 		t.Errorf("short must be verdict + one sentence, got %q", short)
 	}
 
-	medium := format(model.BotLengthMedium)
+	medium := format(model.BotLengthMedium, "")
 	for _, want := range []string{"summary", "1. claim A", "the brief sentence"} {
 		if !strings.Contains(medium, want) {
 			t.Errorf("medium must contain %q, got %q", want, medium)
@@ -827,7 +827,10 @@ func TestFormatClaimMessage_Lengths(t *testing.T) {
 		t.Errorf("medium must not show the full reasoning, got %q", medium)
 	}
 
-	long := format(model.BotLengthLong)
+	long := format(model.BotLengthLong, "")
+	if !strings.Contains(long, "summary") {
+		t.Errorf("long must keep the header with the default tone, got %q", long)
+	}
 	if !strings.Contains(long, "the full reasoning") || strings.Contains(long, "[0]") {
 		t.Errorf("long must show the reasoning without [N] markers, got %q", long)
 	}
@@ -835,10 +838,49 @@ func TestFormatClaimMessage_Lengths(t *testing.T) {
 		t.Errorf("long must not list the evidence, got %q", long)
 	}
 
-	expert := format(model.BotLengthExpert)
-	if !strings.Contains(expert, "the full reasoning [0]") ||
+	expert := format(model.BotLengthExpert, "")
+	if !strings.Contains(expert, "summary") ||
+		!strings.Contains(expert, "the full reasoning [0]") ||
 		!strings.Contains(expert, "evidence text") {
-		t.Errorf("expert must show the reasoning and the evidence, got %q", expert)
+		t.Errorf("expert must show header, reasoning and evidence, got %q", expert)
+	}
+}
+
+func TestFormatClaimMessage_FriendlyTone(t *testing.T) {
+	results := []SubClaimResult{{
+		Claim:          "claim A",
+		Verdict:        model.VerdictSupported,
+		BriefReasoning: "the brief sentence",
+		Reasoning:      "the full reasoning [0]",
+		Citations:      []Citation{{Index: 0, Source: "OMS", Text: "evidence text"}},
+	}}
+	format := func(length model.BotLength, tone model.BotTone) string {
+		return formatClaimMessage(results, "summary", model.LanguageFrench, length, tone)
+	}
+	emoji := model.VerdictSupported.Emoji()
+
+	for _, length := range []model.BotLength{model.BotLengthShort, model.BotLengthMedium} {
+		if got := format(length, model.BotToneFriendly); got != emoji+" the brief sentence" {
+			t.Errorf("friendly %s must be verdict + sentence, got %q", length, got)
+		}
+	}
+	if got := format(
+		model.BotLengthLong,
+		model.BotToneFriendly,
+	); got != emoji+" the full reasoning" {
+		t.Errorf("friendly long must be verdict + reasoning without header, got %q", got)
+	}
+
+	expert := format(model.BotLengthExpert, model.BotToneFriendly)
+	if !strings.Contains(expert, "summary") || !strings.Contains(expert, "evidence text") {
+		t.Errorf("friendly expert must keep the header and evidence, got %q", expert)
+	}
+
+	// Other tones keep the header (except short).
+	for _, tone := range []model.BotTone{model.BotToneFormal, model.BotToneAcademic} {
+		if got := format(model.BotLengthMedium, tone); !strings.Contains(got, "summary") {
+			t.Errorf("%s medium must keep the header, got %q", tone, got)
+		}
 	}
 }
 

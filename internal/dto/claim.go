@@ -25,6 +25,9 @@ type CheckClaimDTO struct {
 	// (true = "expert", false = "medium").
 	Length string `json:"length,omitempty"`
 
+	// Tone is the chat's bot tone ("formal", "academic" or "friendly").
+	Tone string `json:"tone,omitempty"`
+
 	// Source says where the text came from.
 	Source *ClaimSource `json:"-"`
 }

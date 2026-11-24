@@ -210,6 +210,7 @@ func (s *ClaimService) CheckClaim(
 			overallSummary,
 			replyLanguage,
 			claimMessageLength(req),
+			model.BotTone(req.Tone),
 		),
 		SubClaims: results,
 		Language:  analysis.Language,
@@ -540,23 +541,34 @@ func claimMessageLength(req *dto.CheckClaimDTO) model.BotLength {
 // unlike a bot that sends directly to one chat platform.
 //
 // length selects the shape:
-//   - short: no header, the brief explainer per sub-claim only.
-//   - medium: header plus the brief explainer per sub-claim.
-//   - long: header plus the full Reasoning, without its "[N]" markers
+//   - short: the brief explainer per sub-claim only.
+//   - medium: the brief explainer per sub-claim.
+//   - long: the full Reasoning, without its "[N]" markers
 //     (no evidence list is shown for them to point at).
-//   - expert: header plus the full Reasoning and, when present, the
+//   - expert: the full Reasoning and, when present, the
 //     evidence/citations it's actually based on.
+//
+// tone decides whether the "N claims checked" header is shown. With the
+// friendly tone only expert gets the header; every other length answers
+// directly. With any other tone (or none), every length but short keeps it.
+// Without the header, an answer about a single claim is just
+// "verdict + explainer".
 func formatClaimMessage(
 	results []SubClaimResult,
 	overallSummary string,
 	language model.Language,
 	length model.BotLength,
+	tone model.BotTone,
 ) string {
 	fullReasoning := length == model.BotLengthLong || length == model.BotLengthExpert
 	withCitations := length == model.BotLengthExpert
+	withHeader := length != model.BotLengthShort
+	if tone == model.BotToneFriendly {
+		withHeader = length == model.BotLengthExpert
+	}
 
 	var b strings.Builder
-	if length != model.BotLengthShort {
+	if withHeader {
 		label := claimsCheckedLabelTemplates[language].many
 		if len(results) == 1 {
 			label = claimsCheckedLabelTemplates[language].one
@@ -586,9 +598,10 @@ func formatClaimMessage(
 			explainer = insufficientEvidenceExplainerTemplates[language]
 		}
 
-		// A short answer about a single claim is just "verdict + sentence":
-		// repeating the claim and its number would only add noise.
-		if length == model.BotLengthShort && len(results) == 1 && explainer != "" {
+		// Without the header, an answer about a single claim is just
+		// "verdict + explainer": repeating the claim and its number would
+		// only add noise.
+		if !withHeader && len(results) == 1 && explainer != "" {
 			b.WriteString(r.Verdict.Emoji())
 			b.WriteString(" ")
 			b.WriteString(explainer)

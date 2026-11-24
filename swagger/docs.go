@@ -5445,6 +5445,10 @@ const docTemplate = `{
                 "text": {
                     "description": "Text is the claim or message to check — may be a direct question, a\ncasual claim, or a sentence pulled from a video transcript.",
                     "type": "string"
+                },
+                "tone": {
+                    "description": "Tone is the chat's bot tone (\"formal\", \"academic\" or \"friendly\").",
+                    "type": "string"
                 }
             }
         },

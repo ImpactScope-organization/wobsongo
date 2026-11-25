@@ -23,8 +23,16 @@ ORDER BY sequence_number ASC;
 SELECT DISTINCT document_id FROM document_chunks
 WHERE text != '' AND text_translated IS NULL;
 
+-- name: ListDocumentIDsNeedingTableBackfill :many
+SELECT DISTINCT document_id FROM document_chunks
+WHERE layout_type = 'table' AND text = '' AND table_markdown = '';
+
 -- name: MarkChunkKnowledgeExtracted :exec
 UPDATE document_chunks SET knowledge_extracted_at = now() WHERE id = $1;
+
+-- name: UpdateChunkTable :exec
+UPDATE document_chunks SET text = $2, table_markdown = $3, updated_at = $4
+WHERE id = $1 AND layout_type = 'table' AND text = '' AND table_markdown = '';
 
 -- name: UpdateChunkTranslation :exec
 UPDATE document_chunks SET text_translated = $2, updated_at = $3 WHERE id = $1;

@@ -251,6 +251,31 @@ func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID
 	return items, nil
 }
 
+const listDocumentIDsNeedingTableBackfill = `-- name: ListDocumentIDsNeedingTableBackfill :many
+SELECT DISTINCT document_id FROM document_chunks
+WHERE layout_type = 'table' AND text = '' AND table_markdown = ''
+`
+
+func (q *Queries) ListDocumentIDsNeedingTableBackfill(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listDocumentIDsNeedingTableBackfill)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var document_id uuid.UUID
+		if err := rows.Scan(&document_id); err != nil {
+			return nil, err
+		}
+		items = append(items, document_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDocumentIDsNeedingTranslation = `-- name: ListDocumentIDsNeedingTranslation :many
 SELECT DISTINCT document_id FROM document_chunks
 WHERE text != '' AND text_translated IS NULL
@@ -282,6 +307,28 @@ UPDATE document_chunks SET knowledge_extracted_at = now() WHERE id = $1
 
 func (q *Queries) MarkChunkKnowledgeExtracted(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markChunkKnowledgeExtracted, id)
+	return err
+}
+
+const updateChunkTable = `-- name: UpdateChunkTable :exec
+UPDATE document_chunks SET text = $2, table_markdown = $3, updated_at = $4
+WHERE id = $1 AND layout_type = 'table' AND text = '' AND table_markdown = ''
+`
+
+type UpdateChunkTableParams struct {
+	ID            uuid.UUID
+	Text          string
+	TableMarkdown string
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) UpdateChunkTable(ctx context.Context, arg UpdateChunkTableParams) error {
+	_, err := q.db.Exec(ctx, updateChunkTable,
+		arg.ID,
+		arg.Text,
+		arg.TableMarkdown,
+		arg.UpdatedAt,
+	)
 	return err
 }
 

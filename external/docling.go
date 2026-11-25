@@ -129,41 +129,18 @@ type doclingTableCell struct {
 
 // tableToText converts Docling table cells into descriptive text
 // optimized for search, embeddings, RAG retrieval, and claim judging.
-
 func tableToText(table doclingTableItem) string {
 	if !tableHasContent(table) {
 		return ""
 	}
 
-	rows := make(map[int][]doclingTableCell)
-	for _, cell := range table.Data.TableCells {
-		rows[cell.StartRowOffsetIdx] = append(
-			rows[cell.StartRowOffsetIdx],
-			cell,
-		)
-	}
-
-	rowIndexes := make([]int, 0, len(rows))
-	for row := range rows {
-		rowIndexes = append(rowIndexes, row)
-	}
-	sort.Ints(rowIndexes)
-
-	if len(rowIndexes) == 0 {
-		return ""
-	}
+	rows, rowIndexes, _ := groupTableRows(table)
 
 	// The first row contains the column headers.
-	headerCells := rows[rowIndexes[0]]
-	sort.SliceStable(headerCells, func(i, j int) bool {
-		return headerCells[i].StartColOffsetIdx <
-			headerCells[j].StartColOffsetIdx
-	})
-
 	headers := make(map[int]string)
-	headerNames := make([]string, 0, len(headerCells))
+	headerNames := make([]string, 0, len(rows[rowIndexes[0]]))
 
-	for _, cell := range headerCells {
+	for _, cell := range rows[rowIndexes[0]] {
 		header := strings.TrimSpace(cell.Text)
 		if header == "" {
 			continue
@@ -186,18 +163,11 @@ func tableToText(table doclingTableItem) string {
 	b.WriteString("Table:")
 
 	for rowPosition, rowIndex := range rowIndexes[1:] {
-		cells := rows[rowIndex]
-
-		sort.SliceStable(cells, func(i, j int) bool {
-			return cells[i].StartColOffsetIdx <
-				cells[j].StartColOffsetIdx
-		})
-
 		b.WriteString("\n\n- Row ")
 		b.WriteString(strconv.Itoa(rowPosition + 2))
 		b.WriteString(": ")
 
-		for i, cell := range cells {
+		for i, cell := range rows[rowIndex] {
 			if i > 0 {
 				b.WriteString("; ")
 			}
@@ -221,37 +191,14 @@ func tableToMarkdown(table doclingTableItem) string {
 	if !tableHasContent(table) {
 		return ""
 	}
-	rows := make(map[int][]doclingTableCell)
 
-	maxColumn := 0
-
-	for _, cell := range table.Data.TableCells {
-		rows[cell.StartRowOffsetIdx] = append(
-			rows[cell.StartRowOffsetIdx],
-			cell,
-		)
-
-		maxColumn = max(maxColumn, cell.StartColOffsetIdx)
-	}
-
-	rowIndexes := make([]int, 0, len(rows))
-
-	for row := range rows {
-		rowIndexes = append(rowIndexes, row)
-	}
-
-	sort.Ints(rowIndexes)
-
-	if len(rowIndexes) == 0 {
-		return ""
-	}
-
+	rows, rowIndexes, maxColumn := groupTableRows(table)
 	columns := maxColumn + 1
 
 	var b strings.Builder
 
 	writeRow := func(rowIndex int) {
-		cells := make(map[int]string)
+		cells := make(map[int]string, len(rows[rowIndex]))
 
 		for _, cell := range rows[rowIndex] {
 			cells[cell.StartColOffsetIdx] = strings.TrimSpace(cell.Text)
@@ -264,12 +211,7 @@ func tableToMarkdown(table doclingTableItem) string {
 				b.WriteString(" | ")
 			}
 
-			value := strings.ReplaceAll(
-				cells[column],
-				"|",
-				"\\|",
-			)
-
+			value := strings.ReplaceAll(cells[column], "|", "\\|")
 			value = strings.ReplaceAll(value, "\n", " ")
 
 			b.WriteString(value)
@@ -291,6 +233,7 @@ func tableToMarkdown(table doclingTableItem) string {
 
 		b.WriteString("---")
 	}
+
 	b.WriteString(" |\n")
 
 	// Write remaining data rows.
@@ -601,4 +544,36 @@ func tableHasContent(table doclingTableItem) bool {
 	}
 
 	return false
+}
+
+// groupTableRows groups table cells by row index. It returns the cells of
+// each row sorted by column, the sorted row indexes, and the highest column
+// index, so that both table representations share the same grouping.
+func groupTableRows(
+	table doclingTableItem,
+) (rows map[int][]doclingTableCell, rowIndexes []int, maxColumn int) {
+	rows = make(map[int][]doclingTableCell)
+
+	for _, cell := range table.Data.TableCells {
+		rows[cell.StartRowOffsetIdx] = append(
+			rows[cell.StartRowOffsetIdx],
+			cell,
+		)
+
+		maxColumn = max(maxColumn, cell.StartColOffsetIdx)
+	}
+
+	rowIndexes = make([]int, 0, len(rows))
+
+	for rowIndex, cells := range rows {
+		rowIndexes = append(rowIndexes, rowIndex)
+
+		sort.SliceStable(cells, func(i, j int) bool {
+			return cells[i].StartColOffsetIdx < cells[j].StartColOffsetIdx
+		})
+	}
+
+	sort.Ints(rowIndexes)
+
+	return rows, rowIndexes, maxColumn
 }

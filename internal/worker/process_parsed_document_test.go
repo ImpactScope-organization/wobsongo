@@ -932,3 +932,45 @@ func TestProcessParsedDocumentWorker_Work_NoChunksSurviveFilter(t *testing.T) {
 		t.Errorf("expected CreateBatch to receive an empty slice, got %d", receivedLen)
 	}
 }
+
+func TestFilterNoiseChunks_PreservesTableRepresentations(t *testing.T) {
+	table := model.ParsedChunk{
+		Text:          "Table:\n\n- Row 2: Condition: A; Dosage: 10 mg",
+		TableMarkdown: "| Condition | Dosage |\n| --- | --- |\n| A | 10 mg |",
+		LayoutType:    model.LayoutTypeTable,
+	}
+
+	kept, dropped := filterNoiseChunks([]model.ParsedChunk{
+		{Text: "A longer section title", LayoutType: model.LayoutTypeSectionHeader},
+		table,
+	})
+
+	if dropped != 0 {
+		t.Fatalf("expected 0 dropped, got %d", dropped)
+	}
+	if len(kept) != 2 {
+		t.Fatalf("expected 2 kept, got %d", len(kept))
+	}
+	if kept[1].Text != table.Text || kept[1].TableMarkdown != table.TableMarkdown {
+		t.Errorf("table chunk must be preserved unchanged: %+v", kept[1])
+	}
+}
+
+func TestFilterNoiseChunks_MergeKeepsTargetMetadataIncludingTableMarkdown(t *testing.T) {
+	header := model.ParsedChunk{Text: "Section", LayoutType: model.LayoutTypeSectionHeader}
+	item := model.ParsedChunk{
+		Text:          "Item",
+		TableMarkdown: "| a |",
+		Page:          4,
+		LayoutType:    model.LayoutTypeListItem,
+	}
+
+	kept, _ := filterNoiseChunks([]model.ParsedChunk{header, item})
+
+	if len(kept) != 1 {
+		t.Fatalf("expected 1 kept, got %d", len(kept))
+	}
+	if kept[0].Text != "Section\nItem" || kept[0].Page != 4 || kept[0].TableMarkdown != "| a |" {
+		t.Errorf("merged chunk must keep target metadata: %+v", kept[0])
+	}
+}

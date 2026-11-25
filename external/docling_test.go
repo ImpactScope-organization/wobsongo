@@ -123,13 +123,6 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 				t.Errorf("expected empty table Markdown, got %q", c.TableMarkdown)
 			}
 
-			if c.TableMarkdown != "" {
-				t.Errorf(
-					"expected empty table Markdown, got %q",
-					c.TableMarkdown,
-				)
-			}
-
 		case model.LayoutTypePicture:
 			picture = &result.Chunks[i]
 		}
@@ -494,5 +487,89 @@ func TestParseRaw_HeaderOnlyTableHasSearchableColumnNames(t *testing.T) {
 
 	if table.TableMarkdown == "" {
 		t.Error("expected header-only table Markdown to be preserved")
+	}
+}
+
+func TestParseRaw_TableMarkdownEscapesPipesAndFlattensNewlines(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "escape.pdf",
+				"tables": [{
+					"label": "table",
+					"data": {
+						"table_cells": [
+							{"text": "Name", "start_row_offset_idx": 0, "start_col_offset_idx": 0},
+							{"text": "Notes", "start_row_offset_idx": 0, "start_col_offset_idx": 1},
+							{"text": "A|B", "start_row_offset_idx": 1, "start_col_offset_idx": 0},
+							{"text": "line1\nline2", "start_row_offset_idx": 1, "start_col_offset_idx": 1}
+						]
+					}
+				}]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+	if len(result.Chunks) != 1 {
+		t.Fatalf("expected 1 chunk, got %d", len(result.Chunks))
+	}
+
+	want := strings.Join([]string{
+		"| Name | Notes |",
+		"| --- | --- |",
+		"| A\\|B | line1 line2 |",
+	}, "\n")
+
+	if got := result.Chunks[0].TableMarkdown; got != want {
+		t.Errorf("want:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+func TestParseRaw_TableWithMissingCellsKeepsColumnAlignment(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "sparse.pdf",
+				"tables": [{
+					"label": "table",
+					"data": {
+						"table_cells": [
+							{"text": "A", "start_row_offset_idx": 0, "start_col_offset_idx": 0},
+							{"text": "B", "start_row_offset_idx": 0, "start_col_offset_idx": 1},
+							{"text": "C", "start_row_offset_idx": 0, "start_col_offset_idx": 2},
+							{"text": "1", "start_row_offset_idx": 1, "start_col_offset_idx": 0},
+							{"text": "3", "start_row_offset_idx": 1, "start_col_offset_idx": 2}
+						]
+					}
+				}]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	table := result.Chunks[0]
+
+	wantMarkdown := strings.Join([]string{
+		"| A | B | C |",
+		"| --- | --- | --- |",
+		"| 1 |  | 3 |",
+	}, "\n")
+	if table.TableMarkdown != wantMarkdown {
+		t.Errorf("want:\n%s\ngot:\n%s", wantMarkdown, table.TableMarkdown)
+	}
+
+	wantText := "Table:\n\n- Row 2: A: 1; C: 3"
+	if table.Text != wantText {
+		t.Errorf("want %q, got %q", wantText, table.Text)
 	}
 }

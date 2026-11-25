@@ -234,6 +234,9 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 	}
 
 	evidenceChunkID := uuid.New()
+	tableMarkdown := "| Condition | Dosage |\n" +
+		"| --- | --- |\n" +
+		"| Condition B | 20 mg |"
 	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
 	chunkRepo.SearchByEmbeddingFunc = func(
 		context.Context, []float32, int,
@@ -246,8 +249,13 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 		return []data.ScoredResult[model.DocumentChunk]{
 			{
 				Item: model.DocumentChunk{
-					ID:          evidenceChunkID,
-					ParsedChunk: model.ParsedChunk{Text: "relevant passage"},
+					ID:         evidenceChunkID,
+					DocumentID: uuid.New(),
+					ParsedChunk: model.ParsedChunk{
+						Text:          "Table:\n\n- Row 2: Condition: Condition B; Dosage: 20 mg",
+						TableMarkdown: tableMarkdown,
+						LayoutType:    model.LayoutTypeTable,
+					},
 				},
 				Score: 0.9,
 			},
@@ -296,7 +304,8 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 	wantMessage := "🟢 confirmé — 1 affirmation vérifiée\n\n" +
 		"🟢 1. vitamin C prevents colds\n" +
 		"the cited chunk backs this\n" +
-		"  [0] (chunk) relevant passage"
+		"  [0] (chunk)\n" +
+		tableMarkdown
 	if resp.Data.FormattedMessage != wantMessage {
 		t.Errorf("expected formatted message %q, got %q", wantMessage, resp.Data.FormattedMessage)
 	}
@@ -304,10 +313,11 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 	if len(resp.Data.SubClaims) != 1 || len(resp.Data.SubClaims[0].Citations) != 1 {
 		t.Fatalf("expected 1 sub-claim with 1 citation, got %+v", resp.Data.SubClaims)
 	}
-	if resp.Data.SubClaims[0].Citations[0].ChunkID != evidenceChunkID {
+	if resp.Data.SubClaims[0].Citations[0].TableMarkdown != tableMarkdown {
 		t.Errorf(
-			"expected citation chunk_id %s, got %s",
-			evidenceChunkID, resp.Data.SubClaims[0].Citations[0].ChunkID,
+			"expected citation TableMarkdown %q, got %q",
+			tableMarkdown,
+			resp.Data.SubClaims[0].Citations[0].TableMarkdown,
 		)
 	}
 }

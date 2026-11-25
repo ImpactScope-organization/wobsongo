@@ -11,6 +11,8 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -81,12 +83,9 @@ type doclingOptions struct {
 	// comment for why this deployment needed upgrading before that was true.
 	IncludePageImages bool `json:"include_page_images"`
 
-	// TableMode trades TableFormer's extra accuracy for speed. "accurate"
-	// (Docling's default) is markedly slower than "fast" — worth paying for
-	// only once something actually consumes the extra precision. Right now
-	// nothing does: doclingTableItem deliberately doesn't map table
-	// cell/grid data at all yet (see its doc comment), so "accurate" mode's
-	// benefit is entirely wasted today.
+	// TableMode trades TableFormer's extra accuracy for speed.
+	// The current ingestion configuration keeps "fast" as the default.
+	// Table cells are now consumed by tableToText and tableToMarkdown.
 	TableMode string `json:"table_mode"`
 }
 
@@ -113,10 +112,168 @@ type doclingTextItem struct {
 }
 
 type doclingTableItem struct {
-	Label string        `json:"label"`
-	Prov  []doclingProv `json:"prov"`
-	// Table cell/grid data (Data field) intentionally not mapped yet —
-	// out of scope until a future sub-task needs structured table content.
+	Label string           `json:"label"`
+	Prov  []doclingProv    `json:"prov"`
+	Data  doclingTableData `json:"data"`
+}
+
+type doclingTableData struct {
+	TableCells []doclingTableCell `json:"table_cells"`
+}
+
+type doclingTableCell struct {
+	Text              string `json:"text"`
+	StartRowOffsetIdx int    `json:"start_row_offset_idx"`
+	StartColOffsetIdx int    `json:"start_col_offset_idx"`
+}
+
+// tableToText converts Docling table cells into descriptive text
+// optimized for search, embeddings, RAG retrieval, and claim judging.
+func tableToText(table doclingTableItem) string {
+	rows := make(map[int][]doclingTableCell)
+
+	for _, cell := range table.Data.TableCells {
+		rows[cell.StartRowOffsetIdx] = append(
+			rows[cell.StartRowOffsetIdx],
+			cell,
+		)
+	}
+
+	rowIndexes := make([]int, 0, len(rows))
+
+	for row := range rows {
+		rowIndexes = append(rowIndexes, row)
+	}
+
+	sort.Ints(rowIndexes)
+
+	var b strings.Builder
+
+	b.WriteString("Table:")
+
+	if len(rowIndexes) == 0 {
+		return b.String()
+	}
+
+	// The first row contains the column headers.
+	headers := make(map[int]string)
+
+	for _, cell := range rows[rowIndexes[0]] {
+		headers[cell.StartColOffsetIdx] = strings.TrimSpace(cell.Text)
+	}
+
+	// Convert the remaining rows into descriptive text.
+	for rowPosition, rowIndex := range rowIndexes[1:] {
+		cells := rows[rowIndex]
+
+		sort.SliceStable(cells, func(i, j int) bool {
+			return cells[i].StartColOffsetIdx < cells[j].StartColOffsetIdx
+		})
+
+		b.WriteString("\n\n- Row ")
+		b.WriteString(strconv.Itoa(rowPosition + 2))
+		b.WriteString(": ")
+
+		for i, cell := range cells {
+			if i > 0 {
+				b.WriteString("; ")
+			}
+
+			header := headers[cell.StartColOffsetIdx]
+
+			if header != "" {
+				b.WriteString(header)
+				b.WriteString(": ")
+			}
+
+			b.WriteString(strings.TrimSpace(cell.Text))
+		}
+	}
+
+	return b.String()
+}
+
+// tableToMarkdown converts Docling table cells into a complete Markdown table.
+// This representation is intended for citation and evidence display.
+func tableToMarkdown(table doclingTableItem) string {
+	rows := make(map[int][]doclingTableCell)
+
+	maxColumn := 0
+
+	for _, cell := range table.Data.TableCells {
+		rows[cell.StartRowOffsetIdx] = append(
+			rows[cell.StartRowOffsetIdx],
+			cell,
+		)
+
+		maxColumn = max(maxColumn, cell.StartColOffsetIdx)
+	}
+
+	rowIndexes := make([]int, 0, len(rows))
+
+	for row := range rows {
+		rowIndexes = append(rowIndexes, row)
+	}
+
+	sort.Ints(rowIndexes)
+
+	if len(rowIndexes) == 0 {
+		return ""
+	}
+
+	columns := maxColumn + 1
+
+	var b strings.Builder
+
+	writeRow := func(rowIndex int) {
+		cells := make(map[int]string)
+
+		for _, cell := range rows[rowIndex] {
+			cells[cell.StartColOffsetIdx] = strings.TrimSpace(cell.Text)
+		}
+
+		b.WriteString("| ")
+
+		for column := range columns {
+			if column > 0 {
+				b.WriteString(" | ")
+			}
+
+			value := strings.ReplaceAll(
+				cells[column],
+				"|",
+				"\\|",
+			)
+
+			value = strings.ReplaceAll(value, "\n", " ")
+
+			b.WriteString(value)
+		}
+
+		b.WriteString(" |\n")
+	}
+
+	// Write header row.
+	writeRow(rowIndexes[0])
+
+	// Write Markdown header separator.
+	b.WriteString("| ")
+
+	for column := range columns {
+		if column > 0 {
+			b.WriteString(" | ")
+		}
+
+		b.WriteString("---")
+	}
+	b.WriteString(" |\n")
+
+	// Write remaining data rows.
+	for _, rowIndex := range rowIndexes[1:] {
+		writeRow(rowIndex)
+	}
+
+	return strings.TrimSuffix(b.String(), "\n")
 }
 
 type doclingPictureItem struct {
@@ -285,12 +442,19 @@ func (c *DoclingClient) doRequest(
 // reading order, not a faithful global one. True interleaved ordering (by
 // page + position) is deferred until a future sub-task needs it.
 func mapDoclingDocument(doc *doclingDocument) *data.ProcessedDocument {
-	chunks := make([]model.ParsedChunk, 0, len(doc.Texts)+len(doc.Tables)+len(doc.Pictures))
+	chunks := make(
+		[]model.ParsedChunk,
+		0,
+		len(doc.Texts)+len(doc.Tables)+len(doc.Pictures),
+	)
+
 	maxPage := 0
 
+	// 1. Process text elements.
 	for _, t := range doc.Texts {
 		page, bbox := firstProv(t.Prov)
 		maxPage = max(maxPage, page)
+
 		chunks = append(chunks, model.ParsedChunk{
 			Text:        t.Text,
 			Page:        page,
@@ -299,26 +463,34 @@ func mapDoclingDocument(doc *doclingDocument) *data.ProcessedDocument {
 		})
 	}
 
+	// 2. Process tables with descriptive text and Markdown.
 	for _, t := range doc.Tables {
 		page, bbox := firstProv(t.Prov)
 		maxPage = max(maxPage, page)
+
 		chunks = append(chunks, model.ParsedChunk{
-			Page:        page,
-			LayoutType:  model.LayoutType(t.Label),
-			BoundingBox: bbox,
+			Text:          tableToText(t),
+			TableMarkdown: tableToMarkdown(t),
+			Page:          page,
+			LayoutType:    model.LayoutType(t.Label),
+			BoundingBox:   bbox,
 		})
 	}
 
+	// 3. Process pictures.
 	for _, p := range doc.Pictures {
 		page, bbox := firstProv(p.Prov)
 		maxPage = max(maxPage, page)
+
 		chunk := model.ParsedChunk{
 			Page:        page,
 			LayoutType:  model.LayoutType(p.Label),
 			BoundingBox: bbox,
 		}
+
 		if p.Image != nil {
 			contentType, decoded, err := decodeDataURI(p.Image.URI)
+
 			if err != nil {
 				// A malformed/undecodable image shouldn't sink the whole
 				// document parse — keep the chunk (page/bbox/layout-type
@@ -329,6 +501,7 @@ func mapDoclingDocument(doc *doclingDocument) *data.ProcessedDocument {
 				chunk.RawImageContentType = contentType
 			}
 		}
+
 		chunks = append(chunks, chunk)
 	}
 

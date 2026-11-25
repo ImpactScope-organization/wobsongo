@@ -111,6 +111,9 @@ type CitationResponse struct {
 
 	// Text is the matched text — a chunk's text, or a fact's subject-predicate-object.
 	Text string `json:"text"`
+
+	// TableMarkdown contains the full Markdown table for table-backed citations.
+	TableMarkdown string `json:"table_markdown,omitempty"`
 }
 
 // ClaimSource describes the user message a checked text came from.

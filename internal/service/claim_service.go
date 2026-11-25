@@ -26,12 +26,13 @@ const claimSearchLimit = 10
 // reference that same index inline in its Reasoning text as "[N]", so a
 // caller can link a prose citation directly back to this entry.
 type Citation struct {
-	Index      int
-	Source     string
-	Text       string
-	ChunkText  string
-	TruthTier  string
-	DocumentID uuid.UUID
+	Index         int
+	Source        string
+	Text          string
+	ChunkText     string
+	TableMarkdown string
+	TruthTier     string
+	DocumentID    uuid.UUID
 	// ChunkID is the chunk this citation traces back to, mirroring
 	// RAGResult.ChunkID — lets a caller link directly to this evidence (e.g.
 	// the standalone /evidence PDF-bbox viewer).
@@ -253,11 +254,12 @@ func (s *ClaimService) recordClaims(
 		citations := make([]model.ClaimCitation, len(r.Citations))
 		for j, c := range r.Citations {
 			citations[j] = model.ClaimCitation{
-				Index:      c.Index,
-				Source:     c.Source,
-				DocumentID: c.DocumentID,
-				ChunkID:    c.ChunkID,
-				Text:       c.Text,
+				Index:         c.Index,
+				Source:        c.Source,
+				DocumentID:    c.DocumentID,
+				ChunkID:       c.ChunkID,
+				Text:          c.Text,
+				TableMarkdown: c.TableMarkdown,
 			}
 		}
 
@@ -325,13 +327,14 @@ func (s *ClaimService) checkSubClaim(
 	for i := range hits {
 		h := &hits[i]
 		evidence[i] = data.JudgeEvidence{
-			Source:     h.Source,
-			Text:       h.Text,
-			ChunkText:  h.ChunkText,
-			TruthTier:  h.TruthTier,
-			DocumentID: h.DocumentID,
-			ChunkID:    h.ChunkID,
-			Language:   h.Language,
+			Source:        h.Source,
+			Text:          h.Text,
+			ChunkText:     h.ChunkText,
+			TableMarkdown: h.TableMarkdown,
+			TruthTier:     h.TruthTier,
+			DocumentID:    h.DocumentID,
+			ChunkID:       h.ChunkID,
+			Language:      h.Language,
 		}
 	}
 
@@ -349,14 +352,15 @@ func (s *ClaimService) checkSubClaim(
 		if idx >= 0 && idx < len(evidence) {
 			e := evidence[idx]
 			citations = append(citations, Citation{
-				Index:      idx,
-				Source:     e.Source,
-				Text:       e.Text,
-				ChunkText:  e.ChunkText,
-				TruthTier:  e.TruthTier,
-				DocumentID: e.DocumentID,
-				ChunkID:    e.ChunkID,
-				Language:   e.Language,
+				Index:         idx,
+				Source:        e.Source,
+				Text:          e.Text,
+				ChunkText:     e.ChunkText,
+				TableMarkdown: e.TableMarkdown,
+				TruthTier:     e.TruthTier,
+				DocumentID:    e.DocumentID,
+				ChunkID:       e.ChunkID,
+				Language:      e.Language,
 			})
 		}
 	}
@@ -620,8 +624,30 @@ func formatClaimMessage(
 
 		if withCitations && !r.HighRiskCaution && len(r.Citations) > 0 {
 			b.WriteString("\n")
+
 			for _, c := range r.Citations {
-				fmt.Fprintf(&b, "  [%d] (%s) %s\n", c.Index, c.Source, truncateForMessage(c.Text))
+
+				// Display the complete Markdown table for table-backed citations.
+				if c.TableMarkdown != "" {
+					fmt.Fprintf(
+						&b,
+						"  [%d] (%s)\n%s\n",
+						c.Index,
+						c.Source,
+						c.TableMarkdown,
+					)
+
+					continue
+				}
+
+				// Preserve the existing behavior for regular citations.
+				fmt.Fprintf(
+					&b,
+					"  [%d] (%s) %s\n",
+					c.Index,
+					c.Source,
+					truncateForMessage(c.Text),
+				)
 			}
 		}
 

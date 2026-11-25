@@ -111,8 +111,25 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 		switch c.LayoutType {
 		case model.LayoutTypePageFooter:
 			sawPageFooter = true
+
 		case model.LayoutTypeTable:
 			sawTable = true
+
+			if c.Text != "Table:" {
+				t.Errorf(
+					"expected empty table text %q, got %q",
+					"Table:",
+					c.Text,
+				)
+			}
+
+			if c.TableMarkdown != "" {
+				t.Errorf(
+					"expected empty table Markdown, got %q",
+					c.TableMarkdown,
+				)
+			}
+
 		case model.LayoutTypePicture:
 			picture = &result.Chunks[i]
 		}
@@ -233,5 +250,128 @@ func TestDoclingClient_FetchRawFromURL_NonOKStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "docling exploded") {
 		t.Errorf("expected error to include response body, got: %v", err)
+	}
+}
+
+func TestParseRaw_TableTextAndMarkdownFromCells(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "prov": [
+                            {
+                                "page_no": 1,
+                                "bbox": {
+                                    "l": 0,
+                                    "t": 0,
+                                    "r": 10,
+                                    "b": 10
+                                }
+                            }
+                        ],
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "Condition",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "Dosage",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 2
+                                },
+                                {
+                                    "text": "Condition A",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment X",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "10 mg",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 2
+                                },
+                                {
+                                    "text": "Condition B",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment Y",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "20 mg",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 2
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	var table *model.ParsedChunk
+
+	for i := range result.Chunks {
+		if result.Chunks[i].LayoutType == model.LayoutTypeTable {
+			table = &result.Chunks[i]
+			break
+		}
+	}
+
+	if table == nil {
+		t.Fatal("expected table chunk")
+	}
+
+	expectedText := "Table:\n\n" +
+		"- Row 2: Condition: Condition A; " +
+		"Treatment: Treatment X; Dosage: 10 mg\n\n" +
+		"- Row 3: Condition: Condition B; " +
+		"Treatment: Treatment Y; Dosage: 20 mg"
+
+	if table.Text != expectedText {
+		t.Errorf(
+			"unexpected table text:\nwant:\n%s\ngot:\n%s",
+			expectedText,
+			table.Text,
+		)
+	}
+
+	expectedMarkdown := strings.Join([]string{
+		"| Condition | Treatment | Dosage |",
+		"| --- | --- | --- |",
+		"| Condition A | Treatment X | 10 mg |",
+		"| Condition B | Treatment Y | 20 mg |",
+	}, "\n")
+
+	if table.TableMarkdown != expectedMarkdown {
+		t.Errorf(
+			"unexpected table Markdown:\nwant:\n%s\ngot:\n%s",
+			expectedMarkdown,
+			table.TableMarkdown,
+		)
 	}
 }

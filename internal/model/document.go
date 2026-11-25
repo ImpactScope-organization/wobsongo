@@ -203,6 +203,7 @@ const (
 	LayoutTypeTitle         LayoutType = "title"
 	LayoutTypeSectionHeader LayoutType = "section_header"
 	LayoutTypeParagraph     LayoutType = "paragraph"
+	LayoutTypeText          LayoutType = "text"
 	LayoutTypeListItem      LayoutType = "list_item"
 	LayoutTypeCode          LayoutType = "code"
 	LayoutTypeCaption       LayoutType = "caption"
@@ -288,7 +289,12 @@ type BoundingBox [4]float64
 // used for processing and analysis of document content.
 type ParsedChunk struct {
 	// Text is the actual text content of the chunk.
+	// For tables, this is the descriptive representation used for retrieval.
 	Text string `json:"text" binding:"required"`
+
+	// TableMarkdown is the complete Markdown representation of a table.
+	// It is kept separate from Text because it is intended for citation display.
+	TableMarkdown string `json:"table_markdown,omitempty"`
 
 	// Page is the page number in the document where this chunk was found.
 	Page int `json:"page" binding:"required"`

@@ -31,12 +31,12 @@ func readCloserFromString(s string) io.ReadCloser {
 
 func TestFilterNoiseChunks(t *testing.T) {
 	chunks := []model.ParsedChunk{
-		{LayoutType: model.LayoutTypeParagraph},
-		{LayoutType: model.LayoutTypePageHeader},
-		{LayoutType: model.LayoutTypeTitle},
-		{LayoutType: model.LayoutTypePageFooter},
+		{Text: "paragraph", LayoutType: model.LayoutTypeParagraph},
+		{Text: "page header", LayoutType: model.LayoutTypePageHeader},
+		{Text: "title", LayoutType: model.LayoutTypeTitle},
+		{Text: "page footer", LayoutType: model.LayoutTypePageFooter},
 		{LayoutType: model.LayoutTypeTable},
-		{LayoutType: model.LayoutTypeDocumentIndex},
+		{Text: "document index", LayoutType: model.LayoutTypeDocumentIndex},
 	}
 
 	kept, dropped := filterNoiseChunks(chunks)
@@ -44,13 +44,360 @@ func TestFilterNoiseChunks(t *testing.T) {
 	if dropped != 3 {
 		t.Errorf("expected 3 dropped, got %d", dropped)
 	}
+
 	if len(kept) != 3 {
 		t.Fatalf("expected 3 kept, got %d", len(kept))
 	}
+
 	for _, c := range kept {
 		if noiseLayoutTypes[c.LayoutType] {
 			t.Errorf("kept a noise chunk: %s", c.LayoutType)
 		}
+	}
+}
+
+func TestFilterNoiseChunks_DropsEmptyTextChunks(t *testing.T) {
+	chunks := []model.ParsedChunk{
+		{
+			Text:       "   ",
+			LayoutType: model.LayoutTypeParagraph,
+		},
+		{
+			Text:       "Important information",
+			LayoutType: model.LayoutTypeParagraph,
+		},
+		{
+			Text:       "",
+			LayoutType: model.LayoutTypeTable,
+		},
+	}
+
+	kept, dropped := filterNoiseChunks(chunks)
+
+	if dropped != 1 {
+		t.Fatalf("expected 1 dropped chunk, got %d", dropped)
+	}
+
+	if len(kept) != 2 {
+		t.Fatalf("expected 2 kept chunks, got %d", len(kept))
+	}
+
+	if kept[0].Text != "Important information" {
+		t.Errorf("unexpected first chunk: %q", kept[0].Text)
+	}
+
+	if kept[1].LayoutType != model.LayoutTypeTable {
+		t.Errorf("expected empty table chunk to be preserved")
+	}
+}
+
+func TestFilterNoiseChunks_MergesSectionHeaderWithText(t *testing.T) {
+	header := model.ParsedChunk{
+		Text:       "Methodology",
+		Page:       1,
+		LayoutType: model.LayoutTypeSectionHeader,
+	}
+
+	paragraph := model.ParsedChunk{
+		Text:       "This research uses a quantitative approach.",
+		Page:       1,
+		LayoutType: model.LayoutTypeText,
+		BoundingBox: model.BoundingBox{
+			1, 2, 3, 4,
+		},
+	}
+
+	kept, dropped := filterNoiseChunks([]model.ParsedChunk{
+		header,
+		paragraph,
+	})
+
+	if dropped != 0 {
+		t.Fatalf("expected 0 dropped chunks, got %d", dropped)
+	}
+
+	if len(kept) != 1 {
+		t.Fatalf("expected 1 merged chunk, got %d", len(kept))
+	}
+
+	expected := "Methodology\nThis research uses a quantitative approach."
+
+	if kept[0].Text != expected {
+		t.Errorf(
+			"unexpected merged text:\nwant: %q\ngot: %q",
+			expected,
+			kept[0].Text,
+		)
+	}
+
+	if kept[0].Page != paragraph.Page {
+		t.Error("expected merged chunk to preserve paragraph page")
+	}
+
+	if kept[0].BoundingBox != paragraph.BoundingBox {
+		t.Error("expected merged chunk to preserve paragraph bounding box")
+	}
+}
+
+func TestFilterNoiseChunks_MergesSectionHeaderWithConsecutiveListItems(t *testing.T) {
+	header := model.ParsedChunk{
+		Text:       "Recommendations",
+		LayoutType: model.LayoutTypeSectionHeader,
+	}
+
+	first := model.ParsedChunk{
+		Text:       "Use treatment A",
+		Page:       2,
+		LayoutType: model.LayoutTypeListItem,
+		BoundingBox: model.BoundingBox{
+			1, 2, 3, 4,
+		},
+	}
+
+	empty := model.ParsedChunk{
+		Text:       "",
+		LayoutType: model.LayoutTypeListItem,
+	}
+
+	second := model.ParsedChunk{
+		Text:       "Avoid treatment B",
+		Page:       3,
+		LayoutType: model.LayoutTypeListItem,
+	}
+
+	paragraph := model.ParsedChunk{
+		Text:       "Additional notes",
+		LayoutType: model.LayoutTypeParagraph,
+	}
+
+	kept, dropped := filterNoiseChunks([]model.ParsedChunk{
+		header,
+		first,
+		empty,
+		second,
+		paragraph,
+	})
+
+	if dropped != 1 {
+		t.Fatalf("expected 1 dropped chunk, got %d", dropped)
+	}
+
+	if len(kept) != 3 {
+		t.Fatalf("expected 3 kept chunks, got %d", len(kept))
+	}
+
+	if kept[0].Text != "Recommendations\nUse treatment A" {
+		t.Errorf("unexpected first item: %q", kept[0].Text)
+	}
+
+	if kept[1].Text != "Recommendations\nAvoid treatment B" {
+		t.Errorf("unexpected second item: %q", kept[1].Text)
+	}
+
+	if kept[0].Page != first.Page ||
+		kept[0].BoundingBox != first.BoundingBox {
+		t.Error("expected first item metadata to be preserved")
+	}
+
+	if kept[2].Text != paragraph.Text {
+		t.Errorf("paragraph after list was unexpectedly changed")
+	}
+}
+
+func TestFilterNoiseChunks_DoesNotMergeSectionHeaderWithOtherLayouts(t *testing.T) {
+	layouts := []model.LayoutType{
+		model.LayoutTypeParagraph,
+		model.LayoutTypeTable,
+		model.LayoutTypeCaption,
+	}
+
+	for _, layout := range layouts {
+		chunks := []model.ParsedChunk{
+			{
+				Text:       "A much longer section title",
+				LayoutType: model.LayoutTypeSectionHeader,
+			},
+			{
+				Text:       "Content",
+				LayoutType: layout,
+			},
+		}
+
+		kept, dropped := filterNoiseChunks(chunks)
+
+		if dropped != 0 {
+			t.Errorf(
+				"layout %s: expected 0 dropped, got %d",
+				layout,
+				dropped,
+			)
+		}
+
+		if len(kept) != 2 {
+			t.Errorf(
+				"layout %s: expected 2 chunks, got %d",
+				layout,
+				len(kept),
+			)
+			continue
+		}
+
+		if kept[0].Text != "A much longer section title" ||
+			kept[1].Text != "Content" {
+			t.Errorf(
+				"layout %s: section header was merged unexpectedly",
+				layout,
+			)
+		}
+	}
+}
+
+func TestFilterNoiseChunks_PreservesStandaloneSectionHeaders(t *testing.T) {
+	chunks := []model.ParsedChunk{
+		{
+			Text:       "Methods",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+		{
+			Text:       "Risk factors",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+		{
+			Text:       "Treatment",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+		{
+			Text:       "Conclusion",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+		{
+			Text:       "A much longer standalone section header",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+	}
+
+	kept, dropped := filterNoiseChunks(chunks)
+
+	if dropped != 0 {
+		t.Fatalf("expected 0 dropped chunks, got %d", dropped)
+	}
+
+	if len(kept) != len(chunks) {
+		t.Fatalf(
+			"expected %d kept chunks, got %d",
+			len(chunks),
+			len(kept),
+		)
+	}
+
+	for i, chunk := range chunks {
+		if kept[i].Text != chunk.Text {
+			t.Errorf(
+				"chunk %d: expected %q, got %q",
+				i,
+				chunk.Text,
+				kept[i].Text,
+			)
+		}
+
+		if kept[i].LayoutType != model.LayoutTypeSectionHeader {
+			t.Errorf(
+				"chunk %d: expected section_header, got %s",
+				i,
+				kept[i].LayoutType,
+			)
+		}
+	}
+}
+
+func TestFilterNoiseChunksWithDecisions(t *testing.T) {
+	chunks := []model.ParsedChunk{
+		{
+			Text:       "Recommendations",
+			LayoutType: model.LayoutTypeSectionHeader,
+		},
+		{
+			Text:       "Use treatment A",
+			LayoutType: model.LayoutTypeListItem,
+		},
+		{
+			Text:       "Avoid treatment B",
+			LayoutType: model.LayoutTypeListItem,
+		},
+		{
+			Text:       "Additional notes",
+			LayoutType: model.LayoutTypeParagraph,
+		},
+		{
+			Text:       "Document header",
+			LayoutType: model.LayoutTypePageHeader,
+		},
+	}
+
+	kept, dropped, decisions := filterNoiseChunksWithDecisions(chunks)
+
+	if len(kept) != 3 {
+		t.Fatalf("expected 3 kept chunks, got %d", len(kept))
+	}
+
+	if dropped != 1 {
+		t.Fatalf("expected 1 dropped chunk, got %d", dropped)
+	}
+
+	if len(decisions) != 4 {
+		t.Fatalf("expected 4 decisions, got %d", len(decisions))
+	}
+
+	expected := []struct {
+		status    chunkFilterStatus
+		keptIndex int
+	}{
+		{chunkFilterStatusMerge, 0},
+		{chunkFilterStatusMerge, 1},
+		{chunkFilterStatusKeep, 2},
+		{chunkFilterStatusDrop, -1},
+	}
+
+	for i, want := range expected {
+		if decisions[i].Status != want.status {
+			t.Errorf(
+				"decision %d: expected status %s, got %s",
+				i,
+				want.status,
+				decisions[i].Status,
+			)
+		}
+
+		if decisions[i].KeptIndex != want.keptIndex {
+			t.Errorf(
+				"decision %d: expected kept index %d, got %d",
+				i,
+				want.keptIndex,
+				decisions[i].KeptIndex,
+			)
+		}
+	}
+
+	if decisions[0].Chunk.Text != "Recommendations\nUse treatment A" {
+		t.Errorf(
+			"unexpected first merged text: %q",
+			decisions[0].Chunk.Text,
+		)
+	}
+
+	if decisions[1].Chunk.Text != "Recommendations\nAvoid treatment B" {
+		t.Errorf(
+			"unexpected second merged text: %q",
+			decisions[1].Chunk.Text,
+		)
+	}
+
+	if decisions[0].SourceIndexes[0] != 0 ||
+		decisions[0].SourceIndexes[1] != 1 {
+		t.Errorf(
+			"unexpected first merge source indexes: %v",
+			decisions[0].SourceIndexes,
+		)
 	}
 }
 

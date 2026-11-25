@@ -129,9 +129,13 @@ type doclingTableCell struct {
 
 // tableToText converts Docling table cells into descriptive text
 // optimized for search, embeddings, RAG retrieval, and claim judging.
-func tableToText(table doclingTableItem) string {
-	rows := make(map[int][]doclingTableCell)
 
+func tableToText(table doclingTableItem) string {
+	if !tableHasContent(table) {
+		return ""
+	}
+
+	rows := make(map[int][]doclingTableCell)
 	for _, cell := range table.Data.TableCells {
 		rows[cell.StartRowOffsetIdx] = append(
 			rows[cell.StartRowOffsetIdx],
@@ -140,34 +144,53 @@ func tableToText(table doclingTableItem) string {
 	}
 
 	rowIndexes := make([]int, 0, len(rows))
-
 	for row := range rows {
 		rowIndexes = append(rowIndexes, row)
 	}
-
 	sort.Ints(rowIndexes)
 
-	var b strings.Builder
-
-	b.WriteString("Table:")
-
 	if len(rowIndexes) == 0 {
-		return b.String()
+		return ""
 	}
 
 	// The first row contains the column headers.
-	headers := make(map[int]string)
+	headerCells := rows[rowIndexes[0]]
+	sort.SliceStable(headerCells, func(i, j int) bool {
+		return headerCells[i].StartColOffsetIdx <
+			headerCells[j].StartColOffsetIdx
+	})
 
-	for _, cell := range rows[rowIndexes[0]] {
-		headers[cell.StartColOffsetIdx] = strings.TrimSpace(cell.Text)
+	headers := make(map[int]string)
+	headerNames := make([]string, 0, len(headerCells))
+
+	for _, cell := range headerCells {
+		header := strings.TrimSpace(cell.Text)
+		if header == "" {
+			continue
+		}
+
+		headers[cell.StartColOffsetIdx] = header
+		headerNames = append(headerNames, header)
 	}
 
-	// Convert the remaining rows into descriptive text.
+	// Preserve column names when the table contains only a header row.
+	if len(rowIndexes) == 1 {
+		if len(headerNames) == 0 {
+			return ""
+		}
+
+		return "Table columns: " + strings.Join(headerNames, "; ")
+	}
+
+	var b strings.Builder
+	b.WriteString("Table:")
+
 	for rowPosition, rowIndex := range rowIndexes[1:] {
 		cells := rows[rowIndex]
 
 		sort.SliceStable(cells, func(i, j int) bool {
-			return cells[i].StartColOffsetIdx < cells[j].StartColOffsetIdx
+			return cells[i].StartColOffsetIdx <
+				cells[j].StartColOffsetIdx
 		})
 
 		b.WriteString("\n\n- Row ")
@@ -180,7 +203,6 @@ func tableToText(table doclingTableItem) string {
 			}
 
 			header := headers[cell.StartColOffsetIdx]
-
 			if header != "" {
 				b.WriteString(header)
 				b.WriteString(": ")
@@ -196,6 +218,9 @@ func tableToText(table doclingTableItem) string {
 // tableToMarkdown converts Docling table cells into a complete Markdown table.
 // This representation is intended for citation and evidence display.
 func tableToMarkdown(table doclingTableItem) string {
+	if !tableHasContent(table) {
+		return ""
+	}
 	rows := make(map[int][]doclingTableCell)
 
 	maxColumn := 0
@@ -564,4 +589,16 @@ func decodeDataURI(uri string) (contentType string, decoded []byte, err error) {
 		return "", nil, fmt.Errorf("failed to base64-decode image data: %w", err)
 	}
 	return mimeType, decoded, nil
+}
+
+// tableHasContent reports whether at least one table cell contains
+// non-whitespace text.
+func tableHasContent(table doclingTableItem) bool {
+	for _, cell := range table.Data.TableCells {
+		if strings.TrimSpace(cell.Text) != "" {
+			return true
+		}
+	}
+
+	return false
 }

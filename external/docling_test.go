@@ -115,12 +115,12 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 		case model.LayoutTypeTable:
 			sawTable = true
 
-			if c.Text != "Table:" {
-				t.Errorf(
-					"expected empty table text %q, got %q",
-					"Table:",
-					c.Text,
-				)
+			if c.Text != "" {
+				t.Errorf("expected empty table text, got %q", c.Text)
+			}
+
+			if c.TableMarkdown != "" {
+				t.Errorf("expected empty table Markdown, got %q", c.TableMarkdown)
 			}
 
 			if c.TableMarkdown != "" {
@@ -373,5 +373,126 @@ func TestParseRaw_TableTextAndMarkdownFromCells(t *testing.T) {
 			expectedMarkdown,
 			table.TableMarkdown,
 		)
+	}
+}
+
+func TestParseRaw_EmptyTableHasNoSearchableRepresentation(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "empty-table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "  ",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "\n\t",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 0
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	if len(result.Chunks) != 1 {
+		t.Fatalf(
+			"expected one parsed table chunk, got %d",
+			len(result.Chunks),
+		)
+	}
+
+	table := result.Chunks[0]
+
+	if table.LayoutType != model.LayoutTypeTable {
+		t.Fatalf(
+			"expected table layout, got %q",
+			table.LayoutType,
+		)
+	}
+
+	if table.Text != "" {
+		t.Errorf("expected empty searchable text, got %q", table.Text)
+	}
+
+	if table.TableMarkdown != "" {
+		t.Errorf(
+			"expected empty Markdown, got %q",
+			table.TableMarkdown,
+		)
+	}
+}
+
+func TestParseRaw_HeaderOnlyTableHasSearchableColumnNames(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "header-only-table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "Condition",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	if len(result.Chunks) != 1 {
+		t.Fatalf("expected one table chunk, got %d", len(result.Chunks))
+	}
+
+	table := result.Chunks[0]
+
+	expected := "Table columns: Condition; Treatment"
+
+	if table.Text != expected {
+		t.Errorf(
+			"unexpected header-only table text: %q",
+			table.Text,
+		)
+	}
+
+	if table.TableMarkdown == "" {
+		t.Error("expected header-only table Markdown to be preserved")
 	}
 }

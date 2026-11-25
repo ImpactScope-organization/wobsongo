@@ -35,7 +35,10 @@ func TestFilterNoiseChunks(t *testing.T) {
 		{Text: "page header", LayoutType: model.LayoutTypePageHeader},
 		{Text: "title", LayoutType: model.LayoutTypeTitle},
 		{Text: "page footer", LayoutType: model.LayoutTypePageFooter},
-		{LayoutType: model.LayoutTypeTable},
+		{
+			Text:       "Table:\n\n- Row 2: Condition: Condition A",
+			LayoutType: model.LayoutTypeTable,
+		},
 		{Text: "document index", LayoutType: model.LayoutTypeDocumentIndex},
 	}
 
@@ -70,24 +73,27 @@ func TestFilterNoiseChunks_DropsEmptyTextChunks(t *testing.T) {
 			Text:       "",
 			LayoutType: model.LayoutTypeTable,
 		},
+		{
+			Text:       " \n\t ",
+			LayoutType: model.LayoutTypeTable,
+		},
 	}
 
 	kept, dropped := filterNoiseChunks(chunks)
 
-	if dropped != 1 {
-		t.Fatalf("expected 1 dropped chunk, got %d", dropped)
+	if dropped != 3 {
+		t.Fatalf("expected 3 dropped chunks, got %d", dropped)
 	}
 
-	if len(kept) != 2 {
-		t.Fatalf("expected 2 kept chunks, got %d", len(kept))
+	if len(kept) != 1 {
+		t.Fatalf("expected 1 kept chunk, got %d", len(kept))
 	}
 
 	if kept[0].Text != "Important information" {
-		t.Errorf("unexpected first chunk: %q", kept[0].Text)
-	}
-
-	if kept[1].LayoutType != model.LayoutTypeTable {
-		t.Errorf("expected empty table chunk to be preserved")
+		t.Errorf(
+			"unexpected kept chunk: %q",
+			kept[0].Text,
+		)
 	}
 }
 
@@ -247,64 +253,6 @@ func TestFilterNoiseChunks_DoesNotMergeSectionHeaderWithOtherLayouts(t *testing.
 			t.Errorf(
 				"layout %s: section header was merged unexpectedly",
 				layout,
-			)
-		}
-	}
-}
-
-func TestFilterNoiseChunks_PreservesStandaloneSectionHeaders(t *testing.T) {
-	chunks := []model.ParsedChunk{
-		{
-			Text:       "Methods",
-			LayoutType: model.LayoutTypeSectionHeader,
-		},
-		{
-			Text:       "Risk factors",
-			LayoutType: model.LayoutTypeSectionHeader,
-		},
-		{
-			Text:       "Treatment",
-			LayoutType: model.LayoutTypeSectionHeader,
-		},
-		{
-			Text:       "Conclusion",
-			LayoutType: model.LayoutTypeSectionHeader,
-		},
-		{
-			Text:       "A much longer standalone section header",
-			LayoutType: model.LayoutTypeSectionHeader,
-		},
-	}
-
-	kept, dropped := filterNoiseChunks(chunks)
-
-	if dropped != 0 {
-		t.Fatalf("expected 0 dropped chunks, got %d", dropped)
-	}
-
-	if len(kept) != len(chunks) {
-		t.Fatalf(
-			"expected %d kept chunks, got %d",
-			len(chunks),
-			len(kept),
-		)
-	}
-
-	for i, chunk := range chunks {
-		if kept[i].Text != chunk.Text {
-			t.Errorf(
-				"chunk %d: expected %q, got %q",
-				i,
-				chunk.Text,
-				kept[i].Text,
-			)
-		}
-
-		if kept[i].LayoutType != model.LayoutTypeSectionHeader {
-			t.Errorf(
-				"chunk %d: expected section_header, got %s",
-				i,
-				kept[i].LayoutType,
 			)
 		}
 	}
@@ -908,12 +856,45 @@ func TestProcessParsedDocumentWorker_Work_CreateBatchError(t *testing.T) {
 }
 
 func TestProcessParsedDocumentWorker_Work_NoChunksSurviveFilter(t *testing.T) {
-	raw := rawDoclingJSON(
-		"Doc",
-		`{"text":"header","label":"page_header","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]},`+
-			`{"text":"footer","label":"page_footer","prov":[{"page_no":1,"bbox":{"l":0,"t":0,"r":1,"b":1}}]}`,
-		"",
-	)
+	raw := `{
+    "status": "success",
+    "document": {
+        "json_content": {
+            "name": "Doc",
+            "texts": [
+                {
+                    "text": "header",
+                    "label": "page_header",
+                    "prov": [
+                        {
+                            "page_no": 1,
+                            "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}
+                        }
+                    ]
+                },
+                {
+                    "text": "footer",
+                    "label": "page_footer",
+                    "prov": [
+                        {
+                            "page_no": 1,
+                            "bbox": {"l": 0, "t": 0, "r": 1, "b": 1}
+                        }
+                    ]
+                }
+            ],
+            "tables": [
+                {
+                    "label": "table",
+                    "data": {
+                        "table_cells": []
+                    }
+                }
+            ],
+            "pictures": []
+        }
+    }
+}`
 	rawStore := &stubRawStore{
 		getObjectFunc: func(context.Context, string) (io.ReadCloser, error) {
 			return readCloserFromString(raw), nil

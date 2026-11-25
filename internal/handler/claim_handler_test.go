@@ -304,8 +304,10 @@ func TestCheckClaimHandler_Success_LongMode(t *testing.T) {
 	wantMessage := "🟢 confirmé — 1 affirmation vérifiée\n\n" +
 		"🟢 1. vitamin C prevents colds\n" +
 		"the cited chunk backs this\n" +
-		"  [0] (chunk)\n" +
-		tableMarkdown
+		"  [0] Table evidence (chunk)\n" +
+		"     Source table: Table:\n" +
+		"     \n" +
+		"     Row 2: Condition: Condition B; Dosage: 20 mg"
 	if resp.Data.FormattedMessage != wantMessage {
 		t.Errorf("expected formatted message %q, got %q", wantMessage, resp.Data.FormattedMessage)
 	}

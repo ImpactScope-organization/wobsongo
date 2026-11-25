@@ -626,28 +626,7 @@ func formatClaimMessage(
 			b.WriteString("\n")
 
 			for _, c := range r.Citations {
-
-				// Display the complete Markdown table for table-backed citations.
-				if c.TableMarkdown != "" {
-					fmt.Fprintf(
-						&b,
-						"  [%d] (%s)\n%s\n",
-						c.Index,
-						c.Source,
-						c.TableMarkdown,
-					)
-
-					continue
-				}
-
-				// Preserve the existing behavior for regular citations.
-				fmt.Fprintf(
-					&b,
-					"  [%d] (%s) %s\n",
-					c.Index,
-					c.Source,
-					truncateForMessage(c.Text),
-				)
+				b.WriteString(formatCitationPlainText(c))
 			}
 		}
 
@@ -667,4 +646,71 @@ func truncateForMessage(text string) string {
 		return text
 	}
 	return string(runes[:maxLen]) + "..."
+}
+
+func formatCitationPlainText(c Citation) string {
+	if c.TableMarkdown == "" {
+		return fmt.Sprintf(
+			"  [%d] (%s) %s\n",
+			c.Index,
+			c.Source,
+			truncateForMessage(c.Text),
+		)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "  [%d] Table evidence (%s)\n",
+		c.Index, c.Source)
+
+	if c.Source == "fact" {
+		fmt.Fprintf(&b, "     Matched fact: %s\n", c.Text)
+
+		if c.ChunkText != "" {
+			tableText := plainTextTableEvidence(c.ChunkText)
+
+			fmt.Fprintf(
+				&b,
+				"     Source table: %s\n",
+				indentMessageLines(tableText, "     "),
+			)
+		}
+
+		return b.String()
+	}
+
+	tableText := c.ChunkText
+	if tableText == "" {
+		tableText = c.Text
+	}
+
+	tableText = plainTextTableEvidence(tableText)
+
+	fmt.Fprintf(
+		&b,
+		"     Source table: %s\n",
+		indentMessageLines(tableText, "     "),
+	)
+
+	return b.String()
+}
+
+// Remove Markdown list markers from table descriptions.
+func plainTextTableEvidence(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+
+		if strings.HasPrefix(trimmed, "- Row ") {
+			indent := line[:len(line)-len(trimmed)]
+			lines[i] = indent + strings.TrimPrefix(trimmed, "- ")
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// Indent continuation lines under the citation label.
+func indentMessageLines(text, indent string) string {
+	return strings.ReplaceAll(text, "\n", "\n"+indent)
 }

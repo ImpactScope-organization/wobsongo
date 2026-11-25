@@ -42,6 +42,7 @@ var emptyTextNoiseLayoutTypes = map[model.LayoutType]bool{
 	model.LayoutTypeCaption:       true,
 	model.LayoutTypeFootnote:      true,
 	model.LayoutTypeReference:     true,
+	model.LayoutTypeTable:         true,
 }
 
 type chunkFilterStatus string

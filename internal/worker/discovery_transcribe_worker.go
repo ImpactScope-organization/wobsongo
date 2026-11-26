@@ -31,27 +31,27 @@ const (
 // transcribeRetryDelays is the wait before the next attempt.
 var transcribeRetryDelays = []time.Duration{2 * time.Minute, 10 * time.Minute}
 
-// TranscribeDiscoveredVideoWorker transcribes one screened-in video.
-type TranscribeDiscoveredVideoWorker struct {
-	river.WorkerDefaults[queue.TranscribeDiscoveredVideoJob]
+// TranscribeSingleDiscoveredVideoWorker transcribes one screened-in video.
+type TranscribeSingleDiscoveredVideoWorker struct {
+	river.WorkerDefaults[queue.TranscribeSingleDiscoveredVideoJob]
 	transcribeService *service.TranscribeService
 }
 
-// NewTranscribeDiscoveredVideoWorker creates a new TranscribeDiscoveredVideoWorker.
-func NewTranscribeDiscoveredVideoWorker(
+// NewTranscribeSingleDiscoveredVideoWorker creates a new TranscribeSingleDiscoveredVideoWorker.
+func NewTranscribeSingleDiscoveredVideoWorker(
 	transcribeService *service.TranscribeService,
-) *TranscribeDiscoveredVideoWorker {
-	return &TranscribeDiscoveredVideoWorker{transcribeService: transcribeService}
+) *TranscribeSingleDiscoveredVideoWorker {
+	return &TranscribeSingleDiscoveredVideoWorker{transcribeService: transcribeService}
 }
 
-func (w *TranscribeDiscoveredVideoWorker) Timeout(
-	_ *river.Job[queue.TranscribeDiscoveredVideoJob],
+func (w *TranscribeSingleDiscoveredVideoWorker) Timeout(
+	_ *river.Job[queue.TranscribeSingleDiscoveredVideoJob],
 ) time.Duration {
 	return transcribeJobTimeout
 }
 
-func (w *TranscribeDiscoveredVideoWorker) NextRetry(
-	job *river.Job[queue.TranscribeDiscoveredVideoJob],
+func (w *TranscribeSingleDiscoveredVideoWorker) NextRetry(
+	job *river.Job[queue.TranscribeSingleDiscoveredVideoJob],
 ) time.Time {
 	i := min(max(job.Attempt-1, 0), len(transcribeRetryDelays)-1)
 	return time.Now().Add(transcribeRetryDelays[i])
@@ -59,9 +59,9 @@ func (w *TranscribeDiscoveredVideoWorker) NextRetry(
 
 // Work transcribes the video. When the last attempt fails, or when the video
 // has no media at all, the video is marked as failed so it is not retried.
-func (w *TranscribeDiscoveredVideoWorker) Work(
+func (w *TranscribeSingleDiscoveredVideoWorker) Work(
 	ctx context.Context,
-	job *river.Job[queue.TranscribeDiscoveredVideoJob],
+	job *river.Job[queue.TranscribeSingleDiscoveredVideoJob],
 ) error {
 	videoID, err := uuid.Parse(job.Args.VideoID)
 	if err != nil {
@@ -77,9 +77,9 @@ func (w *TranscribeDiscoveredVideoWorker) Work(
 // handleTranscribeError returns the error of a failed attempt. On the last
 // attempt, or when retrying cannot help, it also marks the video as failed,
 // unless the server is shutting down.
-func (w *TranscribeDiscoveredVideoWorker) handleTranscribeError(
+func (w *TranscribeSingleDiscoveredVideoWorker) handleTranscribeError(
 	ctx context.Context,
-	job *river.Job[queue.TranscribeDiscoveredVideoJob],
+	job *river.Job[queue.TranscribeSingleDiscoveredVideoJob],
 	videoID uuid.UUID,
 	transcribeErr error,
 ) error {
@@ -103,8 +103,12 @@ func (w *TranscribeDiscoveredVideoWorker) handleTranscribeError(
 	); err != nil {
 		return errors.Join(wrapped, err)
 	}
-	log.Printf("[TranscribeDiscoveredVideoWorker] video %s marked as failed after %d attempts: %v",
-		videoID, job.Attempt, transcribeErr)
+	log.Printf(
+		"[TranscribeSingleDiscoveredVideoWorker] video %s marked as failed after %d attempts: %v",
+		videoID,
+		job.Attempt,
+		transcribeErr,
+	)
 
 	if permanent {
 		return river.JobCancel(wrapped)
@@ -112,33 +116,33 @@ func (w *TranscribeDiscoveredVideoWorker) handleTranscribeError(
 	return wrapped
 }
 
-// TranscribeDiscoveredVideosWorker enqueues a transcription job for every
+// TranscribeMultipleDiscoveredVideoWorker enqueues a transcription job for every
 // screened-in video.
-type TranscribeDiscoveredVideosWorker struct {
-	river.WorkerDefaults[queue.TranscribeDiscoveredVideosJob]
+type TranscribeMultipleDiscoveredVideoWorker struct {
+	river.WorkerDefaults[queue.TranscribeMultipleDiscoveredVideoJob]
 	transcribeService *service.TranscribeService
 }
 
-// NewTranscribeDiscoveredVideosWorker creates a new TranscribeDiscoveredVideosWorker.
-func NewTranscribeDiscoveredVideosWorker(
+// NewTranscribeMultipleDiscoveredVideoWorker creates a new TranscribeMultipleDiscoveredVideoWorker.
+func NewTranscribeMultipleDiscoveredVideoWorker(
 	transcribeService *service.TranscribeService,
-) *TranscribeDiscoveredVideosWorker {
-	return &TranscribeDiscoveredVideosWorker{transcribeService: transcribeService}
+) *TranscribeMultipleDiscoveredVideoWorker {
+	return &TranscribeMultipleDiscoveredVideoWorker{transcribeService: transcribeService}
 }
 
-func (w *TranscribeDiscoveredVideosWorker) Timeout(
-	_ *river.Job[queue.TranscribeDiscoveredVideosJob],
+func (w *TranscribeMultipleDiscoveredVideoWorker) Timeout(
+	_ *river.Job[queue.TranscribeMultipleDiscoveredVideoJob],
 ) time.Duration {
 	return transcribeDispatchTimeout
 }
 
 // Work enqueues a transcription job for every video that is still 'screened_in'.
-func (w *TranscribeDiscoveredVideosWorker) Work(
+func (w *TranscribeMultipleDiscoveredVideoWorker) Work(
 	ctx context.Context,
-	_ *river.Job[queue.TranscribeDiscoveredVideosJob],
+	_ *river.Job[queue.TranscribeMultipleDiscoveredVideoJob],
 ) error {
 	count, err := w.transcribeService.EnqueueScreenedInVideos(ctx)
-	log.Printf("[TranscribeDiscoveredVideosWorker] enqueued=%d", count)
+	log.Printf("[TranscribeMultipleDiscoveredVideoWorker] enqueued=%d", count)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue video transcription: %w", err)
 	}

@@ -152,38 +152,38 @@ func buildTranscribeWorker(
 	store *pipelineWorkerStore,
 	resolver *pipelineWorkerResolver,
 	transcriber *pipelineWorkerTranscriber,
-) *TranscribeDiscoveredVideoWorker {
-	return NewTranscribeDiscoveredVideoWorker(
+) *TranscribeSingleDiscoveredVideoWorker {
+	return NewTranscribeSingleDiscoveredVideoWorker(
 		service.NewTranscribeService(store, resolver, transcriber),
 	)
 }
 
 func runTranscribeJobAttempt(
 	ctx context.Context,
-	w *TranscribeDiscoveredVideoWorker,
+	w *TranscribeSingleDiscoveredVideoWorker,
 	videoID string,
 	attempt int,
 ) error {
-	return w.Work(ctx, &river.Job[queue.TranscribeDiscoveredVideoJob]{
+	return w.Work(ctx, &river.Job[queue.TranscribeSingleDiscoveredVideoJob]{
 		JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: queue.TranscribeMaxAttempts},
-		Args:   queue.TranscribeDiscoveredVideoJob{VideoID: videoID},
+		Args:   queue.TranscribeSingleDiscoveredVideoJob{VideoID: videoID},
 	})
 }
 
-func TestTranscribeDiscoveredVideoWorker_Timeout(t *testing.T) {
+func TestTranscribeSingleDiscoveredVideoWorker_Timeout(t *testing.T) {
 	w := buildTranscribeWorker(
 		newPipelineWorkerStore(model.VideoStatusScreenedIn),
 		&pipelineWorkerResolver{},
 		&pipelineWorkerTranscriber{},
 	)
 
-	got := w.Timeout(&river.Job[queue.TranscribeDiscoveredVideoJob]{})
+	got := w.Timeout(&river.Job[queue.TranscribeSingleDiscoveredVideoJob]{})
 	if got != transcribeJobTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, transcribeJobTimeout)
 	}
 }
 
-func TestTranscribeDiscoveredVideoWorker_Work(t *testing.T) {
+func TestTranscribeSingleDiscoveredVideoWorker_Work(t *testing.T) {
 	outage := errors.New("asr unavailable")
 
 	t.Run("TranscribesTheVideo", func(t *testing.T) {
@@ -341,7 +341,7 @@ func TestTranscribeDiscoveredVideoWorker_Work(t *testing.T) {
 	})
 }
 
-func TestTranscribeDiscoveredVideoWorker_NextRetry(t *testing.T) {
+func TestTranscribeSingleDiscoveredVideoWorker_NextRetry(t *testing.T) {
 	w := buildTranscribeWorker(
 		newPipelineWorkerStore(model.VideoStatusScreenedIn),
 		&pipelineWorkerResolver{},
@@ -361,7 +361,7 @@ func TestTranscribeDiscoveredVideoWorker_NextRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			job := &river.Job[queue.TranscribeDiscoveredVideoJob]{
+			job := &river.Job[queue.TranscribeSingleDiscoveredVideoJob]{
 				JobRow: &rivertype.JobRow{Attempt: tt.attempt},
 			}
 
@@ -432,8 +432,10 @@ func (s *pipelineWorkerStore) ListVideosByStatus(
 	return out, nil
 }
 
-func buildTranscribeVideosWorker(store *pipelineWorkerStore) *TranscribeDiscoveredVideosWorker {
-	return NewTranscribeDiscoveredVideosWorker(
+func buildTranscribeVideosWorker(
+	store *pipelineWorkerStore,
+) *TranscribeMultipleDiscoveredVideoWorker {
+	return NewTranscribeMultipleDiscoveredVideoWorker(
 		service.NewTranscribeService(
 			store,
 			&pipelineWorkerResolver{},
@@ -442,21 +444,21 @@ func buildTranscribeVideosWorker(store *pipelineWorkerStore) *TranscribeDiscover
 	)
 }
 
-func runTranscribeVideosJob(t *testing.T, w *TranscribeDiscoveredVideosWorker) error {
+func runTranscribeVideosJob(t *testing.T, w *TranscribeMultipleDiscoveredVideoWorker) error {
 	t.Helper()
-	return w.Work(t.Context(), &river.Job[queue.TranscribeDiscoveredVideosJob]{})
+	return w.Work(t.Context(), &river.Job[queue.TranscribeMultipleDiscoveredVideoJob]{})
 }
 
-func TestTranscribeDiscoveredVideosWorker_Timeout(t *testing.T) {
+func TestTranscribeMultipleDiscoveredVideoWorker_Timeout(t *testing.T) {
 	w := buildTranscribeVideosWorker(newPipelineWorkerStore(model.VideoStatusScreenedIn))
 
-	got := w.Timeout(&river.Job[queue.TranscribeDiscoveredVideosJob]{})
+	got := w.Timeout(&river.Job[queue.TranscribeMultipleDiscoveredVideoJob]{})
 	if got != transcribeDispatchTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, transcribeDispatchTimeout)
 	}
 }
 
-func TestTranscribeDiscoveredVideosWorker_Work(t *testing.T) {
+func TestTranscribeMultipleDiscoveredVideoWorker_Work(t *testing.T) {
 	t.Run("EnqueuesEveryScreenedInVideo", func(t *testing.T) {
 		a, b, other := &model.Video{}, &model.Video{}, &model.Video{}
 		store := newPipelineWorkerStore(model.VideoStatusScreenedIn, a, b, other)

@@ -474,7 +474,7 @@ func (r *videoRepo) EnqueueTranscribeVideoJob(
 ) (bool, error) {
 	return r.insertJob(
 		ctx,
-		queue.TranscribeDiscoveredVideoJob{VideoID: videoID.String()},
+		queue.TranscribeSingleDiscoveredVideoJob{VideoID: videoID.String()},
 		"transcribe video",
 	)
 }
@@ -523,7 +523,7 @@ func (r *videoRepo) SetVideoAnalyzed(
 // EnqueueAnalyzeVideoJob adds an analyze-video job to the River queue, inside
 // the current transaction when there is one.
 func (r *videoRepo) EnqueueAnalyzeVideoJob(ctx context.Context, videoID uuid.UUID) (bool, error) {
-	return r.insertJob(ctx, queue.AnalyzeVideoJob{VideoID: videoID.String()}, "analyze video")
+	return r.insertJob(ctx, queue.AnalyzeSingleVideoJob{VideoID: videoID.String()}, "analyze video")
 }
 
 // SetVideoFailed moves a video that is still in fromStatus to 'failed'.

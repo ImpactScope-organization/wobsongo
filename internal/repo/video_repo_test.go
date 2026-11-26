@@ -455,26 +455,26 @@ func TestVideoRepo_ListVideosByStatus(t *testing.T) {
 	})
 }
 
-// noopTranscribeDiscoveredVideoWorker and noopAnalyzeVideoWorker satisfy
+// noopTranscribeSingleDiscoveredVideoWorker and noopAnalyzeSingleVideoWorker satisfy
 // River's client-side check that a job's kind is registered before it can be inserted.
-type noopTranscribeDiscoveredVideoWorker struct {
-	river.WorkerDefaults[queue.TranscribeDiscoveredVideoJob]
+type noopTranscribeSingleDiscoveredVideoWorker struct {
+	river.WorkerDefaults[queue.TranscribeSingleDiscoveredVideoJob]
 }
 
-func (*noopTranscribeDiscoveredVideoWorker) Work(
+func (*noopTranscribeSingleDiscoveredVideoWorker) Work(
 	context.Context,
-	*river.Job[queue.TranscribeDiscoveredVideoJob],
+	*river.Job[queue.TranscribeSingleDiscoveredVideoJob],
 ) error {
 	return nil
 }
 
-type noopAnalyzeVideoWorker struct {
-	river.WorkerDefaults[queue.AnalyzeVideoJob]
+type noopAnalyzeSingleVideoWorker struct {
+	river.WorkerDefaults[queue.AnalyzeSingleVideoJob]
 }
 
-func (*noopAnalyzeVideoWorker) Work(
+func (*noopAnalyzeSingleVideoWorker) Work(
 	context.Context,
-	*river.Job[queue.AnalyzeVideoJob],
+	*river.Job[queue.AnalyzeSingleVideoJob],
 ) error {
 	return nil
 }
@@ -1056,8 +1056,8 @@ func TestVideoRepo_EnqueueVideoPipelineJobs(t *testing.T) {
 	// River validates at Insert-time that the job kind is registered in the
 	// client's Workers bundle, even though this test never starts the client.
 	workers := river.NewWorkers()
-	river.AddWorker(workers, &noopTranscribeDiscoveredVideoWorker{})
-	river.AddWorker(workers, &noopAnalyzeVideoWorker{})
+	river.AddWorker(workers, &noopTranscribeSingleDiscoveredVideoWorker{})
+	river.AddWorker(workers, &noopAnalyzeSingleVideoWorker{})
 
 	riverClient, err := river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Queues:  map[string]river.QueueConfig{river.QueueDefault: {MaxWorkers: 1}},
@@ -1076,7 +1076,7 @@ func TestVideoRepo_EnqueueVideoPipelineJobs(t *testing.T) {
 	}{
 		{
 			"TranscribeVideo",
-			queue.JobTypeTranscribeDiscoveredVideo,
+			queue.JobTypeTranscribeSingleDiscoveredVideo,
 			queue.QueueTranscription,
 			func(ctx context.Context, r data.VideoRepoer, id uuid.UUID) (bool, error) {
 				return r.EnqueueTranscribeVideoJob(ctx, id)
@@ -1084,7 +1084,7 @@ func TestVideoRepo_EnqueueVideoPipelineJobs(t *testing.T) {
 		},
 		{
 			"AnalyzeVideo",
-			queue.JobTypeAnalyzeVideo,
+			queue.JobTypeAnalyzeSingleVideo,
 			queue.QueueAnalysis,
 			func(ctx context.Context, r data.VideoRepoer, id uuid.UUID) (bool, error) {
 				return r.EnqueueAnalyzeVideoJob(ctx, id)

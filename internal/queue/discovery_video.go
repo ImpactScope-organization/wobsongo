@@ -13,7 +13,7 @@ const (
 	DefaultTranscribeConcurrency = 2
 
 	// TranscribeMaxAttempts is how many times River runs a
-	// TranscribeDiscoveredVideoJob. After the last failed attempt the video
+	// TranscribeSingleDiscoveredVideoJob. After the last failed attempt the video
 	// is marked as failed.
 	TranscribeMaxAttempts = 3
 
@@ -22,7 +22,7 @@ const (
 	// otherwise.
 	DefaultAnalyzeConcurrency = 2
 
-	// AnalyzeMaxAttempts is how many times River runs an AnalyzeVideoJob.
+	// AnalyzeMaxAttempts is how many times River runs an AnalyzeSingleVideoJob.
 	AnalyzeMaxAttempts = 3
 
 	// TranscribeCheckInterval is how often River enqueues a transcription
@@ -43,19 +43,19 @@ const (
 	AnalyzeDispatchMaxWorkers = 1
 )
 
-// TranscribeDiscoveredVideoJob transcribes one screened-in video.
-type TranscribeDiscoveredVideoJob struct {
+// TranscribeSingleDiscoveredVideoJob transcribes one screened-in video.
+type TranscribeSingleDiscoveredVideoJob struct {
 	// VideoID is the videos.id of the video to transcribe.
 	VideoID string `json:"video_id"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (TranscribeDiscoveredVideoJob) Kind() string {
-	return string(JobTypeTranscribeDiscoveredVideo)
+func (TranscribeSingleDiscoveredVideoJob) Kind() string {
+	return string(JobTypeTranscribeSingleDiscoveredVideo)
 }
 
 // InsertOpts implements river.JobArgsWithInsertOpts.
-func (TranscribeDiscoveredVideoJob) InsertOpts() river.InsertOpts {
+func (TranscribeSingleDiscoveredVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueTranscription,
 		MaxAttempts: TranscribeMaxAttempts,
@@ -66,18 +66,18 @@ func (TranscribeDiscoveredVideoJob) InsertOpts() river.InsertOpts {
 	}
 }
 
-// AnalyzeVideoJob extracts, verifies and stores the claims of one
+// AnalyzeSingleVideoJob extracts, verifies and stores the claims of one
 // transcribed video.
-type AnalyzeVideoJob struct {
+type AnalyzeSingleVideoJob struct {
 	// VideoID is the videos.id of the video to analyze.
 	VideoID string `json:"video_id"`
 }
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (AnalyzeVideoJob) Kind() string { return string(JobTypeAnalyzeVideo) }
+func (AnalyzeSingleVideoJob) Kind() string { return string(JobTypeAnalyzeSingleVideo) }
 
 // InsertOpts implements river.JobArgsWithInsertOpts.
-func (AnalyzeVideoJob) InsertOpts() river.InsertOpts {
+func (AnalyzeSingleVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueAnalysis,
 		MaxAttempts: AnalyzeMaxAttempts,
@@ -88,18 +88,18 @@ func (AnalyzeVideoJob) InsertOpts() river.InsertOpts {
 	}
 }
 
-// TranscribeDiscoveredVideosJob enqueues a TranscribeDiscoveredVideoJob for
+// TranscribeMultipleDiscoveredVideoJob enqueues a TranscribeSingleDiscoveredVideoJob for
 // every video that is still in the 'screened_in' status.
-type TranscribeDiscoveredVideosJob struct{}
+type TranscribeMultipleDiscoveredVideoJob struct{}
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (TranscribeDiscoveredVideosJob) Kind() string {
-	return string(JobTypeTranscribeDiscoveredVideos)
+func (TranscribeMultipleDiscoveredVideoJob) Kind() string {
+	return string(JobTypeTranscribeMultipleDiscoveredVideo)
 }
 
 // InsertOpts implements river.JobArgsWithInsertOpts. Only one run may be
 // waiting or running at a time, so overlapping triggers collapse into one.
-func (TranscribeDiscoveredVideosJob) InsertOpts() river.InsertOpts {
+func (TranscribeMultipleDiscoveredVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueTranscribeDispatch,
 		MaxAttempts: 1,
@@ -110,16 +110,16 @@ func (TranscribeDiscoveredVideosJob) InsertOpts() river.InsertOpts {
 	}
 }
 
-// AnalyzeVideosJob enqueues an AnalyzeVideoJob for every video that is still
+// AnalyzeMultipleVideoJob enqueues an AnalyzeSingleVideoJob for every video that is still
 // in the 'transcribed' status.
-type AnalyzeVideosJob struct{}
+type AnalyzeMultipleVideoJob struct{}
 
 // Kind implements queue.BackgroundJob and river.JobArgs.
-func (AnalyzeVideosJob) Kind() string { return string(JobTypeAnalyzeVideos) }
+func (AnalyzeMultipleVideoJob) Kind() string { return string(JobTypeAnalyzeMultipleVideo) }
 
 // InsertOpts implements river.JobArgsWithInsertOpts. Only one run may be
 // waiting or running at a time, so overlapping triggers collapse into one.
-func (AnalyzeVideosJob) InsertOpts() river.InsertOpts {
+func (AnalyzeMultipleVideoJob) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       QueueAnalyzeDispatch,
 		MaxAttempts: 1,

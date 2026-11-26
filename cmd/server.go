@@ -357,11 +357,17 @@ var serveCmd = &cobra.Command{
 			river.AddWorker(workers, worker.NewScreenSingleVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
 			transcribeService := service.NewTranscribeService(videoRepo, tikTokScraper, asrClient)
-			river.AddWorker(workers, worker.NewTranscribeDiscoveredVideoWorker(transcribeService))
+			river.AddWorker(
+				workers,
+				worker.NewTranscribeSingleDiscoveredVideoWorker(transcribeService),
+			)
 			analyzeService := service.NewAnalyzeService(videoRepo, workerClaimService)
-			river.AddWorker(workers, worker.NewAnalyzeVideoWorker(analyzeService))
-			river.AddWorker(workers, worker.NewTranscribeDiscoveredVideosWorker(transcribeService))
-			river.AddWorker(workers, worker.NewAnalyzeVideosWorker(analyzeService))
+			river.AddWorker(workers, worker.NewAnalyzeSingleVideoWorker(analyzeService))
+			river.AddWorker(
+				workers,
+				worker.NewTranscribeMultipleDiscoveredVideoWorker(transcribeService),
+			)
+			river.AddWorker(workers, worker.NewAnalyzeMultipleVideoWorker(analyzeService))
 		}
 
 		// Scheduled periodic jobs by River.
@@ -400,14 +406,14 @@ var serveCmd = &cobra.Command{
 				river.NewPeriodicJob(
 					river.PeriodicInterval(queue.TranscribeCheckInterval),
 					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.TranscribeDiscoveredVideosJob{}, nil
+						return queue.TranscribeMultipleDiscoveredVideoJob{}, nil
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
 				river.NewPeriodicJob(
 					river.PeriodicInterval(queue.AnalyzeCheckInterval),
 					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.AnalyzeVideosJob{}, nil
+						return queue.AnalyzeMultipleVideoJob{}, nil
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),

@@ -16,19 +16,29 @@ func TestVideoPipelineJobs_InsertOpts(t *testing.T) {
 		wantMaxAttempts int
 	}{
 		{
-			"TranscribeDiscoveredVideoJob",
-			TranscribeDiscoveredVideoJob{}.InsertOpts(),
+			"TranscribeSingleDiscoveredVideoJob",
+			TranscribeSingleDiscoveredVideoJob{}.InsertOpts(),
 			QueueTranscription,
 			TranscribeMaxAttempts,
 		},
-		{"AnalyzeVideoJob", AnalyzeVideoJob{}.InsertOpts(), QueueAnalysis, AnalyzeMaxAttempts},
 		{
-			"TranscribeDiscoveredVideosJob",
-			TranscribeDiscoveredVideosJob{}.InsertOpts(),
+			"AnalyzeSingleVideoJob",
+			AnalyzeSingleVideoJob{}.InsertOpts(),
+			QueueAnalysis,
+			AnalyzeMaxAttempts,
+		},
+		{
+			"TranscribeMultipleDiscoveredVideoJob",
+			TranscribeMultipleDiscoveredVideoJob{}.InsertOpts(),
 			QueueTranscribeDispatch,
 			1,
 		},
-		{"AnalyzeVideosJob", AnalyzeVideosJob{}.InsertOpts(), QueueAnalyzeDispatch, 1},
+		{
+			"AnalyzeMultipleVideoJob",
+			AnalyzeMultipleVideoJob{}.InsertOpts(),
+			QueueAnalyzeDispatch,
+			1,
+		},
 	}
 
 	required := []rivertype.JobState{
@@ -64,23 +74,23 @@ func TestVideoPipelineJobs_InsertOpts(t *testing.T) {
 }
 
 func TestVideoPipelineJobs_Kind(t *testing.T) {
-	if got := (TranscribeDiscoveredVideoJob{}).Kind(); got != string(
-		JobTypeTranscribeDiscoveredVideo,
+	if got := (TranscribeSingleDiscoveredVideoJob{}).Kind(); got != string(
+		JobTypeTranscribeSingleDiscoveredVideo,
 	) {
-		t.Errorf("TranscribeDiscoveredVideoJob kind = %q, want %q",
-			got, JobTypeTranscribeDiscoveredVideo)
+		t.Errorf("TranscribeSingleDiscoveredVideoJob kind = %q, want %q",
+			got, JobTypeTranscribeSingleDiscoveredVideo)
 	}
-	if got := (AnalyzeVideoJob{}).Kind(); got != string(JobTypeAnalyzeVideo) {
-		t.Errorf("AnalyzeVideoJob kind = %q, want %q", got, JobTypeAnalyzeVideo)
+	if got := (AnalyzeSingleVideoJob{}).Kind(); got != string(JobTypeAnalyzeSingleVideo) {
+		t.Errorf("AnalyzeSingleVideoJob kind = %q, want %q", got, JobTypeAnalyzeSingleVideo)
 	}
-	if got := (TranscribeDiscoveredVideosJob{}).Kind(); got != string(
-		JobTypeTranscribeDiscoveredVideos,
+	if got := (TranscribeMultipleDiscoveredVideoJob{}).Kind(); got != string(
+		JobTypeTranscribeMultipleDiscoveredVideo,
 	) {
-		t.Errorf("TranscribeDiscoveredVideosJob kind = %q, want %q",
-			got, JobTypeTranscribeDiscoveredVideos)
+		t.Errorf("TranscribeMultipleDiscoveredVideoJob kind = %q, want %q",
+			got, JobTypeTranscribeMultipleDiscoveredVideo)
 	}
-	if got := (AnalyzeVideosJob{}).Kind(); got != string(JobTypeAnalyzeVideos) {
-		t.Errorf("AnalyzeVideosJob kind = %q, want %q", got, JobTypeAnalyzeVideos)
+	if got := (AnalyzeMultipleVideoJob{}).Kind(); got != string(JobTypeAnalyzeMultipleVideo) {
+		t.Errorf("AnalyzeMultipleVideoJob kind = %q, want %q", got, JobTypeAnalyzeMultipleVideo)
 	}
 }
 
@@ -96,12 +106,12 @@ func TestJobKinds_AreUnique(t *testing.T) {
 		{"DeactivateNarrativesJob", DeactivateNarrativesJob{}.Kind()},
 		{"DiscoverVideosJob", DiscoverVideosJob{}.Kind()},
 		{"MonitorCreatorJob", MonitorCreatorJob{}.Kind()},
-		{"ScreenVideosJob", ScreenVideosJob{}.Kind()},
-		{"ScreenVideoJob", ScreenVideoJob{}.Kind()},
-		{"TranscribeDiscoveredVideoJob", TranscribeDiscoveredVideoJob{}.Kind()},
-		{"AnalyzeVideoJob", AnalyzeVideoJob{}.Kind()},
-		{"TranscribeDiscoveredVideosJob", TranscribeDiscoveredVideosJob{}.Kind()},
-		{"AnalyzeVideosJob", AnalyzeVideosJob{}.Kind()},
+		{"ScreenVideosJob", ScreenMultipleVideoJob{}.Kind()},
+		{"ScreenVideoJob", ScreenSingleVideoJob{}.Kind()},
+		{"TranscribeSingleDiscoveredVideoJob", TranscribeSingleDiscoveredVideoJob{}.Kind()},
+		{"AnalyzeSingleVideoJob", AnalyzeSingleVideoJob{}.Kind()},
+		{"TranscribeMultipleDiscoveredVideoJob", TranscribeMultipleDiscoveredVideoJob{}.Kind()},
+		{"AnalyzeMultipleVideoJob", AnalyzeMultipleVideoJob{}.Kind()},
 	}
 
 	seen := make(map[string]string, len(jobs))
@@ -121,10 +131,10 @@ func TestVideoPipelineJobs_DispatchHasItsOwnQueue(t *testing.T) {
 	}{
 		{
 			"transcribe",
-			TranscribeDiscoveredVideosJob{}.InsertOpts(),
-			TranscribeDiscoveredVideoJob{}.InsertOpts(),
+			TranscribeMultipleDiscoveredVideoJob{}.InsertOpts(),
+			TranscribeSingleDiscoveredVideoJob{}.InsertOpts(),
 		},
-		{"analyze", AnalyzeVideosJob{}.InsertOpts(), AnalyzeVideoJob{}.InsertOpts()},
+		{"analyze", AnalyzeMultipleVideoJob{}.InsertOpts(), AnalyzeSingleVideoJob{}.InsertOpts()},
 	}
 
 	for _, tt := range tests {

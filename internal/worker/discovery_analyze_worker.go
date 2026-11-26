@@ -29,31 +29,35 @@ const (
 // use every attempt up during one LLM outage.
 var analyzeRetryDelays = []time.Duration{5 * time.Minute, 15 * time.Minute}
 
-// AnalyzeVideoWorker analyzes one transcribed video.
-type AnalyzeVideoWorker struct {
-	river.WorkerDefaults[queue.AnalyzeVideoJob]
+// AnalyzeSingleVideoWorker analyzes one transcribed video.
+type AnalyzeSingleVideoWorker struct {
+	river.WorkerDefaults[queue.AnalyzeSingleVideoJob]
 	analyzeService *service.AnalyzeService
 }
 
-// NewAnalyzeVideoWorker creates a new AnalyzeVideoWorker.
-func NewAnalyzeVideoWorker(analyzeService *service.AnalyzeService) *AnalyzeVideoWorker {
-	return &AnalyzeVideoWorker{analyzeService: analyzeService}
+// NewAnalyzeSingleVideoWorker creates a new AnalyzeSingleVideoWorker.
+func NewAnalyzeSingleVideoWorker(analyzeService *service.AnalyzeService) *AnalyzeSingleVideoWorker {
+	return &AnalyzeSingleVideoWorker{analyzeService: analyzeService}
 }
 
-func (w *AnalyzeVideoWorker) Timeout(_ *river.Job[queue.AnalyzeVideoJob]) time.Duration {
+func (w *AnalyzeSingleVideoWorker) Timeout(
+	_ *river.Job[queue.AnalyzeSingleVideoJob],
+) time.Duration {
 	return analyzeJobTimeout
 }
 
-func (w *AnalyzeVideoWorker) NextRetry(job *river.Job[queue.AnalyzeVideoJob]) time.Time {
+func (w *AnalyzeSingleVideoWorker) NextRetry(
+	job *river.Job[queue.AnalyzeSingleVideoJob],
+) time.Time {
 	i := min(max(job.Attempt-1, 0), len(analyzeRetryDelays)-1)
 	return time.Now().Add(analyzeRetryDelays[i])
 }
 
 // Work analyzes the video. When the last attempt fails, the video is marked as
 // failed so it is not analyzed again.
-func (w *AnalyzeVideoWorker) Work(
+func (w *AnalyzeSingleVideoWorker) Work(
 	ctx context.Context,
-	job *river.Job[queue.AnalyzeVideoJob],
+	job *river.Job[queue.AnalyzeSingleVideoJob],
 ) error {
 	videoID, err := uuid.Parse(job.Args.VideoID)
 	if err != nil {
@@ -68,9 +72,9 @@ func (w *AnalyzeVideoWorker) Work(
 
 // handleAnalyzeError returns the error of a failed attempt. On the last
 // attempt it also marks the video as failed, unless the server is shutting down.
-func (w *AnalyzeVideoWorker) handleAnalyzeError(
+func (w *AnalyzeSingleVideoWorker) handleAnalyzeError(
 	ctx context.Context,
-	job *river.Job[queue.AnalyzeVideoJob],
+	job *river.Job[queue.AnalyzeSingleVideoJob],
 	videoID uuid.UUID,
 	analyzeErr error,
 ) error {
@@ -88,33 +92,37 @@ func (w *AnalyzeVideoWorker) handleAnalyzeError(
 	if err := w.analyzeService.MarkAnalyzeFailed(markCtx, videoID, analyzeErr); err != nil {
 		return errors.Join(wrapped, err)
 	}
-	log.Printf("[AnalyzeVideoWorker] video %s marked as failed after %d attempts: %v",
+	log.Printf("[AnalyzeSingleVideoWorker] video %s marked as failed after %d attempts: %v",
 		videoID, job.Attempt, analyzeErr)
 	return wrapped
 }
 
-// AnalyzeVideosWorker enqueues an analysis job for every transcribed video.
-type AnalyzeVideosWorker struct {
-	river.WorkerDefaults[queue.AnalyzeVideosJob]
+// AnalyzeMultipleVideoWorker enqueues an analysis job for every transcribed video.
+type AnalyzeMultipleVideoWorker struct {
+	river.WorkerDefaults[queue.AnalyzeMultipleVideoJob]
 	analyzeService *service.AnalyzeService
 }
 
-// NewAnalyzeVideosWorker creates a new AnalyzeVideosWorker.
-func NewAnalyzeVideosWorker(analyzeService *service.AnalyzeService) *AnalyzeVideosWorker {
-	return &AnalyzeVideosWorker{analyzeService: analyzeService}
+// NewAnalyzeMultipleVideoWorker creates a new AnalyzeMultipleVideoWorker.
+func NewAnalyzeMultipleVideoWorker(
+	analyzeService *service.AnalyzeService,
+) *AnalyzeMultipleVideoWorker {
+	return &AnalyzeMultipleVideoWorker{analyzeService: analyzeService}
 }
 
-func (w *AnalyzeVideosWorker) Timeout(_ *river.Job[queue.AnalyzeVideosJob]) time.Duration {
+func (w *AnalyzeMultipleVideoWorker) Timeout(
+	_ *river.Job[queue.AnalyzeMultipleVideoJob],
+) time.Duration {
 	return analyzeDispatchTimeout
 }
 
 // Work enqueues an analysis job for every video that is still 'transcribed'.
-func (w *AnalyzeVideosWorker) Work(
+func (w *AnalyzeMultipleVideoWorker) Work(
 	ctx context.Context,
-	_ *river.Job[queue.AnalyzeVideosJob],
+	_ *river.Job[queue.AnalyzeMultipleVideoJob],
 ) error {
 	count, err := w.analyzeService.EnqueueTranscribedVideos(ctx)
-	log.Printf("[AnalyzeVideosWorker] enqueued=%d", count)
+	log.Printf("[AnalyzeMultipleVideoWorker] enqueued=%d", count)
 	if err != nil {
 		return fmt.Errorf("failed to enqueue video analysis: %w", err)
 	}

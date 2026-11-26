@@ -47,7 +47,7 @@ func (s *ScreenService) EnqueueDiscoveredVideos(ctx context.Context) (int, error
 		ctx,
 		s.videoRepo,
 		model.VideoStatusDiscovered,
-		s.videoRepo.EnqueueScreenVideoJob,
+		s.videoRepo.EnqueueScreenSingleVideoJob,
 	)
 }
 

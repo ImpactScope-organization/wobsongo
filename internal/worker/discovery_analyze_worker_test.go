@@ -18,19 +18,19 @@ import (
 func buildAnalyzeWorker(
 	store *pipelineWorkerStore,
 	checker *pipelineWorkerChecker,
-) *AnalyzeVideoWorker {
-	return NewAnalyzeVideoWorker(service.NewAnalyzeService(store, checker))
+) *AnalyzeSingleVideoWorker {
+	return NewAnalyzeSingleVideoWorker(service.NewAnalyzeService(store, checker))
 }
 
 func runAnalyzeJobAttempt(
 	ctx context.Context,
-	w *AnalyzeVideoWorker,
+	w *AnalyzeSingleVideoWorker,
 	videoID string,
 	attempt int,
 ) error {
-	return w.Work(ctx, &river.Job[queue.AnalyzeVideoJob]{
+	return w.Work(ctx, &river.Job[queue.AnalyzeSingleVideoJob]{
 		JobRow: &rivertype.JobRow{Attempt: attempt, MaxAttempts: queue.AnalyzeMaxAttempts},
-		Args:   queue.AnalyzeVideoJob{VideoID: videoID},
+		Args:   queue.AnalyzeSingleVideoJob{VideoID: videoID},
 	})
 }
 
@@ -39,18 +39,18 @@ func transcribedFixture() *model.Video {
 	return &model.Video{TranscriptionText: &transcript}
 }
 
-func TestAnalyzeVideoWorker_Timeout(t *testing.T) {
+func TestAnalyzeSingleVideoWorker_Timeout(t *testing.T) {
 	w := buildAnalyzeWorker(
 		newPipelineWorkerStore(model.VideoStatusTranscribed),
 		&pipelineWorkerChecker{},
 	)
 
-	if got := w.Timeout(&river.Job[queue.AnalyzeVideoJob]{}); got != analyzeJobTimeout {
+	if got := w.Timeout(&river.Job[queue.AnalyzeSingleVideoJob]{}); got != analyzeJobTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, analyzeJobTimeout)
 	}
 }
 
-func TestAnalyzeVideoWorker_Work(t *testing.T) {
+func TestAnalyzeSingleVideoWorker_Work(t *testing.T) {
 	outage := errors.New("llm unavailable")
 
 	t.Run("AnalyzesTheVideo", func(t *testing.T) {
@@ -164,7 +164,7 @@ func TestAnalyzeVideoWorker_Work(t *testing.T) {
 	})
 }
 
-func TestAnalyzeVideoWorker_NextRetry(t *testing.T) {
+func TestAnalyzeSingleVideoWorker_NextRetry(t *testing.T) {
 	w := buildAnalyzeWorker(
 		newPipelineWorkerStore(model.VideoStatusTranscribed),
 		&pipelineWorkerChecker{},
@@ -183,7 +183,7 @@ func TestAnalyzeVideoWorker_NextRetry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			job := &river.Job[queue.AnalyzeVideoJob]{
+			job := &river.Job[queue.AnalyzeSingleVideoJob]{
 				JobRow: &rivertype.JobRow{Attempt: tt.attempt},
 			}
 
@@ -196,30 +196,35 @@ func TestAnalyzeVideoWorker_NextRetry(t *testing.T) {
 	}
 }
 
-func buildAnalyzeVideosWorker(store *pipelineWorkerStore) *AnalyzeVideosWorker {
-	return NewAnalyzeVideosWorker(service.NewAnalyzeService(store, &pipelineWorkerChecker{}))
+func buildAnalyzeMultipleVideoWorker(store *pipelineWorkerStore) *AnalyzeMultipleVideoWorker {
+	return NewAnalyzeMultipleVideoWorker(service.NewAnalyzeService(store, &pipelineWorkerChecker{}))
 }
 
-func runAnalyzeVideosJob(t *testing.T, w *AnalyzeVideosWorker) error {
+func runAnalyzeMultipleVideoJob(t *testing.T, w *AnalyzeMultipleVideoWorker) error {
 	t.Helper()
-	return w.Work(t.Context(), &river.Job[queue.AnalyzeVideosJob]{})
+	return w.Work(t.Context(), &river.Job[queue.AnalyzeMultipleVideoJob]{})
 }
 
-func TestAnalyzeVideosWorker_Timeout(t *testing.T) {
-	w := buildAnalyzeVideosWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
+func TestAnalyzeMultipleVideoWorker_Timeout(t *testing.T) {
+	w := buildAnalyzeMultipleVideoWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
 
-	if got := w.Timeout(&river.Job[queue.AnalyzeVideosJob]{}); got != analyzeDispatchTimeout {
+	if got := w.Timeout(
+		&river.Job[queue.AnalyzeMultipleVideoJob]{},
+	); got != analyzeDispatchTimeout {
 		t.Errorf("Timeout() = %v, want %v", got, analyzeDispatchTimeout)
 	}
 }
 
-func TestAnalyzeVideosWorker_Work(t *testing.T) {
+func TestAnalyzeMultipleVideoWorker_Work(t *testing.T) {
 	t.Run("EnqueuesEveryTranscribedVideo", func(t *testing.T) {
 		a, b, other := transcribedFixture(), transcribedFixture(), transcribedFixture()
 		store := newPipelineWorkerStore(model.VideoStatusTranscribed, a, b, other)
 		store.status[other.ID] = model.VideoStatusVerified
 
-		if err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store)); err != nil {
+		if err := runAnalyzeMultipleVideoJob(
+			t,
+			buildAnalyzeMultipleVideoWorker(store),
+		); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -232,9 +237,9 @@ func TestAnalyzeVideosWorker_Work(t *testing.T) {
 	})
 
 	t.Run("NothingToEnqueue_Succeeds", func(t *testing.T) {
-		w := buildAnalyzeVideosWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
+		w := buildAnalyzeMultipleVideoWorker(newPipelineWorkerStore(model.VideoStatusTranscribed))
 
-		if err := runAnalyzeVideosJob(t, w); err != nil {
+		if err := runAnalyzeMultipleVideoJob(t, w); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
@@ -244,7 +249,7 @@ func TestAnalyzeVideosWorker_Work(t *testing.T) {
 		store := newPipelineWorkerStore(model.VideoStatusTranscribed)
 		store.listErr = boom
 
-		err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store))
+		err := runAnalyzeMultipleVideoJob(t, buildAnalyzeMultipleVideoWorker(store))
 
 		if !errors.Is(err, boom) {
 			t.Fatalf("error = %v, want it to wrap the list error", err)
@@ -256,7 +261,7 @@ func TestAnalyzeVideosWorker_Work(t *testing.T) {
 		store := newPipelineWorkerStore(model.VideoStatusTranscribed, transcribedFixture())
 		store.enqueueErr = boom
 
-		err := runAnalyzeVideosJob(t, buildAnalyzeVideosWorker(store))
+		err := runAnalyzeMultipleVideoJob(t, buildAnalyzeMultipleVideoWorker(store))
 
 		if !errors.Is(err, boom) {
 			t.Fatalf("error = %v, want it to wrap the enqueue error", err)

@@ -80,21 +80,21 @@ const (
 	// JobTypeScreenVideo represents a job type for screening one video.
 	JobTypeScreenSingleVideo BackgroundJobType = "screen_single_video"
 
-	// JobTypeTranscribeDiscoveredVideo represents a job type for transcribing
+	// JobTypeTranscribeSingleDiscoveredVideo represents a job type for transcribing
 	// one screened-in video of the discovery pipeline.
-	JobTypeTranscribeDiscoveredVideo BackgroundJobType = "transcribe_discovered_video"
+	JobTypeTranscribeSingleDiscoveredVideo BackgroundJobType = "transcribe_single_discovered_video"
 
-	// JobTypeAnalyzeVideo represents a job type for analyzing and verifying
+	// JobTypeAnalyzeSingleVideo represents a job type for analyzing and verifying
 	// the claims of one transcribed video.
-	JobTypeAnalyzeVideo BackgroundJobType = "analyze_video"
+	JobTypeAnalyzeSingleVideo BackgroundJobType = "analyze_single_video"
 
-	// JobTypeTranscribeDiscoveredVideos represents a job type for enqueueing
+	// JobTypeTranscribeMultipleDiscoveredVideo represents a job type for enqueueing
 	// a transcription job for every screened-in video.
-	JobTypeTranscribeDiscoveredVideos BackgroundJobType = "transcribe_discovered_videos"
+	JobTypeTranscribeMultipleDiscoveredVideo BackgroundJobType = "transcribe_multiple_discovered_video"
 
-	// JobTypeAnalyzeVideos represents a job type for enqueueing an analysis
+	// JobTypeAnalyzeMultipleVideo represents a job type for enqueueing an analysis
 	// job for every transcribed video.
-	JobTypeAnalyzeVideos BackgroundJobType = "analyze_videos"
+	JobTypeAnalyzeMultipleVideo BackgroundJobType = "analyze_multiple_video"
 )
 
 // BackgroundJob represents a generic background job.
@@ -153,18 +153,18 @@ const (
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"
 
-	// QueueTranscription is used by TranscribeDiscoveredVideoJob.
+	// QueueTranscription is used by TranscribeSingleDiscoveredVideoJob.
 	QueueTranscription = "video_transcription"
 
-	// QueueAnalysis is used by AnalyzeVideoJob.
+	// QueueAnalysis is used by AnalyzeSingleVideoJob.
 	QueueAnalysis = "video_analysis"
 
-	// QueueTranscribeDispatch is used by TranscribeDiscoveredVideosJob. It has
+	// QueueTranscribeDispatch is used by TranscribeMultipleDiscoveredVideoJob. It has
 	// its own queue, so the run that enqueues the transcription jobs never
 	// takes a slot from the videos being transcribed.
 	QueueTranscribeDispatch = "video_transcription_dispatch"
 
-	// QueueAnalyzeDispatch is used by AnalyzeVideosJob. It has its own queue
+	// QueueAnalyzeDispatch is used by AnalyzeMultipleVideoJob. It has its own queue
 	// for the same reason as QueueTranscribeDispatch.
 	QueueAnalyzeDispatch = "video_analysis_dispatch"
 )

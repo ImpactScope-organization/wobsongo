@@ -162,6 +162,10 @@ describe('parseOverviewTopic', () => {
 		expect(parseOverviewTopic('rumours')).toBe('misinfo');
 		expect(parseOverviewTopic(null)).toBe('misinfo');
 	});
+
+	it('accepts the verified topic', () => {
+		expect(parseOverviewTopic('accurate')).toBe('accurate');
+	});
 });
 
 describe('matchesTopic', () => {
@@ -170,6 +174,13 @@ describe('matchesTopic', () => {
 		expect(matchesTopic('misleading', 'misinfo')).toBe(true);
 		expect(matchesTopic('unverified', 'misinfo')).toBe(false);
 		expect(matchesTopic('unverified', 'all')).toBe(true);
+	});
+
+	it('matches accurate narratives only under the verified and all topics', () => {
+		expect(matchesTopic('accurate', 'accurate')).toBe(true);
+		expect(matchesTopic('accurate', 'all')).toBe(true);
+		expect(matchesTopic('false', 'accurate')).toBe(false);
+		expect(matchesTopic('accurate', 'misinfo')).toBe(false);
 	});
 });
 

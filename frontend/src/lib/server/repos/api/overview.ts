@@ -3,8 +3,7 @@ import {
 	type HarmScore,
 	type NarrativeSummary,
 	type RatingOutcome,
-	type ReviewStatus,
-	type Verdict
+	type ReviewStatus
 } from '#lib/domain/narrative.js';
 import {
 	CREATOR_PLATFORMS,
@@ -123,7 +122,7 @@ function toHarm(harm: number | undefined): HarmScore {
 	return level as HarmScore;
 }
 
-function toNarrativeSummary(narrative: ApiNarrative, verdict: Verdict): NarrativeSummary {
+function toNarrativeSummary(narrative: ApiNarrative, verdict: RatingOutcome): NarrativeSummary {
 	return {
 		id: narrative.id ?? '',
 		title: narrative.statement ?? '',
@@ -163,10 +162,7 @@ function toSnapshot(
 	for (const item of items) {
 		const outcome = toOutcome(item.verdict);
 		rated[outcome] += 1;
-
-		if (outcome !== 'accurate') {
-			narratives.push(toNarrativeSummary(item, outcome));
-		}
+		narratives.push(toNarrativeSummary(item, outcome));
 	}
 
 	return {

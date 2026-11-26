@@ -10,7 +10,7 @@ export type Verdict = 'false' | 'misleading' | 'unverified';
 
 export const VERDICTS: readonly Verdict[] = ['false', 'misleading', 'unverified'];
 
-/** Outcome of rating a claim. Narratives are never accurate; rated claims can be. */
+/** Outcome of rating a claim or narrative. */
 export type RatingOutcome = Verdict | 'accurate';
 
 /** Where a narrative sits in the review workflow. */
@@ -37,7 +37,7 @@ export const SPIKING_GROWTH_PCT = 50;
 export interface NarrativeSummary {
 	id: string;
 	title: string;
-	verdict: Verdict;
+	verdict: RatingOutcome;
 	status: ReviewStatus;
 	/** SRH topic, e.g. "Family planning". */
 	domain: string;

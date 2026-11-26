@@ -1,20 +1,21 @@
 <script lang="ts">
-	import type { Verdict } from '#lib/domain/narrative.js';
+	import type { RatingOutcome } from '#lib/domain/narrative.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { cn } from '#lib/utils.js';
-	import { VERDICT_LABEL } from './labels';
+	import { RATING_OUTCOME_LABEL } from './labels';
 
 	interface Props {
-		verdict: Verdict;
+		verdict: RatingOutcome;
 		class?: string;
 	}
 
 	let { verdict, class: className }: Props = $props();
 
-	const TONE: Record<Verdict, string> = {
+	const TONE: Record<RatingOutcome, string> = {
 		false: 'bg-verdict-false text-verdict-false-foreground',
 		misleading: 'bg-verdict-misleading text-verdict-misleading-foreground',
-		unverified: 'bg-verdict-unverified text-verdict-unverified-foreground'
+		unverified: 'bg-verdict-unverified text-verdict-unverified-foreground',
+		accurate: 'bg-status-verified text-status-verified-foreground'
 	};
 </script>
 
@@ -27,5 +28,5 @@
 	)}
 >
 	<span class="sr-only">{m.common_verdict_prefix()}</span>
-	{VERDICT_LABEL[verdict]}
+	{RATING_OUTCOME_LABEL[verdict]}
 </span>

@@ -131,7 +131,8 @@ describe('API overview repo', () => {
 		const s = result.data;
 		expect(s.narratives.map((n) => [n.id, n.verdict, n.status])).toEqual([
 			['n1', 'false', 'needs-check'],
-			['n2', 'misleading', 'expert-verified']
+			['n2', 'misleading', 'expert-verified'],
+			['n3', 'accurate', 'needs-check']
 		]);
 		expect(s.rated).toEqual({ false: 1, misleading: 1, unverified: 0, accurate: 1 });
 		expect(s.activeNarratives).toEqual({ count: 3, new: 2 });
@@ -161,7 +162,8 @@ describe('API overview repo', () => {
 		expect(pages.some((request) => request.includes('page=3'))).toBe(true);
 		expect(s.activeNarratives).toEqual({ count: 250, new: 250 });
 		expect(s.rated).toEqual({ false: 125, misleading: 0, unverified: 0, accurate: 125 });
-		expect(s.narratives).toHaveLength(125);
+		expect(s.narratives).toHaveLength(250);
+		expect(s.narratives.filter((n) => n.verdict === 'accurate')).toHaveLength(125);
 		expect(s.highHarm.awaitingReview).toBe(250);
 	});
 

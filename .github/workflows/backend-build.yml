@@ -10,6 +10,8 @@ on:
       - "go.mod"
       - "go.sum"
       - "Dockerfile"
+      - ".github/workflows/backend-build.yml"
+  workflow_dispatch:
 
 jobs:
   build-and-push:

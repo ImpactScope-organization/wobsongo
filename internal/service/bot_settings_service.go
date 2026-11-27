@@ -33,8 +33,7 @@ func NewBotSettingsService(botSettingsRepo data.BotSettingsRepoer) *BotSettingsS
 }
 
 // WithDefaults sets the tone/length used for chats that never chose their own.
-// An empty value keeps the baseline for that field. The values are validated
-// by Config.IsOK, not here.
+// An empty value keeps the baseline for that field. 
 func (s *BotSettingsService) WithDefaults(
 	tone model.BotTone,
 	length model.BotLength,

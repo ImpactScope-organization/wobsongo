@@ -1114,6 +1114,239 @@ func TestClaimService_CheckClaim_Narratives(t *testing.T) {
 	})
 }
 
+func TestFormatCitationPlainText_RegularCitationUnchanged(t *testing.T) {
+	got := formatCitationPlainText(Citation{
+		Index:  1,
+		Source: "chunk",
+		Text:   "plain evidence",
+	})
+
+	want := "  [1] (chunk) plain evidence\n"
+	if got != want {
+		t.Errorf("want %q, got %q", want, got)
+	}
+}
+
+func TestFormatCitationPlainText_TableEvidence(t *testing.T) {
+	const tableText = "Table:\n\n- Row 2: Condition: A; Dosage: 10 mg\n\n- Row 3: Condition: B; Dosage: 20 mg"
+	const tableMarkdown = "| Condition | Dosage |\n| --- | --- |\n| A | 10 mg |\n| B | 20 mg |"
+
+	t.Run("chunk citation uses the table text without list markers", func(t *testing.T) {
+		got := formatCitationPlainText(Citation{
+			Index:         1,
+			Source:        "chunk",
+			Text:          tableText,
+			TableMarkdown: tableMarkdown,
+		})
+
+		for _, want := range []string{
+			"[1] Table evidence (chunk)",
+			"Source table: Table:",
+			"Row 2: Condition: A; Dosage: 10 mg",
+			"Row 3: Condition: B; Dosage: 20 mg",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("expected %q in output, got %q", want, got)
+			}
+		}
+		if strings.Contains(got, "- Row") {
+			t.Errorf("list markers must be removed, got %q", got)
+		}
+	})
+
+	t.Run("chunk citation prefers ChunkText when present", func(t *testing.T) {
+		got := formatCitationPlainText(Citation{
+			Index:         1,
+			Source:        "chunk",
+			Text:          "short matched text",
+			ChunkText:     tableText,
+			TableMarkdown: tableMarkdown,
+		})
+
+		if !strings.Contains(got, "Row 2: Condition: A") {
+			t.Errorf("expected ChunkText to be displayed, got %q", got)
+		}
+		if strings.Contains(got, "short matched text") {
+			t.Errorf("Text must not be displayed when ChunkText exists, got %q", got)
+		}
+	})
+
+	t.Run("fact derived from a table shows matched fact and source table", func(t *testing.T) {
+		got := formatCitationPlainText(Citation{
+			Index:         2,
+			Source:        "fact",
+			Text:          "A has dosage 10 mg",
+			ChunkText:     tableText,
+			TableMarkdown: tableMarkdown,
+		})
+
+		for _, want := range []string{
+			"[2] Table evidence (fact)",
+			"Matched fact: A has dosage 10 mg",
+			"Source table: Table:",
+			"Row 3: Condition: B; Dosage: 20 mg",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("expected %q in output, got %q", want, got)
+			}
+		}
+	})
+
+	t.Run("fact without chunk text only shows the matched fact", func(t *testing.T) {
+		got := formatCitationPlainText(Citation{
+			Index:         3,
+			Source:        "fact",
+			Text:          "A has dosage 10 mg",
+			TableMarkdown: tableMarkdown,
+		})
+
+		if !strings.Contains(got, "Matched fact: A has dosage 10 mg") {
+			t.Errorf("unexpected output: %q", got)
+		}
+		if strings.Contains(got, "Source table:") {
+			t.Errorf("no source table expected without ChunkText, got %q", got)
+		}
+	})
+}
+
+func TestPlainTextTableEvidence_OnlyStripsRowMarkers(t *testing.T) {
+	got := plainTextTableEvidence(
+		"  Table:\n\n- Row 2: A: 1\n- not a row marker\n  - Row 3: B: 2  ",
+	)
+
+	want := "Table:\n\nRow 2: A: 1\n- not a row marker\n  Row 3: B: 2"
+	if got != want {
+		t.Errorf("want %q, got %q", want, got)
+	}
+}
+
+func TestIndentMessageLines(t *testing.T) {
+	got := indentMessageLines("a\nb\nc", "  ")
+
+	if got != "a\n  b\n  c" {
+		t.Errorf("unexpected indentation: %q", got)
+	}
+}
+
+func TestFormatClaimMessage_ExpertShowsTableEvidence(t *testing.T) {
+	results := []SubClaimResult{{
+		Claim:          "claim A",
+		Verdict:        model.VerdictSupported,
+		BriefReasoning: "brief",
+		Reasoning:      "full reasoning [0]",
+		Citations: []Citation{{
+			Index:         0,
+			Source:        "chunk",
+			Text:          "Table:\n\n- Row 2: Condition: A; Dosage: 10 mg",
+			TableMarkdown: "| Condition | Dosage |\n| --- | --- |\n| A | 10 mg |",
+		}},
+	}}
+
+	expert := formatClaimMessage(
+		results, "summary", model.LanguageEnglish, model.BotLengthExpert, "",
+	)
+	if !strings.Contains(expert, "Table evidence") {
+		t.Errorf("expert message must show table evidence, got %q", expert)
+	}
+
+	long := formatClaimMessage(
+		results, "summary", model.LanguageEnglish, model.BotLengthLong, "",
+	)
+	if strings.Contains(long, "Table evidence") {
+		t.Errorf("long message must not list citations, got %q", long)
+	}
+}
+
+func TestClaimService_CheckClaim_PropagatesTableMarkdownToCitations(t *testing.T) {
+	const tableText = "Table:\n\n- Row 2: Condition: B; Dosage: 20 mg"
+	const tableMarkdown = "| Condition | Dosage |\n| --- | --- |\n| B | 20 mg |"
+
+	chunkRepo := &mockrepo.DocumentChunkRepoerMock{}
+	chunkRepo.SearchByEmbeddingFunc = func(
+		context.Context, []float32, int,
+	) ([]data.ScoredResult[model.DocumentChunk], error) {
+		return nil, nil
+	}
+	chunkRepo.SearchByFullTextFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.DocumentChunk], error) {
+		return []data.ScoredResult[model.DocumentChunk]{{
+			Item: model.DocumentChunk{
+				ID: uuid.New(),
+				ParsedChunk: model.ParsedChunk{
+					Text:          tableText,
+					TableMarkdown: tableMarkdown,
+					LayoutType:    model.LayoutTypeTable,
+				},
+			},
+			Score: 0.9,
+		}}, nil
+	}
+
+	knowledgeRepo := &mockrepo.AtomicKnowledgeRepoerMock{}
+	knowledgeRepo.SearchByEmbeddingFunc = func(
+		context.Context, []float32, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return nil, nil
+	}
+	knowledgeRepo.SearchByFullTextFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return nil, nil
+	}
+	knowledgeRepo.SearchBySimilarityFunc = func(
+		context.Context, string, int,
+	) ([]data.ScoredResult[model.AtomicKnowledge], error) {
+		return nil, nil
+	}
+
+	rag := NewRAGService(chunkRepo, knowledgeRepo, &stubEmbedder{vector: []float32{1}})
+	analyzer := &stubClaimAnalyzer{
+		analysis: &data.ClaimAnalysis{
+			InScope:   true,
+			SubClaims: []data.SubClaim{{Text: "claim A"}},
+		},
+	}
+
+	var judgedEvidence []data.JudgeEvidence
+	judge := &stubClaimJudge{
+		judgeFunc: func(req *data.JudgeRequest) (*data.JudgeVerdict, error) {
+			judgedEvidence = req.Evidence
+			return &data.JudgeVerdict{
+				Verdict:        model.VerdictSupported,
+				Reasoning:      "full reasoning [0]",
+				BriefReasoning: "brief",
+				CitedEvidence:  []int{0},
+			}, nil
+		},
+	}
+
+	s := NewClaimService(analyzer, judge, rag)
+	result, err := s.CheckClaim(t.Context(), &dto.CheckClaimDTO{Text: "claim A"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(judgedEvidence) != 1 {
+		t.Fatalf("expected 1 evidence item judged, got %d", len(judgedEvidence))
+	}
+	if judgedEvidence[0].Text != tableText {
+		t.Errorf("judge must receive the descriptive text, got %q", judgedEvidence[0].Text)
+	}
+
+	if len(result.SubClaims) != 1 || len(result.SubClaims[0].Citations) != 1 {
+		t.Fatalf("expected 1 sub-claim with 1 citation, got %+v", result.SubClaims)
+	}
+
+	citation := result.SubClaims[0].Citations[0]
+	if citation.Text != tableText {
+		t.Errorf("citation Text must stay the descriptive text, got %q", citation.Text)
+	}
+	if citation.TableMarkdown != tableMarkdown {
+		t.Errorf("citation must carry the Markdown table, got %q", citation.TableMarkdown)
+	}
+}
+
 func TestClaimService_CheckClaim_VideoSource(t *testing.T) {
 	const claimText = "drinking lemon water cures infections"
 	occurredAt := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)

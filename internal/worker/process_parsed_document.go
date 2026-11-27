@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,6 +31,42 @@ var noiseLayoutTypes = map[model.LayoutType]bool{
 	model.LayoutTypePageHeader:    true,
 	model.LayoutTypePageFooter:    true,
 	model.LayoutTypeDocumentIndex: true,
+}
+
+var emptyTextNoiseLayoutTypes = map[model.LayoutType]bool{
+	model.LayoutTypeParagraph:     true,
+	model.LayoutTypeText:          true,
+	model.LayoutTypeTitle:         true,
+	model.LayoutTypeSectionHeader: true,
+	model.LayoutTypeListItem:      true,
+	model.LayoutTypeCaption:       true,
+	model.LayoutTypeFootnote:      true,
+	model.LayoutTypeReference:     true,
+	model.LayoutTypeTable:         true,
+}
+
+type chunkFilterStatus string
+
+const (
+	chunkFilterStatusKeep  chunkFilterStatus = "KEEP"
+	chunkFilterStatusDrop  chunkFilterStatus = "DROP"
+	chunkFilterStatusMerge chunkFilterStatus = "MERGE"
+)
+
+type chunkFilterDecision struct {
+	// SourceIndexes identifies the original chunks involved.
+	// For merged chunks, it contains both the header and target index.
+	SourceIndexes []int
+
+	// Chunk contains the resulting chunk after filtering or merging.
+	Chunk model.ParsedChunk
+
+	// Status indicates whether the chunk was kept, dropped, or merged.
+	Status chunkFilterStatus
+
+	// KeptIndex is the index in the resulting kept slice.
+	// It is -1 when the chunk is dropped.
+	KeptIndex int
 }
 
 // contentTypeImageJPEG is shared between imageContentTypeExtensions and
@@ -270,16 +307,167 @@ func (w *ProcessParsedDocumentWorker) uploadImage(
 	return key, nil
 }
 
-// filterNoiseChunks drops chunks whose layout type is considered noise
-// (page headers/footers, table of contents), returning the kept chunks and
-// a count of how many were dropped.
-func filterNoiseChunks(chunks []model.ParsedChunk) (kept []model.ParsedChunk, dropped int) {
-	for i := range chunks {
-		if noiseLayoutTypes[chunks[i].LayoutType] {
-			dropped++
+// mergeSectionHeader adds a section header to the beginning
+// of the following chunk while preserving the target chunk metadata.
+func mergeSectionHeader(
+	header *model.ParsedChunk,
+	chunk *model.ParsedChunk,
+) model.ParsedChunk {
+	out := *chunk
+	out.Text = header.Text + "\n" + chunk.Text
+	return out
+}
+
+func filterNoiseChunksWithDecisions(
+	chunks []model.ParsedChunk,
+) (
+	kept []model.ParsedChunk,
+	dropped int,
+	decisions []chunkFilterDecision,
+) {
+	appendDropped := func(index int, chunk model.ParsedChunk) {
+		dropped++
+
+		decisions = append(decisions, chunkFilterDecision{
+			SourceIndexes: []int{index},
+			Chunk:         chunk,
+			Status:        chunkFilterStatusDrop,
+			KeptIndex:     -1,
+		})
+	}
+
+	appendKept := func(
+		sourceIndexes []int,
+		chunk model.ParsedChunk,
+		status chunkFilterStatus,
+	) {
+		kept = append(kept, chunk)
+
+		decisions = append(decisions, chunkFilterDecision{
+			SourceIndexes: sourceIndexes,
+			Chunk:         chunk,
+			Status:        status,
+			KeptIndex:     len(kept) - 1,
+		})
+	}
+
+	for i := 0; i < len(chunks); i++ {
+		chunk := chunks[i]
+
+		// 1. Remove configured noise layout types.
+		if noiseLayoutTypes[chunk.LayoutType] {
+			appendDropped(i, chunk)
 			continue
 		}
-		kept = append(kept, chunks[i])
+
+		// 2. Propagate section header to consecutive list items.
+		if chunk.LayoutType == model.LayoutTypeSectionHeader &&
+			strings.TrimSpace(chunk.Text) != "" &&
+			i+1 < len(chunks) &&
+			chunks[i+1].LayoutType == model.LayoutTypeListItem {
+			headerIndex := i
+			listEnd := i + 1
+
+			// Find the end of consecutive list items.
+			for listEnd < len(chunks) &&
+				chunks[listEnd].LayoutType == model.LayoutTypeListItem {
+				listEnd++
+			}
+
+			// Check whether at least one list item contains text.
+			hasNonEmptyItem := false
+
+			for j := i + 1; j < listEnd; j++ {
+				if strings.TrimSpace(chunks[j].Text) != "" {
+					hasNonEmptyItem = true
+					break
+				}
+			}
+
+			// Preserve the standalone header if all list items are empty.
+			if !hasNonEmptyItem {
+				appendKept(
+					[]int{headerIndex},
+					chunk,
+					chunkFilterStatusKeep,
+				)
+
+				for j := i + 1; j < listEnd; j++ {
+					appendDropped(j, chunks[j])
+				}
+
+				i = listEnd - 1
+				continue
+			}
+
+			// Merge the header with every non-empty list item.
+			for j := i + 1; j < listEnd; j++ {
+				item := chunks[j]
+
+				if strings.TrimSpace(item.Text) == "" {
+					appendDropped(j, item)
+					continue
+				}
+
+				merged := mergeSectionHeader(&chunk, &item)
+
+				appendKept(
+					[]int{headerIndex, j},
+					merged,
+					chunkFilterStatusMerge,
+				)
+			}
+
+			i = listEnd - 1
+			continue
+		}
+
+		// 3. Merge section header with the immediately following text chunk.
+		if chunk.LayoutType == model.LayoutTypeSectionHeader &&
+			strings.TrimSpace(chunk.Text) != "" &&
+			i+1 < len(chunks) &&
+			chunks[i+1].LayoutType == model.LayoutTypeText &&
+			strings.TrimSpace(chunks[i+1].Text) != "" {
+			targetIndex := i + 1
+
+			merged := mergeSectionHeader(
+				&chunk,
+				&chunks[targetIndex],
+			)
+
+			appendKept(
+				[]int{i, targetIndex},
+				merged,
+				chunkFilterStatusMerge,
+			)
+
+			i = targetIndex
+			continue
+		}
+
+		// 4. Remove empty text chunks.
+		if emptyTextNoiseLayoutTypes[chunk.LayoutType] &&
+			strings.TrimSpace(chunk.Text) == "" {
+			appendDropped(i, chunk)
+			continue
+		}
+
+		// 5. Preserve the remaining chunks.
+		appendKept(
+			[]int{i},
+			chunk,
+			chunkFilterStatusKeep,
+		)
 	}
+
+	return kept, dropped, decisions
+}
+
+// filterNoiseChunks removes unnecessary chunks and preserves
+// section header context for text and consecutive list items.
+func filterNoiseChunks(
+	chunks []model.ParsedChunk,
+) (kept []model.ParsedChunk, dropped int) {
+	kept, dropped, _ = filterNoiseChunksWithDecisions(chunks)
 	return kept, dropped
 }

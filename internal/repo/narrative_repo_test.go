@@ -245,11 +245,12 @@ func TestNarrativeRepo(t *testing.T) {
 		claim.Reasoning = "the cited chunk contradicts it [0]"
 		claim.BriefReasoning = "contradicted"
 		claim.Citations = []model.ClaimCitation{{
-			Index:      0,
-			Source:     "chunk",
-			DocumentID: uuid.New(),
-			ChunkID:    uuid.New(),
-			Text:       "evidence text",
+			Index:         0,
+			Source:        "chunk",
+			DocumentID:    uuid.New(),
+			ChunkID:       uuid.New(),
+			Text:          "evidence text",
+			TableMarkdown: "| Condition | Dosage |\n| --- | --- |\n| B | 20 mg |",
 		}}
 
 		created, err := env.repo.CreateClaim(env.ctx, claim)

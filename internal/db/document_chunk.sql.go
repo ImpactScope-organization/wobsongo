@@ -30,10 +30,11 @@ type CreateDocumentChunksBatchParams struct {
 	AssetUrl        string
 	Language        int32
 	TextTranslated  pgtype.Text
+	TableMarkdown   string
 }
 
 const getDocumentChunkByID = `-- name: GetDocumentChunkByID :one
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr FROM document_chunks WHERE id = $1
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown FROM document_chunks WHERE id = $1
 `
 
 func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (DocumentChunk, error) {
@@ -59,12 +60,13 @@ func (q *Queries) GetDocumentChunkByID(ctx context.Context, id uuid.UUID) (Docum
 		&i.TextTranslated,
 		&i.TextFtsEn,
 		&i.TextFtsFr,
+		&i.TableMarkdown,
 	)
 	return i, err
 }
 
 const listChunksNeedingEmbedding = `-- name: ListChunksNeedingEmbedding :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown FROM document_chunks
 WHERE document_id = $1 AND text != '' AND embedding IS NULL
 ORDER BY sequence_number ASC
 `
@@ -98,6 +100,7 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 			&i.TextTranslated,
 			&i.TextFtsEn,
 			&i.TextFtsFr,
+			&i.TableMarkdown,
 		); err != nil {
 			return nil, err
 		}
@@ -110,7 +113,7 @@ func (q *Queries) ListChunksNeedingEmbedding(ctx context.Context, documentID uui
 }
 
 const listChunksNeedingKnowledgeExtraction = `-- name: ListChunksNeedingKnowledgeExtraction :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown FROM document_chunks
 WHERE document_id = $1 AND text != '' AND knowledge_extracted_at IS NULL
 ORDER BY sequence_number ASC
 `
@@ -144,6 +147,7 @@ func (q *Queries) ListChunksNeedingKnowledgeExtraction(ctx context.Context, docu
 			&i.TextTranslated,
 			&i.TextFtsEn,
 			&i.TextFtsFr,
+			&i.TableMarkdown,
 		); err != nil {
 			return nil, err
 		}
@@ -156,7 +160,7 @@ func (q *Queries) ListChunksNeedingKnowledgeExtraction(ctx context.Context, docu
 }
 
 const listChunksNeedingTranslation = `-- name: ListChunksNeedingTranslation :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr FROM document_chunks
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown FROM document_chunks
 WHERE document_id = $1 AND text != '' AND text_translated IS NULL
 ORDER BY sequence_number ASC
 `
@@ -190,6 +194,7 @@ func (q *Queries) ListChunksNeedingTranslation(ctx context.Context, documentID u
 			&i.TextTranslated,
 			&i.TextFtsEn,
 			&i.TextFtsFr,
+			&i.TableMarkdown,
 		); err != nil {
 			return nil, err
 		}
@@ -202,7 +207,7 @@ func (q *Queries) ListChunksNeedingTranslation(ctx context.Context, documentID u
 }
 
 const listDocumentChunksByDocumentID = `-- name: ListDocumentChunksByDocumentID :many
-SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
+SELECT id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown FROM document_chunks WHERE document_id = $1 ORDER BY sequence_number ASC
 `
 
 func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID uuid.UUID) ([]DocumentChunk, error) {
@@ -234,10 +239,36 @@ func (q *Queries) ListDocumentChunksByDocumentID(ctx context.Context, documentID
 			&i.TextTranslated,
 			&i.TextFtsEn,
 			&i.TextFtsFr,
+			&i.TableMarkdown,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDocumentIDsNeedingTableBackfill = `-- name: ListDocumentIDsNeedingTableBackfill :many
+SELECT DISTINCT document_id FROM document_chunks
+WHERE layout_type = 'table' AND text = '' AND table_markdown = ''
+`
+
+func (q *Queries) ListDocumentIDsNeedingTableBackfill(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, listDocumentIDsNeedingTableBackfill)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var document_id uuid.UUID
+		if err := rows.Scan(&document_id); err != nil {
+			return nil, err
+		}
+		items = append(items, document_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -279,6 +310,28 @@ func (q *Queries) MarkChunkKnowledgeExtracted(ctx context.Context, id uuid.UUID)
 	return err
 }
 
+const updateChunkTable = `-- name: UpdateChunkTable :exec
+UPDATE document_chunks SET text = $2, table_markdown = $3, updated_at = $4
+WHERE id = $1 AND layout_type = 'table' AND text = '' AND table_markdown = ''
+`
+
+type UpdateChunkTableParams struct {
+	ID            uuid.UUID
+	Text          string
+	TableMarkdown string
+	UpdatedAt     time.Time
+}
+
+func (q *Queries) UpdateChunkTable(ctx context.Context, arg UpdateChunkTableParams) error {
+	_, err := q.db.Exec(ctx, updateChunkTable,
+		arg.ID,
+		arg.Text,
+		arg.TableMarkdown,
+		arg.UpdatedAt,
+	)
+	return err
+}
+
 const updateChunkTranslation = `-- name: UpdateChunkTranslation :exec
 UPDATE document_chunks SET text_translated = $2, updated_at = $3 WHERE id = $1
 `
@@ -304,7 +357,7 @@ UPDATE document_chunks SET
     asset_url = $7,
     embedding = $8
 WHERE id = $1
-RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr
+RETURNING id, created_at, updated_at, document_id, sequence_number, topics, factuality_score, text, page, chapter, layout_type, bounding_box, asset_url, embedding, knowledge_extracted_at, language, text_translated, text_fts_en, text_fts_fr, table_markdown
 `
 
 type UpdateDocumentChunkParams struct {
@@ -350,6 +403,7 @@ func (q *Queries) UpdateDocumentChunk(ctx context.Context, arg UpdateDocumentChu
 		&i.TextTranslated,
 		&i.TextFtsEn,
 		&i.TextFtsFr,
+		&i.TableMarkdown,
 	)
 	return i, err
 }

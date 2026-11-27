@@ -49,6 +49,10 @@ type ClaimCitation struct {
 	// Text is the matched text: a chunk's text, or a fact's
 	// subject-predicate-object.
 	Text string `json:"text"`
+
+	// TableMarkdown is the complete Markdown representation of a table
+	// when the citation originates from a table-backed chunk or fact.
+	TableMarkdown string `json:"table_markdown,omitempty"`
 }
 
 // Claim is one normalized sub-claim taken from a user's message, stored with

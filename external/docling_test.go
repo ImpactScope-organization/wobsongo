@@ -111,8 +111,18 @@ func TestDoclingClient_FetchRawFromURL_And_ParseRaw_Success(t *testing.T) {
 		switch c.LayoutType {
 		case model.LayoutTypePageFooter:
 			sawPageFooter = true
+
 		case model.LayoutTypeTable:
 			sawTable = true
+
+			if c.Text != "" {
+				t.Errorf("expected empty table text, got %q", c.Text)
+			}
+
+			if c.TableMarkdown != "" {
+				t.Errorf("expected empty table Markdown, got %q", c.TableMarkdown)
+			}
+
 		case model.LayoutTypePicture:
 			picture = &result.Chunks[i]
 		}
@@ -233,5 +243,333 @@ func TestDoclingClient_FetchRawFromURL_NonOKStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "docling exploded") {
 		t.Errorf("expected error to include response body, got: %v", err)
+	}
+}
+
+func TestParseRaw_TableTextAndMarkdownFromCells(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "prov": [
+                            {
+                                "page_no": 1,
+                                "bbox": {
+                                    "l": 0,
+                                    "t": 0,
+                                    "r": 10,
+                                    "b": 10
+                                }
+                            }
+                        ],
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "Condition",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "Dosage",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 2
+                                },
+                                {
+                                    "text": "Condition A",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment X",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "10 mg",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 2
+                                },
+                                {
+                                    "text": "Condition B",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment Y",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "20 mg",
+                                    "start_row_offset_idx": 2,
+                                    "start_col_offset_idx": 2
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	var table *model.ParsedChunk
+
+	for i := range result.Chunks {
+		if result.Chunks[i].LayoutType == model.LayoutTypeTable {
+			table = &result.Chunks[i]
+			break
+		}
+	}
+
+	if table == nil {
+		t.Fatal("expected table chunk")
+	}
+
+	expectedText := "Table:\n\n" +
+		"- Row 2: Condition: Condition A; " +
+		"Treatment: Treatment X; Dosage: 10 mg\n\n" +
+		"- Row 3: Condition: Condition B; " +
+		"Treatment: Treatment Y; Dosage: 20 mg"
+
+	if table.Text != expectedText {
+		t.Errorf(
+			"unexpected table text:\nwant:\n%s\ngot:\n%s",
+			expectedText,
+			table.Text,
+		)
+	}
+
+	expectedMarkdown := strings.Join([]string{
+		"| Condition | Treatment | Dosage |",
+		"| --- | --- | --- |",
+		"| Condition A | Treatment X | 10 mg |",
+		"| Condition B | Treatment Y | 20 mg |",
+	}, "\n")
+
+	if table.TableMarkdown != expectedMarkdown {
+		t.Errorf(
+			"unexpected table Markdown:\nwant:\n%s\ngot:\n%s",
+			expectedMarkdown,
+			table.TableMarkdown,
+		)
+	}
+}
+
+func TestParseRaw_EmptyTableHasNoSearchableRepresentation(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "empty-table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "  ",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "\n\t",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                },
+                                {
+                                    "text": "",
+                                    "start_row_offset_idx": 1,
+                                    "start_col_offset_idx": 0
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	if len(result.Chunks) != 1 {
+		t.Fatalf(
+			"expected one parsed table chunk, got %d",
+			len(result.Chunks),
+		)
+	}
+
+	table := result.Chunks[0]
+
+	if table.LayoutType != model.LayoutTypeTable {
+		t.Fatalf(
+			"expected table layout, got %q",
+			table.LayoutType,
+		)
+	}
+
+	if table.Text != "" {
+		t.Errorf("expected empty searchable text, got %q", table.Text)
+	}
+
+	if table.TableMarkdown != "" {
+		t.Errorf(
+			"expected empty Markdown, got %q",
+			table.TableMarkdown,
+		)
+	}
+}
+
+func TestParseRaw_HeaderOnlyTableHasSearchableColumnNames(t *testing.T) {
+	const raw = `{
+        "status": "success",
+        "document": {
+            "json_content": {
+                "name": "header-only-table.pdf",
+                "tables": [
+                    {
+                        "label": "table",
+                        "data": {
+                            "table_cells": [
+                                {
+                                    "text": "Condition",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 0
+                                },
+                                {
+                                    "text": "Treatment",
+                                    "start_row_offset_idx": 0,
+                                    "start_col_offset_idx": 1
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	if len(result.Chunks) != 1 {
+		t.Fatalf("expected one table chunk, got %d", len(result.Chunks))
+	}
+
+	table := result.Chunks[0]
+
+	expected := "Table columns: Condition; Treatment"
+
+	if table.Text != expected {
+		t.Errorf(
+			"unexpected header-only table text: %q",
+			table.Text,
+		)
+	}
+
+	if table.TableMarkdown == "" {
+		t.Error("expected header-only table Markdown to be preserved")
+	}
+}
+
+func TestParseRaw_TableMarkdownEscapesPipesAndFlattensNewlines(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "escape.pdf",
+				"tables": [{
+					"label": "table",
+					"data": {
+						"table_cells": [
+							{"text": "Name", "start_row_offset_idx": 0, "start_col_offset_idx": 0},
+							{"text": "Notes", "start_row_offset_idx": 0, "start_col_offset_idx": 1},
+							{"text": "A|B", "start_row_offset_idx": 1, "start_col_offset_idx": 0},
+							{"text": "line1\nline2", "start_row_offset_idx": 1, "start_col_offset_idx": 1}
+						]
+					}
+				}]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+	if len(result.Chunks) != 1 {
+		t.Fatalf("expected 1 chunk, got %d", len(result.Chunks))
+	}
+
+	want := strings.Join([]string{
+		"| Name | Notes |",
+		"| --- | --- |",
+		"| A\\|B | line1 line2 |",
+	}, "\n")
+
+	if got := result.Chunks[0].TableMarkdown; got != want {
+		t.Errorf("want:\n%s\ngot:\n%s", want, got)
+	}
+}
+
+func TestParseRaw_TableWithMissingCellsKeepsColumnAlignment(t *testing.T) {
+	const raw = `{
+		"status": "success",
+		"document": {
+			"json_content": {
+				"name": "sparse.pdf",
+				"tables": [{
+					"label": "table",
+					"data": {
+						"table_cells": [
+							{"text": "A", "start_row_offset_idx": 0, "start_col_offset_idx": 0},
+							{"text": "B", "start_row_offset_idx": 0, "start_col_offset_idx": 1},
+							{"text": "C", "start_row_offset_idx": 0, "start_col_offset_idx": 2},
+							{"text": "1", "start_row_offset_idx": 1, "start_col_offset_idx": 0},
+							{"text": "3", "start_row_offset_idx": 1, "start_col_offset_idx": 2}
+						]
+					}
+				}]
+			}
+		}
+	}`
+
+	result, err := external.ParseRaw([]byte(raw))
+	if err != nil {
+		t.Fatalf("unexpected parsing error: %v", err)
+	}
+
+	table := result.Chunks[0]
+
+	wantMarkdown := strings.Join([]string{
+		"| A | B | C |",
+		"| --- | --- | --- |",
+		"| 1 |  | 3 |",
+	}, "\n")
+	if table.TableMarkdown != wantMarkdown {
+		t.Errorf("want:\n%s\ngot:\n%s", wantMarkdown, table.TableMarkdown)
+	}
+
+	wantText := "Table:\n\n- Row 2: A: 1; C: 3"
+	if table.Text != wantText {
+		t.Errorf("want %q, got %q", wantText, table.Text)
 	}
 }

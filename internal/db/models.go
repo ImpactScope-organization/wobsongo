@@ -144,6 +144,7 @@ type DocumentChunk struct {
 	TextTranslated       pgtype.Text
 	TextFtsEn            interface{}
 	TextFtsFr            interface{}
+	TableMarkdown        string
 }
 
 type Influencer struct {

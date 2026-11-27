@@ -27,12 +27,13 @@ const claimSearchLimit = 10
 // reference that same index inline in its Reasoning text as "[N]", so a
 // caller can link a prose citation directly back to this entry.
 type Citation struct {
-	Index      int
-	Source     string
-	Text       string
-	ChunkText  string
-	TruthTier  string
-	DocumentID uuid.UUID
+	Index         int
+	Source        string
+	Text          string
+	ChunkText     string
+	TableMarkdown string
+	TruthTier     string
+	DocumentID    uuid.UUID
 	// ChunkID is the chunk this citation traces back to, mirroring
 	// RAGResult.ChunkID — lets a caller link directly to this evidence (e.g.
 	// the standalone /evidence PDF-bbox viewer).
@@ -266,11 +267,12 @@ func (s *ClaimService) recordClaims(
 		citations := make([]model.ClaimCitation, len(r.Citations))
 		for j, c := range r.Citations {
 			citations[j] = model.ClaimCitation{
-				Index:      c.Index,
-				Source:     c.Source,
-				DocumentID: c.DocumentID,
-				ChunkID:    c.ChunkID,
-				Text:       c.Text,
+				Index:         c.Index,
+				Source:        c.Source,
+				DocumentID:    c.DocumentID,
+				ChunkID:       c.ChunkID,
+				Text:          c.Text,
+				TableMarkdown: c.TableMarkdown,
 			}
 		}
 
@@ -340,13 +342,14 @@ func (s *ClaimService) checkSubClaim(
 	for i := range hits {
 		h := &hits[i]
 		evidence[i] = data.JudgeEvidence{
-			Source:     h.Source,
-			Text:       h.Text,
-			ChunkText:  h.ChunkText,
-			TruthTier:  h.TruthTier,
-			DocumentID: h.DocumentID,
-			ChunkID:    h.ChunkID,
-			Language:   h.Language,
+			Source:        h.Source,
+			Text:          h.Text,
+			ChunkText:     h.ChunkText,
+			TableMarkdown: h.TableMarkdown,
+			TruthTier:     h.TruthTier,
+			DocumentID:    h.DocumentID,
+			ChunkID:       h.ChunkID,
+			Language:      h.Language,
 		}
 	}
 
@@ -364,14 +367,15 @@ func (s *ClaimService) checkSubClaim(
 		if idx >= 0 && idx < len(evidence) {
 			e := evidence[idx]
 			citations = append(citations, Citation{
-				Index:      idx,
-				Source:     e.Source,
-				Text:       e.Text,
-				ChunkText:  e.ChunkText,
-				TruthTier:  e.TruthTier,
-				DocumentID: e.DocumentID,
-				ChunkID:    e.ChunkID,
-				Language:   e.Language,
+				Index:         idx,
+				Source:        e.Source,
+				Text:          e.Text,
+				ChunkText:     e.ChunkText,
+				TableMarkdown: e.TableMarkdown,
+				TruthTier:     e.TruthTier,
+				DocumentID:    e.DocumentID,
+				ChunkID:       e.ChunkID,
+				Language:      e.Language,
 			})
 		}
 	}
@@ -635,8 +639,9 @@ func formatClaimMessage(
 
 		if withCitations && !r.HighRiskCaution && len(r.Citations) > 0 {
 			b.WriteString("\n")
+
 			for _, c := range r.Citations {
-				fmt.Fprintf(&b, "  [%d] (%s) %s\n", c.Index, c.Source, truncateForMessage(c.Text))
+				b.WriteString(formatCitationPlainText(c))
 			}
 		}
 
@@ -656,4 +661,71 @@ func truncateForMessage(text string) string {
 		return text
 	}
 	return string(runes[:maxLen]) + "..."
+}
+
+func formatCitationPlainText(c Citation) string {
+	if c.TableMarkdown == "" {
+		return fmt.Sprintf(
+			"  [%d] (%s) %s\n",
+			c.Index,
+			c.Source,
+			truncateForMessage(c.Text),
+		)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "  [%d] Table evidence (%s)\n",
+		c.Index, c.Source)
+
+	if c.Source == "fact" {
+		fmt.Fprintf(&b, "     Matched fact: %s\n", c.Text)
+
+		if c.ChunkText != "" {
+			tableText := plainTextTableEvidence(c.ChunkText)
+
+			fmt.Fprintf(
+				&b,
+				"     Source table: %s\n",
+				indentMessageLines(tableText, "     "),
+			)
+		}
+
+		return b.String()
+	}
+
+	tableText := c.ChunkText
+	if tableText == "" {
+		tableText = c.Text
+	}
+
+	tableText = plainTextTableEvidence(tableText)
+
+	fmt.Fprintf(
+		&b,
+		"     Source table: %s\n",
+		indentMessageLines(tableText, "     "),
+	)
+
+	return b.String()
+}
+
+// Remove Markdown list markers from table descriptions.
+func plainTextTableEvidence(text string) string {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+
+	for i, line := range lines {
+		trimmed := strings.TrimLeft(line, " \t")
+
+		if strings.HasPrefix(trimmed, "- Row ") {
+			indent := line[:len(line)-len(trimmed)]
+			lines[i] = indent + strings.TrimPrefix(trimmed, "- ")
+		}
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// Indent continuation lines under the citation label.
+func indentMessageLines(text, indent string) string {
+	return strings.ReplaceAll(text, "\n", "\n"+indent)
 }

@@ -10,6 +10,8 @@ on:
       - "wa-bot/pnpm-workspace.yaml"
       - "wa-bot/tsconfig.json"
       - "wa-bot/Dockerfile"
+      - ".github/workflows/wa-bot-build.yml"
+  workflow_dispatch:
 
 jobs:
   build-and-push:

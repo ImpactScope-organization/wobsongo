@@ -1345,6 +1345,8 @@ func TestClaimService_CheckClaim_PropagatesTableMarkdownToCitations(t *testing.T
 	if citation.TableMarkdown != tableMarkdown {
 		t.Errorf("citation must carry the Markdown table, got %q", citation.TableMarkdown)
 	}
+}
+
 func TestClaimService_CheckClaim_VideoSource(t *testing.T) {
 	const claimText = "drinking lemon water cures infections"
 	occurredAt := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)

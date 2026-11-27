@@ -8,7 +8,6 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
-	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -154,17 +153,9 @@ var serveCmd = &cobra.Command{
 		agentVideoService := service.NewVideoService(agentVideoRepo)
 		workerConversationRepo := repo.NewConversationRepo(db.New(pool), pool, riverClientFn)
 		workerConversationService := service.NewConversationService(workerConversationRepo)
-		workerBotSettingsService, err := service.NewBotSettingsService(
+		workerBotSettingsService := service.NewBotSettingsService(
 			repo.NewBotSettingsRepo(db.New(pool), pool),
-		).WithDefaults(
-			model.BotTone(config.BotDefaultsConfig.Tone),
-			model.BotLength(config.BotDefaultsConfig.Length),
-		)
-		if err != nil {
-			cmd.PrintErrf("Config error: %s\n", err.Error())
-			os.Exit(1)
-			return
-		}
+		).WithDefaults(config.BotDefaultsConfig.Tone, config.BotDefaultsConfig.Length)
 		// register workers with River
 		workers := river.NewWorkers()
 

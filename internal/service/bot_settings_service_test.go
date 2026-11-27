@@ -73,35 +73,6 @@ func TestBotSettingsService_Update_Validation(t *testing.T) {
 	}
 }
 
-func TestBotSettingsService_WithDefaults_Validation(t *testing.T) {
-	tests := []struct {
-		name    string
-		tone    model.BotTone
-		length  model.BotLength
-		wantErr bool
-	}{
-		{"both empty", "", "", false},
-		{"valid tone only", model.BotToneFriendly, "", false},
-		{"valid length only", "", model.BotLengthShort, false},
-		{"valid both", model.BotToneAcademic, model.BotLengthExpert, false},
-		{"unknown tone", "santai", "", true},
-		{"unknown length", "", "huge", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := NewBotSettingsService(&mockrepo.BotSettingsRepoerMock{}).
-				WithDefaults(tt.tone, tt.length)
-			if tt.wantErr && !errors.Is(err, ErrInvalidBotSetting) {
-				t.Errorf("expected ErrInvalidBotSetting, got %v", err)
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-		})
-	}
-}
-
 func TestBotSettingsService_GetEffective(t *testing.T) {
 	const (
 		defTone   = model.BotToneFriendly
@@ -118,6 +89,12 @@ func TestBotSettingsService_GetEffective(t *testing.T) {
 		{
 			name:       "no row uses both defaults",
 			storedErr:  data.ErrNotFound,
+			wantTone:   defTone,
+			wantLength: defLength,
+		},
+		{
+			name:       "row without any value uses both defaults",
+			stored:     &model.BotSettings{JID: "jid-1"},
 			wantTone:   defTone,
 			wantLength: defLength,
 		},
@@ -150,10 +127,7 @@ func TestBotSettingsService_GetEffective(t *testing.T) {
 					return tt.stored, tt.storedErr
 				},
 			}
-			svc, err := NewBotSettingsService(repo).WithDefaults(defTone, defLength)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+			svc := NewBotSettingsService(repo).WithDefaults(defTone, defLength)
 
 			got, err := svc.GetEffective(t.Context(), "jid-1")
 			if err != nil {
@@ -189,10 +163,14 @@ func TestBotSettingsService_GetEffective_PropagatesRepoError(t *testing.T) {
 			return nil, boom
 		},
 	}
+	svc := NewBotSettingsService(repo).WithDefaults(model.BotToneFriendly, model.BotLengthShort)
 
-	_, err := NewBotSettingsService(repo).GetEffective(t.Context(), "jid-1")
+	got, err := svc.GetEffective(t.Context(), "jid-1")
 	if !errors.Is(err, boom) {
 		t.Errorf("expected the repo error, got %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected no settings alongside an error, got %+v", got)
 	}
 }
 
@@ -203,15 +181,41 @@ func TestBotSettingsService_GetEffective_DoesNotMutateStoredRow(t *testing.T) {
 			return stored, nil
 		},
 	}
-	svc, err := NewBotSettingsService(repo).WithDefaults(model.BotToneFriendly, "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	svc := NewBotSettingsService(repo).WithDefaults(model.BotToneFriendly, "")
 
 	if _, err := svc.GetEffective(t.Context(), "jid-1"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if stored.Tone != "" {
 		t.Errorf("defaults must not leak into the repo's row, got %+v", stored)
+	}
+}
+
+func TestBotSettingsService_Defaults(t *testing.T) {
+	tests := []struct {
+		name       string
+		tone       model.BotTone
+		length     model.BotLength
+		wantTone   model.BotTone
+		wantLength model.BotLength
+	}{
+		{"no defaults is the baseline", "", "", "", ""},
+		{
+			"configured defaults",
+			model.BotToneFriendly, model.BotLengthShort,
+			model.BotToneFriendly, model.BotLengthShort,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			svc := NewBotSettingsService(&mockrepo.BotSettingsRepoerMock{}).
+				WithDefaults(tt.tone, tt.length)
+
+			got := svc.Defaults("jid-1")
+			if got.JID != "jid-1" || got.Tone != tt.wantTone || got.Length != tt.wantLength {
+				t.Errorf("got %+v, want jid-1/%s/%s", got, tt.wantTone, tt.wantLength)
+			}
+		})
 	}
 }

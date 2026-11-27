@@ -114,6 +114,11 @@ func (s *NarrativeService) ClusterClaim(ctx context.Context, claimID uuid.UUID) 
 		if err := r.LinkClaim(ctx, claim.ID, narrative.ID); err != nil {
 			return err
 		}
+		if claim.VideoID != nil {
+			if _, err := r.MarkVideoClustered(ctx, *claim.VideoID); err != nil {
+				return err
+			}
+		}
 		return s.refreshNarrative(ctx, r, narrative.ID)
 	})
 }

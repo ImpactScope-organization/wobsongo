@@ -300,3 +300,247 @@ func (r *videoRepo) ListVideoTimesByInfluencerID(
 	}
 	return times, nil
 }
+
+// ListVideosByStatus returns up to limit videos in status, oldest first, that
+// come after the position (afterCreatedAt, afterID).
+func (r *videoRepo) ListVideosByStatus(
+	ctx context.Context,
+	status model.VideoStatus,
+	limit int32,
+	afterCreatedAt time.Time,
+	afterID uuid.UUID,
+) ([]*model.Video, error) {
+	rows, err := r.q.ListVideosByStatus(ctx, db.ListVideosByStatusParams{
+		Status:         string(status),
+		AfterCreatedAt: afterCreatedAt,
+		AfterID:        afterID,
+		BatchSize:      limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list %s videos: %w", status, mapPostgresError(err))
+	}
+
+	videos := make([]*model.Video, 0, len(rows))
+	for _, row := range rows {
+		videos = append(videos, &model.Video{
+			ID:        row.ID,
+			CreatedAt: row.CreatedAt,
+		})
+	}
+	return videos, nil
+}
+
+// SetVideoScreenStatus moves a 'discovered' video to status. It reports false
+// when the video was no longer 'discovered'.
+func (r *videoRepo) SetVideoScreenStatus(
+	ctx context.Context,
+	id uuid.UUID,
+	status model.VideoStatus,
+) (bool, error) {
+	affected, err := r.q.SetVideoScreenStatus(ctx, db.SetVideoScreenStatusParams{
+		Status: string(status),
+		ID:     id,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to set screen status of video %s: %w",
+			id,
+			mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}
+
+// GetVideoForScreening returns the video if it is still waiting for
+// screening, or data.ErrNotFound if it is not.
+func (r *videoRepo) GetVideoForScreening(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.Video, error) {
+	row, err := r.q.GetVideoForScreening(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, data.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get video for screening: %w", mapPostgresError(err))
+	}
+
+	return &model.Video{
+		ID:       row.ID,
+		Caption:  row.Caption.String,
+		Hashtags: row.Hashtags,
+	}, nil
+}
+
+// EnqueueScreenVideoJob adds a screen-video job to the River queue, inside the
+// current transaction when there is one. It reports false when an identical
+// job is already waiting, running or waiting for a retry.
+func (r *videoRepo) EnqueueScreenSingleVideoJob(
+	ctx context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
+	return r.insertJob(ctx, queue.ScreenSingleVideoJob{VideoID: videoID.String()}, "screen video")
+}
+
+// EnqueueScreenMultipleVideoJob adds the screen-videos job to the River queue, inside
+// the current transaction when there is one. A duplicate of a job that is
+// already waiting or running is skipped without an error.
+func (r *videoRepo) EnqueueScreenMultipleVideoJob(ctx context.Context) error {
+	if _, err := r.insertJob(ctx, queue.ScreenMultipleVideoJob{}, "screen videos"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// insertJob inserts a River job, inside the current transaction when there is
+// one, and reports whether a new job was inserted. The queue and the unique
+// rules come from the job's InsertOpts.
+func (r *videoRepo) insertJob(
+	ctx context.Context,
+	payload queue.BackgroundJob,
+	name string,
+) (bool, error) {
+	var (
+		res *rivertype.JobInsertResult
+		err error
+	)
+	if r.tx != nil {
+		res, err = r.riverClientFn().InsertTx(ctx, r.tx, payload, nil)
+	} else {
+		res, err = r.riverClientFn().Insert(ctx, payload, nil)
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to insert %s job into river queue: %w", name, err)
+	}
+	return !res.UniqueSkippedAsDuplicate, nil
+}
+
+// GetVideoForTranscription returns the video if it is still screened in, or
+// data.ErrNotFound if it is not.
+func (r *videoRepo) GetVideoForTranscription(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.Video, error) {
+	row, err := r.q.GetVideoForTranscription(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, data.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get video for transcription: %w", mapPostgresError(err))
+	}
+
+	video := &model.Video{ID: row.ID, VideoURL: row.VideoUrl}
+	if row.MediaUrl.Valid {
+		video.MediaURL = &row.MediaUrl.String
+	}
+	return video, nil
+}
+
+// SetVideoMediaURL stores the media URL of a screened-in video.
+func (r *videoRepo) SetVideoMediaURL(ctx context.Context, id uuid.UUID, mediaURL string) error {
+	err := r.q.SetVideoMediaURL(ctx, db.SetVideoMediaURLParams{MediaUrl: mediaURL, ID: id})
+	if err != nil {
+		return fmt.Errorf("failed to set media url of video %s: %w", id, mapPostgresError(err))
+	}
+	return nil
+}
+
+// SetVideoTranscribed stores the transcript and moves a screened-in video to
+// 'transcribed'. An empty transcript is stored as NULL.
+func (r *videoRepo) SetVideoTranscribed(
+	ctx context.Context,
+	id uuid.UUID,
+	transcript string,
+) (bool, error) {
+	affected, err := r.q.SetVideoTranscribed(ctx, db.SetVideoTranscribedParams{
+		Transcript: pgtype.Text{String: transcript, Valid: transcript != ""},
+		ID:         id,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to set transcript of video %s: %w",
+			id,
+			mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}
+
+// EnqueueTranscribeVideoJob adds a transcribe-video job to the River queue,
+// inside the current transaction when there is one.
+func (r *videoRepo) EnqueueTranscribeVideoJob(
+	ctx context.Context,
+	videoID uuid.UUID,
+) (bool, error) {
+	return r.insertJob(
+		ctx,
+		queue.TranscribeSingleDiscoveredVideoJob{VideoID: videoID.String()},
+		"transcribe video",
+	)
+}
+
+// GetVideoForAnalysis returns the video if it is transcribed and not analyzed
+// yet, or data.ErrNotFound if it is not.
+func (r *videoRepo) GetVideoForAnalysis(
+	ctx context.Context,
+	id uuid.UUID,
+) (*model.Video, error) {
+	row, err := r.q.GetVideoForAnalysis(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, data.ErrNotFound
+		}
+		return nil, fmt.Errorf("failed to get video for analysis: %w", mapPostgresError(err))
+	}
+
+	video := &model.Video{ID: row.ID, VideoCreatedAt: row.VideoCreatedAt.Time}
+	if row.TranscriptionText.Valid {
+		video.TranscriptionText = &row.TranscriptionText.String
+	}
+	return video, nil
+}
+
+// SetVideoAnalyzed moves a transcribed video to status.
+func (r *videoRepo) SetVideoAnalyzed(
+	ctx context.Context,
+	id uuid.UUID,
+	status model.VideoStatus,
+) (bool, error) {
+	affected, err := r.q.SetVideoAnalyzed(ctx, db.SetVideoAnalyzedParams{
+		Status: string(status),
+		ID:     id,
+	})
+	if err != nil {
+		return false, fmt.Errorf(
+			"failed to set analyzed status of video %s: %w",
+			id,
+			mapPostgresError(err),
+		)
+	}
+	return affected > 0, nil
+}
+
+// EnqueueAnalyzeVideoJob adds an analyze-video job to the River queue, inside
+// the current transaction when there is one.
+func (r *videoRepo) EnqueueAnalyzeVideoJob(ctx context.Context, videoID uuid.UUID) (bool, error) {
+	return r.insertJob(ctx, queue.AnalyzeSingleVideoJob{VideoID: videoID.String()}, "analyze video")
+}
+
+// SetVideoFailed moves a video that is still in fromStatus to 'failed'.
+func (r *videoRepo) SetVideoFailed(
+	ctx context.Context,
+	id uuid.UUID,
+	fromStatus model.VideoStatus,
+	stage, reason string,
+) (bool, error) {
+	affected, err := r.q.SetVideoFailed(ctx, db.SetVideoFailedParams{
+		FromStatus:  string(fromStatus),
+		FailedStage: stage,
+		Error:       reason,
+		ID:          id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("failed to set failure of video %s: %w", id, mapPostgresError(err))
+	}
+	return affected > 0, nil
+}

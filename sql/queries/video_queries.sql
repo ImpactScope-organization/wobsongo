@@ -59,3 +59,85 @@ SELECT video_created_at FROM videos
 WHERE influencer_id = sqlc.arg(influencer_id)::uuid
   AND video_created_at IS NOT NULL
 ORDER BY video_created_at ASC;
+
+-- name: ListVideosByStatus :many
+-- Returns the ids of the videos in a status, oldest first.
+SELECT id, created_at
+FROM videos
+WHERE status = sqlc.arg(status)::varchar
+  AND (created_at, id) > (sqlc.arg(after_created_at)::timestamptz, sqlc.arg(after_id)::uuid)
+ORDER BY created_at ASC, id ASC
+LIMIT sqlc.arg(batch_size)::int;
+
+-- name: SetVideoScreenStatus :execrows
+UPDATE videos
+SET status = sqlc.arg(status)::varchar, updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'discovered';
+
+-- name: GetVideoForScreening :one
+SELECT id, caption, hashtags
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'discovered';
+
+-- name: GetVideoForTranscription :one
+SELECT id, video_url, media_url
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: SetVideoMediaURL :exec
+UPDATE videos
+SET media_url = sqlc.arg(media_url)::text, updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: SetVideoTranscribed :execrows
+UPDATE videos
+SET transcription_text = sqlc.narg(transcript)::text,
+    status = 'transcribed',
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'screened_in';
+
+-- name: GetVideoForAnalysis :one
+SELECT id, transcription_text, video_created_at
+FROM videos
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'transcribed';
+
+-- name: SetVideoAnalyzed :execrows
+UPDATE videos
+SET status = sqlc.arg(status)::varchar,
+    analyzed_at = NOW(),
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = 'transcribed';
+
+-- name: SetVideoFailed :execrows
+UPDATE videos
+SET status = 'failed',
+    failed_stage = sqlc.arg(failed_stage)::varchar,
+    error = sqlc.arg(error)::text,
+    updated_at = NOW()
+WHERE id = sqlc.arg(id)::uuid
+  AND status = sqlc.arg(from_status)::varchar;
+
+-- name: LockVideo :one
+-- Serializes the "is every claim clustered" checks of one video.
+SELECT id FROM videos WHERE id = sqlc.arg(id)::uuid FOR UPDATE;
+
+-- name: MarkVideoClustered :execrows
+UPDATE videos v
+SET status = 'clustered',
+    analyzed_at = COALESCE(v.analyzed_at, NOW()),
+    updated_at = NOW()
+WHERE v.id = sqlc.arg(id)::uuid
+  AND v.status IN ('transcribed', 'verified')
+  AND EXISTS (SELECT 1 FROM claims c WHERE c.video_id = v.id)
+  AND NOT EXISTS (
+      SELECT 1 FROM claims c
+      WHERE c.video_id = v.id
+        AND NOT EXISTS (SELECT 1 FROM narrative_claims nc WHERE nc.claim_id = c.id)
+  );

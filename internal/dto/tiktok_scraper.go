@@ -36,6 +36,18 @@ type TikTokScraperItem struct {
 
 	// AuthorMeta contains the video's author information.
 	AuthorMeta TikTokAuthorMeta `json:"authorMeta"`
+
+	// MediaURLs are the downloadable video URLs. They are only filled when
+	// the actor ran with shouldDownloadVideos.
+	MediaURLs []string `json:"mediaUrls"`
+
+	// Error is the actor's message when it could not scrape the input. It is
+	// set only on error items.
+	Error string `json:"error,omitempty"`
+
+	// ErrorCode is the machine-readable kind of Error, for example
+	// POST_NOT_FOUND_OR_PRIVATE.
+	ErrorCode string `json:"errorCode,omitempty"`
 }
 
 // TikTokHashtag represents a hashtag attached to a TikTok video.

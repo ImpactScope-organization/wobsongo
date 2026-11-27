@@ -74,6 +74,9 @@ func validConfig() *Config {
 		TTSConfig:        validTTSConfig(),
 		VoiceMediaConfig: validVoiceMediaConfig(),
 		NarrativeConfig:  validNarrativeConfig(),
+		ScreenConfig:     &ScreenConfig{MaxConcurrency: queue.DefaultScreenConcurrency},
+		TranscribeConfig: &TranscribeConfig{MaxConcurrency: queue.DefaultTranscribeConcurrency},
+		AnalyzeConfig:    &AnalyzeConfig{MaxConcurrency: queue.DefaultAnalyzeConcurrency},
 	}
 }
 
@@ -355,6 +358,35 @@ func TestConfig_narrativeOK(t *testing.T) {
 	}
 }
 
+func TestConfig_screenOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"valid config", func(*Config) {}, ""},
+		{"nil config", func(c *Config) { c.ScreenConfig = nil }, "ScreenConfig is not set"},
+		{
+			"zero concurrency",
+			func(c *Config) { c.ScreenConfig.MaxConcurrency = 0 },
+			"SCREEN_MAX_CONCURRENCY",
+		},
+		{
+			"negative concurrency",
+			func(c *Config) { c.ScreenConfig.MaxConcurrency = -1 },
+			"SCREEN_MAX_CONCURRENCY",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.screenOK(), tt.wantErr)
+		})
+	}
+}
+
 func TestSplitEmails(t *testing.T) {
 	tests := map[string]struct {
 		in   string
@@ -377,6 +409,64 @@ func TestSplitEmails(t *testing.T) {
 			if got := splitEmails(tt.in); !slices.Equal(got, tt.want) {
 				t.Errorf("splitEmails(%q) = %q, want %q", tt.in, got, tt.want)
 			}
+		})
+	}
+}
+
+func TestConfig_transcribeOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"valid config", func(*Config) {}, ""},
+		{"nil config", func(c *Config) { c.TranscribeConfig = nil }, "TranscribeConfig is not set"},
+		{
+			"zero concurrency",
+			func(c *Config) { c.TranscribeConfig.MaxConcurrency = 0 },
+			"TRANSCRIBE_MAX_CONCURRENCY",
+		},
+		{
+			"negative concurrency",
+			func(c *Config) { c.TranscribeConfig.MaxConcurrency = -1 },
+			"TRANSCRIBE_MAX_CONCURRENCY",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.transcribeOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestConfig_analyzeOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"valid config", func(*Config) {}, ""},
+		{"nil config", func(c *Config) { c.AnalyzeConfig = nil }, "AnalyzeConfig is not set"},
+		{
+			"zero concurrency",
+			func(c *Config) { c.AnalyzeConfig.MaxConcurrency = 0 },
+			"ANALYZE_MAX_CONCURRENCY",
+		},
+		{
+			"negative concurrency",
+			func(c *Config) { c.AnalyzeConfig.MaxConcurrency = -1 },
+			"ANALYZE_MAX_CONCURRENCY",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.analyzeOK(), tt.wantErr)
 		})
 	}
 }

@@ -59,6 +59,9 @@ var _ data.NarrativeRepoer = &NarrativeRepoerMock{}
 //			LockTopicFunc: func(ctx context.Context, topicID uuid.UUID) error {
 //				panic("mock out the LockTopic method")
 //			},
+//			MarkVideoClusteredFunc: func(ctx context.Context, videoID uuid.UUID) (bool, error) {
+//				panic("mock out the MarkVideoClustered method")
+//			},
 //			PaginateNarrativesFunc: func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error) {
 //				panic("mock out the PaginateNarratives method")
 //			},
@@ -110,6 +113,9 @@ type NarrativeRepoerMock struct {
 
 	// LockTopicFunc mocks the LockTopic method.
 	LockTopicFunc func(ctx context.Context, topicID uuid.UUID) error
+
+	// MarkVideoClusteredFunc mocks the MarkVideoClustered method.
+	MarkVideoClusteredFunc func(ctx context.Context, videoID uuid.UUID) (bool, error)
 
 	// PaginateNarrativesFunc mocks the PaginateNarratives method.
 	PaginateNarrativesFunc func(ctx context.Context, q data.SupportsPagination, filter data.NarrativeFilter) (*dto.PaginationResults[model.Narrative], error)
@@ -206,6 +212,13 @@ type NarrativeRepoerMock struct {
 			// TopicID is the topicID argument value.
 			TopicID uuid.UUID
 		}
+		// MarkVideoClustered holds details about calls to the MarkVideoClustered method.
+		MarkVideoClustered []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// VideoID is the videoID argument value.
+			VideoID uuid.UUID
+		}
 		// PaginateNarratives holds details about calls to the PaginateNarratives method.
 		PaginateNarratives []struct {
 			// Ctx is the ctx argument value.
@@ -246,6 +259,7 @@ type NarrativeRepoerMock struct {
 	lockListActiveTopics          sync.RWMutex
 	lockListNarrativesByTopic     sync.RWMutex
 	lockLockTopic                 sync.RWMutex
+	lockMarkVideoClustered        sync.RWMutex
 	lockPaginateNarratives        sync.RWMutex
 	lockUpdateNarrativeEstimate   sync.RWMutex
 	lockWithTx                    sync.RWMutex
@@ -680,6 +694,42 @@ func (mock *NarrativeRepoerMock) LockTopicCalls() []struct {
 	mock.lockLockTopic.RLock()
 	calls = mock.calls.LockTopic
 	mock.lockLockTopic.RUnlock()
+	return calls
+}
+
+// MarkVideoClustered calls MarkVideoClusteredFunc.
+func (mock *NarrativeRepoerMock) MarkVideoClustered(ctx context.Context, videoID uuid.UUID) (bool, error) {
+	if mock.MarkVideoClusteredFunc == nil {
+		panic("NarrativeRepoerMock.MarkVideoClusteredFunc: method is nil but NarrativeRepoer.MarkVideoClustered was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		VideoID uuid.UUID
+	}{
+		Ctx:     ctx,
+		VideoID: videoID,
+	}
+	mock.lockMarkVideoClustered.Lock()
+	mock.calls.MarkVideoClustered = append(mock.calls.MarkVideoClustered, callInfo)
+	mock.lockMarkVideoClustered.Unlock()
+	return mock.MarkVideoClusteredFunc(ctx, videoID)
+}
+
+// MarkVideoClusteredCalls gets all the calls that were made to MarkVideoClustered.
+// Check the length with:
+//
+//	len(mockedNarrativeRepoer.MarkVideoClusteredCalls())
+func (mock *NarrativeRepoerMock) MarkVideoClusteredCalls() []struct {
+	Ctx     context.Context
+	VideoID uuid.UUID
+} {
+	var calls []struct {
+		Ctx     context.Context
+		VideoID uuid.UUID
+	}
+	mock.lockMarkVideoClustered.RLock()
+	calls = mock.calls.MarkVideoClustered
+	mock.lockMarkVideoClustered.RUnlock()
 	return calls
 }
 

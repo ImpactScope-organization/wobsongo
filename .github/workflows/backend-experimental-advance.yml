@@ -1,0 +1,39 @@
+name: Hand BE experimental env to the next exp- PR
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  advance:
+    if: startsWith(github.head_ref, 'exp-')
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      pull-requests: read
+
+    steps:
+      # Re-run the latest experimental run of the next oldest open exp- PR, so it takes over the env.
+      - name: Re-run experimental deploy for the next exp- PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          next=$(gh pr list --repo "$REPO" --state open --limit 200 \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("exp-"))] | min_by(.number) | .headRefName // empty')
+          if [ -z "$next" ]; then
+            echo "No open exp- PR waiting."
+            exit 0
+          fi
+
+          run_id=$(gh run list --repo "$REPO" --workflow backend-experimental.yml \
+            --branch "$next" --event pull_request --limit 1 \
+            --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run_id" ]; then
+            echo "Branch $next has no experimental run (no backend changes?). Nothing to re-run."
+            exit 0
+          fi
+
+          echo "Re-running run $run_id for $next..."
+          gh run rerun "$run_id" --repo "$REPO"

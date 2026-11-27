@@ -2,19 +2,13 @@
  * The Overview view: the headline numbers for one reporting window, plus the
  * narratives, sources and alerts behind them.
  */
-import type {
-	Anomaly,
-	HighHarmSummary,
-	NarrativeSummary,
-	RatingOutcome,
-	Verdict
-} from './narrative.js';
+import type { Anomaly, HighHarmSummary, NarrativeSummary, RatingOutcome } from './narrative.js';
 import type { PlatformCount } from './platform.js';
 
 /** Which narratives the Overview list shows. */
-export type OverviewTopic = 'misinfo' | 'all';
+export type OverviewTopic = 'misinfo' | 'accurate' | 'all';
 
-export const OVERVIEW_TOPICS: readonly OverviewTopic[] = ['misinfo', 'all'];
+export const OVERVIEW_TOPICS: readonly OverviewTopic[] = ['misinfo', 'accurate', 'all'];
 
 export const DEFAULT_OVERVIEW_TOPIC: OverviewTopic = 'misinfo';
 
@@ -23,10 +17,12 @@ export function parseOverviewTopic(value: string | null | undefined): OverviewTo
 }
 
 /** Verdicts counted as misinformation; "all" adds unverified claims. */
-export const MISINFO_VERDICTS: readonly Verdict[] = ['false', 'misleading'];
+export const MISINFO_VERDICTS: readonly RatingOutcome[] = ['false', 'misleading'];
 
-export function matchesTopic(verdict: Verdict, topic: OverviewTopic): boolean {
-	return topic === 'all' || MISINFO_VERDICTS.includes(verdict);
+export function matchesTopic(verdict: RatingOutcome, topic: OverviewTopic): boolean {
+	if (topic === 'all') return true;
+	if (topic === 'accurate') return verdict === 'accurate';
+	return MISINFO_VERDICTS.includes(verdict);
 }
 
 /** A value in the selected window next to the same value in the window before it. */

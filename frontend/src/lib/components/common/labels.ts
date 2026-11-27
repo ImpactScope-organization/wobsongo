@@ -179,6 +179,7 @@ export const ENGAGEMENT_WINDOW_LONG_LABEL: Record<EngagementWindow, string> = lo
 
 export const OVERVIEW_TOPIC_LABEL: Record<OverviewTopic, string> = localized({
 	misinfo: m.label_topic_misinfo,
+	accurate: m.label_topic_accurate,
 	all: m.label_topic_all
 });
 

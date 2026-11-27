@@ -88,6 +88,14 @@
 	);
 	const rated = $derived(misinfoShare(snapshot.rated));
 	const visibleCreators = $derived(topCreators(snapshot.creators, topic));
+
+	const narrativesTitle = $derived(
+		topic === 'misinfo'
+			? m.overview_top_misinfo()
+			: topic === 'accurate'
+				? m.overview_top_accurate()
+				: m.overview_top()
+	);
 </script>
 
 {#if snapshot.anomaly}
@@ -164,7 +172,7 @@
 	<div class="flex flex-col gap-5 lg:flex-row lg:items-start">
 		<div class="contents lg:grid lg:min-w-0 lg:flex-[2_1_35rem] lg:gap-5">
 			<SectionCard
-				title={topic === 'misinfo' ? m.overview_top_misinfo() : m.overview_top()}
+				title={narrativesTitle}
 				description={m.overview_narratives_description({ window: windowLabel })}
 				flush
 			>

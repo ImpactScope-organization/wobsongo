@@ -35,6 +35,18 @@ const (
 	VideoStatusFailed      VideoStatus = "failed"
 )
 
+// VideoFailedStageScreen is the failed_stage of a video whose screening kept
+// failing.
+const VideoFailedStageScreen = "screen"
+
+// VideoFailedStageTranscribe is the failed_stage of a video whose
+// transcription kept failing.
+const VideoFailedStageTranscribe = "transcribe"
+
+// VideoFailedStageAnalyze is the failed_stage of a video whose analysis kept
+// failing.
+const VideoFailedStageAnalyze = "analyze"
+
 // Video represents the schema for the videos table in the database.
 type Video struct {
 	// ID is the unique identifier for the video record.

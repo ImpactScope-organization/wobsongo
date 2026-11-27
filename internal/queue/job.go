@@ -65,13 +65,36 @@ const (
 	// narratives without recent claims.
 	JobTypeDeactivateNarratives BackgroundJobType = "deactivate_narratives"
 
-	// JobTypeDiscoverVideos represents a job type for discovering new videos
+	// JobTypeDiscoverVideo represents a job type for discovering new videos
 	// by keyword.
 	JobTypeDiscoverVideos BackgroundJobType = "discover_videos"
 
 	// JobTypeMonitorCreator represents a job type for checking tracked
 	// creators for new videos.
 	JobTypeMonitorCreator BackgroundJobType = "monitor_creator"
+
+	// JobTypeScreenVideo represents a job type for screening every
+	// discovered video for relevance.
+	JobTypeScreenMultipleVideo BackgroundJobType = "screen_multiple_videos"
+
+	// JobTypeScreenVideo represents a job type for screening one video.
+	JobTypeScreenSingleVideo BackgroundJobType = "screen_single_video"
+
+	// JobTypeTranscribeSingleDiscoveredVideo represents a job type for transcribing
+	// one screened-in video of the discovery pipeline.
+	JobTypeTranscribeSingleDiscoveredVideo BackgroundJobType = "transcribe_single_discovered_video"
+
+	// JobTypeAnalyzeSingleVideo represents a job type for analyzing and verifying
+	// the claims of one transcribed video.
+	JobTypeAnalyzeSingleVideo BackgroundJobType = "analyze_single_video"
+
+	// JobTypeTranscribeMultipleDiscoveredVideo represents a job type for enqueueing
+	// a transcription job for every screened-in video.
+	JobTypeTranscribeMultipleDiscoveredVideo BackgroundJobType = "transcribe_multiple_discovered_video"
+
+	// JobTypeAnalyzeMultipleVideo represents a job type for enqueueing an analysis
+	// job for every transcribed video.
+	JobTypeAnalyzeMultipleVideo BackgroundJobType = "analyze_multiple_video"
 )
 
 // BackgroundJob represents a generic background job.
@@ -117,7 +140,31 @@ const (
 	// QueueCrawler is used by DiscoverVideosJob and MonitorCreatorJob.
 	QueueCrawler = "crawler"
 
+	// QueueScreening is used by ScreenVideoJob. Its MaxWorkers is the number
+	// of videos analyzed at the same time.
+	QueueScreening = "video_screening"
+
+	// QueueScreenDispatch is used by ScreenMultipleVideoJob. It has its own queue, so
+	// the run that enqueues the screening jobs never takes a slot from the
+	// videos being analyzed.
+	QueueScreenDispatch = "video_screening_dispatch"
+
 	// QueueClaimBackfill is used by ClaimCheckJob when the backfill-claims
 	// command re-checks old messages.
 	QueueClaimBackfill = "claim_backfill"
+
+	// QueueTranscription is used by TranscribeSingleDiscoveredVideoJob.
+	QueueTranscription = "video_transcription"
+
+	// QueueAnalysis is used by AnalyzeSingleVideoJob.
+	QueueAnalysis = "video_analysis"
+
+	// QueueTranscribeDispatch is used by TranscribeMultipleDiscoveredVideoJob. It has
+	// its own queue, so the run that enqueues the transcription jobs never
+	// takes a slot from the videos being transcribed.
+	QueueTranscribeDispatch = "video_transcription_dispatch"
+
+	// QueueAnalyzeDispatch is used by AnalyzeMultipleVideoJob. It has its own queue
+	// for the same reason as QueueTranscribeDispatch.
+	QueueAnalyzeDispatch = "video_analysis_dispatch"
 )

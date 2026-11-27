@@ -155,7 +155,7 @@ var serveCmd = &cobra.Command{
 		workerConversationService := service.NewConversationService(workerConversationRepo)
 		workerBotSettingsService := service.NewBotSettingsService(
 			repo.NewBotSettingsRepo(db.New(pool), pool),
-		)
+		).WithDefaults(config.BotDefaultsConfig.Tone, config.BotDefaultsConfig.Length)
 		// register workers with River
 		workers := river.NewWorkers()
 

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/joho/godotenv"
 )
@@ -306,6 +307,27 @@ type AnalyzeConfig struct {
 	MaxConcurrency int `json:"max_concurrency"`
 }
 
+// BotDefaultsConfig holds the response settings used for chats that never
+// set their own.
+type BotDefaultsConfig struct {
+	// Tone is empty (baseline reply) or one of the known tones.
+	Tone model.BotTone `json:"tone"`
+
+	// Length is empty (baseline reply) or one of the known lengths.
+	Length model.BotLength `json:"length"`
+}
+
+// NewBotDefaultsConfig creates a BotDefaultsConfig from environment variables.
+// Values are trimmed and lowercased; validation happens in Config.IsOK.
+func NewBotDefaultsConfig() *BotDefaultsConfig {
+	tone := strings.ToLower(strings.TrimSpace(getEnv("BOT_DEFAULT_TONE", "")))
+	length := strings.ToLower(strings.TrimSpace(getEnv("BOT_DEFAULT_LENGTH", "")))
+	return &BotDefaultsConfig{
+		Tone:   model.BotTone(tone),
+		Length: model.BotLength(length),
+	}
+}
+
 // MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
 // mock synthesizer instead of the real Modal endpoint
 const MockTTSEndpointPrefix = "mock://"
@@ -378,6 +400,7 @@ type Config struct {
 	TranscribeConfig       *TranscribeConfig  `json:"transcribe_config"`    // Configuration for video transcription
 	AnalyzeConfig          *AnalyzeConfig     `json:"analyze_config"`       // Configuration for video analysis
 	PrivacyWhitelistEmails []string           `json:"-"`                    // Emails allowed to see unredacted creator data
+	BotDefaultsConfig      *BotDefaultsConfig `json:"bot_defaults_config"`  // Default bot tone/length for chats without their own settings
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -502,7 +525,10 @@ func (c *Config) IsOK() error {
 	if err := c.transcribeOK(); err != nil {
 		return err
 	}
-	return c.analyzeOK()
+	if err := c.analyzeOK(); err != nil {
+		return err
+	}
+	return c.botDefaultsOK()
 }
 
 // asrOK checks the Modal ASR configuration.
@@ -572,6 +598,20 @@ func (c *Config) screenOK() error {
 	}
 	if n := c.ScreenConfig.MaxConcurrency; n < 1 {
 		return fmt.Errorf("SCREEN_MAX_CONCURRENCY must be at least 1, got %d", n)
+	}
+	return nil
+}
+
+// botDefaultsOK checks the default bot response settings.
+func (c *Config) botDefaultsOK() error {
+	if c.BotDefaultsConfig == nil {
+		return errors.New("BotDefaultsConfig is not set")
+	}
+	if t := c.BotDefaultsConfig.Tone; t != "" && !t.Valid() {
+		return fmt.Errorf("BOT_DEFAULT_TONE %q is not a recognized tone", t)
+	}
+	if l := c.BotDefaultsConfig.Length; l != "" && !l.Valid() {
+		return fmt.Errorf("BOT_DEFAULT_LENGTH %q is not a recognized length", l)
 	}
 	return nil
 }
@@ -793,6 +833,8 @@ func NewConfig(envs ...string) *Config {
 		MaxConcurrency: getEnvInt("ANALYZE_MAX_CONCURRENCY", queue.DefaultAnalyzeConcurrency),
 	}
 
+	botDefaultsConfig := NewBotDefaultsConfig()
+
 	// Parse Docling configuration
 	doclingBaseURL := getEnv("DOCLING_BASE_URL", "http://localhost:5001")
 
@@ -858,6 +900,7 @@ func NewConfig(envs ...string) *Config {
 		ClaimCheckConfig:        claimCheckConfig,
 		InfluencerMonitorConfig: influencerMonitorConfig,
 		PrivacyWhitelistEmails:  privacyWhitelistEmails,
+		BotDefaultsConfig:       botDefaultsConfig,
 	}
 	return defaultConfig
 }

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -344,7 +343,7 @@ func (s *AgentService) runFallbackReply(
 	settings := s.loadBotSettings(ctx, job.JID)
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.UserText,
-		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Length: string(settings.Length),
 		Tone:   string(settings.Tone),
 		Source: claimSource(job.MessageID, job.Format),
 	})
@@ -402,7 +401,7 @@ func (s *AgentService) runVideoContinuation(
 	settings := s.loadBotSettings(ctx, job.JID)
 	result, err := s.claimService.CheckClaim(ctx, &dto.CheckClaimDTO{
 		Text:   job.SystemNote,
-		Length: string(s.loadBotSettings(ctx, job.JID).Length),
+		Length: string(settings.Length),
 		Tone:   string(settings.Tone),
 		Source: dto.NewClaimSource(
 			model.ClaimPlatformTikTok,
@@ -499,12 +498,10 @@ func (s *AgentService) loadBotSettings(ctx context.Context, jid string) model.Bo
 	if s.botSettings == nil {
 		return model.BotSettings{}
 	}
-	settings, err := s.botSettings.Get(ctx, jid)
+	settings, err := s.botSettings.GetEffective(ctx, jid)
 	if err != nil {
-		if !errors.Is(err, data.ErrNotFound) {
-			log.Printf("[AgentService] failed to load bot settings for JID=%s: %v", jid, err)
-		}
-		return model.BotSettings{}
+		log.Printf("[AgentService] failed to load bot settings for JID=%s: %v", jid, err)
+		return s.botSettings.Defaults(jid)
 	}
 	return *settings
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 )
 
@@ -63,20 +64,21 @@ func validNarrativeConfig() *NarrativeConfig {
 // time to prove the server refuses to start.
 func validConfig() *Config {
 	return &Config{
-		PostgresURI:      "postgres://localhost/test",
-		JWTSecret:        "secret",
-		JWTAccessTTL:     time.Minute,
-		JWTRefreshTTL:    time.Hour,
-		Port:             8000,
-		EmailConfig:      &EmailConfig{},
-		ApifyConfig:      &ApifyConfig{Token: "apify-token"},
-		ASRConfig:        validASRConfig(),
-		TTSConfig:        validTTSConfig(),
-		VoiceMediaConfig: validVoiceMediaConfig(),
-		NarrativeConfig:  validNarrativeConfig(),
-		ScreenConfig:     &ScreenConfig{MaxConcurrency: queue.DefaultScreenConcurrency},
-		TranscribeConfig: &TranscribeConfig{MaxConcurrency: queue.DefaultTranscribeConcurrency},
-		AnalyzeConfig:    &AnalyzeConfig{MaxConcurrency: queue.DefaultAnalyzeConcurrency},
+		PostgresURI:       "postgres://localhost/test",
+		JWTSecret:         "secret",
+		JWTAccessTTL:      time.Minute,
+		JWTRefreshTTL:     time.Hour,
+		Port:              8000,
+		EmailConfig:       &EmailConfig{},
+		ApifyConfig:       &ApifyConfig{Token: "apify-token"},
+		ASRConfig:         validASRConfig(),
+		TTSConfig:         validTTSConfig(),
+		VoiceMediaConfig:  validVoiceMediaConfig(),
+		NarrativeConfig:   validNarrativeConfig(),
+		ScreenConfig:      &ScreenConfig{MaxConcurrency: queue.DefaultScreenConcurrency},
+		TranscribeConfig:  &TranscribeConfig{MaxConcurrency: queue.DefaultTranscribeConcurrency},
+		AnalyzeConfig:     &AnalyzeConfig{MaxConcurrency: queue.DefaultAnalyzeConcurrency},
+		BotDefaultsConfig: &BotDefaultsConfig{},
 	}
 }
 
@@ -308,6 +310,11 @@ func TestConfig_IsOK_VoiceSettings(t *testing.T) {
 			func(c *Config) { c.VoiceMediaConfig = &VoiceMediaConfig{} },
 			"to download voice messages",
 		},
+		{
+			"invalid bot default tone",
+			func(c *Config) { c.BotDefaultsConfig.Tone = "santai" },
+			"BOT_DEFAULT_TONE",
+		},
 	}
 
 	for _, tt := range tests {
@@ -467,6 +474,89 @@ func TestConfig_analyzeOK(t *testing.T) {
 			c := validConfig()
 			tt.mutate(c)
 			requireErrContains(t, c.analyzeOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestConfig_botDefaultsOK(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(c *Config)
+		wantErr string
+	}{
+		{"valid config (no defaults)", func(*Config) {}, ""},
+		{
+			"nil config",
+			func(c *Config) { c.BotDefaultsConfig = nil },
+			"BotDefaultsConfig is not set",
+		},
+		{
+			"valid tone only",
+			func(c *Config) { c.BotDefaultsConfig.Tone = model.BotToneFriendly },
+			"",
+		},
+		{
+			"valid length only",
+			func(c *Config) { c.BotDefaultsConfig.Length = model.BotLengthShort },
+			"",
+		},
+		{
+			"valid tone and length",
+			func(c *Config) {
+				c.BotDefaultsConfig.Tone = model.BotToneAcademic
+				c.BotDefaultsConfig.Length = model.BotLengthExpert
+			},
+			"",
+		},
+		{
+			"unknown tone",
+			func(c *Config) { c.BotDefaultsConfig.Tone = "santai" },
+			"BOT_DEFAULT_TONE",
+		},
+		{
+			"unknown length",
+			func(c *Config) { c.BotDefaultsConfig.Length = "huge" },
+			"BOT_DEFAULT_LENGTH",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validConfig()
+			tt.mutate(c)
+			requireErrContains(t, c.botDefaultsOK(), tt.wantErr)
+		})
+	}
+}
+
+func TestNewBotDefaultsConfig(t *testing.T) {
+	tests := []struct {
+		name       string
+		tone       string
+		length     string
+		wantTone   model.BotTone
+		wantLength model.BotLength
+	}{
+		{"unset keeps baseline", "", "", "", ""},
+		{"plain values", "friendly", "short", model.BotToneFriendly, model.BotLengthShort},
+		{
+			"trimmed and lowercased",
+			"  Friendly ", "EXPERT",
+			model.BotToneFriendly, model.BotLengthExpert,
+		},
+		{"each field is independent", "academic", "", model.BotToneAcademic, ""},
+		{"unknown value is kept for IsOK to reject", "santai", "", "santai", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("BOT_DEFAULT_TONE", tt.tone)
+			t.Setenv("BOT_DEFAULT_LENGTH", tt.length)
+
+			got := NewBotDefaultsConfig()
+			if got.Tone != tt.wantTone || got.Length != tt.wantLength {
+				t.Errorf("got %q/%q, want %q/%q", got.Tone, got.Length, tt.wantTone, tt.wantLength)
+			}
 		})
 	}
 }

@@ -1,0 +1,69 @@
+name: Build Docker image and push to GHCR, deploy Bot to Dokploy (experimental)
+
+on:
+  pull_request:
+    paths:
+      - "wa-bot/src/**"
+      - "wa-bot/package.json"
+      - "wa-bot/pnpm-lock.yaml"
+      - "wa-bot/pnpm-workspace.yaml"
+      - "wa-bot/tsconfig.json"
+      - "wa-bot/Dockerfile"
+      - ".github/workflows/wa-bot-experimental.yml"
+
+concurrency:
+  group: wa-bot-experimental-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    if: startsWith(github.head_ref, 'exp-') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: read
+
+    steps:
+      # Only one exp- PR may own the experimental env: the oldest open one wins.
+      - name: Ensure this is the oldest open exp- PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          oldest=$(gh pr list --repo "${{ github.repository }}" --state open --limit 200 \
+            --json number,headRefName \
+            --jq '[.[] | select(.headRefName | startswith("exp-")) | .number] | min')
+          if [ "$oldest" != "${{ github.event.pull_request.number }}" ]; then
+            echo "::error::Experimental env is held by PR #$oldest. Re-run this job after it is closed or merged."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Bot Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./wa-bot
+          file: ./wa-bot/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/impactscope-organization/wobsongo/bot:latest-exp
+          platforms: linux/amd64
+
+      - name: Trigger Dokploy Deployment
+        run: |
+          echo "Triggering Dokploy deploy for app ${{ vars.DOKPLOY_BOT_EXPERIMENTAL_APPLICATION_ID }}..."
+          curl -X POST \
+            "${{ vars.DOKPLOY_URL }}/api/application.deploy" \
+            -H "accept: application/json" \
+            -H "x-api-key: ${{ secrets.DOKPLOY_AUTH_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"applicationId\": \"${{ vars.DOKPLOY_BOT_EXPERIMENTAL_APPLICATION_ID }}\"}"

@@ -22,4 +22,8 @@ var (
 	// ErrQueueFull indicates a background queue has reached its maximum
 	// number of waiting jobs and is not accepting new ones right now.
 	ErrQueueFull = errors.New("queue is full")
+
+	// ErrMediaUnavailable indicates that no downloadable media exists for a
+	// video, for example because it was deleted or made private.
+	ErrMediaUnavailable = errors.New("media unavailable")
 )

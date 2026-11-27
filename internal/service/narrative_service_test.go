@@ -941,3 +941,53 @@ func TestCosineSimilarity(t *testing.T) {
 		})
 	}
 }
+
+func TestNarrativeService_ClusterClaim_MarksVideoClustered(t *testing.T) {
+	t.Run("ChecksTheVideoOfAVideoClaim", func(t *testing.T) {
+		f := newClusterFixture(nil)
+		videoID := uuid.New()
+		f.claim.VideoID = &videoID
+		f.repo.MarkVideoClusteredFunc = func(context.Context, uuid.UUID) (bool, error) {
+			return true, nil
+		}
+		s := NewNarrativeService(f.repo, &narrativeStubEmbedder{}, f.generator, testMatchThreshold)
+
+		if err := s.ClusterClaim(t.Context(), f.claim.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		calls := f.repo.MarkVideoClusteredCalls()
+		if len(calls) != 1 || calls[0].VideoID != videoID {
+			t.Errorf("expected one check for video %s, got %+v", videoID, calls)
+		}
+	})
+
+	t.Run("MessageClaimDoesNotTouchVideos", func(t *testing.T) {
+		f := newClusterFixture(nil)
+		s := NewNarrativeService(f.repo, &narrativeStubEmbedder{}, f.generator, testMatchThreshold)
+
+		if err := s.ClusterClaim(t.Context(), f.claim.ID); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if n := len(f.repo.MarkVideoClusteredCalls()); n != 0 {
+			t.Errorf("expected no video check for a message claim, got %d", n)
+		}
+	})
+
+	t.Run("CheckFailureFailsTheJob", func(t *testing.T) {
+		f := newClusterFixture(nil)
+		videoID := uuid.New()
+		f.claim.VideoID = &videoID
+		f.repo.MarkVideoClusteredFunc = func(context.Context, uuid.UUID) (bool, error) {
+			return false, data.ErrInternal
+		}
+		s := NewNarrativeService(f.repo, &narrativeStubEmbedder{}, f.generator, testMatchThreshold)
+
+		err := s.ClusterClaim(t.Context(), f.claim.ID)
+
+		if !errors.Is(err, data.ErrInternal) {
+			t.Fatalf("expected the repo error, got %v", err)
+		}
+	})
+}

@@ -25,11 +25,11 @@ const (
 	ScreenDispatchMaxWorkers = 1
 )
 
-// screenUniqueStates are the job states in which an identical screening job
+// videoJobUniqueStates are the job states in which an identical screening job
 // counts as a duplicate. Completed jobs are left out on purpose: a finished
 // job must never block a new one, for example when a video is put back to
 // 'discovered' to be screened again.
-var screenUniqueStates = []rivertype.JobState{
+var videoJobUniqueStates = []rivertype.JobState{
 	rivertype.JobStateAvailable,
 	rivertype.JobStatePending,
 	rivertype.JobStateRunning,
@@ -53,7 +53,7 @@ func (ScreenMultipleVideoJob) InsertOpts() river.InsertOpts {
 		MaxAttempts: 1,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:  true,
-			ByState: screenUniqueStates,
+			ByState: videoJobUniqueStates,
 		},
 	}
 }
@@ -76,7 +76,7 @@ func (ScreenSingleVideoJob) InsertOpts() river.InsertOpts {
 		MaxAttempts: ScreenMaxAttempts,
 		UniqueOpts: river.UniqueOpts{
 			ByArgs:  true,
-			ByState: screenUniqueStates,
+			ByState: videoJobUniqueStates,
 		},
 	}
 }

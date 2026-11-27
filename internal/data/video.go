@@ -38,11 +38,12 @@ type VideoRepoer interface {
 	// video of an influencer, oldest first.
 	ListVideoTimesByInfluencerID(ctx context.Context, influencerID uuid.UUID) ([]time.Time, error)
 
-	// ListDiscoveredVideos returns up to limit videos still in the
-	// 'discovered' status, oldest first, that come after the position
-	// (afterCreatedAt, afterID). Only ID and CreatedAt are filled in.
-	ListDiscoveredVideos(
+	// ListVideosByStatus returns up to limit videos in status, oldest first,
+	// that come after the position (afterCreatedAt, afterID). Only ID and
+	// CreatedAt are filled in.
+	ListVideosByStatus(
 		ctx context.Context,
+		status model.VideoStatus,
 		limit int32,
 		afterCreatedAt time.Time,
 		afterID uuid.UUID,
@@ -65,14 +66,47 @@ type VideoRepoer interface {
 	// queue. enqueued is false when an identical job is already in the queue.
 	EnqueueScreenSingleVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
 
-	// SetVideoScreenFailed moves a 'discovered' video to the 'failed' status
-	// with reason as its error, and reports whether it did. false means the
-	// video was no longer 'discovered'.
-	SetVideoScreenFailed(ctx context.Context, id uuid.UUID, reason string) (bool, error)
-
-	// EnqueueScreenMultipleVideoJob adds the job that enqueues a screening job for
+	// EnqueueScreenVideosJob adds the job that enqueues a screening job for
 	// every discovered video to the River queue.
 	EnqueueScreenMultipleVideoJob(ctx context.Context) error
+
+	// GetVideoForTranscription returns the video with only ID, VideoURL and
+	// MediaURL filled in, or ErrNotFound if it does not exist or is no longer
+	// in the 'screened_in' status.
+	GetVideoForTranscription(ctx context.Context, id uuid.UUID) (*model.Video, error)
+
+	// SetVideoMediaURL stores the media URL of a 'screened_in' video.
+	SetVideoMediaURL(ctx context.Context, id uuid.UUID, mediaURL string) error
+
+	// SetVideoTranscribed stores the transcript (empty means no speech) and
+	// moves a 'screened_in' video to 'transcribed'. It reports false when the
+	// video was no longer 'screened_in'.
+	SetVideoTranscribed(ctx context.Context, id uuid.UUID, transcript string) (bool, error)
+
+	// EnqueueTranscribeVideoJob adds a transcription job for one video to the
+	// River queue. enqueued is false when an identical job is already queued.
+	EnqueueTranscribeVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
+
+	// GetVideoForAnalysis returns the video with only ID, TranscriptionText and
+	// VideoCreatedAt filled in, or ErrNotFound if it does not exist or is no
+	// longer in the 'transcribed' status.
+	GetVideoForAnalysis(ctx context.Context, id uuid.UUID) (*model.Video, error)
+
+	// SetVideoAnalyzed moves a 'transcribed' video to status and stamps
+	// analyzed_at. It reports false when the video was no longer 'transcribed'.
+	SetVideoAnalyzed(ctx context.Context, id uuid.UUID, status model.VideoStatus) (bool, error)
+
+	// EnqueueAnalyzeVideoJob adds an analysis job for one video to the River queue.
+	EnqueueAnalyzeVideoJob(ctx context.Context, videoID uuid.UUID) (enqueued bool, err error)
+
+	// SetVideoFailed moves a video that is still in fromStatus to 'failed'.
+	// It reports false when the video had already moved on.
+	SetVideoFailed(
+		ctx context.Context,
+		id uuid.UUID,
+		fromStatus model.VideoStatus,
+		stage, reason string,
+	) (bool, error)
 
 	// WithTx executes a function within a database transaction.
 	TxAware[VideoRepoer]

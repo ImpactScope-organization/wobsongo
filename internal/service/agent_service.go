@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
 	"regexp"
@@ -499,11 +498,9 @@ func (s *AgentService) loadBotSettings(ctx context.Context, jid string) model.Bo
 	if s.botSettings == nil {
 		return model.BotSettings{}
 	}
-	settings, err := s.botSettings.Get(ctx, jid)
+	settings, err := s.botSettings.GetEffective(ctx, jid)
 	if err != nil {
-		if !errors.Is(err, data.ErrNotFound) {
-			log.Printf("[AgentService] failed to load bot settings for JID=%s: %v", jid, err)
-		}
+		log.Printf("[AgentService] failed to load bot settings for JID=%s: %v", jid, err)
 		return model.BotSettings{}
 	}
 	return *settings

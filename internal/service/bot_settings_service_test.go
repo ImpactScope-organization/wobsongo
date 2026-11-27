@@ -72,3 +72,146 @@ func TestBotSettingsService_Update_Validation(t *testing.T) {
 		})
 	}
 }
+
+func TestBotSettingsService_WithDefaults_Validation(t *testing.T) {
+	tests := []struct {
+		name    string
+		tone    model.BotTone
+		length  model.BotLength
+		wantErr bool
+	}{
+		{"both empty", "", "", false},
+		{"valid tone only", model.BotToneFriendly, "", false},
+		{"valid length only", "", model.BotLengthShort, false},
+		{"valid both", model.BotToneAcademic, model.BotLengthExpert, false},
+		{"unknown tone", "santai", "", true},
+		{"unknown length", "", "huge", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := NewBotSettingsService(&mockrepo.BotSettingsRepoerMock{}).
+				WithDefaults(tt.tone, tt.length)
+			if tt.wantErr && !errors.Is(err, ErrInvalidBotSetting) {
+				t.Errorf("expected ErrInvalidBotSetting, got %v", err)
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestBotSettingsService_GetEffective(t *testing.T) {
+	const (
+		defTone   = model.BotToneFriendly
+		defLength = model.BotLengthLong
+	)
+
+	tests := []struct {
+		name       string
+		stored     *model.BotSettings
+		storedErr  error
+		wantTone   model.BotTone
+		wantLength model.BotLength
+	}{
+		{
+			name:       "no row uses both defaults",
+			storedErr:  data.ErrNotFound,
+			wantTone:   defTone,
+			wantLength: defLength,
+		},
+		{
+			name:       "only tone set: length falls back to default",
+			stored:     &model.BotSettings{JID: "jid-1", Tone: model.BotToneAcademic},
+			wantTone:   model.BotToneAcademic,
+			wantLength: defLength,
+		},
+		{
+			name:       "only length set: tone falls back to default",
+			stored:     &model.BotSettings{JID: "jid-1", Length: model.BotLengthShort},
+			wantTone:   defTone,
+			wantLength: model.BotLengthShort,
+		},
+		{
+			name: "user's own values always win",
+			stored: &model.BotSettings{
+				JID: "jid-1", Tone: model.BotToneFormal, Length: model.BotLengthExpert,
+			},
+			wantTone:   model.BotToneFormal,
+			wantLength: model.BotLengthExpert,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &mockrepo.BotSettingsRepoerMock{
+				GetFunc: func(context.Context, string) (*model.BotSettings, error) {
+					return tt.stored, tt.storedErr
+				},
+			}
+			svc, err := NewBotSettingsService(repo).WithDefaults(defTone, defLength)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			got, err := svc.GetEffective(t.Context(), "jid-1")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got.JID != "jid-1" || got.Tone != tt.wantTone || got.Length != tt.wantLength {
+				t.Errorf("got %+v, want jid-1/%s/%s", got, tt.wantTone, tt.wantLength)
+			}
+		})
+	}
+}
+
+func TestBotSettingsService_GetEffective_NoDefaultsKeepsBaseline(t *testing.T) {
+	repo := &mockrepo.BotSettingsRepoerMock{
+		GetFunc: func(context.Context, string) (*model.BotSettings, error) {
+			return nil, data.ErrNotFound
+		},
+	}
+
+	got, err := NewBotSettingsService(repo).GetEffective(t.Context(), "jid-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Tone != "" || got.Length != "" {
+		t.Errorf("expected empty tone/length (baseline), got %+v", got)
+	}
+}
+
+func TestBotSettingsService_GetEffective_PropagatesRepoError(t *testing.T) {
+	boom := errors.New("db down")
+	repo := &mockrepo.BotSettingsRepoerMock{
+		GetFunc: func(context.Context, string) (*model.BotSettings, error) {
+			return nil, boom
+		},
+	}
+
+	_, err := NewBotSettingsService(repo).GetEffective(t.Context(), "jid-1")
+	if !errors.Is(err, boom) {
+		t.Errorf("expected the repo error, got %v", err)
+	}
+}
+
+func TestBotSettingsService_GetEffective_DoesNotMutateStoredRow(t *testing.T) {
+	stored := &model.BotSettings{JID: "jid-1"}
+	repo := &mockrepo.BotSettingsRepoerMock{
+		GetFunc: func(context.Context, string) (*model.BotSettings, error) {
+			return stored, nil
+		},
+	}
+	svc, err := NewBotSettingsService(repo).WithDefaults(model.BotToneFriendly, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := svc.GetEffective(t.Context(), "jid-1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if stored.Tone != "" {
+		t.Errorf("defaults must not leak into the repo's row, got %+v", stored)
+	}
+}

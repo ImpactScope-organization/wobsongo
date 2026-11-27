@@ -8,6 +8,7 @@ import (
 	"github.com/impactscope-organization/wobsongo/internal"
 	"github.com/impactscope-organization/wobsongo/internal/data"
 	"github.com/impactscope-organization/wobsongo/internal/db"
+	"github.com/impactscope-organization/wobsongo/internal/model"
 	"github.com/impactscope-organization/wobsongo/internal/queue"
 	"github.com/impactscope-organization/wobsongo/internal/repo"
 	"github.com/impactscope-organization/wobsongo/internal/service"
@@ -153,9 +154,17 @@ var serveCmd = &cobra.Command{
 		agentVideoService := service.NewVideoService(agentVideoRepo)
 		workerConversationRepo := repo.NewConversationRepo(db.New(pool), pool, riverClientFn)
 		workerConversationService := service.NewConversationService(workerConversationRepo)
-		workerBotSettingsService := service.NewBotSettingsService(
+		workerBotSettingsService, err := service.NewBotSettingsService(
 			repo.NewBotSettingsRepo(db.New(pool), pool),
+		).WithDefaults(
+			model.BotTone(config.BotDefaultsConfig.Tone),
+			model.BotLength(config.BotDefaultsConfig.Length),
 		)
+		if err != nil {
+			cmd.PrintErrf("Config error: %s\n", err.Error())
+			os.Exit(1)
+			return
+		}
 		// register workers with River
 		workers := river.NewWorkers()
 
@@ -340,15 +349,14 @@ var serveCmd = &cobra.Command{
 		)
 		if crawlEnabled {
 			videoRepo := repo.NewVideoRepo(db.New(pool), pool, riverClientFn)
-			tikTokScraper := external.NewTikTokScraperClient(
-				config.ApifyConfig.Token,
-				config.ApifyConfig.TikTokActorID,
-			)
 			crawlService = service.NewCrawlService(
 				repo.NewCrawlerRepo(db.New(pool), pool),
 				repo.NewInfluencerRepo(db.New(pool), pool),
 				videoRepo,
-				tikTokScraper,
+				external.NewTikTokScraperClient(
+					config.ApifyConfig.Token,
+					config.ApifyConfig.TikTokActorID,
+				),
 			)
 			river.AddWorker(workers, worker.NewDiscoverVideosWorker(crawlService))
 			river.AddWorker(workers, worker.NewMonitorCreatorWorker(crawlService))
@@ -356,18 +364,6 @@ var serveCmd = &cobra.Command{
 			river.AddWorker(workers, worker.NewScreenMultipleVideoWorker(screenService))
 			river.AddWorker(workers, worker.NewScreenSingleVideoWorker(screenService))
 			crawlScheduler = worker.NewCrawlScheduler(riverClientFn)
-			transcribeService := service.NewTranscribeService(videoRepo, tikTokScraper, asrClient)
-			river.AddWorker(
-				workers,
-				worker.NewTranscribeSingleDiscoveredVideoWorker(transcribeService),
-			)
-			analyzeService := service.NewAnalyzeService(videoRepo, workerClaimService)
-			river.AddWorker(workers, worker.NewAnalyzeSingleVideoWorker(analyzeService))
-			river.AddWorker(
-				workers,
-				worker.NewTranscribeMultipleDiscoveredVideoWorker(transcribeService),
-			)
-			river.AddWorker(workers, worker.NewAnalyzeMultipleVideoWorker(analyzeService))
 		}
 
 		// Scheduled periodic jobs by River.
@@ -403,20 +399,6 @@ var serveCmd = &cobra.Command{
 					},
 					&river.PeriodicJobOpts{RunOnStart: true},
 				),
-				river.NewPeriodicJob(
-					river.PeriodicInterval(queue.TranscribeCheckInterval),
-					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.TranscribeMultipleDiscoveredVideoJob{}, nil
-					},
-					&river.PeriodicJobOpts{RunOnStart: true},
-				),
-				river.NewPeriodicJob(
-					river.PeriodicInterval(queue.AnalyzeCheckInterval),
-					func() (river.JobArgs, *river.InsertOpts) {
-						return queue.AnalyzeMultipleVideoJob{}, nil
-					},
-					&river.PeriodicJobOpts{RunOnStart: true},
-				),
 			)
 		}
 
@@ -439,14 +421,10 @@ var serveCmd = &cobra.Command{
 				queue.QueueNarrativeClustering: {
 					MaxWorkers: queue.DefaultNarrativeClusteringMaxWorkers,
 				},
-				queue.QueueCrawler:            {MaxWorkers: queue.CrawlerMaxWorkers},
-				queue.QueueScreening:          {MaxWorkers: config.ScreenConfig.MaxConcurrency},
-				queue.QueueScreenDispatch:     {MaxWorkers: queue.ScreenDispatchMaxWorkers},
-				queue.QueueClaimBackfill:      {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
-				queue.QueueTranscription:      {MaxWorkers: config.TranscribeConfig.MaxConcurrency},
-				queue.QueueAnalysis:           {MaxWorkers: config.AnalyzeConfig.MaxConcurrency},
-				queue.QueueTranscribeDispatch: {MaxWorkers: queue.TranscribeDispatchMaxWorkers},
-				queue.QueueAnalyzeDispatch:    {MaxWorkers: queue.AnalyzeDispatchMaxWorkers},
+				queue.QueueCrawler:        {MaxWorkers: queue.CrawlerMaxWorkers},
+				queue.QueueScreening:      {MaxWorkers: config.ScreenConfig.MaxConcurrency},
+				queue.QueueScreenDispatch: {MaxWorkers: queue.ScreenDispatchMaxWorkers},
+				queue.QueueClaimBackfill:  {MaxWorkers: queue.DefaultClaimBackfillMaxWorkers},
 			},
 			Workers:      workers,
 			PeriodicJobs: periodicJobs,

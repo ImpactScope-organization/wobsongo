@@ -293,17 +293,14 @@ type ScreenConfig struct {
 	MaxConcurrency int `json:"max_concurrency"`
 }
 
-// TranscribeConfig holds the configuration of the video transcription job.
-type TranscribeConfig struct {
-	// MaxConcurrency is the number of videos transcribed at the same time
-	// (one Apify run and one ASR call each).
-	MaxConcurrency int `json:"max_concurrency"`
-}
+// BotDefaultsConfig holds the response settings used for chats that never
+// set their own.
+type BotDefaultsConfig struct {
+	// Tone is one of formal, academic, friendly, or empty.
+	Tone string `json:"tone"`
 
-// AnalyzeConfig holds the configuration of the video analysis job.
-type AnalyzeConfig struct {
-	// MaxConcurrency is the number of videos analyzed at the same time.
-	MaxConcurrency int `json:"max_concurrency"`
+	// Length is one of short, medium, long, expert, or empty.
+	Length string `json:"length"`
 }
 
 // MockTTSEndpointPrefix is the MODAL_TTS_ENDPOINT value prefix that selects the
@@ -375,9 +372,8 @@ type Config struct {
 	ClaimCheckConfig       *ClaimCheckConfig  `json:"claim_check_config"`   // Claim-checking configuration (scope analysis + verdict judging)
 	NarrativeConfig        *NarrativeConfig   `json:"narrative_config"`     // Configuration for the claim-to-narrative flow
 	ScreenConfig           *ScreenConfig      `json:"screen_config"`        // Configuration for video screening
-	TranscribeConfig       *TranscribeConfig  `json:"transcribe_config"`    // Configuration for video transcription
-	AnalyzeConfig          *AnalyzeConfig     `json:"analyze_config"`       // Configuration for video analysis
 	PrivacyWhitelistEmails []string           `json:"-"`                    // Emails allowed to see unredacted creator data
+	BotDefaultsConfig      *BotDefaultsConfig `json:"bot_defaults_config"`  // Default bot tone/length for chats without their own settings
 
 	// GoogleClientID is the OAuth 2.0 client ID for Google Sign-In.
 	// Used server-side to verify Google ID tokens from the frontend.
@@ -496,13 +492,7 @@ func (c *Config) IsOK() error {
 	if err := c.narrativeOK(); err != nil {
 		return err
 	}
-	if err := c.screenOK(); err != nil {
-		return err
-	}
-	if err := c.transcribeOK(); err != nil {
-		return err
-	}
-	return c.analyzeOK()
+	return c.screenOK()
 }
 
 // asrOK checks the Modal ASR configuration.
@@ -589,28 +579,6 @@ func validateModalEndpoint(name, rawURL string) error {
 	}
 	if !strings.HasSuffix(u.Hostname(), ".modal.run") {
 		return fmt.Errorf("%s host %q is not an allowed modal.run domain", name, u.Hostname())
-	}
-	return nil
-}
-
-// transcribeOK checks the video transcription configuration.
-func (c *Config) transcribeOK() error {
-	if c.TranscribeConfig == nil {
-		return errors.New("TranscribeConfig is not set")
-	}
-	if n := c.TranscribeConfig.MaxConcurrency; n < 1 {
-		return fmt.Errorf("TRANSCRIBE_MAX_CONCURRENCY must be at least 1, got %d", n)
-	}
-	return nil
-}
-
-// analyzeOK checks the video analysis configuration.
-func (c *Config) analyzeOK() error {
-	if c.AnalyzeConfig == nil {
-		return errors.New("AnalyzeConfig is not set")
-	}
-	if n := c.AnalyzeConfig.MaxConcurrency; n < 1 {
-		return fmt.Errorf("ANALYZE_MAX_CONCURRENCY must be at least 1, got %d", n)
 	}
 	return nil
 }
@@ -782,15 +750,9 @@ func NewConfig(envs ...string) *Config {
 		MaxConcurrency: getEnvInt("SCREEN_MAX_CONCURRENCY", queue.DefaultScreenConcurrency),
 	}
 
-	transcribeConfig := &TranscribeConfig{
-		MaxConcurrency: getEnvInt(
-			"TRANSCRIBE_MAX_CONCURRENCY",
-			queue.DefaultTranscribeConcurrency,
-		),
-	}
-
-	analyzeConfig := &AnalyzeConfig{
-		MaxConcurrency: getEnvInt("ANALYZE_MAX_CONCURRENCY", queue.DefaultAnalyzeConcurrency),
+	botDefaultsConfig := &BotDefaultsConfig{
+		Tone:   strings.ToLower(strings.TrimSpace(getEnv("BOT_DEFAULT_TONE", ""))),
+		Length: strings.ToLower(strings.TrimSpace(getEnv("BOT_DEFAULT_LENGTH", ""))),
 	}
 
 	// Parse Docling configuration
@@ -844,8 +806,6 @@ func NewConfig(envs ...string) *Config {
 		TTSConfig:               ttsConfig,
 		NarrativeConfig:         narrativeConfig,
 		ScreenConfig:            screenConfig,
-		TranscribeConfig:        transcribeConfig,
-		AnalyzeConfig:           analyzeConfig,
 		VoiceMediaConfig:        voiceMediaConfig,
 		DoclingBaseURL:          doclingBaseURL,
 		VLMConfig:               vlmConfig,
@@ -858,6 +818,7 @@ func NewConfig(envs ...string) *Config {
 		ClaimCheckConfig:        claimCheckConfig,
 		InfluencerMonitorConfig: influencerMonitorConfig,
 		PrivacyWhitelistEmails:  privacyWhitelistEmails,
+		BotDefaultsConfig:       botDefaultsConfig,
 	}
 	return defaultConfig
 }

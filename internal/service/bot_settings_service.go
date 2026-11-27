@@ -22,11 +22,56 @@ var (
 // BotSettingsService wraps the bot's per-jid response preferences repo.
 type BotSettingsService struct {
 	botSettingsRepo data.BotSettingsRepoer
+	defaultTone     model.BotTone
+	defaultLength   model.BotLength
 }
 
-// NewBotSettingsService creates a new BotSettingsService.
+// NewBotSettingsService creates a new BotSettingsService with no defaults
+// (the baseline reply applies to chats that never set anything).
 func NewBotSettingsService(botSettingsRepo data.BotSettingsRepoer) *BotSettingsService {
 	return &BotSettingsService{botSettingsRepo: botSettingsRepo}
+}
+
+// WithDefaults sets the tone/length used for chats that never chose their own.
+// An empty value keeps the baseline for that field.
+func (s *BotSettingsService) WithDefaults(
+	tone model.BotTone,
+	length model.BotLength,
+) (*BotSettingsService, error) {
+	if tone != "" && !tone.Valid() {
+		return nil, fmt.Errorf("%w: default tone %q", ErrInvalidBotSetting, tone)
+	}
+	if length != "" && !length.Valid() {
+		return nil, fmt.Errorf("%w: default length %q", ErrInvalidBotSetting, length)
+	}
+	s.defaultTone = tone
+	s.defaultLength = length
+	return s, nil
+}
+
+// GetEffective returns the settings to apply for the given jid: the user's own
+// tone/length, with the configured default filling in any field the user never
+// set (or every field when the jid has no row).
+func (s *BotSettingsService) GetEffective(
+	ctx context.Context,
+	jid string,
+) (*model.BotSettings, error) {
+	settings, err := s.botSettingsRepo.Get(ctx, jid)
+	switch {
+	case errors.Is(err, data.ErrNotFound):
+		settings = &model.BotSettings{JID: jid}
+	case err != nil:
+		return nil, err
+	}
+
+	effective := *settings
+	if effective.Tone == "" {
+		effective.Tone = s.defaultTone
+	}
+	if effective.Length == "" {
+		effective.Length = s.defaultLength
+	}
+	return &effective, nil
 }
 
 // Get returns the settings for the given jid, or data.ErrNotFound when the

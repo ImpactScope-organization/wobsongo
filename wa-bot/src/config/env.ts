@@ -32,7 +32,7 @@ export const env = {
   // Validate X-Twilio-Signature on /webhook. Off by default.
   twilioValidateSignature: process.env.TWILIO_VALIDATE_SIGNATURE === 'true',
 
-  // Telegram bot token
+  // Telegram bot Token
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN,
 
   // Public base URL of this bot. Twilio fetches reply audio from it.

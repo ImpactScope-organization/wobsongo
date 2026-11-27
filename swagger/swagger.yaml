@@ -135,6 +135,10 @@ definitions:
       source:
         description: Source is "chunk" or "fact".
         type: string
+      table_markdown:
+        description: TableMarkdown contains the full Markdown table for table-backed
+          citations.
+        type: string
       text:
         description: Text is the matched text — a chunk's text, or a fact's subject-predicate-object.
         type: string

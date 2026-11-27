@@ -51,6 +51,9 @@ type RAGResult struct {
 	// claim judge) the surrounding context a bare SPO fact doesn't carry on
 	// its own. Empty for chunk-source hits, which already ARE the chunk.
 	ChunkText string
+	// TableMarkdown is the complete Markdown representation of a source table.
+	// It is carried separately for citation display.
+	TableMarkdown string
 	// ChunkID is the chunk this hit traces back to — the hit's own ID for
 	// chunk-source results, or the parent chunk's ID for fact-source results
 	// (see hydrateFactChunks). Lets a caller (e.g. a claim check's citations)
@@ -174,6 +177,7 @@ func (s *RAGService) hydrateFactChunks(ctx context.Context, results []RAGResult)
 			return fmt.Errorf("failed to fetch parent chunk %s: %w", results[i].ChunkID, err)
 		}
 		results[i].ChunkText = chunk.Text
+		results[i].TableMarkdown = chunk.TableMarkdown
 	}
 	return nil
 }
@@ -185,14 +189,15 @@ func mapChunkResults(
 	out := make([]RAGResult, len(results))
 	for i, r := range results {
 		out[i] = RAGResult{
-			Key:        "chunk:" + r.Item.ID.String(),
-			Source:     "chunk",
-			Methods:    []string{method},
-			DocumentID: r.Item.DocumentID,
-			Text:       r.Item.Text,
-			Page:       r.Item.Page,
-			Language:   r.Item.Language,
-			ChunkID:    r.Item.ID,
+			Key:           "chunk:" + r.Item.ID.String(),
+			Source:        "chunk",
+			Methods:       []string{method},
+			DocumentID:    r.Item.DocumentID,
+			Text:          r.Item.Text,
+			TableMarkdown: r.Item.TableMarkdown,
+			Page:          r.Item.Page,
+			Language:      r.Item.Language,
+			ChunkID:       r.Item.ID,
 		}
 	}
 	return out

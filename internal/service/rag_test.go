@@ -105,12 +105,18 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 	factID := uuid.New()
 	docID := uuid.New()
 
+	tableMarkdown := "| Condition | Dosage |\n" +
+		"| --- | --- |\n" +
+		"| Condition B | 20 mg |"
+
 	chunk := model.DocumentChunk{
 		ID:         chunkID,
 		DocumentID: docID,
 		ParsedChunk: model.ParsedChunk{
-			Text: "chunk text",
-			Page: 3,
+			Text:          "Table:\n\n- Row 2: Condition: Condition B; Dosage: 20 mg",
+			TableMarkdown: tableMarkdown,
+			Page:          3,
+			LayoutType:    model.LayoutTypeTable,
 		},
 	}
 	fact := model.AtomicKnowledge{
@@ -181,10 +187,16 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 	if results[0].TruthTier != "axiomatic" {
 		t.Errorf("expected TruthTier %q, got %q", "axiomatic", results[0].TruthTier)
 	}
-	if results[0].ChunkText != "chunk text" {
+	if results[0].ChunkText != chunk.Text {
 		t.Errorf(
 			"expected the fact hit's ChunkText hydrated from its parent chunk, got %q",
 			results[0].ChunkText,
+		)
+	}
+	if results[0].TableMarkdown != tableMarkdown {
+		t.Errorf(
+			"expected fact TableMarkdown hydrated from parent chunk, got %q",
+			results[0].TableMarkdown,
 		)
 	}
 	if results[1].Key != "chunk:"+chunkID.String() {
@@ -197,6 +209,13 @@ func TestRAGService_Search_FusesAcrossAllFiveMethods(t *testing.T) {
 		t.Errorf(
 			"expected a chunk-source hit's ChunkText to stay empty, got %q",
 			results[1].ChunkText,
+		)
+	}
+	if results[1].TableMarkdown != tableMarkdown {
+		t.Errorf(
+			"expected chunk hit TableMarkdown %q, got %q",
+			tableMarkdown,
+			results[1].TableMarkdown,
 		)
 	}
 }

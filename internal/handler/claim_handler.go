@@ -77,11 +77,12 @@ func toClaimCheckResponse(result *service.ClaimCheckResult) dto.ClaimCheckRespon
 		citations := make([]dto.CitationResponse, len(sc.Citations))
 		for j, cit := range sc.Citations {
 			citations[j] = dto.CitationResponse{
-				Index:      cit.Index,
-				Source:     cit.Source,
-				DocumentID: cit.DocumentID,
-				ChunkID:    cit.ChunkID,
-				Text:       cit.Text,
+				Index:         cit.Index,
+				Source:        cit.Source,
+				DocumentID:    cit.DocumentID,
+				ChunkID:       cit.ChunkID,
+				Text:          cit.Text,
+				TableMarkdown: cit.TableMarkdown,
 			}
 		}
 		resp.SubClaims[i] = dto.SubClaimResponse{

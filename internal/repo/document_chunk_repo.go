@@ -317,11 +317,12 @@ func toModelDocumentChunk(d *db.DocumentChunk) *model.DocumentChunk {
 		Language:             model.Language(d.Language),
 		TextTranslated:       fromPgText(d.TextTranslated),
 		ParsedChunk: model.ParsedChunk{
-			Text:        d.Text,
-			Page:        int(d.Page),
-			LayoutType:  model.LayoutType(d.LayoutType),
-			BoundingBox: toBoundingBox(d.BoundingBox),
-			AssetURL:    d.AssetUrl,
+			Text:          d.Text,
+			TableMarkdown: d.TableMarkdown,
+			Page:          int(d.Page),
+			LayoutType:    model.LayoutType(d.LayoutType),
+			BoundingBox:   toBoundingBox(d.BoundingBox),
+			AssetURL:      d.AssetUrl,
 		},
 	}
 }
@@ -371,7 +372,9 @@ func fromPgText(t pgtype.Text) string {
 }
 
 // toCreateDocumentChunksBatchParams maps a model.DocumentChunk to sqlc's batch-insert params.
-func toCreateDocumentChunksBatchParams(c *model.DocumentChunk) db.CreateDocumentChunksBatchParams {
+func toCreateDocumentChunksBatchParams(
+	c *model.DocumentChunk,
+) db.CreateDocumentChunksBatchParams {
 	return db.CreateDocumentChunksBatchParams{
 		ID:              c.ID,
 		CreatedAt:       c.CreatedAt,
@@ -388,6 +391,7 @@ func toCreateDocumentChunksBatchParams(c *model.DocumentChunk) db.CreateDocument
 		AssetUrl:        c.AssetURL,
 		Language:        toInt32(int(c.Language)),
 		TextTranslated:  toPgText(c.TextTranslated),
+		TableMarkdown:   c.TableMarkdown,
 	}
 }
 
